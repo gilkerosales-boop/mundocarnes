@@ -3,7 +3,7 @@
    ========================================================================== */
 
 // IMPORTANTE: Reemplaza esta URL con el enlace de tu Web App publicada en Google Apps Script
-const API_URL = "https://script.google.com/macros/s/TU_NUEVO_ID_WEBAPP_AQUI/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
 
 // Función de comunicación REST con Google Apps Script sin bloqueo de CORS OPTIONS (preflight)
 async function callAPI(action, data = {}) {
