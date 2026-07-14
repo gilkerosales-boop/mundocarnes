@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mundocarnes - Pedidos Online</title>
+    <base target="_top">
+    <!-- Estilos Externos -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/css/intlTelInput.min.css">
+    <!-- Estilo Local -->
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <div class="container d-flex justify-content-center">
+      
+      <!-- Vista de Ingreso -->
+      <div id="vistaIngreso" class="panel-base login-container">
+        <img src="https://i.postimg.cc/7PBJBx4n/LOGO-MUNDO123.jpg" class="logo-header">
+        <h4 class="text-center mb-4 fw-bold">Acceso de Usuarios</h4>
+        <div class="mb-3">
+          <input type="text" class="form-control border-dark text-center fw-bold fs-5" id="cedula" placeholder="Ingrese Cédula o RIF" required>
+        </div>
+        <button type="button" id="btnSiguiente" class="btn btn-danger btn-lg w-100 fw-bold border border-dark" onclick="procesarPrimerPaso()">Siguiente</button>
+      </div>
+
+      <!-- Vista de Contraseña Administrativa -->
+      <div id="vistaAdminPassword" class="panel-base login-container hidden">
+        <img src="https://i.postimg.cc/7PBJBx4n/LOGO-MUNDO123.jpg" class="logo-header">
+        <h4 class="text-center mb-2 fw-bold text-danger">Acceso Administrativo</h4>
+        <p id="saludoAdmin" class="text-center fw-bold mb-3"></p>
+        <div class="mb-3">
+          <input type="password" class="form-control border-dark text-center fs-5" id="passwordAdmin" placeholder="Contraseña de Acceso" required>
+        </div>
+        <button type="button" id="btnAdminIngreso" class="btn btn-dark btn-lg w-100 fw-bold mb-2" onclick="verificarPasswordAdministrador()">Ingresar al Sistema</button>
+        <button type="button" class="btn btn-outline-secondary w-100 fw-bold" onclick="regresarAlInicio()">Cancelar</button>
+      </div>
+
+      <!-- Vista de Registro -->
+      <div id="vistaRegistro" class="panel-base login-container hidden">
+        <img src="https://i.postimg.cc/7PBJBx4n/LOGO-MUNDO123.jpg" class="logo-header">
+        <h4 class="text-center mb-1 fw-bold text-success">Formulario de Registro</h4>
+        <p class="text-center text-muted small mb-3">Su Cédula/RIF no está registrada.</p>
+        <input type="text" class="form-control border-dark mb-2 text-uppercase" id="regNombre" placeholder="Nombres" required>
+        <input type="text" class="form-control border-dark mb-2 text-uppercase" id="regApellido" placeholder="Apellidos" required>
+        
+        <!-- Campo de teléfono configurado para intl-tel-input -->
+        <input type="tel" class="form-control border-dark mb-3" id="regTelefono" required>
+        
+        <button type="button" id="btnRegistrar" class="btn btn-success btn-lg w-100 fw-bold border border-dark mb-2" onclick="ejecutarRegistroNuevoCliente()">Registrar y Comprar</button>
+        <button type="button" class="btn btn-outline-secondary w-100 fw-bold" onclick="regresarAlInicio()">Cancelar</button>
+      </div>
+      
+      <!-- Vista de Catálogo (Tabs Dinámicos) -->
+      <div id="vistaCombos" class="panel-base combos-container hidden">
+        <img src="https://i.postimg.cc/7PBJBx4n/LOGO-MUNDO123.jpg" class="logo-header">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <button type="button" class="btn btn-dark fw-bold" onclick="regresarAlInicio()">Cerrar Sesión 🚪</button>
+          <button type="button" id="btnAdminPanel" class="btn btn-info fw-bold border-dark hidden" onclick="abrirPanelAdmin()">Panel de Control 🛠️</button>
+          <button type="button" id="btnVerPedido" class="btn btn-warning fw-bold border-dark" onclick="mostrarPedido()">Ver Pedido 🛒</button>
+        </div>
+        <p id="saludoUsuario" class="text-center fw-bold mb-4 fs-5 text-dark"></p>
+        
+        <ul class="nav nav-tabs mb-4" id="catalogoTabs" role="tablist">
+          <!-- Renderizado Dinámico -->
+        </ul>
+        <div class="tab-content" id="catalogoTabContent">
+          <!-- Renderizado Dinámico -->
+        </div>
+      </div>
+      
+      <!-- Vista de Pedido Realizado -->
+      <div id="vistaPedido" class="panel-base combos-container hidden">
+        <h3 class="text-center fw-bold">Tu Pedido</h3>
+        <hr class="border-dark">
+        <div id="listaPedido" class="table-responsive"></div>
+        <button class="btn btn-danger w-100 mt-3 fw-bold border-dark" onclick="abrirSolicitudPago()">Realizar Solicitud 🚀</button>
+        <button class="btn btn-secondary w-100 mt-2 fw-bold border-dark" onclick="cerrarPedido()">Seguir Comprando</button>
+      </div>
+    </div>
+    
+    <!-- Overlay de Zoom de Imagen -->
+    <div id="overlayImagenGrande" onclick="cerrarImagenGrande(event)"><img id="imagenGrandePopUp" src="" alt="Zoom"></div>
+    
+    <!-- Modal Selección de Cantidad -->
+    <div class="modal fade" id="modalCantidad" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="tituloModal">Seleccionar</h5>
+          </div>
+          <div class="modal-body">
+            <p id="nombreProductoModal" class="fw-bold"></p>
+            <label id="labelInput" class="form-label">Cantidad:</label>
+            <input type="number" id="inputCantidad" class="form-control fw-bold fs-5 text-center">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-danger" onclick="confirmarSeleccion()">Agregar al carrito</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Edición y Configuración del Administrador -->
+    <div class="modal fade" id="modalEditarProducto" data-bs-backdrop="static" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-dark border-2">
+          <div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold">⚙️ Configurar Producto</h5></div>
+          <div class="modal-body">
+            <p id="editProductoNombre" class="fw-bold fs-5 mb-1"></p>
+            <p class="text-muted small mb-3">Categoría: <span id="editProductoCategoria" class="fw-bold text-dark"></span></p>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">Precio de Venta ($):</label>
+              <input type="number" id="editProductoPrecio" class="form-control border-dark fw-bold text-success fs-5" step="0.01" min="0.01">
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">Disponibilidad en Tienda:</label>
+              <select id="editProductoDisponible" class="form-select border-dark fw-bold">
+                <option value="true">✅ Disponible (A la venta)</option>
+                <option value="false">🚫 No Disponible (Agotado)</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Modo de Venta (Conteo):</label>
+              <select id="editProductoUnidad" class="form-select border-dark fw-bold">
+                <option value="unidades">Unidades (uds)</option>
+                <option value="gramos">Gramos (g)</option>
+              </select>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">Cantidad Mínima de Venta:</label>
+              <input type="number" id="editProductoMinimo" class="form-control border-dark fw-bold text-center" min="1">
+              <div class="form-text text-muted small">Mínimos lógicos: Unidades (mínimo usual: 1) | Peso (mínimo sugerido: 100g o 1000g).</div>
+            </div>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-warning fw-bold text-dark border border-dark" onclick="guardarEdicionAdministrador()">Guardar Cambios 💾</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Panel de Control Administrativo (Categorías y Productos) -->
+    <div class="modal fade" id="modalAdminPanel" data-bs-backdrop="static" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-dark border-2">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title fw-bold">🛠️ Panel de Control Administrativo</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+              <li class="nav-item">
+                <button class="nav-link active btn-sm" id="pills-cat-tab" data-bs-toggle="pill" data-bs-target="#pills-cat" type="button">Crear Categoría</button>
+              </li>
+              <li class="nav-item ms-2">
+                <button class="nav-link btn-sm" id="pills-add-tab" data-bs-toggle="pill" data-bs-target="#pills-add" type="button">Anexar Producto</button>
+              </li>
+              <li class="nav-item ms-2">
+                <button class="nav-link btn-sm" id="pills-del-tab" data-bs-toggle="pill" data-bs-target="#pills-del" type="button">Eliminar Producto</button>
+              </li>
+            </ul>
+            <hr class="border-dark mt-0">
+            
+            <div class="tab-content" id="pills-tabContent">
+              <!-- Crear Categoría -->
+              <div class="tab-pane fade show active" id="pills-cat">
+                <div class="mb-2">
+                  <label class="form-label fw-bold">Nombre de la Categoría:</label>
+                  <input type="text" id="adminCatNombre" class="form-control border-dark" placeholder="Ej: Chorizos">
+                </div>
+                <div class="row">
+                  <div class="col-md-6 mb-2">
+                    <label class="form-label fw-bold">Primer Producto:</label>
+                    <input type="text" id="adminCatProdNombre" class="form-control border-dark" placeholder="Ej: Chorizo Ahumado">
+                  </div>
+                  <div class="col-md-6 mb-2">
+                    <label class="form-label fw-bold">Precio ($):</label>
+                    <input type="number" id="adminCatProdPrecio" class="form-control border-dark" step="0.01" placeholder="9.50">
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold">URL de la Imagen:</label>
+                  <input type="text" id="adminCatProdImagen" class="form-control border-dark" placeholder="https://...">
+                </div>
+                <button type="button" class="btn btn-success w-100 fw-bold border-dark" onclick="ejecutarCrearCategoria()">Crear Categoría ✓</button>
+              </div>
+              
+              <!-- Anexar Producto -->
+              <div class="tab-pane fade" id="pills-add">
+                <div class="mb-2">
+                  <label class="form-label fw-bold">Seleccionar Categoría:</label>
+                  <select id="adminAddCatSelect" class="form-select border-dark"></select>
+                </div>
+                <div class="row">
+                  <div class="col-md-6 mb-2">
+                    <label class="form-label fw-bold">Nombre del Producto:</label>
+                    <input type="text" id="adminAddProdNombre" class="form-control border-dark" placeholder="Ej: Lomo de Cerdo">
+                  </div>
+                  <div class="col-md-6 mb-2">
+                    <label class="form-label fw-bold">Precio ($):</label>
+                    <input type="number" id="adminAddProdPrecio" class="form-control border-dark" step="0.01" placeholder="8.00">
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold">URL de la Imagen:</label>
+                  <input type="text" id="adminAddProdImagen" class="form-control border-dark" placeholder="https://...">
+                </div>
+                <button type="button" class="btn btn-primary w-100 fw-bold border-dark" onclick="ejecutarAnexarProducto()">Anexar Producto ✓</button>
+              </div>
+              
+              <!-- Eliminar Producto -->
+              <div class="tab-pane fade" id="pills-del">
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Seleccionar Categoría:</label>
+                  <select id="adminDelCatSelect" class="form-select border-dark" onchange="cargarProductosParaEliminar(this.value)"></select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Seleccionar Producto a Eliminar:</label>
+                  <select id="adminDelProdSelect" class="form-select border-dark"></select>
+                </div>
+                <button type="button" class="btn btn-danger w-100 fw-bold border-dark" onclick="ejecutarEliminarProducto()">Eliminar Producto ✕</button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Entrega y Formas de Pago -->
+    <div class="modal fade" id="modalSolicitudPago" data-bs-backdrop="static" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-dark border-2">
+          <div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold">📋 Entrega y Pago</h5></div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label fw-bold">Modalidad:</label>
+              <select id="tipoEntregaSelect" class="form-select border-dark fw-bold" onchange="alternarTipoEntrega(this.value)">
+                <option value="Delivery" selected>Delivery (A Domicilio) 🛵</option>
+                <option value="Pickup">Pickup (Retiro en Comercio) 🏪</option>
+              </select>
+            </div>
+            <div class="mb-3" id="contenedorUbicacion">
+              <label class="form-label fw-bold">Dirección corta:</label>
+              <input type="text" id="ubicacionEntrega" class="form-control border-dark" maxlength="60">
+              <div class="form-text text-end" id="charCounter">0 / 60 caracteres</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Forma de Pago:</label>
+              <select id="formaPagoSelect" class="form-select border-dark fw-bold">
+                <option value="" disabled selected>-- Seleccione --</option>
+                <option value="Efectivo Divisas">Efectivo Divisas</option>
+                <option value="Efectivo Bolívares">Efectivo Bolívares</option>
+                <option value="Pago Móvil">Pago Móvil</option>
+                <option value="Zelle">Zelle</option>
+                <option value="PayPal">PayPal</option>
+                <option value="Cashea + Efectivo Divisas">Cashea + Efectivo Divisas</option>
+                <option value="Cashea + Efectivo Bolívares">Cashea + Efectivo Bolívares</option>
+                <option value="Cashea + Pago Móvil">Cashea + Pago Móvil</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-danger fw-bold text-white" onclick="procesarEnvioSolicitud()">Enviar Solicitud 📲</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Confirmación Final -->
+    <div class="modal fade" id="modalConfirmacionFinal" data-bs-backdrop="static" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger border-2">
+          <div class="modal-header bg-danger text-white"><h5 class="modal-title fw-bold">⚠️ Importante</h5></div>
+          <div class="modal-body text-dark" id="cuerpoMensajeConfirmacion" style="font-size: 1.05rem; line-height: 1.5;"></div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-outline-secondary fw-bold" onclick="regresarAFormulario()">Modificar</button>
+            <button type="button" id="btnAceptarFinal" class="btn btn-success fw-bold px-4" onclick="ejecutarAccionFinal()">Aceptar ✓</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Éxito -->
+    <div class="modal fade" id="modalExito" data-bs-backdrop="static" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-success border-3 shadow-lg">
+          <div class="modal-body text-dark text-center p-4">
+            <h3 class="text-success fw-bold mb-4">¡Gracias por su compra! 🎉</h3>
+            <p>Nuestro asesor se contactará con usted vía <strong>WhatsApp</strong> para afinar detalles.</p>
+            <p class="fw-bold text-danger fs-5 mb-0 mt-3">¡Atento por favor! 📲</p>
+          </div>
+          <div class="modal-footer justify-content-center">
+            <button type="button" class="btn btn-success fw-bold px-5 rounded-pill" data-bs-dismiss="modal">Entendido ✓</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Toasts de Notificación -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+      <div id="liveToast" class="toast align-items-center text-white bg-dark border-0" role="alert">
+        <div class="d-flex">
+          <div class="toast-body" id="toastMensaje"></div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts de Control -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/intlTelInput.min.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
