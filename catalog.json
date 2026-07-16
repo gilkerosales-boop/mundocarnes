@@ -74,6 +74,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "COMBO FULL",
+          89,
+          "img/combo_full.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     }
