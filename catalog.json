@@ -239,6 +239,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "CHULETA DE COCHINO",
+          10.9,
+          "img/12.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
