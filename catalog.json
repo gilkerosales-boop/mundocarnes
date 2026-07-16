@@ -300,6 +300,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "ALAS",
+          4.99,
+          "img/66.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
