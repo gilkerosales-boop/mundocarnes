@@ -4,8 +4,8 @@
 
 // Configuración de tu repositorio de GitHub para guardar imágenes y el JSON
 const GITHUB_CONFIG = {
-  owner: "gilkerosales-boop",
-  repo: "mundocarnes",
+  owner: "gilkerosales-boop",         // Tu usuario de GitHub corregido
+  repo: "mundocarnes",                // Tu nombre de repositorio
   branch: "main"                      // Rama de tu despliegue (usualmente main)
 };
 
@@ -39,7 +39,7 @@ async function subirArchivoAGitHub(path, contentBase64, commitMessage) {
   let sha = null;
   try {
     const resInfo = await fetch(url, {
-      headers: { "Authorization": `token ${token}` }
+      headers: { "Authorization": `Bearer ${token}` }
     });
     if (resInfo.ok) {
       const info = await resInfo.json();
@@ -60,7 +60,7 @@ async function subirArchivoAGitHub(path, contentBase64, commitMessage) {
   const response = await fetch(url, {
     method: "PUT",
     headers: {
-      "Authorization": `token ${token}`,
+      "Authorization": `Bearer ${token}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify(body)
@@ -203,8 +203,14 @@ async function verificarPasswordAdministrador() {
   btn.textContent = "Validando Token...";
 
   try {
-    const response = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}`, {
-      headers: { "Authorization": `token ${token}` }
+    const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}`;
+    console.log("Intentando conectar con el repositorio en:", url); 
+    
+    const response = await fetch(url, {
+      headers: { 
+        "Authorization": `Bearer ${token}`, // Cambiado a Bearer para compatibilidad moderna
+        "Accept": "application/vnd.github+json"
+      }
     });
     
     if (response.ok) {
@@ -215,12 +221,21 @@ async function verificarPasswordAdministrador() {
         cacheUsuario.rol = "ADMIN";
         concederAccesoAlSistema();
       } else {
-        mostrarAviso("El token no cuenta con permisos de escritura en este repositorio.");
+        mostrarAviso("El token no cuenta con permisos de escritura (push) en este repositorio.");
       }
     } else {
-      mostrarAviso("Token inválido o repositorio inaccesible.");
+      console.error("Respuesta fallida de GitHub API. Código de Estado:", response.status);
+      
+      if (response.status === 404) {
+        mostrarAviso("Repositorio no encontrado. Verifique que 'owner' y 'repo' en script.js coincidan con su cuenta de GitHub.");
+      } else if (response.status === 401) {
+        mostrarAviso("Token inválido o incorrecto.");
+      } else {
+        mostrarAviso("Token inválido o repositorio inaccesible.");
+      }
     }
   } catch (error) {
+    console.error("Error en validación:", error);
     mostrarAviso("Error al validar credenciales.");
   } finally {
     btn.disabled = false;
@@ -393,7 +408,9 @@ async function guardarEdicionAdministrador() {
     btn.textContent = "Guardar Cambios 💾";
     bootstrap.Modal.getInstance(modalEl).hide();
     mostrarAviso("Producto guardado y sincronizado correctamente");
-    concederAccesoAlSistema(); // Recargar interfaz
+    
+    // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
+    renderizarCatalogo({ categorias: cacheCategorias });
 
   } catch (error) {
     btn.disabled = false;
@@ -518,6 +535,7 @@ function procesarEnvioSolicitud() {
 
 function regresarAFormulario() { bootstrap.Modal.getInstance(document.getElementById('modalConfirmacionFinal')).hide(); new bootstrap.Modal(document.getElementById('modalSolicitudPago')).show(); }
 
+// Nueva Función de confirmación instantánea: Remueve la carga síncrona en Sheets y redirige de inmediato
 function ejecutarAccionFinal() {
   let telConfirmado = "";
   
@@ -535,6 +553,7 @@ function ejecutarAccionFinal() {
   if (telConfirmado !== numeroOriginal) {
     cacheUsuario.telefono = telConfirmado;
     
+    // Llamada asíncrona ("fire-and-forget"). No bloquea el flujo principal de redirección
     callClientesAPI("actualizarTelefonoCliente", { cedula: cacheUsuario.cedula, nuevoTelefono: telConfirmado })
       .catch(function(err) {
         console.error("Error al actualizar teléfono en base de datos:", err);
@@ -554,8 +573,10 @@ function ejecutarAccionFinal() {
 
   let mensajeWA = `📱 *Teléfono:* ${cacheUsuario.telefono}\n👤 *Cliente:* ${cacheUsuario.nombre} ${cacheUsuario.apellido}\n📍 *Ubicación:* ${datosCheckout.ubicacion}\n\n🛒 *Pedido Solicitado:*\n${listaWA}\n💵 *Monto Aproximado:* $${total.toFixed(2)}\n💳 *Forma de Pago:* ${datosCheckout.formaPago}\n\n⚠️ *Nota Importante:* Entiendo y acepto que el monto total reflejado es una estimación. El pago final podría variar dependiendo del peso exacto de los productos al momento de prepararlos y de la tarifa aplicable al servicio de delivery. ✅`;
   
+  // Abre WhatsApp instantáneamente
   window.open(`https://wa.me/584121753275?text=${encodeURIComponent(mensajeWA)}`, '_blank');
   
+  // Resetear interfaz del carrito localmente
   bootstrap.Modal.getInstance(document.getElementById('modalConfirmacionFinal')).hide();
   document.getElementById('vistaPedido').classList.add('hidden'); 
   document.getElementById('vistaCombos').classList.remove('hidden');
@@ -564,6 +585,7 @@ function ejecutarAccionFinal() {
   btn.disabled = false;
   btn.textContent = "Aceptar ✓";
 
+  // Mostrar aviso de éxito local sin esperas de red
   new bootstrap.Modal(document.getElementById('modalExito')).show();
 }
 
@@ -634,7 +656,9 @@ async function ejecutarCrearCategoria() {
     btn.textContent = "Crear Categoría ✓";
     mostrarAviso("Categoría creada con éxito.");
     bootstrap.Modal.getInstance(modalEl).hide();
-    concederAccesoAlSistema();
+    
+    // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
+    renderizarCatalogo({ categorias: cacheCategorias });
 
   } catch (error) {
     btn.disabled = false;
@@ -684,7 +708,9 @@ async function ejecutarAnexarProducto() {
     btn.textContent = "Anexar Producto ✓";
     mostrarAviso("Producto anexado con éxito.");
     bootstrap.Modal.getInstance(modalEl).hide();
-    concederAccesoAlSistema();
+    
+    // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
+    renderizarCatalogo({ categorias: cacheCategorias });
 
   } catch (error) {
     btn.disabled = false;
@@ -722,7 +748,9 @@ async function ejecutarEliminarProducto() {
     btn.textContent = "Eliminar Producto ✕";
     mostrarAviso("Producto eliminado con éxito.");
     bootstrap.Modal.getInstance(modalEl).hide();
-    concederAccesoAlSistema();
+    
+    // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
+    renderizarCatalogo({ categorias: cacheCategorias });
 
   } catch (error) {
     btn.disabled = false;
