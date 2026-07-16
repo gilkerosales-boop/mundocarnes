@@ -409,6 +409,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "JAMON DE PIERNA",
+          9.9,
+          "img/jamon_cocido.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
