@@ -207,6 +207,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "LAGARTO CON HUESO",
+          8.9,
+          "img/8.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
