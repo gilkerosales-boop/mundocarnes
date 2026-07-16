@@ -193,6 +193,7 @@ function renderizarCatalogo(resp) {
   });
 }
 
+// Cargar Lista optimizado con lazy loading y decodificación asíncrona para liberar la red en la primera carga
 function cargarLista(idElemento, datos, nombreCategoria) {
   document.getElementById(idElemento).innerHTML = datos.map(f => {
     let esDisp = f[3]; let cantMin = f[4]; let unidad = f[5];
@@ -208,7 +209,8 @@ function cargarLista(idElemento, datos, nombreCategoria) {
     }
     
     let unidadTxt = (unidad === 'unidades') ? 'uds' : 'g';
-    return `<div class="col-6 col-md-3"><div class="card h-100 p-2 position-relative">${etiquetaDisp}<img src="${f[2]}" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${f[2]}')"><h6 class="fw-bold mt-2 text-truncate">${f[0]}</h6><p class="text-success fw-bold mb-0">${f[1]} $</p><small class="text-muted" style="font-size:0.7rem;">Mín: ${cantMin} ${unidadTxt}</small>${boton}</div></div>`;
+    // Incorporación de loading="lazy" y decoding="async" para optimizar el renderizado masivo
+    return `<div class="col-6 col-md-3"><div class="card h-100 p-2 position-relative">${etiquetaDisp}<img src="${f[2]}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${f[2]}')"><h6 class="fw-bold mt-2 text-truncate">${f[0]}</h6><p class="text-success fw-bold mb-0">${f[1]} $</p><small class="text-muted" style="font-size:0.7rem;">Mín: ${cantMin} ${unidadTxt}</small>${boton}</div></div>`;
   }).join('');
 }
 
