@@ -324,6 +324,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "BOLSA DE MUSLO 5Kg",
+          19.5,
+          "img/99.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
