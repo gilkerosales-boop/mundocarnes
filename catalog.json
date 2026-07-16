@@ -534,6 +534,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "PASTA CORTA RONCO CARACOL 500g",
+          1.4,
+          "img/ronco_caracol.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
