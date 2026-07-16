@@ -558,6 +558,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "MAYONESA KRAFT 198g",
+          2.6,
+          "img/kraft_198.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
