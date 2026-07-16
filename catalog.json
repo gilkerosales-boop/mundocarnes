@@ -348,6 +348,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "BOLSA DE ALAS 5Kg",
+          33.5,
+          "img/1122.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
