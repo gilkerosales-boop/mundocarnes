@@ -433,6 +433,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "SALCHICHA POLACA",
+          6.9,
+          "img/salchicha_polaca.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
