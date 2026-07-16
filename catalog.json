@@ -183,6 +183,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "SOLOMO DE CUERITO",
+          13.9,
+          "img/5.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
