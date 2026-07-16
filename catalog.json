@@ -540,8 +540,8 @@
           1.4,
           "img/ronco_caracol.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ],
         [
           "CAFE LA PROTECTORA 200g",
