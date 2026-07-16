@@ -417,6 +417,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "JAMON DE PAVO",
+          9.9,
+          "img/jamon_de_pavo.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
