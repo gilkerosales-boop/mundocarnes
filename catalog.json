@@ -574,6 +574,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "MAYONESA MAVESA 198g",
+          2.9,
+          "img/mavesa_198.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
