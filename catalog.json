@@ -247,6 +247,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "COSTILLA DE COCHINO",
+          13.9,
+          "img/13.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
