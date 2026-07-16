@@ -58,6 +58,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "COMBO SEMANAL",
+          54,
+          "img/combo_semanal.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     }
