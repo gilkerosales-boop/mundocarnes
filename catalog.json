@@ -473,6 +473,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "MORTADELA 500g",
+          4,
+          "img/punta_de_monte.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
