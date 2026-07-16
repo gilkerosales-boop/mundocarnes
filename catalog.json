@@ -588,8 +588,8 @@
           5.8,
           "img/mavesa_500.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ],
         [
           "HUEVOS 1/2 CARTON",
