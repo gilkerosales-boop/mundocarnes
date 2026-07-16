@@ -308,6 +308,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "MOLLEJAS",
+          3.9,
+          "img/77.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
