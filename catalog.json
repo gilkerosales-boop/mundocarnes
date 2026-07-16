@@ -268,6 +268,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "PECHUGA ENTERA",
+          6.5,
+          "img/22.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
