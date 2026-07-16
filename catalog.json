@@ -556,8 +556,8 @@
           5.5,
           "img/aceite_1l.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ]
       ]
     }
