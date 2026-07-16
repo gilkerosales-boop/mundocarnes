@@ -336,10 +336,10 @@
         [
           "BOLSA DE MILANESA 5Kg",
           35,
-          "img/1100.webp",
+          "img/b_milanesa_5.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ],
         [
           "BOLSA DE PECHIGA 5Kg",
