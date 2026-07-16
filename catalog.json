@@ -566,6 +566,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "MAYONESA KRAFT 445g",
+          5.6,
+          "img/kraft_445.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
