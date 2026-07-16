@@ -12,9 +12,17 @@
           "unidades"
         ],
         [
-          "COMBO 4",
-          84,
-          "img/combo_cuatro.webp",
+          "COMBO 3",
+          58,
+          "img/combo_tres.webp",
+          true,
+          1,
+          "unidades"
+        ],
+        [
+          "COMBO MIX",
+          30,
+          "img/combo_mix.webp",
           true,
           1,
           "unidades"
