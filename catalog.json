@@ -308,6 +308,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "MOLLEJA DE POLLO",
+          3.9,
+          "img/77.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
