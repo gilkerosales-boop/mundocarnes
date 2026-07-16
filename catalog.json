@@ -425,6 +425,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "SALCHICHA DE POLLO",
+          5,
+          "img/salchicha_de_pollo.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
