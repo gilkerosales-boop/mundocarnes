@@ -4,9 +4,9 @@
       "nombre": "Combos",
       "productos": [
         [
-          "Combo Familiar",
-          25,
-          "img/combo1.webp",
+          "Combo Express",
+          15,
+          "img/combo2.webp",
           true,
           1,
           "unidades"
