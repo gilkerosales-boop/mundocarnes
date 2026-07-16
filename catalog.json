@@ -491,6 +491,19 @@
           "unidades"
         ]
       ]
+    },
+    {
+      "nombre": "VIVERES",
+      "productos": [
+        [
+          "HARINA P.A.M",
+          1.8,
+          "img/harina.webp",
+          true,
+          1,
+          "unidades"
+        ]
+      ]
     }
   ]
 }
