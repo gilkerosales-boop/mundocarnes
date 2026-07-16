@@ -393,6 +393,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "QUESO MOZZARELLA",
+          11.9,
+          "img/queso_mozzarella.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
