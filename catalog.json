@@ -532,8 +532,8 @@
           1.4,
           "img/ronco_tornillo.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ],
         [
           "PASTA CORTA RONCO CARACOL 500g",
