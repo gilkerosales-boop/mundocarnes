@@ -596,8 +596,8 @@
           3,
           "img/huevos.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ]
       ]
     }
