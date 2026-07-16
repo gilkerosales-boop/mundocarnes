@@ -98,6 +98,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "CHICKEN 1",
+          22,
+          "img/chicken_1.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     }
