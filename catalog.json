@@ -175,6 +175,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "MECHAR",
+          10.9,
+          "img/4.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
