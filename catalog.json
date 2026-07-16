@@ -50,6 +50,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "MUNDOCARNES",
+          44,
+          "img/mundocarne.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     }
