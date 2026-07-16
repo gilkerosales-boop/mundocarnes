@@ -1,25 +1,125 @@
 /* ==========================================================================
-   Lógica del Frontend e Interacción Optimizada - Mundocarnes
+   Lógica del Frontend e Interacción Optimizada sin Google Sheets - Mundocarnes
    ========================================================================== */
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
+// Configuración de tu repositorio de GitHub para guardar imágenes y el JSON
+const GITHUB_CONFIG = {
+  owner: "TU_USUARIO_DE_GITHUB",      // Reemplaza por tu usuario real de GitHub
+  repo: "TU_REPOSITORIO_DE_GITHUB",   // Reemplaza por tu nombre de repositorio
+  branch: "main"                      // Rama de tu despliegue (usualmente main)
+};
 
-// Función de comunicación REST asíncrona optimizada
-async function callAPI(action, data = {}) {
+// Enlace REST de Apps Script únicamente para la validación de inicio de sesión de clientes
+const API_URL_CLIENTES = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
+
+// Función de comunicación REST asíncrona exclusiva para clientes
+async function callClientesAPI(action, data = {}) {
   try {
-    const response = await fetch(API_URL, {
+    const response = await fetch(API_URL_CLIENTES, {
       method: "POST",
       mode: "cors",
-      headers: {
-        "Content-Type": "text/plain"
-      },
+      headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action, ...data })
     });
     return await response.json();
   } catch (error) {
-    console.error("Error en conexión REST:", error);
+    console.error("Error en conexión REST de clientes:", error);
     return { error: "Ocurrió un retardo de conexión. Por favor intente de nuevo." };
   }
+}
+
+// Función genérica para subir o actualizar un archivo en GitHub mediante su API REST
+async function subirArchivoAGitHub(path, contentBase64, commitMessage) {
+  const token = sessionStorage.getItem("github_token");
+  if (!token) throw new Error("Sesión administrativa no válida o expirada.");
+
+  const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${path}`;
+
+  // 1. Intentar obtener el SHA del archivo si ya existe para poder sobrescribirlo
+  let sha = null;
+  try {
+    const resInfo = await fetch(url, {
+      headers: { "Authorization": `token ${token}` }
+    });
+    if (resInfo.ok) {
+      const info = await resInfo.json();
+      sha = info.sha;
+    }
+  } catch (e) {
+    // Archivo nuevo en el repositorio
+  }
+
+  // 2. Ejecutar la subida del contenido codificado en Base64
+  const body = {
+    message: commitMessage,
+    content: contentBase64,
+    branch: GITHUB_CONFIG.branch
+  };
+  if (sha) body.sha = sha;
+
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      "Authorization": `token ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const errData = await response.json();
+    throw new Error(errData.message || "Fallo en la comunicación con GitHub.");
+  }
+  return await response.json();
+}
+
+// Sincroniza el catálogo JSON en memoria directamente con el repositorio de GitHub
+async function guardarCatalogoEnGitHub() {
+  const contentString = JSON.stringify({ categorias: cacheCategorias }, null, 2);
+  // Conversión segura de string UTF-8 a Base64 compatible
+  const base64Content = btoa(unescape(encodeURIComponent(contentString)));
+  await subirArchivoAGitHub("catalog.json", base64Content, "Sincronización automática de catálogo desde el Modo Editor");
+}
+
+// Valida si un archivo subido es .webp y pesa menos de 120 KB, devolviendo su base64
+function validarYLeerArchivoWebP(fileElement) {
+  return new Promise((resolve, reject) => {
+    const file = fileElement.files[0];
+    if (!file) {
+      resolve(null); // No se seleccionó archivo nuevo (se conserva el actual)
+      return;
+    }
+
+    // Validación formal de formato WebP
+    const esWebP = file.type === "image/webp" || file.name.toLowerCase().endsWith(".webp");
+    if (!esWebP) {
+      reject("La imagen no cumple con el formato exigido. Debe ser .webp");
+      return;
+    }
+
+    // Validación estricta de tamaño (120 KB = 122880 bytes)
+    const limitePeso = 120 * 1024;
+    if (file.size > limitePeso) {
+      reject("La imagen no cumple con el tamaño exigido. Debe pesar menos de 120 KB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      // Extrae la cadena de datos pura en Base64
+      const base64 = e.target.result.split(",")[1];
+      // Reemplaza espacios por caracteres limpios en el nombre del archivo
+      const safeName = file.name.replace(/\s+/g, "_").toLowerCase();
+      resolve({
+        base64: base64,
+        name: safeName
+      });
+    };
+    reader.onerror = function() {
+      reject("Error al leer el archivo físico.");
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 let carrito = {}, productoTemporal = {}, cacheUsuario = { cedula: "", nombre: "", apellido: "", telefono: "", rol: "" }, datosCheckout = { ubicacion: "", formaPago: "" };
@@ -68,7 +168,7 @@ function procesarPrimerPaso() {
   btn.disabled = true; 
   btn.textContent = "Verificando...";
   
-  callAPI("verificarUsuario", { cedula: cedulaInput }).then(function(respuesta) {
+  callClientesAPI("verificarUsuario", { cedula: cedulaInput }).then(function(respuesta) {
     btn.disabled = false; 
     btn.textContent = "Siguiente";
     if (!respuesta) return alert("Error crítico.");
@@ -93,22 +193,39 @@ function procesarPrimerPaso() {
   });
 }
 
-function verificarPasswordAdministrador() {
-  const pass = document.getElementById('passwordAdmin').value.trim();
-  if (!pass) return;
+// Verifica el Token de GitHub validando permisos de escritura en el repositorio
+async function verificarPasswordAdministrador() {
+  const token = document.getElementById('passwordAdmin').value.trim();
+  if (!token) return mostrarAviso("Por favor, ingrese su Token.");
+  
   const btn = document.getElementById('btnAdminIngreso'); 
   btn.disabled = true;
-  btn.textContent = "Verificando...";
-  
-  callAPI("validarPasswordAdmin", { cedula: cacheUsuario.cedula, password: pass }).then(function(res) {
+  btn.textContent = "Validando Token...";
+
+  try {
+    const response = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}`, {
+      headers: { "Authorization": `token ${token}` }
+    });
+    
+    if (response.ok) {
+      const repoData = await response.json();
+      // Validar si el token ingresado tiene privilegios para realizar push
+      if (repoData.permissions && repoData.permissions.push) {
+        sessionStorage.setItem("github_token", token);
+        cacheUsuario.rol = "ADMIN";
+        concederAccesoAlSistema();
+      } else {
+        mostrarAviso("El token no cuenta con permisos de escritura en este repositorio.");
+      }
+    } else {
+      mostrarAviso("Token inválido o repositorio inaccesible.");
+    }
+  } catch (error) {
+    mostrarAviso("Error al validar credenciales.");
+  } finally {
     btn.disabled = false;
     btn.textContent = "Ingresar al Sistema";
-    if (res.error) return alert(res.error);
-    if (res.valido) { cacheUsuario.rol = "ADMIN"; concederAccesoAlSistema(); } else mostrarAviso("Contraseña incorrecta.");
-  }).catch(function() {
-    btn.disabled = false;
-    btn.textContent = "Ingresar al Sistema";
-  });
+  }
 }
 
 function ejecutarRegistroNuevoCliente() {
@@ -131,7 +248,7 @@ function ejecutarRegistroNuevoCliente() {
   btn.disabled = true; 
   btn.textContent = "Registrando...";
   
-  callAPI("registrarCliente", { cedula: cacheUsuario.cedula, nombre: nom, apellido: ape, telefono: tel }).then(function(res) {
+  callClientesAPI("registrarCliente", { cedula: cacheUsuario.cedula, nombre: nom, apellido: ape, telefono: tel }).then(function(res) {
     btn.disabled = false; 
     btn.textContent = "Registrar y Comprar";
     if (res.error) return alert(res.error);
@@ -156,7 +273,14 @@ function concederAccesoAlSistema() {
     document.getElementById('btnAdminPanel').classList.add('hidden'); 
   }
   
-  callAPI("obtenerDatosCatalogo").then(renderizarCatalogo);
+  // Cargar Catálogo de forma local directa de GitHub Pages en milisegundos
+  fetch("catalog.json?t=" + new Date().getTime())
+    .then(res => res.json())
+    .then(renderizarCatalogo)
+    .catch(err => {
+      console.error(err);
+      mostrarAviso("Error al obtener catalog.json desde el servidor.");
+    });
 }
 
 function renderizarCatalogo(resp) {
@@ -220,40 +344,62 @@ function abrirModalEdicion(nom, prec, cat, disp, min, unidad) {
   document.getElementById('editProductoDisponible').value = disp ? "true" : "false";
   document.getElementById('editProductoMinimo').value = min;
   document.getElementById('editProductoUnidad').value = unidad || "unidades";
+  document.getElementById('editProductoArchivoImagen').value = ""; // Limpiar selector
   new bootstrap.Modal(document.getElementById('modalEditarProducto')).show();
 }
 
-function guardarEdicionAdministrador() {
-  const prec = document.getElementById('editProductoPrecio').value;
+async function guardarEdicionAdministrador() {
+  const prec = parseFloat(document.getElementById('editProductoPrecio').value);
   const disp = document.getElementById('editProductoDisponible').value === "true";
-  const min = document.getElementById('editProductoMinimo').value;
+  const min = parseInt(document.getElementById('editProductoMinimo').value);
   const unidad = document.getElementById('editProductoUnidad').value;
-  if (!prec || !min || !unidad) return mostrarAviso("Llene todos los campos");
+  
+  if (isNaN(prec) || isNaN(min) || !unidad) return mostrarAviso("Llene todos los campos");
   
   const modalEl = document.getElementById('modalEditarProducto');
   const btn = modalEl.querySelector(".btn-warning");
   btn.disabled = true;
-  btn.textContent = "Guardando...";
+  btn.textContent = "Procesando...";
 
-  callAPI("editarConfiguracionProducto", {
-    adminCedula: cacheUsuario.cedula,
-    categoria: productoTemporal.categoria,
-    nombreProducto: productoTemporal.nombre,
-    nuevoPrecio: prec,
-    disponible: disp,
-    cantMinima: min,
-    unidadMedida: unidad
-  }).then(function(res) {
+  try {
+    // 1. Validar e intentar procesar la imagen cargada localmente
+    const imgData = await validarYLeerArchivoWebP(document.getElementById('editProductoArchivoImagen'));
+    let relativeImgPath = null;
+
+    if (imgData) {
+      // Subir archivo a GitHub de forma directa
+      const filePath = `img/${imgData.name}`;
+      await subirArchivoAGitHub(filePath, imgData.base64, `Subida de imagen de producto: ${imgData.name}`);
+      relativeImgPath = filePath;
+    }
+
+    // 2. Localizar y actualizar el objeto del catálogo en memoria
+    let cat = cacheCategorias.find(c => c.nombre === productoTemporal.categoria);
+    if (cat) {
+      let prod = cat.productos.find(p => p[0] === productoTemporal.nombre);
+      if (prod) {
+        prod[1] = prec;
+        prod[3] = disp;
+        prod[4] = min;
+        prod[5] = unidad;
+        if (relativeImgPath) prod[2] = relativeImgPath; // Actualizar ruta si subió nueva imagen
+      }
+    }
+
+    // 3. Sincronizar catálogo con GitHub
+    await guardarCatalogoEnGitHub();
+
     btn.disabled = false;
     btn.textContent = "Guardar Cambios 💾";
-    if (res.error) return alert(res.error);
     bootstrap.Modal.getInstance(modalEl).hide();
-    mostrarAviso("Guardado correctamente");
-    callAPI("obtenerDatosCatalogo").then(renderizarCatalogo);
-  }).catch(function() {
+    mostrarAviso("Producto guardado y sincronizado correctamente");
+    concederAccesoAlSistema(); // Recargar interfaz
+
+  } catch (error) {
     btn.disabled = false;
     btn.textContent = "Guardar Cambios 💾";
-  });
+    alert("Error de guardado: " + error);
+  }
 }
 
 function seleccionarProducto(nom, prec, tipo, cantMin, unidad) {
@@ -372,7 +518,6 @@ function procesarEnvioSolicitud() {
 
 function regresarAFormulario() { bootstrap.Modal.getInstance(document.getElementById('modalConfirmacionFinal')).hide(); new bootstrap.Modal(document.getElementById('modalSolicitudPago')).show(); }
 
-// Nueva Función de confirmación instantánea: Remueve la carga síncrona en Sheets y redirige de inmediato
 function ejecutarAccionFinal() {
   let telConfirmado = "";
   
@@ -390,8 +535,7 @@ function ejecutarAccionFinal() {
   if (telConfirmado !== numeroOriginal) {
     cacheUsuario.telefono = telConfirmado;
     
-    // Llamada asíncrona ("fire-and-forget"). No bloquea el flujo principal de redirección
-    callAPI("actualizarTelefonoCliente", { cedula: cacheUsuario.cedula, nuevoTelefono: telConfirmado })
+    callClientesAPI("actualizarTelefonoCliente", { cedula: cacheUsuario.cedula, nuevoTelefono: telConfirmado })
       .catch(function(err) {
         console.error("Error al actualizar teléfono en base de datos:", err);
       });
@@ -410,10 +554,8 @@ function ejecutarAccionFinal() {
 
   let mensajeWA = `📱 *Teléfono:* ${cacheUsuario.telefono}\n👤 *Cliente:* ${cacheUsuario.nombre} ${cacheUsuario.apellido}\n📍 *Ubicación:* ${datosCheckout.ubicacion}\n\n🛒 *Pedido Solicitado:*\n${listaWA}\n💵 *Monto Aproximado:* $${total.toFixed(2)}\n💳 *Forma de Pago:* ${datosCheckout.formaPago}\n\n⚠️ *Nota Importante:* Entiendo y acepto que el monto total reflejado es una estimación. El pago final podría variar dependiendo del peso exacto de los productos al momento de prepararlos y de la tarifa aplicable al servicio de delivery. ✅`;
   
-  // Abre WhatsApp instantáneamente
   window.open(`https://wa.me/584121753275?text=${encodeURIComponent(mensajeWA)}`, '_blank');
   
-  // Resetear interfaz del carrito localmente
   bootstrap.Modal.getInstance(document.getElementById('modalConfirmacionFinal')).hide();
   document.getElementById('vistaPedido').classList.add('hidden'); 
   document.getElementById('vistaCombos').classList.remove('hidden');
@@ -422,7 +564,6 @@ function ejecutarAccionFinal() {
   btn.disabled = false;
   btn.textContent = "Aceptar ✓";
 
-  // Mostrar aviso de éxito local sin esperas de red
   new bootstrap.Modal(document.getElementById('modalExito')).show();
 }
 
@@ -430,10 +571,10 @@ function abrirPanelAdmin() {
   document.getElementById('adminCatNombre').value = "";
   document.getElementById('adminCatProdNombre').value = "";
   document.getElementById('adminCatProdPrecio').value = "";
-  document.getElementById('adminCatProdImagen').value = "";
+  document.getElementById('adminCatProdArchivoImagen').value = "";
   document.getElementById('adminAddProdNombre').value = "";
   document.getElementById('adminAddProdPrecio').value = "";
-  document.getElementById('adminAddProdImagen').value = "";
+  document.getElementById('adminAddProdArchivoImagen').value = "";
   
   let addSelect = document.getElementById('adminAddCatSelect');
   let delSelect = document.getElementById('adminDelCatSelect');
@@ -454,13 +595,12 @@ function cargarProductosParaEliminar(catNombre) {
   prodSelect.innerHTML = cat.productos.map(p => `<option value="${p[0]}">${p[0]}</option>`).join('');
 }
 
-function ejecutarCrearCategoria() {
+async function ejecutarCrearCategoria() {
   const catNombre = document.getElementById('adminCatNombre').value.trim();
   const prodNombre = document.getElementById('adminCatProdNombre').value.trim();
-  const prodPrecio = document.getElementById('adminCatProdPrecio').value.trim();
-  const prodImagen = document.getElementById('adminCatProdImagen').value.trim();
+  const prodPrecio = parseFloat(document.getElementById('adminCatProdPrecio').value.trim());
   
-  if (!catNombre || !prodNombre || !prodPrecio || !prodImagen) {
+  if (!catNombre || !prodNombre || isNaN(prodPrecio)) {
     return mostrarAviso("Todos los campos son obligatorios.");
   }
   
@@ -469,32 +609,46 @@ function ejecutarCrearCategoria() {
   btn.disabled = true;
   btn.textContent = "Procesando...";
 
-  callAPI("crearNuevaCategoria", {
-    adminCedula: cacheUsuario.cedula,
-    nombreCat: catNombre,
-    prodNombre: prodNombre,
-    prodPrecio: prodPrecio,
-    prodImagen: prodImagen
-  }).then(function(res) {
+  try {
+    const imgData = await validarYLeerArchivoWebP(document.getElementById('adminCatProdArchivoImagen'));
+    if (!imgData) {
+      throw new Error("Debe seleccionar una imagen obligatoria para el producto inicial.");
+    }
+
+    // 1. Subir imagen a GitHub
+    const relativePath = `img/${imgData.name}`;
+    await subirArchivoAGitHub(relativePath, imgData.base64, `Creación de categoría con imagen: ${imgData.name}`);
+
+    // 2. Insertar nueva categoría en memoria
+    cacheCategorias.push({
+      nombre: catNombre.toUpperCase(),
+      productos: [
+        [prodNombre, prodPrecio, relativePath, true, 1, "unidades"]
+      ]
+    });
+
+    // 3. Sincronizar catálogo
+    await guardarCatalogoEnGitHub();
+
     btn.disabled = false;
     btn.textContent = "Crear Categoría ✓";
-    if (res.error) return alert(res.error);
     mostrarAviso("Categoría creada con éxito.");
     bootstrap.Modal.getInstance(modalEl).hide();
-    callAPI("obtenerDatosCatalogo").then(renderizarCatalogo);
-  }).catch(function() {
+    concederAccesoAlSistema();
+
+  } catch (error) {
     btn.disabled = false;
     btn.textContent = "Crear Categoría ✓";
-  });
+    alert("Error: " + error);
+  }
 }
 
-function ejecutarAnexarProducto() {
+async function ejecutarAnexarProducto() {
   const catNombre = document.getElementById('adminAddCatSelect').value;
   const prodNombre = document.getElementById('adminAddProdNombre').value.trim();
-  const prodPrecio = document.getElementById('adminAddProdPrecio').value.trim();
-  const prodImagen = document.getElementById('adminAddProdImagen').value.trim();
+  const prodPrecio = parseFloat(document.getElementById('adminAddProdPrecio').value.trim());
   
-  if (!catNombre || !prodNombre || !prodPrecio || !prodImagen) {
+  if (!catNombre || !prodNombre || isNaN(prodPrecio)) {
     return mostrarAviso("Todos los campos son obligatorios.");
   }
   
@@ -503,26 +657,43 @@ function ejecutarAnexarProducto() {
   btn.disabled = true;
   btn.textContent = "Procesando...";
 
-  callAPI("anexarProductoACategoria", {
-    adminCedula: cacheUsuario.cedula,
-    nombreCat: catNombre,
-    prodNombre: prodNombre,
-    prodPrecio: prodPrecio,
-    prodImagen: prodImagen
-  }).then(function(res) {
+  try {
+    const imgData = await validarYLeerArchivoWebP(document.getElementById('adminAddProdArchivoImagen'));
+    if (!imgData) {
+      throw new Error("Debe seleccionar una imagen obligatoria para el producto.");
+    }
+
+    // 1. Subir imagen a GitHub
+    const relativePath = `img/${imgData.name}`;
+    await subirArchivoAGitHub(relativePath, imgData.base64, `Anexo de producto con imagen: ${imgData.name}`);
+
+    // 2. Insertar en la categoría correspondiente en memoria
+    let cat = cacheCategorias.find(c => c.nombre === catNombre);
+    if (cat) {
+      // Por defecto asume unidades para combos y gramos para el resto
+      let esCombo = catNombre.toUpperCase().includes("COMBO");
+      let defaultUnidad = esCombo ? "unidades" : "gramos";
+      let minVal = esCombo ? 1 : 1000;
+      cat.productos.push([prodNombre, prodPrecio, relativePath, true, minVal, defaultUnidad]);
+    }
+
+    // 3. Sincronizar catálogo
+    await guardarCatalogoEnGitHub();
+
     btn.disabled = false;
     btn.textContent = "Anexar Producto ✓";
-    if (res.error) return alert(res.error);
     mostrarAviso("Producto anexado con éxito.");
     bootstrap.Modal.getInstance(modalEl).hide();
-    callAPI("obtenerDatosCatalogo").then(renderizarCatalogo);
-  }).catch(function() {
+    concederAccesoAlSistema();
+
+  } catch (error) {
     btn.disabled = false;
     btn.textContent = "Anexar Producto ✓";
-  });
+    alert("Error: " + error);
+  }
 }
 
-function ejecutarEliminarProducto() {
+async function ejecutarEliminarProducto() {
   const catNombre = document.getElementById('adminDelCatSelect').value;
   const prodNombre = document.getElementById('adminDelProdSelect').value;
   
@@ -537,21 +708,27 @@ function ejecutarEliminarProducto() {
   btn.disabled = true;
   btn.textContent = "Procesando...";
 
-  callAPI("eliminarProductoDeCategoria", {
-    adminCedula: cacheUsuario.cedula,
-    nombreCat: catNombre,
-    prodNombre: prodNombre
-  }).then(function(res) {
+  try {
+    let cat = cacheCategorias.find(c => c.nombre === catNombre);
+    if (cat) {
+      // Filtrar y eliminar el producto del array
+      cat.productos = cat.productos.filter(p => p[0] !== prodNombre);
+    }
+
+    // Sincronizar catálogo actualizado
+    await guardarCatalogoEnGitHub();
+
     btn.disabled = false;
     btn.textContent = "Eliminar Producto ✕";
-    if (res.error) return alert(res.error);
     mostrarAviso("Producto eliminado con éxito.");
     bootstrap.Modal.getInstance(modalEl).hide();
-    callAPI("obtenerDatosCatalogo").then(renderizarCatalogo);
-  }).catch(function() {
+    concederAccesoAlSistema();
+
+  } catch (error) {
     btn.disabled = false;
     btn.textContent = "Eliminar Producto ✕";
-  });
+    alert("Error al eliminar: " + error);
+  }
 }
 
 function mostrarImagenGrande(url) { document.getElementById('imagenGrandePopUp').src = url; document.getElementById('overlayImagenGrande').classList.add('show'); }
