@@ -292,6 +292,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "MUSLO",
+          4.5,
+          "img/55.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
