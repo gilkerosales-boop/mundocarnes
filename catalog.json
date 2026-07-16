@@ -191,6 +191,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "LOMITO",
+          18,
+          "img/6.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
