@@ -510,6 +510,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "ARROZ MARY ESMERALDA",
+          2.4,
+          "img/arroz_e.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
