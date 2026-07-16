@@ -3,14 +3,27 @@
     {
       "nombre": "Combos",
       "productos": [
-        ["Combo Familiar", 25.00, "img/combo1.webp", true, 1, "unidades"],
-        ["Combo Express", 15.00, "img/combo2.webp", true, 1, "unidades"]
+        [
+          "Combo Express",
+          15,
+          "img/combo2.webp",
+          true,
+          1,
+          "unidades"
+        ]
       ]
     },
     {
       "nombre": "Carnes",
       "productos": [
-        ["Lomo de Cerdo", 8.50, "img/lomo.webp", true, 1000, "gramos"]
+        [
+          "Lomo de Cerdo",
+          8.5,
+          "img/lomo.webp",
+          true,
+          1000,
+          "gramos"
+        ]
       ]
     }
   ]
