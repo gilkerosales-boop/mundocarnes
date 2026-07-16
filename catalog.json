@@ -266,8 +266,8 @@
           3.99,
           "img/pollo_entero.webp",
           true,
-          1,
-          "unidades"
+          2000,
+          "gramos"
         ],
         [
           "PECHUGA ENTERA",
