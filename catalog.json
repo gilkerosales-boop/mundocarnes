@@ -465,6 +465,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "MORTADELA 1kg",
+          4,
+          "img/don_ramon_900.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
