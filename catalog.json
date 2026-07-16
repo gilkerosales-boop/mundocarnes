@@ -148,6 +148,19 @@
           "unidades"
         ]
       ]
+    },
+    {
+      "nombre": "CARNES",
+      "productos": [
+        [
+          "BISTEC",
+          11.9,
+          "img/1.webp",
+          true,
+          1,
+          "unidades"
+        ]
+      ]
     }
   ]
 }
