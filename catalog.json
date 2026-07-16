@@ -215,6 +215,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "LAGARTO SIN HUESO",
+          10.9,
+          "img/9.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
