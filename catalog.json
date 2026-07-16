@@ -2,16 +2,7 @@
   "categorias": [
     {
       "nombre": "Combos",
-      "productos": [
-        [
-          "Combo Express",
-          15,
-          "img/combo2.webp",
-          true,
-          1,
-          "unidades"
-        ]
-      ]
+      "productos": []
     },
     {
       "nombre": "Carnes",
