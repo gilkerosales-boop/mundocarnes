@@ -526,6 +526,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "PASTA CORTA RONCO TORNILLO 500g",
+          1.4,
+          "img/ronco_tornillo.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
