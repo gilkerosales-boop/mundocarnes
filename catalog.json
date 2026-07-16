@@ -479,8 +479,8 @@
           4,
           "img/punta_de_monte.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ]
       ]
     }
