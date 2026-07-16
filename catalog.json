@@ -582,6 +582,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "MAYONESA MAVESA 445g",
+          5.8,
+          "img/mavesa_500.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
