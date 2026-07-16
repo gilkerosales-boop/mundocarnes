@@ -82,6 +82,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "PARRILLERO 1",
+          46,
+          "img/combo_parrillero_1.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     }
