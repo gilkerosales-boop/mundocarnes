@@ -34,6 +34,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "COMBO 4",
+          84,
+          "img/combo_cuatro.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     }
