@@ -385,6 +385,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "QUESO PAISA",
+          11.9,
+          "img/queso_paisa.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
