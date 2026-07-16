@@ -199,6 +199,14 @@
           true,
           4500,
           "gramos"
+        ],
+        [
+          "COSTILLA DE RES",
+          8.2,
+          "img/7.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
