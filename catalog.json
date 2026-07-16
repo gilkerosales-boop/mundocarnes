@@ -42,6 +42,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "MIX",
+          40,
+          "img/combo_mix.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     }
