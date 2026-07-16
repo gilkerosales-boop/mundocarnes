@@ -155,7 +155,7 @@
         [
           "BISTEC",
           11.9,
-          "img/bistec.webp",
+          "img/1.webp",
           true,
           250,
           "gramos"
@@ -163,7 +163,7 @@
         [
           "MOLIDA",
           10.9,
-          "img/molida.webp",
+          "img/2.webp",
           true,
           250,
           "gramos"
@@ -171,7 +171,7 @@
         [
           "GUISAR",
           10.9,
-          "img/guisar.webp",
+          "img/3.webp",
           true,
           250,
           "gramos"
@@ -179,7 +179,7 @@
         [
           "MECHAR",
           10.9,
-          "img/mechar.webp",
+          "img/4.webp",
           true,
           250,
           "gramos"
@@ -187,7 +187,7 @@
         [
           "SOLOMO DE CUERITO",
           13.9,
-          "img/solomo.webp",
+          "img/5.webp",
           true,
           250,
           "gramos"
@@ -195,7 +195,7 @@
         [
           "LOMITO",
           18,
-          "img/lomito.webp",
+          "img/6.webp",
           true,
           4500,
           "gramos"
@@ -203,7 +203,7 @@
         [
           "COSTILLA DE RES",
           8.2,
-          "img/costilla.webp",
+          "img/7.webp",
           true,
           250,
           "gramos"
@@ -211,7 +211,7 @@
         [
           "LAGARTO CON HUESO",
           8.9,
-          "img/lagarto_ch.webp",
+          "img/8.webp",
           true,
           250,
           "gramos"
@@ -219,7 +219,7 @@
         [
           "LAGARTO SIN HUESO",
           10.9,
-          "img/lagarto_sh.webp",
+          "img/9.webp",
           true,
           250,
           "gramos"
@@ -227,7 +227,7 @@
         [
           "HIGADO DE RES",
           10.9,
-          "img/higado_de_res.webp",
+          "img/10.webp",
           true,
           250,
           "gramos"
@@ -235,7 +235,7 @@
         [
           "CHULETA AHUMADA",
           9.9,
-          "img/chuleta_ahumada.webp",
+          "img/11.webp",
           true,
           250,
           "gramos"
@@ -243,7 +243,7 @@
         [
           "CHULETA DE COCHINO",
           10.9,
-          "img/chuleta_fresca.webp",
+          "img/12.webp",
           true,
           250,
           "gramos"
@@ -251,7 +251,7 @@
         [
           "COSTILLA DE COCHINO",
           13.9,
-          "img/costilla_de_cochino.webp",
+          "img/13.webp",
           true,
           250,
           "gramos"
@@ -264,7 +264,7 @@
         [
           "POLLO ENTERO",
           3.99,
-          "img/11.webp",
+          "img/pollo_entero.webp",
           true,
           1,
           "unidades"
