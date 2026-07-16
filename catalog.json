@@ -332,6 +332,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "BOLSA DE MILANESA 5Kg",
+          35,
+          "img/1100.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
