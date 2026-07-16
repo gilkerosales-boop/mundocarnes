@@ -18,6 +18,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "COMBO 2",
+          39,
+          "img/combo_dos.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     }
