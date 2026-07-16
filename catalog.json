@@ -340,6 +340,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "BOLSA DE PECHIGA 5Kg",
+          32,
+          "img/1111.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
