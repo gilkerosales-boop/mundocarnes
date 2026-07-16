@@ -284,6 +284,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "CHURRASCO DE POLLO",
+          7.8,
+          "img/44.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
