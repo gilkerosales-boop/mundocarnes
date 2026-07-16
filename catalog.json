@@ -348,6 +348,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "BOLSA DE PECHUGA 5Kg",
+          32,
+          "img/b_pechuga_5.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
