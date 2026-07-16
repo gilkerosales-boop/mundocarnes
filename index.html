@@ -24,13 +24,13 @@
         <button type="button" id="btnSiguiente" class="btn btn-danger btn-lg w-100 fw-bold border border-dark" onclick="procesarPrimerPaso()">Siguiente</button>
       </div>
 
-      <!-- Vista de Contraseña Administrativa -->
+      <!-- Vista de Contraseña Administrativa (Ahora solicita el Token de GitHub) -->
       <div id="vistaAdminPassword" class="panel-base login-container hidden">
         <img src="img/LOGO-MUNDO123.webp" class="logo-header" alt="Logo Mundocarnes">
         <h4 class="text-center mb-2 fw-bold text-danger">Acceso Administrativo</h4>
         <p id="saludoAdmin" class="text-center fw-bold mb-3"></p>
         <div class="mb-3">
-          <input type="password" class="form-control border-dark text-center fs-5" id="passwordAdmin" placeholder="Contraseña de Acceso" required>
+          <input type="password" class="form-control border-dark text-center fs-5" id="passwordAdmin" placeholder="Pegue su Token de GitHub" required>
         </div>
         <button type="button" id="btnAdminIngreso" class="btn btn-dark btn-lg w-100 fw-bold mb-2" onclick="verificarPasswordAdministrador()">Ingresar al Sistema</button>
         <button type="button" class="btn btn-outline-secondary w-100 fw-bold" onclick="regresarAlInicio()">Cancelar</button>
@@ -131,6 +131,13 @@
                 <option value="gramos">Gramos (g)</option>
               </select>
             </div>
+
+            <!-- NUEVO: Selector de archivo local exclusivo para WebP -->
+            <div class="mb-3">
+              <label class="form-label fw-bold">Actualizar Imagen (.webp < 120 KB):</label>
+              <input type="file" id="editProductoArchivoImagen" class="form-control border-dark fw-bold" accept="image/webp">
+              <div class="form-text text-muted small">Opcional. Deje en blanco si no desea cambiar la imagen actual.</div>
+            </div>
             
             <div class="mb-3">
               <label class="form-label fw-bold">Cantidad Mínima de Venta:</label>
@@ -185,9 +192,10 @@
                     <input type="number" id="adminCatProdPrecio" class="form-control border-dark" step="0.01" placeholder="9.50">
                   </div>
                 </div>
+                <!-- NUEVO: Selector de archivo local exclusivo para WebP -->
                 <div class="mb-3">
-                  <label class="form-label fw-bold">URL de la Imagen:</label>
-                  <input type="text" id="adminCatProdImagen" class="form-control border-dark" placeholder="https://...">
+                  <label class="form-label fw-bold">Imagen del Producto (.webp < 120 KB):</label>
+                  <input type="file" id="adminCatProdArchivoImagen" class="form-control border-dark" accept="image/webp">
                 </div>
                 <button type="button" class="btn btn-success w-100 fw-bold border-dark" onclick="ejecutarCrearCategoria()">Crear Categoría ✓</button>
               </div>
@@ -208,9 +216,10 @@
                     <input type="number" id="adminAddProdPrecio" class="form-control border-dark" step="0.01" placeholder="8.00">
                   </div>
                 </div>
+                <!-- NUEVO: Selector de archivo local exclusivo para WebP -->
                 <div class="mb-3">
-                  <label class="form-label fw-bold">URL de la Imagen:</label>
-                  <input type="text" id="adminAddProdImagen" class="form-control border-dark" placeholder="https://...">
+                  <label class="form-label fw-bold">Imagen del Producto (.webp < 120 KB):</label>
+                  <input type="file" id="adminAddProdArchivoImagen" class="form-control border-dark" accept="image/webp">
                 </div>
                 <button type="button" class="btn btn-primary w-100 fw-bold border-dark" onclick="ejecutarAnexarProducto()">Anexar Producto ✓</button>
               </div>
