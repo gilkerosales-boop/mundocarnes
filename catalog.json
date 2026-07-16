@@ -358,6 +358,19 @@
           "unidades"
         ]
       ]
+    },
+    {
+      "nombre": "QUESOS Y EMBUTIDOS",
+      "productos": [
+        [
+          "QUESO DURO",
+          8.9,
+          "img/queso_duro.webp",
+          true,
+          1,
+          "unidades"
+        ]
+      ]
     }
   ]
 }
