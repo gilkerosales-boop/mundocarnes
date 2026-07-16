@@ -369,6 +369,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "QUESO GUAYANES",
+          7.5,
+          "img/queso_guayanes.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
