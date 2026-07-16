@@ -10,6 +10,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "COMBO EXPRESS",
+          30,
+          "img/combo_express.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     }
