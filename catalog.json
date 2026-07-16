@@ -257,6 +257,19 @@
           "gramos"
         ]
       ]
+    },
+    {
+      "nombre": "POLLO",
+      "productos": [
+        [
+          "POLLO ENTERO",
+          3.99,
+          "img/11.webp",
+          true,
+          1,
+          "unidades"
+        ]
+      ]
     }
   ]
 }
