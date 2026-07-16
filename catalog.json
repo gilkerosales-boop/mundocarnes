@@ -542,6 +542,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "CAFE LA PROTECTORA 200g",
+          4.2,
+          "img/cafe_lapro_200.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
