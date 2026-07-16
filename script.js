@@ -1,38 +1,36 @@
 /* ==========================================================================
-   Lógica del Frontend e Interacción - Mundocarnes
+   Lógica del Frontend e Interacción Optimizada - Mundocarnes
    ========================================================================== */
 
-// IMPORTANTE: Reemplaza esta URL con el enlace de tu Web App publicada en Google Apps Script
 const API_URL = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
 
-// Función de comunicación REST con Google Apps Script sin bloqueo de CORS OPTIONS (preflight)
+// Función de comunicación REST asíncrona optimizada
 async function callAPI(action, data = {}) {
   try {
     const response = await fetch(API_URL, {
       method: "POST",
       mode: "cors",
       headers: {
-        "Content-Type": "text/plain" // Bypass CORS OPTIONS preflight
+        "Content-Type": "text/plain"
       },
       body: JSON.stringify({ action, ...data })
     });
     return await response.json();
   } catch (error) {
-    console.error("Error en conexión con el servidor REST:", error);
-    return { error: "No se pudo conectar con el servidor de la base de datos. Verifique su conexión." };
+    console.error("Error en conexión REST:", error);
+    return { error: "Ocurrió un retardo de conexión. Por favor intente de nuevo." };
   }
 }
 
 let carrito = {}, productoTemporal = {}, cacheUsuario = { cedula: "", nombre: "", apellido: "", telefono: "", rol: "" }, datosCheckout = { ubicacion: "", formaPago: "" };
 let cacheCategorias = []; 
-let iti; // Instancia de intl-tel-input para el formulario de registro
+let iti; 
 
-// Inicialización de intl-tel-input en la carga del DOM
 document.addEventListener("DOMContentLoaded", function() {
   const inputTelefono = document.querySelector("#regTelefono");
   if (inputTelefono) {
     iti = window.intlTelInput(inputTelefono, {
-      initialCountry: "ve", // Venezuela por defecto
+      initialCountry: "ve", 
       separateDialCode: true,
       utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js"
     });
@@ -66,10 +64,13 @@ function procesarPrimerPaso() {
   const cedulaInput = document.getElementById('cedula').value.trim();
   if (!cedulaInput) { mostrarAviso("Introduzca su Cédula o RIF."); return; }
   
-  const btn = document.getElementById('btnSiguiente'); btn.disabled = true; btn.textContent = "Verificando...";
+  const btn = document.getElementById('btnSiguiente'); 
+  btn.disabled = true; 
+  btn.textContent = "Verificando...";
   
   callAPI("verificarUsuario", { cedula: cedulaInput }).then(function(respuesta) {
-    btn.disabled = false; btn.textContent = "Siguiente";
+    btn.disabled = false; 
+    btn.textContent = "Siguiente";
     if (!respuesta) return alert("Error crítico.");
     if (respuesta.error) return alert("Aviso: " + respuesta.error);
     
@@ -86,20 +87,27 @@ function procesarPrimerPaso() {
       document.getElementById('vistaIngreso').classList.add('hidden'); document.getElementById('vistaRegistro').classList.remove('hidden');
     }
   }).catch(function(err) {
-    btn.disabled = false; btn.textContent = "Siguiente";
-    alert("Error de conexión: " + err.message);
+    btn.disabled = false; 
+    btn.textContent = "Siguiente";
+    alert("Error de conexión temporal.");
   });
 }
 
 function verificarPasswordAdministrador() {
   const pass = document.getElementById('passwordAdmin').value.trim();
   if (!pass) return;
-  const btn = document.getElementById('btnAdminIngreso'); btn.disabled = true;
+  const btn = document.getElementById('btnAdminIngreso'); 
+  btn.disabled = true;
+  btn.textContent = "Verificando...";
   
   callAPI("validarPasswordAdmin", { cedula: cacheUsuario.cedula, password: pass }).then(function(res) {
     btn.disabled = false;
+    btn.textContent = "Ingresar al Sistema";
     if (res.error) return alert(res.error);
     if (res.valido) { cacheUsuario.rol = "ADMIN"; concederAccesoAlSistema(); } else mostrarAviso("Contraseña incorrecta.");
+  }).catch(function() {
+    btn.disabled = false;
+    btn.textContent = "Ingresar al Sistema";
   });
 }
 
@@ -119,13 +127,19 @@ function ejecutarRegistroNuevoCliente() {
     if (!tel) return mostrarAviso("Llene todos los campos.");
   }
   
-  const btn = document.getElementById('btnRegistrar'); btn.disabled = true; btn.textContent = "Registrando...";
+  const btn = document.getElementById('btnRegistrar'); 
+  btn.disabled = true; 
+  btn.textContent = "Registrando...";
   
   callAPI("registrarCliente", { cedula: cacheUsuario.cedula, nombre: nom, apellido: ape, telefono: tel }).then(function(res) {
-    btn.disabled = false; btn.textContent = "Registrar y Comprar";
+    btn.disabled = false; 
+    btn.textContent = "Registrar y Comprar";
     if (res.error) return alert(res.error);
     cacheUsuario.nombre = nom.toUpperCase(); cacheUsuario.apellido = ape.toUpperCase(); cacheUsuario.telefono = tel; cacheUsuario.rol = "CLIENTE";
     concederAccesoAlSistema();
+  }).catch(function() {
+    btn.disabled = false;
+    btn.textContent = "Registrar y Comprar";
   });
 }
 
@@ -216,6 +230,11 @@ function guardarEdicionAdministrador() {
   const unidad = document.getElementById('editProductoUnidad').value;
   if (!prec || !min || !unidad) return mostrarAviso("Llene todos los campos");
   
+  const modalEl = document.getElementById('modalEditarProducto');
+  const btn = modalEl.querySelector(".btn-warning");
+  btn.disabled = true;
+  btn.textContent = "Guardando...";
+
   callAPI("editarConfiguracionProducto", {
     adminCedula: cacheUsuario.cedula,
     categoria: productoTemporal.categoria,
@@ -225,10 +244,15 @@ function guardarEdicionAdministrador() {
     cantMinima: min,
     unidadMedida: unidad
   }).then(function(res) {
+    btn.disabled = false;
+    btn.textContent = "Guardar Cambios 💾";
     if (res.error) return alert(res.error);
-    bootstrap.Modal.getInstance(document.getElementById('modalEditarProducto')).hide();
+    bootstrap.Modal.getInstance(modalEl).hide();
     mostrarAviso("Guardado correctamente");
     callAPI("obtenerDatosCatalogo").then(renderizarCatalogo);
+  }).catch(function() {
+    btn.disabled = false;
+    btn.textContent = "Guardar Cambios 💾";
   });
 }
 
@@ -371,7 +395,10 @@ function ejecutarAccionFinal() {
       });
   }
 
-  const btn = document.getElementById('btnAceptarFinal'); btn.disabled = true; btn.textContent = "Procesando...";
+  const btn = document.getElementById('btnAceptarFinal'); 
+  btn.disabled = true; 
+  btn.textContent = "Procesando...";
+  
   let arr = [], total = 0, listaWA = "";
   for (let p in carrito) {
     arr.push(`${p} (${carrito[p].cantidad})`);
@@ -386,7 +413,8 @@ function ejecutarAccionFinal() {
   };
 
   callAPI("guardarPedido", { pedido: pedido }).then(function(res) {
-    btn.disabled = false; btn.textContent = "Aceptar ✓";
+    btn.disabled = false; 
+    btn.textContent = "Aceptar ✓";
     bootstrap.Modal.getInstance(document.getElementById('modalConfirmacionFinal')).hide();
     if (res.error) return alert(res.error);
 
@@ -395,6 +423,9 @@ function ejecutarAccionFinal() {
     
     document.getElementById('vistaPedido').classList.add('hidden'); document.getElementById('vistaCombos').classList.remove('hidden');
     carrito = {}; new bootstrap.Modal(document.getElementById('modalExito')).show();
+  }).catch(function() {
+    btn.disabled = false;
+    btn.textContent = "Aceptar ✓";
   });
 }
 
@@ -436,6 +467,11 @@ function ejecutarCrearCategoria() {
     return mostrarAviso("Todos los campos son obligatorios.");
   }
   
+  const modalEl = document.getElementById('modalAdminPanel');
+  const btn = modalEl.querySelector(".btn-success");
+  btn.disabled = true;
+  btn.textContent = "Procesando...";
+
   callAPI("crearNuevaCategoria", {
     adminCedula: cacheUsuario.cedula,
     nombreCat: catNombre,
@@ -443,10 +479,15 @@ function ejecutarCrearCategoria() {
     prodPrecio: prodPrecio,
     prodImagen: prodImagen
   }).then(function(res) {
+    btn.disabled = false;
+    btn.textContent = "Crear Categoría ✓";
     if (res.error) return alert(res.error);
     mostrarAviso("Categoría creada con éxito.");
-    bootstrap.Modal.getInstance(document.getElementById('modalAdminPanel')).hide();
+    bootstrap.Modal.getInstance(modalEl).hide();
     callAPI("obtenerDatosCatalogo").then(renderizarCatalogo);
+  }).catch(function() {
+    btn.disabled = false;
+    btn.textContent = "Crear Categoría ✓";
   });
 }
 
@@ -460,6 +501,11 @@ function ejecutarAnexarProducto() {
     return mostrarAviso("Todos los campos son obligatorios.");
   }
   
+  const modalEl = document.getElementById('modalAdminPanel');
+  const btn = modalEl.querySelector(".btn-primary");
+  btn.disabled = true;
+  btn.textContent = "Procesando...";
+
   callAPI("anexarProductoACategoria", {
     adminCedula: cacheUsuario.cedula,
     nombreCat: catNombre,
@@ -467,10 +513,15 @@ function ejecutarAnexarProducto() {
     prodPrecio: prodPrecio,
     prodImagen: prodImagen
   }).then(function(res) {
+    btn.disabled = false;
+    btn.textContent = "Anexar Producto ✓";
     if (res.error) return alert(res.error);
     mostrarAviso("Producto anexado con éxito.");
-    bootstrap.Modal.getInstance(document.getElementById('modalAdminPanel')).hide();
+    bootstrap.Modal.getInstance(modalEl).hide();
     callAPI("obtenerDatosCatalogo").then(renderizarCatalogo);
+  }).catch(function() {
+    btn.disabled = false;
+    btn.textContent = "Anexar Producto ✓";
   });
 }
 
@@ -484,15 +535,25 @@ function ejecutarEliminarProducto() {
   
   if (!confirm(`¿Está seguro que desea eliminar permanentemente el producto "${prodNombre}"?`)) return;
   
+  const modalEl = document.getElementById('modalAdminPanel');
+  const btn = modalEl.querySelector(".btn-danger");
+  btn.disabled = true;
+  btn.textContent = "Procesando...";
+
   callAPI("eliminarProductoDeCategoria", {
     adminCedula: cacheUsuario.cedula,
     nombreCat: catNombre,
     prodNombre: prodNombre
   }).then(function(res) {
+    btn.disabled = false;
+    btn.textContent = "Eliminar Producto ✕";
     if (res.error) return alert(res.error);
     mostrarAviso("Producto eliminado con éxito.");
-    bootstrap.Modal.getInstance(document.getElementById('modalAdminPanel')).hide();
+    bootstrap.Modal.getInstance(modalEl).hide();
     callAPI("obtenerDatosCatalogo").then(renderizarCatalogo);
+  }).catch(function() {
+    btn.disabled = false;
+    btn.textContent = "Eliminar Producto ✕";
   });
 }
 
