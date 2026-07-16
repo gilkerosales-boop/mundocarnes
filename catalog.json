@@ -2,20 +2,20 @@
   "categorias": [
     {
       "nombre": "Combos",
-      "productos": []
+      "productos": [
+        [
+          "Combo Familiar",
+          25,
+          "img/combo1.webp",
+          true,
+          1,
+          "unidades"
+        ]
+      ]
     },
     {
       "nombre": "Carnes",
-      "productos": [
-        [
-          "Lomo de Cerdo",
-          8.5,
-          "img/lomo.webp",
-          true,
-          1000,
-          "gramos"
-        ]
-      ]
+      "productos": []
     }
   ]
 }
