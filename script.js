@@ -193,7 +193,6 @@ function renderizarCatalogo(resp) {
   });
 }
 
-// Cargar Lista optimizado con lazy loading y decodificación asíncrona para liberar la red en la primera carga
 function cargarLista(idElemento, datos, nombreCategoria) {
   document.getElementById(idElemento).innerHTML = datos.map(f => {
     let esDisp = f[3]; let cantMin = f[4]; let unidad = f[5];
@@ -209,7 +208,6 @@ function cargarLista(idElemento, datos, nombreCategoria) {
     }
     
     let unidadTxt = (unidad === 'unidades') ? 'uds' : 'g';
-    // Incorporación de loading="lazy" y decoding="async" para optimizar el renderizado masivo
     return `<div class="col-6 col-md-3"><div class="card h-100 p-2 position-relative">${etiquetaDisp}<img src="${f[2]}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${f[2]}')"><h6 class="fw-bold mt-2 text-truncate">${f[0]}</h6><p class="text-success fw-bold mb-0">${f[1]} $</p><small class="text-muted" style="font-size:0.7rem;">Mín: ${cantMin} ${unidadTxt}</small>${boton}</div></div>`;
   }).join('');
 }
@@ -374,6 +372,7 @@ function procesarEnvioSolicitud() {
 
 function regresarAFormulario() { bootstrap.Modal.getInstance(document.getElementById('modalConfirmacionFinal')).hide(); new bootstrap.Modal(document.getElementById('modalSolicitudPago')).show(); }
 
+// Nueva Función de confirmación instantánea: Remueve la carga síncrona en Sheets y redirige de inmediato
 function ejecutarAccionFinal() {
   let telConfirmado = "";
   
@@ -391,6 +390,7 @@ function ejecutarAccionFinal() {
   if (telConfirmado !== numeroOriginal) {
     cacheUsuario.telefono = telConfirmado;
     
+    // Llamada asíncrona ("fire-and-forget"). No bloquea el flujo principal de redirección
     callAPI("actualizarTelefonoCliente", { cedula: cacheUsuario.cedula, nuevoTelefono: telConfirmado })
       .catch(function(err) {
         console.error("Error al actualizar teléfono en base de datos:", err);
@@ -399,7 +399,7 @@ function ejecutarAccionFinal() {
 
   const btn = document.getElementById('btnAceptarFinal'); 
   btn.disabled = true; 
-  btn.textContent = "Procesando...";
+  btn.textContent = "Abriendo WhatsApp...";
   
   let arr = [], total = 0, listaWA = "";
   for (let p in carrito) {
@@ -408,27 +408,22 @@ function ejecutarAccionFinal() {
     total += parseFloat(carrito[p].precio);
   }
 
-  let pedido = {
-    telefono: cacheUsuario.telefono, 
-    nombre: cacheUsuario.nombre, apellido: cacheUsuario.apellido,
-    ubicacion: datosCheckout.ubicacion, productos: arr.join(" | "), formaPago: datosCheckout.formaPago, montoTotal: total.toFixed(2)
-  };
+  let mensajeWA = `📱 *Teléfono:* ${cacheUsuario.telefono}\n👤 *Cliente:* ${cacheUsuario.nombre} ${cacheUsuario.apellido}\n📍 *Ubicación:* ${datosCheckout.ubicacion}\n\n🛒 *Pedido Solicitado:*\n${listaWA}\n💵 *Monto Aproximado:* $${total.toFixed(2)}\n💳 *Forma de Pago:* ${datosCheckout.formaPago}\n\n⚠️ *Nota Importante:* Entiendo y acepto que el monto total reflejado es una estimación. El pago final podría variar dependiendo del peso exacto de los productos al momento de prepararlos y de la tarifa aplicable al servicio de delivery. ✅`;
+  
+  // Abre WhatsApp instantáneamente
+  window.open(`https://wa.me/584121753275?text=${encodeURIComponent(mensajeWA)}`, '_blank');
+  
+  // Resetear interfaz del carrito localmente
+  bootstrap.Modal.getInstance(document.getElementById('modalConfirmacionFinal')).hide();
+  document.getElementById('vistaPedido').classList.add('hidden'); 
+  document.getElementById('vistaCombos').classList.remove('hidden');
+  carrito = {}; 
+  
+  btn.disabled = false;
+  btn.textContent = "Aceptar ✓";
 
-  callAPI("guardarPedido", { pedido: pedido }).then(function(res) {
-    btn.disabled = false; 
-    btn.textContent = "Aceptar ✓";
-    bootstrap.Modal.getInstance(document.getElementById('modalConfirmacionFinal')).hide();
-    if (res.error) return alert(res.error);
-
-    let mensajeWA = `📱 *Teléfono:* ${cacheUsuario.telefono}\n👤 *Cliente:* ${cacheUsuario.nombre} ${cacheUsuario.apellido}\n📍 *Ubicación:* ${datosCheckout.ubicacion}\n\n🛒 *Pedido Solicitado:*\n${listaWA}\n💵 *Monto Aproximado:* $${total.toFixed(2)}\n💳 *Forma de Pago:* ${datosCheckout.formaPago}\n\n⚠️ *Nota Importante:* Entiendo y acepto que el monto total reflejado es una estimación. El pago final podría variar dependiendo del peso exacto de los productos al momento de prepararlos y de la tarifa aplicable al servicio de delivery. ✅`;
-    window.open(`https://wa.me/584121753275?text=${encodeURIComponent(mensajeWA)}`, '_blank');
-    
-    document.getElementById('vistaPedido').classList.add('hidden'); document.getElementById('vistaCombos').classList.remove('hidden');
-    carrito = {}; new bootstrap.Modal(document.getElementById('modalExito')).show();
-  }).catch(function() {
-    btn.disabled = false;
-    btn.textContent = "Aceptar ✓";
-  });
+  // Mostrar aviso de éxito local sin esperas de red
+  new bootstrap.Modal(document.getElementById('modalExito')).show();
 }
 
 function abrirPanelAdmin() {
