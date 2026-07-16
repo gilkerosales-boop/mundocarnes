@@ -146,6 +146,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "QUESO PAISA",
+          11.9,
+          "img/queso_paisa.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     },
