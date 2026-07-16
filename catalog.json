@@ -66,6 +66,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "COMBO MEGA",
+          78,
+          "img/combo_mega.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     }
