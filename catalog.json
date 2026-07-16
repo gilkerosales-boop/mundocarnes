@@ -2,16 +2,7 @@
   "categorias": [
     {
       "nombre": "Combos",
-      "productos": [
-        [
-          "Combo Familiar",
-          25,
-          "img/combo1.webp",
-          true,
-          1,
-          "unidades"
-        ]
-      ]
+      "productos": []
     },
     {
       "nombre": "Carnes",
