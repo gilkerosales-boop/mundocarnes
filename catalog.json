@@ -449,6 +449,14 @@
           true,
           250,
           "gramos"
+        ],
+        [
+          "MORTADELA 400g",
+          1.8,
+          "img/don_ramon_400.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
