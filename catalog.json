@@ -518,6 +518,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "CORTA RIGATON",
+          1.4,
+          "img/ronco_rigaton.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
