@@ -235,7 +235,7 @@
         [
           "CHULETA AHUMADA",
           9.9,
-          "img/11.webp",
+          "img/chuleta_ahumada.webp",
           true,
           250,
           "gramos"
@@ -330,16 +330,16 @@
           19.5,
           "img/b_muslo_5.webp",
           true,
-          1,
-          "unidades"
+          1000,
+          "gramos"
         ],
         [
           "BOLSA DE MILANESA 5Kg",
           35,
-          "img/b_milanesa_5.webp",
+          "img/1100.webp",
           true,
-          1,
-          "unidades"
+          1000,
+          "gramos"
         ],
         [
           "BOLSA DE PECHIGA 5Kg",
