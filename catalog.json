@@ -508,8 +508,8 @@
           2.9,
           "img/arroz_p.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ],
         [
           "ARROZ MARY ESMERALDA",
