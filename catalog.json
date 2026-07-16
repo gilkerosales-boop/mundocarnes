@@ -502,6 +502,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "ARROZ MARY PREMIUM",
+          2.9,
+          "img/arroz_p.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
