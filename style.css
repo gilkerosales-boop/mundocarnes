@@ -3,10 +3,10 @@
    ========================================================================== */
 
 body {
-  /* Color de respaldo oscuro para renderizado inmediato en conexiones lentas */
+  /* Fondo de color de respaldo inmediato */
   background-color: #1a0505; 
-  /* Carga progresiva: intenta buscar localmente en GitHub; de lo contrario, usa el servidor externo */
-  background-image: url('img/MUNDOCARNE-web.webp'), url('img/MUNDOCARNE-web.jpg'), url('MUNDOCARNE-web.jpg'), url('https://i.postimg.cc/cHBw1YVq/MUNDOCARNE-web.jpg');
+  /* Ruta local hacia la imagen en GitHub Pages */
+  background-image: url('img/MUNDOCARNE-web.webp');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
