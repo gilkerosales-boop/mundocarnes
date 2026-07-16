@@ -122,6 +122,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "CHARCUTERO 1",
+          29,
+          "img/charcu_1.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     }
