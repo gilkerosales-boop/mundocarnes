@@ -146,6 +146,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "ALAS",
+          4.99,
+          "img/66.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     },
