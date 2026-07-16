@@ -138,6 +138,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "CHARCUTERO 3",
+          33,
+          "img/charcu_3.webp",
+          true,
+          1,
+          "unidades"
         ]
       ]
     }
