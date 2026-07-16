@@ -4,8 +4,8 @@
 
 // Configuración de tu repositorio de GitHub para guardar imágenes y el JSON
 const GITHUB_CONFIG = {
-  owner: "https://github.com/gilkerosales",      // Reemplaza por tu usuario real de GitHub
-  repo: "TU_REPOSITORIO_DE_GITHUB",   // Reemplaza por tu nombre de repositorio
+  owner: "https://github.com/gilkerosales",
+  repo: "mundocarnes",
   branch: "main"                      // Rama de tu despliegue (usualmente main)
 };
 
