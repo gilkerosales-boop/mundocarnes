@@ -516,8 +516,8 @@
           2.4,
           "img/arroz_e.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ],
         [
           "PASTA CORTA RONCO RIGATON 500g",
