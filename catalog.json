@@ -487,8 +487,8 @@
           8,
           "img/punta_de_monte_1kg.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ]
       ]
     }
