@@ -316,6 +316,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "HIGADO DE POLLO",
+          3.6,
+          "img/88.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
