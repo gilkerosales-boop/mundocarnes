@@ -580,8 +580,8 @@
           2.9,
           "img/mavesa_198.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ]
       ]
     }
