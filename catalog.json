@@ -231,6 +231,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "CHULETA AHUMADA",
+          9.9,
+          "img/11.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
