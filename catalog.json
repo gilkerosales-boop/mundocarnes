@@ -614,6 +614,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "GUT CALDO DE POLLO",
+          1.2,
+          "img/gut_caldo_de_pollo.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
