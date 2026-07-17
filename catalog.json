@@ -604,8 +604,8 @@
           1.2,
           "img/gut_ajo,_cebolla_y_perejil.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ],
         [
           "GUT CALDO DE CARNE",
