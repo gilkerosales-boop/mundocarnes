@@ -630,6 +630,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "GUT SALSA PARA PASTA",
+          1.2,
+          "img/gut_salsa_para_pasta.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
