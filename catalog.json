@@ -496,6 +496,14 @@
       "nombre": "VIVERES",
       "productos": [
         [
+          "HARINA P.A.M",
+          1.8,
+          "img/harina.webp",
+          true,
+          1,
+          "unidades"
+        ],
+        [
           "ARROZ MARY PREMIUM",
           2.9,
           "img/arroz_p.webp",
@@ -547,14 +555,6 @@
           "ACEITE VATEL 1L",
           5.5,
           "img/aceite_1l.webp",
-          true,
-          1,
-          "unidades"
-        ],
-        [
-          "HARINA P.A.M",
-          1.8,
-          "img/harina.webp",
           true,
           1,
           "unidades"
