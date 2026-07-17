@@ -628,8 +628,8 @@
           1.2,
           "img/gut_sabroseador.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ],
         [
           "GUT SALSA PARA PASTA",
