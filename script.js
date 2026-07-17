@@ -12,7 +12,7 @@ const GITHUB_CONFIG = {
 // Enlace REST de Apps Script únicamente para la validación de inicio de sesión de clientes
 const API_URL_CLIENTES = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
 
-// Variables globales de la sesión y el carrito (Declaradas al inicio)
+// Variables globales de la sesión y el carrito (Declaradas de forma segura al inicio)
 let carrito = {};
 let productoTemporal = {};
 let cacheUsuario = { cedula: "", nombre: "", apellido: "", telefono: "", rol: "" };
@@ -99,7 +99,7 @@ function validarYLeerArchivoWebP(fileElement) {
       return;
     }
 
-    // Validación formal de formato WebP
+    // Validation formal de formato WebP
     const esWebP = file.type === "image/webp" || file.name.toLowerCase().endsWith(".webp");
     if (!esWebP) {
       reject("La imagen no cumple con el formato exigido. Debe ser .webp");
@@ -150,7 +150,7 @@ function validarTelefonoVenezuela(itiInstance) {
   return itiInstance.isValidNumber();
 }
 
-// Muestra el aviso dinámico usando el Toast de Bootstrap 5 (Restaurada)
+// Muestra el aviso dinámico usando el Toast de Bootstrap 5
 function mostrarAviso(mensaje) {
   try { 
     document.getElementById('toastMensaje').textContent = mensaje; 
@@ -404,23 +404,44 @@ function cargarLista(idElemento, datos, nombreCategoria) {
 
 function abrirModalEdicion(nom, prec, cat, disp, min, unidad) {
   productoTemporal = { nombre: nom, categoria: cat };
-  document.getElementById('editProductoNombre').textContent = nom;
+  
+  document.getElementById('editProductoNuevoNombre').value = nom; 
   document.getElementById('editProductoCategoria').textContent = cat;
   document.getElementById('editProductoPrecio').value = prec;
   document.getElementById('editProductoDisponible').value = disp ? "true" : "false";
   document.getElementById('editProductoMinimo').value = min;
   document.getElementById('editProductoUnidad').value = unidad || "unidades";
   document.getElementById('editProductoArchivoImagen').value = ""; // Limpiar selector
+  
+  // Calcular la posición actual y el límite máximo dentro del array
+  let catObj = cacheCategorias.find(c => c.nombre === cat);
+  if (catObj) {
+    const index = catObj.productos.findIndex(p => p[0] === nom);
+    const posicionActual = index + 1;
+    const totalProductos = catObj.productos.length;
+    
+    const posInput = document.getElementById('editProductoPosicion');
+    posInput.value = posicionActual;
+    posInput.max = totalProductos;
+    
+    document.getElementById('editProductoPosicionAyuda').textContent = 
+      `Posición actual: ${posicionActual} de ${totalProductos} productos en esta categoría.`;
+  }
+  
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarProducto')).show();
 }
 
 async function guardarEdicionAdministrador() {
+  const nuevoNombre = document.getElementById('editProductoNuevoNombre').value.trim();
   const prec = parseFloat(document.getElementById('editProductoPrecio').value);
   const disp = document.getElementById('editProductoDisponible').value === "true";
   const min = parseInt(document.getElementById('editProductoMinimo').value);
   const unidad = document.getElementById('editProductoUnidad').value;
+  const nuevaPosicion = parseInt(document.getElementById('editProductoPosicion').value);
   
-  if (isNaN(prec) || isNaN(min) || !unidad) return mostrarAviso("Llene todos los campos");
+  if (!nuevoNombre || isNaN(prec) || isNaN(min) || !unidad || isNaN(nuevaPosicion)) {
+    return mostrarAviso("Llene todos los campos de forma correcta");
+  }
   
   const modalEl = document.getElementById('modalEditarProducto');
   const btn = modalEl.querySelector(".btn-warning");
@@ -442,14 +463,35 @@ async function guardarEdicionAdministrador() {
     // 2. Localizar y actualizar el objeto del catálogo en memoria
     let cat = cacheCategorias.find(c => c.nombre === productoTemporal.categoria);
     if (cat) {
-      let prod = cat.productos.find(p => p[0] === productoTemporal.nombre);
-      if (prod) {
+      const oldIndex = cat.productos.findIndex(p => p[0] === productoTemporal.nombre);
+      if (oldIndex !== -1) {
+        let prod = cat.productos[oldIndex];
+        
+        // Actualizar valores del producto
+        prod[0] = nuevoNombre;
         prod[1] = prec;
         prod[3] = disp;
         prod[4] = min;
         prod[5] = unidad;
-        if (relativeImgPath) prod[2] = relativeImgPath; // Actualizar ruta si subió nueva imagen
+        if (relativeImgPath) {
+          prod[2] = relativeImgPath;
+        }
+        
+        // Procesar la nueva posición (Ordenación del array)
+        let targetIndex = nuevaPosicion - 1;
+        if (targetIndex < 0) targetIndex = 0;
+        if (targetIndex >= cat.productos.length) targetIndex = cat.productos.length - 1;
+        
+        if (oldIndex !== targetIndex) {
+          // Mover quirúrgicamente el producto dentro del array
+          cat.productos.splice(oldIndex, 1); // Remover del índice viejo
+          cat.productos.splice(targetIndex, 0, prod); // Insertar en el índice nuevo
+        }
+      } else {
+        throw new Error("No se localizó el producto original.");
       }
+    } else {
+      throw new Error("Categoría no encontrada.");
     }
 
     // 3. Sincronizar catálogo con GitHub
