@@ -122,10 +122,31 @@ function validarYLeerArchivoWebP(fileElement) {
   });
 }
 
+// Validador personalizado para los prefijos de Venezuela (+58) incluyendo el nuevo 0422 de Digitel
+function validarTelefonoVenezuela(itiInstance) {
+  if (!itiInstance) return false;
+  const countryData = itiInstance.getSelectedCountryData();
+  const rawNumber = itiInstance.getNumber(); // ej: +584221234567
+  
+  if (countryData.dialCode === "58") {
+    const digitos = rawNumber.replace(/\D/g, ""); // "584221234567"
+    if (digitos.length === 12 && digitos.startsWith("584")) {
+      const prefijoCelular = digitos.substring(2, 5); // "422"
+      const prefijosValidos = ["412", "422", "414", "424", "416", "426"];
+      if (prefijosValidos.includes(prefijoCelular)) {
+        return true; // Prefijo correcto de Venezuela
+      }
+    }
+  }
+  return itiInstance.isValidNumber();
+}
+
 let carrito = {}, productoTemporal = {}, cacheUsuario = { cedula: "", nombre: "", apellido: "", telefono: "", rol: "" }, datosCheckout = { ubicacion: "", formaPago: "" };
 let cacheCategorias = []; 
 let iti; 
+let itiCheckout; // Instancia global de intl-tel-input para el modal de Checkout
 
+// Inicialización de intl-tel-input en la carga del DOM
 document.addEventListener("DOMContentLoaded", function() {
   const inputTelefono = document.querySelector("#regTelefono");
   if (inputTelefono) {
@@ -135,6 +156,26 @@ document.addEventListener("DOMContentLoaded", function() {
       utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js"
     });
   }
+
+  // Inicialización de intl-tel-input para el Checkout
+  const inputCheckoutTel = document.querySelector("#checkoutTelefono");
+  if (inputCheckoutTel) {
+    itiCheckout = window.intlTelInput(inputCheckoutTel, {
+      initialCountry: "ve",
+      separateDialCode: true,
+      utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js"
+    });
+  }
+
+  // CARGAR EL CATÁLOGO PÚBLICO AL INICIO DEL SISTEMA
+  document.getElementById('saludoUsuario').innerHTML = "¡Bienvenido a <strong>Mundocarnes</strong>! 🥩";
+  fetch("catalog.json?t=" + new Date().getTime())
+    .then(res => res.json())
+    .then(renderizarCatalogo)
+    .catch(err => {
+      console.error(err);
+      mostrarAviso("Error al obtener catalog.json desde el servidor.");
+    });
 });
 
 function mostrarAviso(mensaje) {
@@ -150,14 +191,39 @@ function regresarAlInicio() {
   cacheUsuario = { cedula: "", nombre: "", apellido: "", telefono: "", rol: "" }; carrito = {}; cacheCategorias = [];
   document.getElementById('cedula').value = ""; document.getElementById('passwordAdmin').value = "";
   document.getElementById('regNombre').value = ""; document.getElementById('regApellido').value = "";
-  if (iti) {
-    iti.setNumber(""); 
+  
+  if (iti) iti.setNumber(""); 
+  if (itiCheckout) itiCheckout.setNumber("");
+
+  document.getElementById('vistaAdminPassword').classList.add('hidden'); 
+  document.getElementById('vistaRegistro').classList.add('hidden');
+  document.getElementById('vistaPedido').classList.add('hidden'); 
+  document.getElementById('vistaIngreso').classList.add('hidden');
+  
+  // Mostrar catálogo público
+  document.getElementById('vistaCombos').classList.remove('hidden');
+  document.getElementById('btnAdminPanel').classList.add('hidden');
+  document.getElementById('btnVerPedido').classList.remove('hidden');
+  document.getElementById('btnSesionHeader').textContent = "Acceso Admin 🔑";
+  document.getElementById('saludoUsuario').innerHTML = "¡Bienvenido a <strong>Mundocarnes</strong>! 🥩";
+
+  fetch("catalog.json?t=" + new Date().getTime())
+    .then(res => res.json())
+    .then(renderizarCatalogo);
+}
+
+function controlarSesionHeader() {
+  if (cacheUsuario.cedula) {
+    regresarAlInicio();
   } else {
-    document.getElementById('regTelefono').value = "";
+    irALoginAdministrador();
   }
-  document.getElementById('vistaAdminPassword').classList.add('hidden'); document.getElementById('vistaRegistro').classList.add('hidden');
-  document.getElementById('vistaCombos').classList.add('hidden'); document.getElementById('vistaPedido').classList.add('hidden');
+}
+
+function irALoginAdministrador() {
+  document.getElementById('vistaCombos').classList.add('hidden');
   document.getElementById('vistaIngreso').classList.remove('hidden');
+  document.getElementById('cedula').placeholder = "Ingrese Cédula o RIF";
 }
 
 function procesarPrimerPaso() {
@@ -208,14 +274,13 @@ async function verificarPasswordAdministrador() {
     
     const response = await fetch(url, {
       headers: { 
-        "Authorization": `Bearer ${token}`, // Cambiado a Bearer para compatibilidad moderna
+        "Authorization": `Bearer ${token}`, 
         "Accept": "application/vnd.github+json"
       }
     });
     
     if (response.ok) {
       const repoData = await response.json();
-      // Validar si el token ingresado tiene privilegios para realizar push
       if (repoData.permissions && repoData.permissions.push) {
         sessionStorage.setItem("github_token", token);
         cacheUsuario.rol = "ADMIN";
@@ -250,8 +315,8 @@ function ejecutarRegistroNuevoCliente() {
   
   let tel = "";
   if (iti) {
-    if (!iti.isValidNumber()) {
-      return mostrarAviso("Por favor, introduzca un número de teléfono celular válido.");
+    if (!validarTelefonoVenezuela(iti)) {
+      return mostrarAviso("Por favor, introduzca un número de teléfono celular válido de Venezuela (prefijos: 0412, 0422, 0414, 0424, 0416, 0426).");
     }
     tel = iti.getNumber();
   } else {
@@ -282,13 +347,14 @@ function concederAccesoAlSistema() {
     document.getElementById('saludoUsuario').innerHTML = `⚙️ <strong>Modo Editor:</strong> ${cacheUsuario.nombre}`;
     document.getElementById('btnVerPedido').classList.add('hidden'); 
     document.getElementById('btnAdminPanel').classList.remove('hidden'); 
+    document.getElementById('btnSesionHeader').textContent = "Cerrar Sesión 🚪";
   } else {
     document.getElementById('saludoUsuario').innerHTML = `👋 Hola, <strong>${cacheUsuario.nombre}</strong>`;
     document.getElementById('btnVerPedido').classList.remove('hidden');
     document.getElementById('btnAdminPanel').classList.add('hidden'); 
+    document.getElementById('btnSesionHeader').textContent = "Cerrar Sesión 🚪";
   }
   
-  // Cargar Catálogo de forma local directa de GitHub Pages en milisegundos
   fetch("catalog.json?t=" + new Date().getTime())
     .then(res => res.json())
     .then(renderizarCatalogo)
@@ -377,18 +443,15 @@ async function guardarEdicionAdministrador() {
   btn.textContent = "Procesando...";
 
   try {
-    // 1. Validar e intentar procesar la imagen cargada localmente
     const imgData = await validarYLeerArchivoWebP(document.getElementById('editProductoArchivoImagen'));
     let relativeImgPath = null;
 
     if (imgData) {
-      // Subir archivo a GitHub de forma directa
       const filePath = `img/${imgData.name}`;
       await subirArchivoAGitHub(filePath, imgData.base64, `Subida de imagen de producto: ${imgData.name}`);
       relativeImgPath = filePath;
     }
 
-    // 2. Localizar y actualizar el objeto del catálogo en memoria
     let cat = cacheCategorias.find(c => c.nombre === productoTemporal.categoria);
     if (cat) {
       let prod = cat.productos.find(p => p[0] === productoTemporal.nombre);
@@ -397,11 +460,10 @@ async function guardarEdicionAdministrador() {
         prod[3] = disp;
         prod[4] = min;
         prod[5] = unidad;
-        if (relativeImgPath) prod[2] = relativeImgPath; // Actualizar ruta si subió nueva imagen
+        if (relativeImgPath) prod[2] = relativeImgPath;
       }
     }
 
-    // 3. Sincronizar catálogo con GitHub
     await guardarCatalogoEnGitHub();
 
     btn.disabled = false;
@@ -409,7 +471,6 @@ async function guardarEdicionAdministrador() {
     bootstrap.Modal.getInstance(modalEl).hide();
     mostrarAviso("Producto guardado y sincronizado correctamente");
     
-    // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
     renderizarCatalogo({ categorias: cacheCategorias });
 
   } catch (error) {
@@ -475,9 +536,119 @@ function cambiarCantidadInline(nombre, nuevaCant) {
 function eliminarDelCarrito(p) { delete carrito[p]; mostrarPedido(); }
 function cerrarPedido() { document.getElementById('vistaPedido').classList.add('hidden'); document.getElementById('vistaCombos').classList.remove('hidden'); }
 
+// Redirección y lógica de autenticación diferida en Checkout
 function abrirSolicitudPago() {
   if(!Object.keys(carrito).length) return;
-  new bootstrap.Modal(document.getElementById('modalSolicitudPago')).show();
+  
+  // Si el cliente ya está identificado por haber iniciado sesión o haberse registrado previamente
+  if (cacheUsuario.cedula && cacheUsuario.telefono) {
+    new bootstrap.Modal(document.getElementById('modalSolicitudPago')).show();
+  } else {
+    // Abrir modal de autenticación diferido
+    document.getElementById('checkoutPasoCedula').classList.remove('hidden');
+    document.getElementById('checkoutPasoRegistro').classList.add('hidden');
+    document.getElementById('checkoutCedula').value = "";
+    
+    new bootstrap.Modal(document.getElementById('modalAutenticacionCheckout')).show();
+  }
+}
+
+// Evalúa si la cédula ingresada en Checkout existe para autocompletar o registrar
+function verificarClienteCheckout() {
+  const cedulaInput = document.getElementById('checkoutCedula').value.trim();
+  if (!cedulaInput) return mostrarAviso("Por favor, ingrese su Cédula o RIF.");
+  
+  const btn = document.getElementById('btnContinuarCheckout');
+  btn.disabled = true;
+  btn.textContent = "Verificando...";
+  
+  callClientesAPI("verificarUsuario", { cedula: cedulaInput }).then(function(respuesta) {
+    btn.disabled = false;
+    btn.textContent = "Continuar ➡️";
+    
+    if (respuesta.error) return alert("Aviso: " + respuesta.error);
+    
+    cacheUsuario.cedula = cedulaInput;
+    
+    if (respuesta.status === "CLIENTE") {
+      // Cliente recurrente localizado, autocompletamos su sesión de compra
+      cacheUsuario.nombre = respuesta.nombre;
+      cacheUsuario.apellido = respuesta.apellido;
+      cacheUsuario.telefono = respuesta.telefono;
+      cacheUsuario.rol = "CLIENTE";
+      
+      mostrarAviso(`Bienvenido de nuevo, ${respuesta.nombre} 👋`);
+      
+      // Ocultar modal de autenticación y abrir modal de entrega/pago
+      bootstrap.Modal.getInstance(document.getElementById('modalAutenticacionCheckout')).hide();
+      new bootstrap.Modal(document.getElementById('modalSolicitudPago')).show();
+      
+    } else if (respuesta.status === "ADMIN") {
+      mostrarAviso("Identificado como administrador. Inicie sesión desde el menú superior.");
+      bootstrap.Modal.getInstance(document.getElementById('modalAutenticacionCheckout')).hide();
+      irALoginAdministrador();
+    } else {
+      // Cliente nuevo. Transicionar al formulario de registro del checkout
+      document.getElementById('checkoutPasoCedula').classList.add('hidden');
+      document.getElementById('checkoutPasoRegistro').classList.remove('hidden');
+      document.getElementById('checkoutNombre').value = "";
+      document.getElementById('checkoutApellido').value = "";
+      if (itiCheckout) itiCheckout.setNumber("");
+    }
+  }).catch(function(err) {
+    btn.disabled = false;
+    btn.textContent = "Continuar ➡️";
+    alert("Error de conexión al verificar identidad.");
+  });
+}
+
+// Ejecuta el registro del cliente nuevo directamente en el checkout
+function ejecutarRegistroCheckout() {
+  const nom = document.getElementById('checkoutNombre').value.trim();
+  const ape = document.getElementById('checkoutApellido').value.trim();
+  
+  if (!nom || !ape) return mostrarAviso("Llene todos los campos.");
+  
+  let tel = "";
+  if (itiCheckout) {
+    // Validación adaptada compatible con prefijo 0422
+    if (!validarTelefonoVenezuela(itiCheckout)) {
+      return mostrarAviso("Número celular no válido. Ingrese un formato correcto de Venezuela (prefijos: 0412, 0422, 0414, 0424, 0416, 0426).");
+    }
+    tel = itiCheckout.getNumber();
+  } else {
+    tel = document.getElementById('checkoutTelefono').value.trim();
+    if (!tel) return mostrarAviso("Llene todos los campos.");
+  }
+  
+  const btn = document.getElementById('btnRegistrarCheckout');
+  btn.disabled = true;
+  btn.textContent = "Procesando...";
+  
+  callClientesAPI("registrarCliente", { 
+    cedula: cacheUsuario.cedula, 
+    nombre: nom, 
+    apellido: ape, 
+    telefono: tel 
+  }).then(function(res) {
+    btn.disabled = false;
+    btn.textContent = "Registrarse y Comprar 🚀";
+    if (res.error) return alert(res.error);
+    
+    cacheUsuario.nombre = nom.toUpperCase();
+    cacheUsuario.apellido = ape.toUpperCase();
+    cacheUsuario.telefono = tel;
+    cacheUsuario.rol = "CLIENTE";
+    
+    mostrarAviso("Registro completado con éxito 🎉");
+    
+    // Cerrar modal de autenticación y pasar directamente a la selección de entrega/pago
+    bootstrap.Modal.getInstance(document.getElementById('modalAutenticacionCheckout')).hide();
+    new bootstrap.Modal(document.getElementById('modalSolicitudPago')).show();
+  }).catch(function() {
+    btn.disabled = false;
+    btn.textContent = "Registrarse y Comprar 🚀";
+  });
 }
 
 function alternarTipoEntrega(tipo) { document.getElementById('contenedorUbicacion').classList.toggle('hidden', tipo === 'Pickup'); }
@@ -540,7 +711,8 @@ function ejecutarAccionFinal() {
   let telConfirmado = "";
   
   if (window.itiConfirm) {
-    if (!window.itiConfirm.isValidNumber()) {
+    // Validación compatible integrada
+    if (!validarTelefonoVenezuela(window.itiConfirm)) {
       return mostrarAviso("Por favor, introduzca un número de teléfono de confirmación válido.");
     }
     telConfirmado = window.itiConfirm.getNumber(); 
