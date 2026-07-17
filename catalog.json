@@ -668,8 +668,8 @@
           1.5,
           "img/papel_higienico_rosal_plus_4_rollos.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ]
       ]
     }
