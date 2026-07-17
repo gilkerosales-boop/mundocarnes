@@ -12,6 +12,15 @@ const GITHUB_CONFIG = {
 // Enlace REST de Apps Script únicamente para la validación de inicio de sesión de clientes
 const API_URL_CLIENTES = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
 
+// Variables globales de la sesión y el carrito (Declaradas de forma segura al inicio)
+let carrito = {};
+let productoTemporal = {};
+let cacheUsuario = { cedula: "", nombre: "", apellido: "", telefono: "", rol: "" };
+let datosCheckout = { ubicacion: "", formaPago: "" };
+let cacheCategorias = []; 
+let iti;            // Instancia de intl-tel-input para el formulario de registro tradicional
+let itiCheckout;    // Instancia de intl-tel-input para el modal de Checkout
+
 // Función de comunicación REST asíncrona exclusiva para clientes
 async function callClientesAPI(action, data = {}) {
   try {
@@ -140,11 +149,6 @@ function validarTelefonoVenezuela(itiInstance) {
   }
   return itiInstance.isValidNumber();
 }
-
-let carrito = {}, productoTemporal = {}, cacheUsuario = { cedula: "", nombre: "", apellido: "", telefono: "", rol: "" }, datosCheckout = { ubicacion: "", formaPago: "" };
-let cacheCategorias = []; 
-let iti; 
-let itiCheckout; // Instancia de intl-tel-input para el modal de Checkout
 
 // Reestablece los estados de interfaz a su modo cliente público
 function regresarAlInicio() {
@@ -396,7 +400,7 @@ function abrirModalEdicion(nom, prec, cat, disp, min, unidad) {
   document.getElementById('editProductoDisponible').value = disp ? "true" : "false";
   document.getElementById('editProductoMinimo').value = min;
   document.getElementById('editProductoUnidad').value = unidad || "unidades";
-  document.getElementById('editProductoArchivoImagen').value = ""; 
+  document.getElementById('editProductoArchivoImagen').value = ""; // Limpiar selector
   new bootstrap.Modal(document.getElementById('modalEditarProducto')).show();
 }
 
@@ -414,15 +418,18 @@ async function guardarEdicionAdministrador() {
   btn.textContent = "Procesando...";
 
   try {
+    // 1. Validar e intentar procesar la imagen cargada localmente
     const imgData = await validarYLeerArchivoWebP(document.getElementById('editProductoArchivoImagen'));
     let relativeImgPath = null;
 
     if (imgData) {
+      // Subir archivo a GitHub de forma directa
       const filePath = `img/${imgData.name}`;
       await subirArchivoAGitHub(filePath, imgData.base64, `Subida de imagen de producto: ${imgData.name}`);
       relativeImgPath = filePath;
     }
 
+    // 2. Localizar y actualizar el objeto del catálogo en memoria
     let cat = cacheCategorias.find(c => c.nombre === productoTemporal.categoria);
     if (cat) {
       let prod = cat.productos.find(p => p[0] === productoTemporal.nombre);
@@ -431,10 +438,11 @@ async function guardarEdicionAdministrador() {
         prod[3] = disp;
         prod[4] = min;
         prod[5] = unidad;
-        if (relativeImgPath) prod[2] = relativeImgPath; 
+        if (relativeImgPath) prod[2] = relativeImgPath; // Actualizar ruta si subió nueva imagen
       }
     }
 
+    // 3. Sincronizar catálogo con GitHub
     await guardarCatalogoEnGitHub();
 
     btn.disabled = false;
@@ -442,6 +450,7 @@ async function guardarEdicionAdministrador() {
     bootstrap.Modal.getInstance(modalEl).hide();
     mostrarAviso("Producto guardado y sincronizado correctamente");
     
+    // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
     renderizarCatalogo({ categorias: cacheCategorias });
 
   } catch (error) {
@@ -682,6 +691,7 @@ function ejecutarAccionFinal() {
   let telConfirmado = "";
   
   if (window.itiConfirm) {
+    // Validación compatible integrada
     if (!validarTelefonoVenezuela(window.itiConfirm)) {
       return mostrarAviso("Por favor, introduzca un número de teléfono de confirmación válido.");
     }
@@ -715,8 +725,10 @@ function ejecutarAccionFinal() {
 
   let mensajeWA = `📱 *Teléfono:* ${cacheUsuario.telefono}\n👤 *Cliente:* ${cacheUsuario.nombre} ${cacheUsuario.apellido}\n📍 *Ubicación:* ${datosCheckout.ubicacion}\n\n🛒 *Pedido Solicitado:*\n${listaWA}\n💵 *Monto Aproximado:* $${total.toFixed(2)}\n💳 *Forma de Pago:* ${datosCheckout.formaPago}\n\n⚠️ *Nota Importante:* Entiendo y acepto que el monto total reflejado es una estimación. El pago final podría variar dependiendo del peso exacto de los productos al momento de prepararlos y de la tarifa aplicable al servicio de delivery. ✅`;
   
+  // Abre WhatsApp instantáneamente
   window.open(`https://wa.me/584121753275?text=${encodeURIComponent(mensajeWA)}`, '_blank');
   
+  // Resetear interfaz del carrito localmente
   bootstrap.Modal.getInstance(document.getElementById('modalConfirmacionFinal')).hide();
   document.getElementById('vistaPedido').classList.add('hidden'); 
   document.getElementById('vistaCombos').classList.remove('hidden');
@@ -725,6 +737,7 @@ function ejecutarAccionFinal() {
   btn.disabled = false;
   btn.textContent = "Aceptar ✓";
 
+  // Mostrar aviso de éxito local sin esperas de red
   new bootstrap.Modal(document.getElementById('modalExito')).show();
 }
 
@@ -776,9 +789,11 @@ async function ejecutarCrearCategoria() {
       throw new Error("Debe seleccionar una imagen obligatoria para el producto inicial.");
     }
 
+    // 1. Subir imagen a GitHub
     const relativePath = `img/${imgData.name}`;
     await subirArchivoAGitHub(relativePath, imgData.base64, `Creación de categoría con imagen: ${imgData.name}`);
 
+    // 2. Insertar nueva categoría en memoria
     cacheCategorias.push({
       nombre: catNombre.toUpperCase(),
       productos: [
@@ -786,6 +801,7 @@ async function ejecutarCrearCategoria() {
       ]
     });
 
+    // 3. Sincronizar catálogo
     await guardarCatalogoEnGitHub();
 
     btn.disabled = false;
@@ -793,6 +809,7 @@ async function ejecutarCrearCategoria() {
     mostrarAviso("Categoría creada con éxito.");
     bootstrap.Modal.getInstance(modalEl).hide();
     
+    // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
     renderizarCatalogo({ categorias: cacheCategorias });
 
   } catch (error) {
@@ -822,17 +839,21 @@ async function ejecutarAnexarProducto() {
       throw new Error("Debe seleccionar una imagen obligatoria para el producto.");
     }
 
+    // 1. Subir imagen a GitHub
     const relativePath = `img/${imgData.name}`;
     await subirArchivoAGitHub(relativePath, imgData.base64, `Anexo de producto con imagen: ${imgData.name}`);
 
+    // 2. Insertar en la categoría correspondiente en memoria
     let cat = cacheCategorias.find(c => c.nombre === catNombre);
     if (cat) {
+      // Por defecto asume unidades para combos y gramos para el resto
       let esCombo = catNombre.toUpperCase().includes("COMBO");
       let defaultUnidad = esCombo ? "unidades" : "gramos";
       let minVal = esCombo ? 1 : 1000;
       cat.productos.push([prodNombre, prodPrecio, relativePath, true, minVal, defaultUnidad]);
     }
 
+    // 3. Sincronizar catálogo
     await guardarCatalogoEnGitHub();
 
     btn.disabled = false;
@@ -840,6 +861,7 @@ async function ejecutarAnexarProducto() {
     mostrarAviso("Producto anexado con éxito.");
     bootstrap.Modal.getInstance(modalEl).hide();
     
+    // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
     renderizarCatalogo({ categorias: cacheCategorias });
 
   } catch (error) {
@@ -867,9 +889,11 @@ async function ejecutarEliminarProducto() {
   try {
     let cat = cacheCategorias.find(c => c.nombre === catNombre);
     if (cat) {
+      // Filtrar y eliminar el producto del array
       cat.productos = cat.productos.filter(p => p[0] !== prodNombre);
     }
 
+    // Sincronizar catálogo actualizado
     await guardarCatalogoEnGitHub();
 
     btn.disabled = false;
@@ -877,6 +901,7 @@ async function ejecutarEliminarProducto() {
     mostrarAviso("Producto eliminado con éxito.");
     bootstrap.Modal.getInstance(modalEl).hide();
     
+    // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
     renderizarCatalogo({ categorias: cacheCategorias });
 
   } catch (error) {
