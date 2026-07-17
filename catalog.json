@@ -612,8 +612,8 @@
           1.2,
           "img/gut_caldo_de_carne.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ],
         [
           "GUT CALDO DE POLLO",
