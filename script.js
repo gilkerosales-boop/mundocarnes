@@ -401,7 +401,7 @@ function abrirModalEdicion(nom, prec, cat, disp, min, unidad) {
   document.getElementById('editProductoMinimo').value = min;
   document.getElementById('editProductoUnidad').value = unidad || "unidades";
   document.getElementById('editProductoArchivoImagen').value = ""; // Limpiar selector
-  new bootstrap.Modal(document.getElementById('modalEditarProducto')).show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarProducto')).show();
 }
 
 async function guardarEdicionAdministrador() {
@@ -447,7 +447,7 @@ async function guardarEdicionAdministrador() {
 
     btn.disabled = false;
     btn.textContent = "Guardar Cambios 💾";
-    bootstrap.Modal.getInstance(modalEl).hide();
+    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
     mostrarAviso("Producto guardado y sincronizado correctamente");
     
     // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
@@ -467,7 +467,7 @@ function seleccionarProducto(nom, prec, tipo, cantMin, unidad) {
   
   let inp = document.getElementById('inputCantidad');
   inp.min = cantMin; inp.value = cantMin;
-  new bootstrap.Modal(document.getElementById('modalCantidad')).show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCantidad')).show();
 }
 
 function confirmarSeleccion() {
@@ -488,7 +488,7 @@ function confirmarSeleccion() {
   };
   
   mostrarAviso(`Agregado: ${productoTemporal.nombre}`);
-  bootstrap.Modal.getInstance(document.getElementById('modalCantidad')).hide();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCantidad')).hide();
 }
 
 function mostrarPedido() {
@@ -522,14 +522,14 @@ function abrirSolicitudPago() {
   
   // Si el cliente ya está identificado por haber iniciado sesión o haberse registrado previamente
   if (cacheUsuario.cedula && cacheUsuario.telefono) {
-    new bootstrap.Modal(document.getElementById('modalSolicitudPago')).show();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show();
   } else {
     // Abrir modal de autenticación diferido
     document.getElementById('checkoutPasoCedula').classList.remove('hidden');
     document.getElementById('checkoutPasoRegistro').classList.add('hidden');
     document.getElementById('checkoutCedula').value = "";
     
-    new bootstrap.Modal(document.getElementById('modalAutenticacionCheckout')).show();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAutenticacionCheckout')).show();
   }
 }
 
@@ -560,12 +560,12 @@ function verificarClienteCheckout() {
       mostrarAviso(`Bienvenido de nuevo, ${respuesta.nombre} 👋`);
       
       // Ocultar modal de autenticación y abrir modal de entrega/pago
-      bootstrap.Modal.getInstance(document.getElementById('modalAutenticacionCheckout')).hide();
-      new bootstrap.Modal(document.getElementById('modalSolicitudPago')).show();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAutenticacionCheckout')).hide();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show();
       
     } else if (respuesta.status === "ADMIN") {
       mostrarAviso("Identificado como administrador. Inicie sesión desde el menú superior.");
-      bootstrap.Modal.getInstance(document.getElementById('modalAutenticacionCheckout')).hide();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAutenticacionCheckout')).hide();
       irALoginAdministrador();
     } else {
       // Cliente nuevo. Transicionar al formulario de registro del checkout
@@ -623,8 +623,8 @@ function ejecutarRegistroCheckout() {
     mostrarAviso("Registro completado con éxito 🎉");
     
     // Cerrar modal de autenticación y pasar directamente a la selección de entrega/pago
-    bootstrap.Modal.getInstance(document.getElementById('modalAutenticacionCheckout')).hide();
-    new bootstrap.Modal(document.getElementById('modalSolicitudPago')).show();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAutenticacionCheckout')).hide();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show();
   }).catch(function() {
     btn.disabled = false;
     btn.textContent = "Registrarse y Comprar 🚀";
@@ -639,7 +639,7 @@ function procesarEnvioSolicitud() {
   if (document.getElementById('tipoEntregaSelect').value === 'Delivery' && !datosCheckout.ubicacion) return mostrarAviso("Escriba la dirección");
   if (!datosCheckout.formaPago) return mostrarAviso("Seleccione pago");
   
-  bootstrap.Modal.getInstance(document.getElementById('modalSolicitudPago')).hide();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).hide();
   
   let total = 0;
   let listaHtml = '<ul class="list-unstyled mb-1">';
@@ -681,10 +681,10 @@ function procesarEnvioSolicitud() {
     }
   }, 150);
 
-  new bootstrap.Modal(document.getElementById('modalConfirmacionFinal')).show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfirmacionFinal')).show();
 }
 
-function regresarAFormulario() { bootstrap.Modal.getInstance(document.getElementById('modalConfirmacionFinal')).hide(); new bootstrap.Modal(document.getElementById('modalSolicitudPago')).show(); }
+function regresarAFormulario() { bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfirmacionFinal')).hide(); bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show(); }
 
 // Nueva Función de confirmación instantánea: Remueve la carga síncrona en Sheets y redirige de inmediato
 function ejecutarAccionFinal() {
@@ -729,7 +729,7 @@ function ejecutarAccionFinal() {
   window.open(`https://wa.me/584121753275?text=${encodeURIComponent(mensajeWA)}`, '_blank');
   
   // Resetear interfaz del carrito localmente
-  bootstrap.Modal.getInstance(document.getElementById('modalConfirmacionFinal')).hide();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfirmacionFinal')).hide();
   document.getElementById('vistaPedido').classList.add('hidden'); 
   document.getElementById('vistaCombos').classList.remove('hidden');
   carrito = {}; 
@@ -738,7 +738,7 @@ function ejecutarAccionFinal() {
   btn.textContent = "Aceptar ✓";
 
   // Mostrar aviso de éxito local sin esperas de red
-  new bootstrap.Modal(document.getElementById('modalExito')).show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalExito')).show();
 }
 
 function abrirPanelAdmin() {
@@ -759,7 +759,7 @@ function abrirPanelAdmin() {
   
   document.getElementById('adminDelProdSelect').innerHTML = `<option value="" disabled selected>-- Primero elija categoría --</option>`;
   
-  new bootstrap.Modal(document.getElementById('modalAdminPanel')).show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAdminPanel')).show();
 }
 
 function cargarProductosParaEliminar(catNombre) {
@@ -807,7 +807,7 @@ async function ejecutarCrearCategoria() {
     btn.disabled = false;
     btn.textContent = "Crear Categoría ✓";
     mostrarAviso("Categoría creada con éxito.");
-    bootstrap.Modal.getInstance(modalEl).hide();
+    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
     
     // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
     renderizarCatalogo({ categorias: cacheCategorias });
@@ -859,7 +859,7 @@ async function ejecutarAnexarProducto() {
     btn.disabled = false;
     btn.textContent = "Anexar Producto ✓";
     mostrarAviso("Producto anexado con éxito.");
-    bootstrap.Modal.getInstance(modalEl).hide();
+    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
     
     // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
     renderizarCatalogo({ categorias: cacheCategorias });
@@ -940,6 +940,7 @@ document.addEventListener("DOMContentLoaded", function() {
   const esAdminUrl = urlParams.has('admin') || window.location.hash === "#admin";
 
   if (esAdminUrl) {
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('btnSesionHeader')).show; // Fallback seguro
     document.getElementById('btnSesionHeader').classList.remove('hidden');
     irALoginAdministrador();
   } else {
