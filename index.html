@@ -14,17 +14,18 @@
   <body>
     <div class="container d-flex justify-content-center">
       
-      <!-- Vista de Ingreso -->
-      <div id="vistaIngreso" class="panel-base login-container">
+      <!-- Vista de Ingreso (Oculta por defecto, solo para administradores) -->
+      <div id="vistaIngreso" class="panel-base login-container hidden">
         <img src="img/LOGO-MUNDO123.webp" class="logo-header" alt="Logo Mundocarnes">
         <h4 class="text-center mb-4 fw-bold">Acceso de Usuarios</h4>
         <div class="mb-3">
           <input type="text" class="form-control border-dark text-center fw-bold fs-5" id="cedula" placeholder="Ingrese Cédula o RIF" required>
         </div>
         <button type="button" id="btnSiguiente" class="btn btn-danger btn-lg w-100 fw-bold border border-dark" onclick="procesarPrimerPaso()">Siguiente</button>
+        <button type="button" class="btn btn-outline-secondary w-100 fw-bold mt-2" onclick="regresarAlInicio()">Regresar al Catálogo 🥩</button>
       </div>
 
-      <!-- Vista de Contraseña Administrativa (Ahora solicita el Token de GitHub) -->
+      <!-- Vista de Contraseña Administrativa (Token de GitHub) -->
       <div id="vistaAdminPassword" class="panel-base login-container hidden">
         <img src="img/LOGO-MUNDO123.webp" class="logo-header" alt="Logo Mundocarnes">
         <h4 class="text-center mb-2 fw-bold text-danger">Acceso Administrativo</h4>
@@ -36,7 +37,7 @@
         <button type="button" class="btn btn-outline-secondary w-100 fw-bold" onclick="regresarAlInicio()">Cancelar</button>
       </div>
 
-      <!-- Vista de Registro -->
+      <!-- Vista de Registro Tradicional (Respaldada para fallbacks) -->
       <div id="vistaRegistro" class="panel-base login-container hidden">
         <img src="img/LOGO-MUNDO123.webp" class="logo-header" alt="Logo Mundocarnes">
         <h4 class="text-center mb-1 fw-bold text-success">Formulario de Registro</h4>
@@ -51,11 +52,11 @@
         <button type="button" class="btn btn-outline-secondary w-100 fw-bold" onclick="regresarAlInicio()">Cancelar</button>
       </div>
       
-      <!-- Vista de Catálogo (Tabs Dinámicos) -->
-      <div id="vistaCombos" class="panel-base combos-container hidden">
+      <!-- Vista de Catálogo (Visible por defecto) -->
+      <div id="vistaCombos" class="panel-base combos-container">
         <img src="img/LOGO-MUNDO123.webp" class="logo-header" alt="Logo Mundocarnes">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <button type="button" class="btn btn-dark fw-bold" onclick="regresarAlInicio()">Cerrar Sesión 🚪</button>
+          <button type="button" id="btnSesionHeader" class="btn btn-dark fw-bold" onclick="controlarSesionHeader()">Acceso Admin 🔑</button>
           <button type="button" id="btnAdminPanel" class="btn btn-info fw-bold border-dark hidden" onclick="abrirPanelAdmin()">Panel de Control 🛠️</button>
           <button type="button" id="btnVerPedido" class="btn btn-warning fw-bold border-dark" onclick="mostrarPedido()">Ver Pedido 🛒</button>
         </div>
@@ -132,7 +133,7 @@
               </select>
             </div>
 
-            <!-- NUEVO: Selector de archivo local exclusivo para WebP -->
+            <!-- Selector de archivo local exclusivo para WebP -->
             <div class="mb-3">
               <label class="form-label fw-bold">Actualizar Imagen (.webp < 120 KB):</label>
               <input type="file" id="editProductoArchivoImagen" class="form-control border-dark fw-bold" accept="image/webp">
@@ -192,7 +193,7 @@
                     <input type="number" id="adminCatProdPrecio" class="form-control border-dark" step="0.01" placeholder="9.50">
                   </div>
                 </div>
-                <!-- NUEVO: Selector de archivo local exclusivo para WebP -->
+                <!-- Selector de archivo local exclusivo para WebP -->
                 <div class="mb-3">
                   <label class="form-label fw-bold">Imagen del Producto (.webp < 120 KB):</label>
                   <input type="file" id="adminCatProdArchivoImagen" class="form-control border-dark" accept="image/webp">
@@ -216,7 +217,7 @@
                     <input type="number" id="adminAddProdPrecio" class="form-control border-dark" step="0.01" placeholder="8.00">
                   </div>
                 </div>
-                <!-- NUEVO: Selector de archivo local exclusivo para WebP -->
+                <!-- Selector de archivo local exclusivo para WebP -->
                 <div class="mb-3">
                   <label class="form-label fw-bold">Imagen del Producto (.webp < 120 KB):</label>
                   <input type="file" id="adminAddProdArchivoImagen" class="form-control border-dark" accept="image/webp">
@@ -240,6 +241,47 @@
           </div>
           <div class="modal-footer bg-light">
             <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NUEVO: Modal Autenticación/Registro Diferido en Checkout -->
+    <div class="modal fade" id="modalAutenticacionCheckout" data-bs-backdrop="static" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-dark border-2">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title fw-bold" id="tituloAuthCheckout">👤 Identificación de Cliente</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            
+            <!-- PASO 1: Ingreso de Cédula -->
+            <div id="checkoutPasoCedula">
+              <p class="text-muted small mb-3">Para procesar su pedido, por favor ingrese su Cédula o RIF.</p>
+              <div class="mb-3">
+                <input type="text" class="form-control border-dark text-center fw-bold fs-5" id="checkoutCedula" placeholder="Cédula o RIF">
+              </div>
+              <button type="button" id="btnContinuarCheckout" class="btn btn-danger w-100 fw-bold border-dark" onclick="verificarClienteCheckout()">Continuar ➡️</button>
+            </div>
+            
+            <!-- PASO 2: Registro de Cliente Nuevo (Oculto por defecto) -->
+            <div id="checkoutPasoRegistro" class="hidden">
+              <p class="text-danger fw-bold mb-1">Cédula no registrada ⚠️</p>
+              <p class="text-muted small mb-3">Complete sus datos para registrarse e iniciar su solicitud de compra.</p>
+              <div class="mb-2">
+                <input type="text" class="form-control border-dark text-uppercase" id="checkoutNombre" placeholder="Nombres" required>
+              </div>
+              <div class="mb-2">
+                <input type="text" class="form-control border-dark text-uppercase" id="checkoutApellido" placeholder="Apellidos" required>
+              </div>
+              <div class="mb-3">
+                <!-- Selector intl-tel-input integrado -->
+                <input type="tel" class="form-control border-dark" id="checkoutTelefono" required>
+              </div>
+              <button type="button" id="btnRegistrarCheckout" class="btn btn-success w-100 fw-bold border-dark mb-2" onclick="ejecutarRegistroCheckout()">Registrarse y Comprar 🚀</button>
+            </div>
+
           </div>
         </div>
       </div>
