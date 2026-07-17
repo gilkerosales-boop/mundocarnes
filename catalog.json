@@ -496,6 +496,14 @@
       "nombre": "VIVERES",
       "productos": [
         [
+          "HUEVOS 1/2 CARTON",
+          3,
+          "img/huevos.webp",
+          true,
+          1,
+          "unidades"
+        ],
+        [
           "HARINA P.A.M",
           1.8,
           "img/harina.webp",
@@ -587,14 +595,6 @@
           "MAYONESA MAVESA 445g",
           5.8,
           "img/mavesa_500.webp",
-          true,
-          1,
-          "unidades"
-        ],
-        [
-          "HUEVOS 1/2 CARTON",
-          3,
-          "img/huevos.webp",
           true,
           1,
           "unidades"
