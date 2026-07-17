@@ -636,8 +636,8 @@
           1.2,
           "img/gut_salsa_para_pasta.webp",
           true,
-          1000,
-          "gramos"
+          1,
+          "unidades"
         ],
         [
           "SALSA DE TOMATE HEIZ 198g",
