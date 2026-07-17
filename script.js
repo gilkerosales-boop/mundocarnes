@@ -4,7 +4,7 @@
 
 // Configuración de tu repositorio de GitHub para guardar imágenes y el JSON
 const GITHUB_CONFIG = {
-  owner: "gilkerosales-boop",         // Tu usuario de GitHub corregido
+  owner: "gilkerosales-boop",         // Tu usuario de GitHub
   repo: "mundocarnes",                // Tu nombre de repositorio
   branch: "main"                      // Rama de tu despliegue (usualmente main)
 };
@@ -12,7 +12,7 @@ const GITHUB_CONFIG = {
 // Enlace REST de Apps Script únicamente para la validación de inicio de sesión de clientes
 const API_URL_CLIENTES = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
 
-// Variables globales de la sesión y el carrito (Declaradas de forma segura al inicio)
+// Variables globales de la sesión y el carrito (Declaradas al inicio)
 let carrito = {};
 let productoTemporal = {};
 let cacheUsuario = { cedula: "", nombre: "", apellido: "", telefono: "", rol: "" };
@@ -148,6 +148,16 @@ function validarTelefonoVenezuela(itiInstance) {
     }
   }
   return itiInstance.isValidNumber();
+}
+
+// Muestra el aviso dinámico usando el Toast de Bootstrap 5 (Restaurada)
+function mostrarAviso(mensaje) {
+  try { 
+    document.getElementById('toastMensaje').textContent = mensaje; 
+    bootstrap.Toast.getOrCreateInstance(document.getElementById('liveToast')).show();
+  } catch(e) { 
+    alert(mensaje); 
+  }
 }
 
 // Reestablece los estados de interfaz a su modo cliente público
@@ -899,7 +909,7 @@ async function ejecutarEliminarProducto() {
     btn.disabled = false;
     btn.textContent = "Eliminar Producto ✕";
     mostrarAviso("Producto eliminado con éxito.");
-    bootstrap.Modal.getInstance(modalEl).hide();
+    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
     
     // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
     renderizarCatalogo({ categorias: cacheCategorias });
@@ -940,7 +950,6 @@ document.addEventListener("DOMContentLoaded", function() {
   const esAdminUrl = urlParams.has('admin') || window.location.hash === "#admin";
 
   if (esAdminUrl) {
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('btnSesionHeader')).show; // Fallback seguro
     document.getElementById('btnSesionHeader').classList.remove('hidden');
     irALoginAdministrador();
   } else {
