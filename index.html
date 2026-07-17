@@ -56,7 +56,7 @@
       <div id="vistaCombos" class="panel-base combos-container">
         <img src="img/LOGO-MUNDO123.webp" class="logo-header" alt="Logo Mundocarnes">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <button type="button" id="btnSesionHeader" class="btn btn-dark fw-bold" onclick="controlarSesionHeader()">Acceso Admin 🔑</button>
+          <button type="button" id="btnSesionHeader" class="btn btn-dark fw-bold hidden" onclick="controlarSesionHeader()">Acceso Admin 🔑</button>
           <button type="button" id="btnAdminPanel" class="btn btn-info fw-bold border-dark hidden" onclick="abrirPanelAdmin()">Panel de Control 🛠️</button>
           <button type="button" id="btnVerPedido" class="btn btn-warning fw-bold border-dark" onclick="mostrarPedido()">Ver Pedido 🛒</button>
         </div>
@@ -246,7 +246,7 @@
       </div>
     </div>
 
-    <!-- NUEVO: Modal Autenticación/Registro Diferido en Checkout -->
+    <!-- Modal Autenticación/Registro en Checkout -->
     <div class="modal fade" id="modalAutenticacionCheckout" data-bs-backdrop="static" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-dark border-2">
@@ -258,7 +258,7 @@
             
             <!-- PASO 1: Ingreso de Cédula -->
             <div id="checkoutPasoCedula">
-              <p class="text-muted small mb-3">Para procesar su pedido, por favor ingrese su Cédula o RIF.</p>
+              <p class="text-muted small mb-3">Para procesar su pedido, ingrese su Cédula o RIF.</p>
               <div class="mb-3">
                 <input type="text" class="form-control border-dark text-center fw-bold fs-5" id="checkoutCedula" placeholder="Cédula o RIF">
               </div>
@@ -276,7 +276,6 @@
                 <input type="text" class="form-control border-dark text-uppercase" id="checkoutApellido" placeholder="Apellidos" required>
               </div>
               <div class="mb-3">
-                <!-- Selector intl-tel-input integrado -->
                 <input type="tel" class="form-control border-dark" id="checkoutTelefono" required>
               </div>
               <button type="button" id="btnRegistrarCheckout" class="btn btn-success w-100 fw-bold border-dark mb-2" onclick="ejecutarRegistroCheckout()">Registrarse y Comprar 🚀</button>
