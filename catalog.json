@@ -622,6 +622,14 @@
           true,
           1000,
           "gramos"
+        ],
+        [
+          "GUT SABROSEADOR",
+          1.2,
+          "img/gut_sabroseador.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
