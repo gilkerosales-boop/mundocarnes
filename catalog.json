@@ -598,6 +598,14 @@
           true,
           1,
           "unidades"
+        ],
+        [
+          "GUT AJO, CEBOLLA Y PEREJIL",
+          1.2,
+          "img/gut_ajo,_cebolla_y_perejil.webp",
+          true,
+          1000,
+          "gramos"
         ]
       ]
     }
