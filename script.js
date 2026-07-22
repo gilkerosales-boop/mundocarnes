@@ -1055,7 +1055,7 @@ async function ejecutarEliminarProducto() {
     btn.disabled = false;
     btn.textContent = "Eliminar Producto ✕";
     mostrarAviso("Producto eliminado con éxito.");
-    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+    bootstrap.Modal.getInstance(modalEl).hide();
     
     // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
     renderizarCatalogo({ categorias: cacheCategorias });
@@ -1096,7 +1096,7 @@ function cerrarImagenGrande(e) {
 
 // Cierra la lupa y ejecuta la redirección directa al modal de selección de peso/unidades
 function seleccionarDesdeZoom() {
-  if (productoZoomActivo) {
+  if (productoZoomActivo && productoZoomActivo.nom) { // <--- PROTECCIÓN AGREGADA
     forzarCerrarImagenGrande();
     seleccionarProducto(
       productoZoomActivo.nom,
@@ -1105,6 +1105,10 @@ function seleccionarDesdeZoom() {
       productoZoomActivo.cantMin,
       productoZoomActivo.unidad
     );
+  } else {
+    // Saneamiento por si la caché del navegador conserva tarjetas antiguas sin metadatos
+    forzarCerrarImagenGrande();
+    mostrarAviso("Por favor, seleccione el producto directamente desde su tarjeta en el catálogo.");
   }
 }
 
