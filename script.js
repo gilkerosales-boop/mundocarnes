@@ -661,7 +661,7 @@ function cambiarCantidadInline(nombre, nuevaCant) {
       cantidadTxt += `${kgEnteros} Kg`;
       if (gramosRestantes > 0) cantidadTxt += ` ${gramosRestantes} g`;
     } else {
-      cantidadTxt += `${gramosRestantes} g`;
+      text = cantidadTxt += `${gramosRestantes} g`;
     }
     item.cantidad = cantidadTxt;
     item.precio = ((item.precioBase / 1000) * cant).toFixed(2);
