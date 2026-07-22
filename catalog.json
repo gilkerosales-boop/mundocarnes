@@ -267,7 +267,8 @@
           "img/pollo_entero.webp",
           true,
           2000,
-          "gramos"
+          "mixto",
+          2000
         ],
         [
           "PECHUGA ENTERA",
