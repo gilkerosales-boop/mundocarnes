@@ -1179,12 +1179,9 @@ document.addEventListener("DOMContentLoaded", function() {
   // Listeners para limpiar bordes rojos de error en tiempo real (Excelente UX)
   document.getElementById('inputKg').addEventListener('input', function() {
     this.classList.remove('is-invalid');
-    document.getElementById('inputGramos').addEventListener('input', function() {
-      this.classList.remove('is-invalid');
-      document.getElementById('inputKg').classList.remove('is-invalid');
-      document.getElementById('errorModalCantidad').classList.add('hidden');
-    }); // <--- OJO: AQUÍ HABÍA UN ERROR DE SINTAXIS (Cierre de addEventListener incorrecto)
-  });
+    document.getElementById('inputGramos').classList.remove('is-invalid');
+    document.getElementById('errorModalCantidad').classList.add('hidden');
+  }); // <--- OJO: AQUÍ HABÍA UN ERROR DE SINTAXIS (Cierre de addEventListener incorrecto)
 
   document.getElementById('inputGramos').addEventListener('input', function() {
     this.classList.remove('is-invalid');
