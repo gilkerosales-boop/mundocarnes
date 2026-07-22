@@ -449,6 +449,7 @@ function alternarCampoPesoPromedio(val) {
     else cont.classList.add('hidden');
   }
 }
+window.alternarCampoPesoPromedio = alternarCampoPesoPromedio;
 
 async function guardarEdicionAdministrador() {
   const nuevoNombre = document.getElementById('editProductoNuevoNombre').value.trim();
