@@ -161,12 +161,20 @@
               </select>
             </div>
 
-            <div class="mb-3">
+           <div class="mb-3">
               <label class="form-label fw-bold">Modo de Venta (Conteo):</label>
-              <select id="editProductoUnidad" class="form-select border-dark fw-bold">
+              <select id="editProductoUnidad" class="form-select border-dark fw-bold" onchange="alternarCampoPesoPromedio(this.value)">
                 <option value="unidades">Unidades (uds)</option>
                 <option value="gramos">Gramos (g)</option>
+                <option value="mixto">Mixto (Unidad con peso aprox.)</option>
               </select>
+            </div>
+
+            <!-- Campo dinámico para Peso Promedio Estimado (Modo Mixto) -->
+            <div class="mb-3 hidden" id="contenedorEditPesoPromedio">
+              <label class="form-label fw-bold">Peso Promedio Estimado por Unidad (g):</label>
+              <input type="number" id="editProductoPesoPromedio" class="form-control border-dark fw-bold text-center" min="1" placeholder="Ej: 2000">
+              <div class="form-text text-muted small">Peso de referencia por cada unidad en gramos (ej. 2000g = 2kg).</div>
             </div>
 
             <!-- Selector de archivo local exclusivo para WebP -->
