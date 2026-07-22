@@ -549,7 +549,7 @@ function seleccionarProducto(nom, prec, tipo, cantMin, unidad) {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCantidad')).show();
 }
 
-// Procesa, valida y agrega el producto (Unidad o Peso dividido) al carrito local
+// Procesa, valida y agrega el producto (Unidad o Peso dividido) al carrito local (Optimizado dinámicamente)
 function confirmarSeleccion() {
   const errorDiv = document.getElementById('errorModalCantidad');
   
@@ -590,12 +590,12 @@ function confirmarSeleccion() {
     
     const totalGramos = (kgVal * 1000) + gVal;
     
-    // Validación: Ambos campos vacíos o peso acumulado menor que el mínimo de 250g
+    // Validación: Ambos campos vacíos o peso acumulado menor que el mínimo editable por producto (productoTemporal.minBase)
     const ambosVacios = (kgInput.value.trim() === "" && gInput.value.trim() === "");
-    if (ambosVacios || totalGramos < 250) {
+    if (ambosVacios || totalGramos < productoTemporal.minBase) {
       kgInput.classList.add('is-invalid');
       gInput.classList.add('is-invalid');
-      errorDiv.textContent = "Por favor, indique el peso deseado para su producto. El peso total debe ser de al menos 250g.";
+      errorDiv.textContent = `Por favor, indique el peso deseado para su producto. El peso total debe ser de al menos ${productoTemporal.minBase}g.`;
       errorDiv.classList.remove('hidden');
       return;
     }
@@ -1096,20 +1096,14 @@ function cerrarImagenGrande(e) {
 
 // Cierra la lupa y ejecuta la redirección directa al modal de selección de peso/unidades
 function seleccionarDesdeZoom() {
-  if (productoZoomActivo && productoZoomActivo.nom) {
-    // 1. Hacemos una copia local de seguridad del producto ANTES de cerrar la lupa
-    const tempProd = { ...productoZoomActivo };
-    
-    // 2. Al ejecutar esto, se limpia la variable global productoZoomActivo = null, pero tempProd queda a salvo
+  if (productoZoomActivo && productoZoomActivo.nom) { // <--- PROTECCIÓN AGREGADA
     forzarCerrarImagenGrande();
-    
-    // 3. Levantamos el modal de selección utilizando la copia local segura
     seleccionarProducto(
-      tempProd.nom,
-      tempProd.prec,
-      tempProd.tipo,
-      tempProd.cantMin,
-      tempProd.unidad
+      productoZoomActivo.nom,
+      productoZoomActivo.prec,
+      productoZoomActivo.tipo,
+      productoZoomActivo.cantMin,
+      productoZoomActivo.unidad
     );
   } else {
     // Saneamiento por si la caché del navegador conserva tarjetas antiguas sin metadatos
