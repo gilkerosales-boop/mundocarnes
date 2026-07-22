@@ -1096,14 +1096,20 @@ function cerrarImagenGrande(e) {
 
 // Cierra la lupa y ejecuta la redirección directa al modal de selección de peso/unidades
 function seleccionarDesdeZoom() {
-  if (productoZoomActivo && productoZoomActivo.nom) { // <--- PROTECCIÓN AGREGADA
+  if (productoZoomActivo && productoZoomActivo.nom) {
+    // 1. Hacemos una copia local de seguridad del producto ANTES de cerrar la lupa
+    const tempProd = { ...productoZoomActivo };
+    
+    // 2. Al ejecutar esto, se limpia la variable global productoZoomActivo = null, pero tempProd queda a salvo
     forzarCerrarImagenGrande();
+    
+    // 3. Levantamos el modal de selección utilizando la copia local segura
     seleccionarProducto(
-      productoZoomActivo.nom,
-      productoZoomActivo.prec,
-      productoZoomActivo.tipo,
-      productoZoomActivo.cantMin,
-      productoZoomActivo.unidad
+      tempProd.nom,
+      tempProd.prec,
+      tempProd.tipo,
+      tempProd.cantMin,
+      tempProd.unidad
     );
   } else {
     // Saneamiento por si la caché del navegador conserva tarjetas antiguas sin metadatos
