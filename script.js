@@ -387,25 +387,24 @@ function renderizarCatalogo(resp) {
 
 function cargarLista(idElemento, datos, nombreCategoria) {
   document.getElementById(idElemento).innerHTML = datos.map(f => {
-    let esDisp = f[3]; let cantMin = f[4]; let unidad = f[5];
+    let esDisp = f[3]; let cantMin = f[4]; let unidad = f[5]; let pesoProm = f[6] || 0;
     let claseImg = esDisp ? "" : "img-agotado";
     let etiquetaDisp = esDisp ? "" : `<span class="badge bg-danger position-absolute top-0 start-0 m-2">Agotado</span>`;
     let boton = "";
     
     if (cacheUsuario.rol === "ADMIN") {
-      boton = `<button class="btn btn-sm btn-warning border-dark fw-bold mt-2 w-100" onclick="abrirModalEdicion('${f[0]}', '${f[1]}', '${nombreCategoria}', ${esDisp}, ${cantMin}, '${unidad}')">Configurar ⚙️</button>`;
+      boton = `<button class="btn btn-sm btn-warning border-dark fw-bold mt-2 w-100" onclick="abrirModalEdicion('${f[0]}', '${f[1]}', '${nombreCategoria}', ${esDisp}, ${cantMin}, '${unidad}', ${pesoProm})">Configurar ⚙️</button>`;
     } else {
-      if (esDisp) boton = `<button class="btn btn-sm btn-outline-dark fw-bold mt-2 w-100" onclick="seleccionarProducto('${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}')">Seleccionar</button>`;
+      if (esDisp) boton = `<button class="btn btn-sm btn-outline-dark fw-bold mt-2 w-100" onclick="seleccionarProducto('${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">Seleccionar</button>`;
       else boton = `<button class="btn btn-sm btn-secondary fw-bold mt-2 w-100 border-dark" disabled>🚫 No Disponible</button>`;
     }
     
-    let unidadTxt = (unidad === 'unidades') ? 'uds' : 'g';
-    // Se agregan todos los parámetros del catálogo para el correcto funcionamiento del botón rápido en la lupa
-    return `<div class="col-6 col-md-3"><div class="card h-100 p-2 position-relative">${etiquetaDisp}<img src="${f[2]}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${f[2]}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}')"><h6 class="fw-bold mt-2 text-truncate">${f[0]}</h6><p class="text-success fw-bold mb-0">${f[1]} $</p><small class="text-muted" style="font-size:0.7rem;">Mín: ${cantMin} ${unidadTxt}</small>${boton}</div></div>`;
+    let unidadTxt = (unidad === 'gramos') ? 'g' : 'uds';
+    return `<div class="col-6 col-md-3"><div class="card h-100 p-2 position-relative">${etiquetaDisp}<img src="${f[2]}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${f[2]}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})"><h6 class="fw-bold mt-2 text-truncate">${f[0]}</h6><p class="text-success fw-bold mb-0">${f[1]} $</p><small class="text-muted" style="font-size:0.7rem;">Mín: ${cantMin} ${unidadTxt}</small>${boton}</div></div>`;
   }).join('');
 }
 
-function abrirModalEdicion(nom, prec, cat, disp, min, unidad) {
+function abrirModalEdicion(nom, prec, cat, disp, min, unidad, pesoProm = 0) {
   productoTemporal = { nombre: nom, categoria: cat };
   
   document.getElementById('editProductoNuevoNombre').value = nom; 
@@ -413,7 +412,16 @@ function abrirModalEdicion(nom, prec, cat, disp, min, unidad) {
   document.getElementById('editProductoPrecio').value = prec;
   document.getElementById('editProductoDisponible').value = disp ? "true" : "false";
   document.getElementById('editProductoMinimo').value = min;
-  document.getElementById('editProductoUnidad').value = unidad || "unidades";
+  
+  const selUnidad = document.getElementById('editProductoUnidad');
+  selUnidad.value = unidad || "unidades";
+  
+  const inputPesoProm = document.getElementById('editProductoPesoPromedio');
+  if (inputPesoProm) {
+    inputPesoProm.value = pesoProm || "";
+  }
+  alternarCampoPesoPromedio(unidad || "unidades");
+
   document.getElementById('editProductoArchivoImagen').value = ""; // Limpiar selector
   
   // Calcular la posición actual y el límite máximo dentro del array
@@ -434,16 +442,25 @@ function abrirModalEdicion(nom, prec, cat, disp, min, unidad) {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarProducto')).show();
 }
 
+function alternarCampoPesoPromedio(val) {
+  const cont = document.getElementById('contenedorEditPesoPromedio');
+  if (cont) {
+    if (val === 'mixto') cont.classList.remove('hidden');
+    else cont.classList.add('hidden');
+  }
+}
+
 async function guardarEdicionAdministrador() {
   const nuevoNombre = document.getElementById('editProductoNuevoNombre').value.trim();
   const prec = parseFloat(document.getElementById('editProductoPrecio').value);
   const disp = document.getElementById('editProductoDisponible').value === "true";
   const min = parseInt(document.getElementById('editProductoMinimo').value);
   const unidad = document.getElementById('editProductoUnidad').value;
+  const pesoProm = unidad === "mixto" ? parseInt(document.getElementById('editProductoPesoPromedio').value) : 0;
   const nuevaPosicion = parseInt(document.getElementById('editProductoPosicion').value);
   
-  if (!nuevoNombre || isNaN(prec) || isNaN(min) || !unidad || isNaN(nuevaPosicion)) {
-    return mostrarAviso("Llene todos los campos de forma correcta");
+  if (!nuevoNombre || isNaN(prec) || isNaN(min) || !unidad || isNaN(nuevaPosicion) || (unidad === "mixto" && (!pesoProm || pesoProm <= 0))) {
+    return mostrarAviso("Llene todos los campos de forma correcta" + (unidad === "mixto" ? " (incluyendo el peso promedio estimado en gramos)." : "."));
   }
   
   const modalEl = document.getElementById('modalEditarProducto');
@@ -476,6 +493,12 @@ async function guardarEdicionAdministrador() {
         prod[3] = disp;
         prod[4] = min;
         prod[5] = unidad;
+        if (unidad === "mixto") {
+          prod[6] = pesoProm;
+        } else if (prod.length > 6) {
+          prod.splice(6, 1); // Remover pesoProm si deja de ser mixto
+        }
+
         if (relativeImgPath) {
           prod[2] = relativeImgPath;
         }
@@ -516,8 +539,8 @@ async function guardarEdicionAdministrador() {
 }
 
 // Configura la visualización del Modal de Cantidad / Peso según la unidad del producto
-function seleccionarProducto(nom, prec, tipo, cantMin, unidad) {
-  productoTemporal = { nombre: nom, precio: prec, tipo: tipo, minBase: cantMin, unidad: unidad };
+function seleccionarProducto(nom, prec, tipo, cantMin, unidad, pesoPromedio = 0) {
+  productoTemporal = { nombre: nom, precio: prec, tipo: tipo, minBase: cantMin, unidad: unidad, pesoPromedio: pesoPromedio };
   document.getElementById('nombreProductoModal').textContent = nom;
   
   const contUnidades = document.getElementById('contenedorUnidades');
@@ -530,7 +553,7 @@ function seleccionarProducto(nom, prec, tipo, cantMin, unidad) {
   document.getElementById('inputGramos').classList.remove('is-invalid');
   errorDiv.classList.add('hidden');
   
-  if (unidad === 'unidades') {
+  if (unidad === 'unidades' || unidad === 'mixto') {
     contUnidades.classList.remove('hidden');
     contPeso.classList.add('hidden');
     
@@ -549,12 +572,12 @@ function seleccionarProducto(nom, prec, tipo, cantMin, unidad) {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCantidad')).show();
 }
 
-// Procesa, valida y agrega el producto (Unidad o Peso dividido) al carrito local (Optimizado dinámicamente)
+// Procesa, valida y agrega el producto (Unidad, Peso o Mixto) al carrito local
 function confirmarSeleccion() {
   const errorDiv = document.getElementById('errorModalCantidad');
   
-  // Si el producto se cuenta por unidades
-  if (productoTemporal.unidad === 'unidades') {
+  // Si el producto se cuenta por unidades o modo mixto
+  if (productoTemporal.unidad === 'unidades' || productoTemporal.unidad === 'mixto') {
     const inputCant = document.getElementById('inputCantidad');
     let cant = parseInt(inputCant.value);
     
@@ -569,15 +592,29 @@ function confirmarSeleccion() {
     inputCant.classList.remove('is-invalid');
     errorDiv.classList.add('hidden');
     
-    let calc = productoTemporal.precio * cant;
+    let calc = 0;
+    let cantTxt = cant + ' uds';
+
+    if (productoTemporal.unidad === 'mixto') {
+      let totalGramos = cant * (productoTemporal.pesoPromedio || 0);
+      calc = (productoTemporal.precio / 1000) * totalGramos;
+      let kgEnteros = Math.floor(totalGramos / 1000);
+      let gRestantes = totalGramos % 1000;
+      let pesoTxt = kgEnteros > 0 ? (gRestantes > 0 ? `${kgEnteros}Kg ${gRestantes}g` : `${kgEnteros}Kg`) : `${gRestantes}g`;
+      cantTxt = `${cant} uds (~${pesoTxt})`;
+    } else {
+      calc = productoTemporal.precio * cant;
+    }
+    
     carrito[productoTemporal.nombre] = { 
-      cantidad: cant + ' uds', 
+      cantidad: cantTxt, 
       precio: calc.toFixed(2), 
       cantNumerica: cant, 
       tipo: productoTemporal.tipo, 
       unidad: productoTemporal.unidad,
       precioBase: productoTemporal.precio, 
-      minBase: productoTemporal.minBase 
+      minBase: productoTemporal.minBase,
+      pesoPromedio: productoTemporal.pesoPromedio || 0
     };
   } 
   // Si el producto se cuenta por peso (Kg y g separados)
@@ -590,7 +627,7 @@ function confirmarSeleccion() {
     
     const totalGramos = (kgVal * 1000) + gVal;
     
-    // Validación: Ambos campos vacíos o peso acumulado menor que el mínimo editable por producto (productoTemporal.minBase)
+    // Validación: Ambos campos vacíos o peso acumulado menor que el mínimo editable por producto
     const ambosVacios = (kgInput.value.trim() === "" && gInput.value.trim() === "");
     if (ambosVacios || totalGramos < productoTemporal.minBase) {
       kgInput.classList.add('is-invalid');
@@ -625,7 +662,8 @@ function confirmarSeleccion() {
       tipo: productoTemporal.tipo, 
       unidad: productoTemporal.unidad,
       precioBase: productoTemporal.precio, 
-      minBase: productoTemporal.minBase 
+      minBase: productoTemporal.minBase,
+      pesoPromedio: 0
     };
   }
   
@@ -652,6 +690,13 @@ function cambiarCantidadInline(nombre, nuevaCant) {
   if (item.unidad === 'unidades') {
     item.cantidad = cant + ' uds';
     item.precio = (item.precioBase * cant).toFixed(2);
+  } else if (item.unidad === 'mixto') {
+    let totalGramos = cant * (item.pesoPromedio || 0);
+    let kgEnteros = Math.floor(totalGramos / 1000);
+    let gRestantes = totalGramos % 1000;
+    let pesoTxt = kgEnteros > 0 ? (gRestantes > 0 ? `${kgEnteros}Kg ${gRestantes}g` : `${kgEnteros}Kg`) : `${gRestantes}g`;
+    item.cantidad = `${cant} uds (~${pesoTxt})`;
+    item.precio = ((item.precioBase / 1000) * totalGramos).toFixed(2);
   } else {
     // Re-formatear peso dinámico en Kg / g si es inline
     let cantidadTxt = "";
@@ -842,7 +887,7 @@ function procesarEnvioSolicitud() {
 
 function regresarAFormulario() { bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfirmacionFinal')).hide(); bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show(); }
 
-// Nueva Función de confirmación instantánea: Remueve la carga síncrona en Sheets y redirige de inmediato
+// Confirmación instantánea y apertura directa de WhatsApp
 function ejecutarAccionFinal() {
   let telConfirmado = "";
   
@@ -1068,12 +1113,12 @@ async function ejecutarEliminarProducto() {
 }
 
 // Abre la imagen ampliada y guarda las referencias dinámicas del producto
-function mostrarImagenGrande(url, nom, prec, tipo, cantMin, unidad) { 
+function mostrarImagenGrande(url, nom, prec, tipo, cantMin, unidad, pesoPromedio = 0) { 
   document.getElementById('imagenGrandePopUp').src = url; 
   document.getElementById('overlayImagenGrande').classList.add('show'); 
   
   // Guardar la referencia exacta del producto para selección rápida desde la lupa
-  productoZoomActivo = { nom, prec, tipo, cantMin, unidad };
+  productoZoomActivo = { nom, prec, tipo, cantMin, unidad, pesoPromedio };
 
   // Ocultar botón de selección rápida si el usuario actual es administrador (Modo Editor)
   const btnSelect = document.getElementById('btnSeleccionarZoom');
@@ -1109,7 +1154,8 @@ function seleccionarDesdeZoom() {
       tempProd.prec,
       tempProd.tipo,
       tempProd.cantMin,
-      tempProd.unidad
+      tempProd.unidad,
+      tempProd.pesoPromedio
     );
   } else {
     // Saneamiento por si la caché del navegador conserva tarjetas antiguas sin metadatos
@@ -1182,12 +1228,12 @@ document.addEventListener("DOMContentLoaded", function() {
     document.getElementById('saludoUsuario').innerHTML = "¡Bienvenido a <strong>Mundocarnes</strong>! 🥩";
   }
 
-  // Listeners para limpiar bordes rojos de error en tiempo real (Excelente UX)
+  // Listeners para limpiar bordes rojos de error en tiempo real
   document.getElementById('inputKg').addEventListener('input', function() {
     this.classList.remove('is-invalid');
     document.getElementById('inputGramos').classList.remove('is-invalid');
     document.getElementById('errorModalCantidad').classList.add('hidden');
-  }); // <--- OJO: AQUÍ HABÍA UN ERROR DE SINTAXIS (Cierre de addEventListener incorrecto)
+  });
 
   document.getElementById('inputGramos').addEventListener('input', function() {
     this.classList.remove('is-invalid');
@@ -1208,7 +1254,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
-  // Cargar Catálogo de forma local directa de GitHub Pages en milisegundos
+  // Cargar Catálogo de forma local directa de GitHub Pages
   fetch("catalog.json?t=" + new Date().getTime())
     .then(res => res.json())
     .then(renderizarCatalogo)
