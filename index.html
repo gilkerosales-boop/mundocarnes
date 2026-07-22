@@ -80,10 +80,10 @@
       </div>
     </div>
     
-    <!-- Overlay de Zoom de Imagen (Optimizado con controles superiores) -->
+    <!-- Overlay de Zoom de Imagen (Optimizado con controles y cierre de aspa nativa) -->
     <div id="overlayImagenGrande" onclick="cerrarImagenGrande(event)">
-      <!-- Botón de cierre en la esquina superior derecha -->
-      <button type="button" id="btnCerrarZoom" class="btn-close btn-close-white" aria-label="Close" onclick="forzarCerrarImagenGrande()"></button>
+      <!-- Botón de cierre 'X' nativo e independiente de Bootstrap para compatibilidad -->
+      <button type="button" id="btnCerrarZoom" aria-label="Close" onclick="forzarCerrarImagenGrande()">&times;</button>
       
       <div class="contenedor-zoom">
         <img id="imagenGrandePopUp" src="" alt="Zoom">
@@ -93,7 +93,7 @@
       </div>
     </div>
     
-    <!-- Modal Selección de Cantidad / Peso (Optimizado con Doble Input de Peso) -->
+    <!-- Modal Selección de Cantidad / Peso (Doble Input de Peso) -->
     <div class="modal fade" id="modalCantidad" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
