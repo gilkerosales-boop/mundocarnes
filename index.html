@@ -80,10 +80,20 @@
       </div>
     </div>
     
-    <!-- Overlay de Zoom de Imagen -->
-    <div id="overlayImagenGrande" onclick="cerrarImagenGrande(event)"><img id="imagenGrandePopUp" src="" alt="Zoom"></div>
+    <!-- Overlay de Zoom de Imagen (Optimizado con controles superiores) -->
+    <div id="overlayImagenGrande" onclick="cerrarImagenGrande(event)">
+      <!-- Botón de cierre en la esquina superior derecha -->
+      <button type="button" id="btnCerrarZoom" class="btn-close btn-close-white" aria-label="Close" onclick="forzarCerrarImagenGrande()"></button>
+      
+      <div class="contenedor-zoom">
+        <img id="imagenGrandePopUp" src="" alt="Zoom">
+        
+        <!-- Botón de selección rápida del producto -->
+        <button type="button" id="btnSeleccionarZoom" class="btn btn-warning btn-lg fw-bold px-4 py-2 mt-3" onclick="seleccionarDesdeZoom()">Seleccionar producto 🛒</button>
+      </div>
+    </div>
     
-    <!-- Modal Selección de Cantidad -->
+    <!-- Modal Selección de Cantidad / Peso (Optimizado con Doble Input de Peso) -->
     <div class="modal fade" id="modalCantidad" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -91,13 +101,34 @@
             <h5 class="modal-title" id="tituloModal">Seleccionar</h5>
           </div>
           <div class="modal-body">
-            <p id="nombreProductoModal" class="fw-bold"></p>
-            <label id="labelInput" class="form-label">Cantidad:</label>
-            <input type="number" id="inputCantidad" class="form-control fw-bold fs-5 text-center">
+            <p id="nombreProductoModal" class="fw-bold fs-5 mb-3"></p>
+            
+            <!-- Contenedor 1: Para productos vendidos por Unidad -->
+            <div id="contenedorUnidades" class="mb-3 hidden">
+              <label class="form-label fw-bold">Cantidad (unidades):</label>
+              <input type="number" id="inputCantidad" class="form-control fw-bold fs-5 text-center border-dark">
+            </div>
+
+            <!-- Contenedor 2: Para productos vendidos por Peso (Kg y gramos separados) -->
+            <div id="contenedorPeso" class="mb-3 hidden">
+              <div class="row g-2">
+                <div class="col-6">
+                  <label class="form-label fw-bold">Kilogramos (Kg):</label>
+                  <input type="number" id="inputKg" class="form-control fw-bold fs-5 text-center border-dark" placeholder="0" min="0" step="1">
+                </div>
+                <div class="col-6">
+                  <label class="form-label fw-bold">Gramos (g):</label>
+                  <input type="number" id="inputGramos" class="form-control fw-bold fs-5 text-center border-dark" placeholder="0" min="0" step="50">
+                </div>
+              </div>
+            </div>
+
+            <!-- Campo dinámico para mensajes de error en rojo -->
+            <div id="errorModalCantidad" class="text-danger small fw-bold mt-2 hidden" style="line-height: 1.4;"></div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" class="btn btn-danger" onclick="confirmarSeleccion()">Agregar al carrito</button>
+            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-danger fw-bold" onclick="confirmarSeleccion()">Agregar al carrito</button>
           </div>
         </div>
       </div>
