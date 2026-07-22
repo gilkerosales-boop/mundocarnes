@@ -15,11 +15,13 @@ const API_URL_CLIENTES = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoa
 // Variables globales de la sesión y el carrito (Declaradas de forma segura al inicio)
 let carrito = {};
 let productoTemporal = {};
+let productoZoomActivo = null; // Almacena el producto visualizado actualmente en la lupa
 let cacheUsuario = { cedula: "", nombre: "", apellido: "", telefono: "", rol: "" };
 let datosCheckout = { ubicacion: "", formaPago: "" };
 let cacheCategorias = []; 
 let iti;            // Instancia de intl-tel-input para el formulario de registro tradicional
 let itiCheckout;    // Instancia de intl-tel-input para el modal de Checkout
+let isZoomStatePushed = false; // Bandera de control para historial en zoom de imagen
 
 // Función de comunicación REST asíncrona exclusiva para clientes
 async function callClientesAPI(action, data = {}) {
@@ -99,7 +101,7 @@ function validarYLeerArchivoWebP(fileElement) {
       return;
     }
 
-    // Validation formal de formato WebP
+    // Validación formal de formato WebP
     const esWebP = file.type === "image/webp" || file.name.toLowerCase().endsWith(".webp");
     if (!esWebP) {
       reject("La imagen no cumple con el formato exigido. Debe ser .webp");
@@ -398,7 +400,8 @@ function cargarLista(idElemento, datos, nombreCategoria) {
     }
     
     let unidadTxt = (unidad === 'unidades') ? 'uds' : 'g';
-    return `<div class="col-6 col-md-3"><div class="card h-100 p-2 position-relative">${etiquetaDisp}<img src="${f[2]}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${f[2]}')"><h6 class="fw-bold mt-2 text-truncate">${f[0]}</h6><p class="text-success fw-bold mb-0">${f[1]} $</p><small class="text-muted" style="font-size:0.7rem;">Mín: ${cantMin} ${unidadTxt}</small>${boton}</div></div>`;
+    // Se agregan todos los parámetros del catálogo para el correcto funcionamiento del botón rápido en la lupa
+    return `<div class="col-6 col-md-3"><div class="card h-100 p-2 position-relative">${etiquetaDisp}<img src="${f[2]}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${f[2]}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}')"><h6 class="fw-bold mt-2 text-truncate">${f[0]}</h6><p class="text-success fw-bold mb-0">${f[1]} $</p><small class="text-muted" style="font-size:0.7rem;">Mín: ${cantMin} ${unidadTxt}</small>${boton}</div></div>`;
   }).join('');
 }
 
@@ -512,32 +515,119 @@ async function guardarEdicionAdministrador() {
   }
 }
 
+// Configura la visualización del Modal de Cantidad / Peso según la unidad del producto
 function seleccionarProducto(nom, prec, tipo, cantMin, unidad) {
   productoTemporal = { nombre: nom, precio: prec, tipo: tipo, minBase: cantMin, unidad: unidad };
   document.getElementById('nombreProductoModal').textContent = nom;
-  document.getElementById('labelInput').textContent = unidad === 'unidades' ? "Cantidad (unidades):" : "Cantidad (gramos):";
   
-  let inp = document.getElementById('inputCantidad');
-  inp.min = cantMin; inp.value = cantMin;
+  const contUnidades = document.getElementById('contenedorUnidades');
+  const contPeso = document.getElementById('contenedorPeso');
+  const errorDiv = document.getElementById('errorModalCantidad');
+  
+  // Limpiar errores visuales previos
+  document.getElementById('inputCantidad').classList.remove('is-invalid');
+  document.getElementById('inputKg').classList.remove('is-invalid');
+  document.getElementById('inputGramos').classList.remove('is-invalid');
+  errorDiv.classList.add('hidden');
+  
+  if (unidad === 'unidades') {
+    contUnidades.classList.remove('hidden');
+    contPeso.classList.add('hidden');
+    
+    let inp = document.getElementById('inputCantidad');
+    inp.min = cantMin; 
+    inp.value = cantMin;
+  } else {
+    contUnidades.classList.add('hidden');
+    contPeso.classList.remove('hidden');
+    
+    // Dejar campos vacíos por defecto según requerimiento
+    document.getElementById('inputKg').value = "";
+    document.getElementById('inputGramos').value = "";
+  }
+  
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCantidad')).show();
 }
 
+// Procesa, valida y agrega el producto (Unidad o Peso dividido) al carrito local
 function confirmarSeleccion() {
-  let cant = parseInt(document.getElementById('inputCantidad').value);
-  if (cant < productoTemporal.minBase) return mostrarAviso(`Mínimo de venta: ${productoTemporal.minBase}`);
+  const errorDiv = document.getElementById('errorModalCantidad');
   
-  let etiquetaUnidad = productoTemporal.unidad === 'unidades' ? 'uds' : 'g';
-  let calc = productoTemporal.unidad === 'unidades' ? (productoTemporal.precio * cant) : ((productoTemporal.precio / 1000) * cant);
-  
-  carrito[productoTemporal.nombre] = { 
-    cantidad: cant + ' ' + etiquetaUnidad, 
-    precio: calc.toFixed(2), 
-    cantNumerica: cant, 
-    tipo: productoTemporal.tipo, 
-    unidad: productoTemporal.unidad,
-    precioBase: productoTemporal.precio, 
-    minBase: productoTemporal.minBase 
-  };
+  // Si el producto se cuenta por unidades
+  if (productoTemporal.unidad === 'unidades') {
+    const inputCant = document.getElementById('inputCantidad');
+    let cant = parseInt(inputCant.value);
+    
+    if (isNaN(cant) || cant < productoTemporal.minBase) {
+      inputCant.classList.add('is-invalid');
+      errorDiv.textContent = `Por favor, indique la cantidad deseada. El mínimo es de ${productoTemporal.minBase} uds.`;
+      errorDiv.classList.remove('hidden');
+      return;
+    }
+    
+    // Quitar clases de error
+    inputCant.classList.remove('is-invalid');
+    errorDiv.classList.add('hidden');
+    
+    let calc = productoTemporal.precio * cant;
+    carrito[productoTemporal.nombre] = { 
+      cantidad: cant + ' uds', 
+      precio: calc.toFixed(2), 
+      cantNumerica: cant, 
+      tipo: productoTemporal.tipo, 
+      unidad: productoTemporal.unidad,
+      precioBase: productoTemporal.precio, 
+      minBase: productoTemporal.minBase 
+    };
+  } 
+  // Si el producto se cuenta por peso (Kg y g separados)
+  else {
+    const kgInput = document.getElementById('inputKg');
+    const gInput = document.getElementById('inputGramos');
+    
+    const kgVal = parseFloat(kgInput.value) || 0;
+    const gVal = parseFloat(gInput.value) || 0;
+    
+    const totalGramos = (kgVal * 1000) + gVal;
+    
+    // Validación: Ambos campos vacíos o peso acumulado menor que el mínimo de 250g
+    const ambosVacios = (kgInput.value.trim() === "" && gInput.value.trim() === "");
+    if (ambosVacios || totalGramos < 250) {
+      kgInput.classList.add('is-invalid');
+      gInput.classList.add('is-invalid');
+      errorDiv.textContent = "Por favor, indique el peso deseado para su producto. El peso total debe ser de al menos 250g.";
+      errorDiv.classList.remove('hidden');
+      return;
+    }
+    
+    // Remover clases de error si pasa la validación
+    kgInput.classList.remove('is-invalid');
+    gInput.classList.remove('is-invalid');
+    errorDiv.classList.add('hidden');
+    
+    let calc = (productoTemporal.precio / 1000) * totalGramos;
+    
+    // Formatear texto de cantidad de forma estética para el carrito, ej: "1 Kg 250 g" o "350 g"
+    let cantidadTxt = "";
+    const kgEnteros = Math.floor(totalGramos / 1000);
+    const gramosRestantes = totalGramos % 1000;
+    if (kgEnteros > 0) {
+      cantidadTxt += `${kgEnteros} Kg`;
+      if (gramosRestantes > 0) cantidadTxt += ` ${gramosRestantes} g`;
+    } else {
+      cantidadTxt += `${gramosRestantes} g`;
+    }
+    
+    carrito[productoTemporal.nombre] = { 
+      cantidad: cantidadTxt, 
+      precio: calc.toFixed(2), 
+      cantNumerica: totalGramos, 
+      tipo: productoTemporal.tipo, 
+      unidad: productoTemporal.unidad,
+      precioBase: productoTemporal.precio, 
+      minBase: productoTemporal.minBase 
+    };
+  }
   
   mostrarAviso(`Agregado: ${productoTemporal.nombre}`);
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCantidad')).hide();
@@ -558,10 +648,24 @@ function cambiarCantidadInline(nombre, nuevaCant) {
   let item = carrito[nombre]; let cant = parseInt(nuevaCant);
   if (isNaN(cant) || cant < item.minBase) { mostrarAviso(`Mínimo requerido: ${item.minBase}`); mostrarPedido(); return; }
   item.cantNumerica = cant; 
-  let etiquetaUnidad = item.unidad === 'unidades' ? 'uds' : 'g';
-  item.cantidad = cant + ' ' + etiquetaUnidad;
-  let calc = item.unidad === 'unidades' ? (item.precioBase * cant) : ((item.precioBase / 1000) * cant);
-  item.precio = calc.toFixed(2);
+  
+  if (item.unidad === 'unidades') {
+    item.cantidad = cant + ' uds';
+    item.precio = (item.precioBase * cant).toFixed(2);
+  } else {
+    // Re-formatear peso dinámico en Kg / g si es inline
+    let cantidadTxt = "";
+    const kgEnteros = Math.floor(cant / 1000);
+    const gramosRestantes = cant % 1000;
+    if (kgEnteros > 0) {
+      cantidadTxt += `${kgEnteros} Kg`;
+      if (gramosRestantes > 0) cantidadTxt += ` ${gramosRestantes} g`;
+    } else {
+      cantidadTxt += `${gramosRestantes} g`;
+    }
+    item.cantidad = cantidadTxt;
+    item.precio = ((item.precioBase / 1000) * cant).toFixed(2);
+  }
   mostrarPedido();
 }
 
@@ -963,10 +1067,79 @@ async function ejecutarEliminarProducto() {
   }
 }
 
-function mostrarImagenGrande(url) { document.getElementById('imagenGrandePopUp').src = url; document.getElementById('overlayImagenGrande').classList.add('show'); }
-function cerrarImagenGrande(e) { if (e.target.id !== 'imagenGrandePopUp') document.getElementById('overlayImagenGrande').classList.remove('show'); }
+// Abre la imagen ampliada y guarda las referencias dinámicas del producto
+function mostrarImagenGrande(url, nom, prec, tipo, cantMin, unidad) { 
+  document.getElementById('imagenGrandePopUp').src = url; 
+  document.getElementById('overlayImagenGrande').classList.add('show'); 
+  
+  // Guardar la referencia exacta del producto para selección rápida desde la lupa
+  productoZoomActivo = { nom, prec, tipo, cantMin, unidad };
 
-// Inicialización de intl-tel-input en la carga del DOM
+  // Ocultar botón de selección rápida si el usuario actual es administrador (Modo Editor)
+  const btnSelect = document.getElementById('btnSeleccionarZoom');
+  if (cacheUsuario.rol === "ADMIN") {
+    btnSelect.classList.add('hidden');
+  } else {
+    btnSelect.classList.remove('hidden');
+  }
+
+  // Push del estado virtual al historial para capturar botón "Atrás" en móviles
+  pushZoomState();
+}
+
+// Cierra el zoom manualmente evaluando clics en el fondo
+function cerrarImagenGrande(e) { 
+  if (e.target.id === 'overlayImagenGrande') { 
+    forzarCerrarImagenGrande(); 
+  } 
+}
+
+// Cierra la lupa y ejecuta la redirección directa al modal de selección de peso/unidades
+function seleccionarDesdeZoom() {
+  if (productoZoomActivo) {
+    forzarCerrarImagenGrande();
+    seleccionarProducto(
+      productoZoomActivo.nom,
+      productoZoomActivo.prec,
+      productoZoomActivo.tipo,
+      productoZoomActivo.cantMin,
+      productoZoomActivo.unidad
+    );
+  }
+}
+
+// Registra el estado virtual en la pila del navegador para móviles
+function pushZoomState() {
+  if (!isZoomStatePushed) {
+    history.pushState({ zoomOpen: true }, "", "#zoom");
+    isZoomStatePushed = true;
+  }
+}
+
+// Cierre forzado manual (limpia estado de historial retrocediendo)
+function forzarCerrarImagenGrande() {
+  const overlay = document.getElementById('overlayImagenGrande');
+  if (overlay && overlay.classList.contains('show')) {
+    overlay.classList.remove('show');
+    productoZoomActivo = null;
+    if (isZoomStatePushed && window.location.hash === "#zoom") {
+      isZoomStatePushed = false;
+      history.back(); // Pop del estado virtual
+    }
+  }
+}
+
+// Cierre silencioso desencadenado por el botón físico "Atrás" (evita bucles)
+function cerrarImagenGrandeSilencioso() {
+  const overlay = document.getElementById('overlayImagenGrande');
+  if (overlay) {
+    overlay.classList.remove('show');
+    productoZoomActivo = null;
+    isZoomStatePushed = false;
+  }
+}
+
+// Inicialización de intl-tel-input en la carga del DOM y listeners dinámicos
 document.addEventListener("DOMContentLoaded", function() {
   const inputTelefono = document.querySelector("#regTelefono");
   if (inputTelefono) {
@@ -998,6 +1171,32 @@ document.addEventListener("DOMContentLoaded", function() {
     document.getElementById('btnSesionHeader').classList.add('hidden');
     document.getElementById('saludoUsuario').innerHTML = "¡Bienvenido a <strong>Mundocarnes</strong>! 🥩";
   }
+
+  // Listeners para limpiar bordes rojos de error en tiempo real (Excelente UX)
+  document.getElementById('inputKg').addEventListener('input', function() {
+    this.classList.remove('is-invalid');
+    document.getElementById('inputGramos').classList.remove('is-invalid');
+    document.getElementById('errorModalCantidad').classList.add('hidden');
+  });
+
+  document.getElementById('inputGramos').addEventListener('input', function() {
+    this.classList.remove('is-invalid');
+    document.getElementById('inputKg').classList.remove('is-invalid');
+    document.getElementById('errorModalCantidad').classList.add('hidden');
+  });
+
+  document.getElementById('inputCantidad').addEventListener('input', function() {
+    this.classList.remove('is-invalid');
+    document.getElementById('errorModalCantidad').classList.add('hidden');
+  });
+
+  // Escucha global de eventos de historial para el botón "Atrás" en móviles
+  window.addEventListener('popstate', function(event) {
+    const overlay = document.getElementById('overlayImagenGrande');
+    if (overlay && overlay.classList.contains('show')) {
+      cerrarImagenGrandeSilencioso();
+    }
+  });
 
   // Cargar Catálogo de forma local directa de GitHub Pages en milisegundos
   fetch("catalog.json?t=" + new Date().getTime())
