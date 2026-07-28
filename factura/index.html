@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mundocarnes - Facturación No Fiscal</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Estilo Local Aislado -->
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+
+    <!-- VISTA 1: Panel de Inicio de Sesión -->
+    <div id="vistaLogin" class="container">
+      <div class="login-panel">
+        <img src="../img/LOGO-MUNDO123.webp" alt="Mundocarnes" class="logo-admin">
+        <h5 class="text-center fw-bold mb-1 text-dark">Facturación No Fiscal</h5>
+        <p class="text-center text-muted small mb-4">Acceso de Personal Autorizado</p>
+        
+        <form id="formLogin" onsubmit="procesarLoginFacturacion(event)">
+          <div class="mb-3">
+            <label for="facUsuario" class="form-label fw-bold small">Usuario:</label>
+            <input type="text" id="facUsuario" class="form-control border-dark" placeholder="Ingrese su usuario" required autocomplete="username">
+          </div>
+          <div class="mb-4">
+            <label for="facPassword" class="form-label fw-bold small">Contraseña:</label>
+            <input type="password" id="facPassword" class="form-control border-dark" placeholder="Ingrese su contraseña" required autocomplete="current-password">
+          </div>
+          <button type="submit" id="btnIngresarFac" class="btn btn-danger w-100 fw-bold border-dark">Ingresar al Sistema 🔐</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- VISTA 2: Módulo de Facturación (Oculto hasta autenticarse) -->
+    <div id="vistaFacturacion" class="hidden">
+      <!-- Navbar de Encabezado -->
+      <nav class="admin-navbar d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+          <img src="../img/LOGO-MUNDO123.webp" alt="Logo" class="logo-nav me-3">
+          <span class="fw-bold fs-5 text-white">Módulo de Facturación No Fiscal</span>
+        </div>
+        <div class="d-flex align-items-center">
+          <span id="usuarioActivo" class="me-3 small fw-bold text-light"></span>
+          <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="cerrarSesionFacturacion()">Cerrar Sesión 🚪</button>
+        </div>
+      </nav>
+
+      <!-- Panel Principal -->
+      <div class="container-fluid px-4">
+        <div class="row g-4">
+          <!-- Columna Izquierda: Catálogo Organizado por Categorías -->
+          <div class="col-lg-8 col-xl-9">
+            <ul class="nav nav-tabs mb-3" id="facturaTabs" role="tablist">
+              <!-- Renderizado Dinámico desde catalog.json -->
+            </ul>
+            <div class="tab-content" id="facturaTabContent">
+              <!-- Renderizado Dinámico de Productos -->
+            </div>
+          </div>
+
+          <!-- Columna Derecha: Resumen e Imprimir Factura -->
+          <div class="col-lg-4 col-xl-3">
+            <div class="panel-factura-resumen">
+              <h5 class="fw-bold mb-3 border-bottom pb-2">📋 Detalle de Factura</h5>
+              <div id="contenedorListaFactura" class="table-responsive mb-3" style="max-height: 400px; overflow-y: auto;">
+                <p class="text-muted text-center py-3 small">No hay productos seleccionados.</p>
+              </div>
+              <div class="d-flex justify-content-between fw-bold fs-5 border-top pt-2 mb-3">
+                <span>TOTAL:</span>
+                <span id="montoTotalFactura" class="text-danger">$0.00</span>
+              </div>
+              <button type="button" class="btn btn-success btn-lg w-100 fw-bold border-dark" onclick="ejecutarFacturar()">Facturar 🧾</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal para Selección de Cantidad / Peso al seleccionar un Producto -->
+    <div class="modal fade" id="modalFacturaCantidad" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-dark border-2">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title fw-bold">Agregar a Factura</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p id="modalNombreProducto" class="fw-bold fs-5 mb-2"></p>
+            <p id="modalPrecioProducto" class="text-success fw-bold mb-3"></p>
+            
+            <!-- Contenedor Unidades -->
+            <div id="contFacUnidades" class="mb-3 hidden">
+              <label class="form-label fw-bold">Cantidad (unidades):</label>
+              <input type="number" id="inputFacUnidades" class="form-control border-dark fw-bold text-center fs-5" min="1">
+            </div>
+
+            <!-- Contenedor Peso (Kg / Gramos) -->
+            <div id="contFacPeso" class="mb-3 hidden">
+              <div class="row g-2">
+                <div class="col-6">
+                  <label class="form-label fw-bold">Kilogramos (Kg):</label>
+                  <input type="number" id="inputFacKg" class="form-control border-dark fw-bold text-center fs-5" min="0" step="1">
+                </div>
+                <div class="col-6">
+                  <label class="form-label fw-bold">Gramos (g):</label>
+                  <input type="number" id="inputFacGramos" class="form-control border-dark fw-bold text-center fs-5" min="0" step="50">
+                </div>
+              </div>
+            </div>
+
+            <div id="errorModalFac" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-danger fw-bold" onclick="confirmarAgregarAFactura()">Agregar ✓</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast de Notificaciones -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+      <div id="toastFactura" class="toast align-items-center text-white bg-dark border-0" role="alert">
+        <div class="d-flex">
+          <div class="toast-body" id="toastMensajeFactura"></div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="script.js?v=1.0.0"></script>
+  </body>
+</html>
