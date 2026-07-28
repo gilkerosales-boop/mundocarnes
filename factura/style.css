@@ -93,3 +93,18 @@ body {
 .hidden {
   display: none !important;
 }
+
+/* Miniatura de productos en la tabla resumen */
+.img-thumb-factura {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+}
+
+/* Modales e inputs de lectura */
+.form-control[readonly] {
+  background-color: #e9ecef !important;
+  opacity: 1;
+}
