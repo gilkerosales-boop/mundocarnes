@@ -327,3 +327,207 @@ document.addEventListener("DOMContentLoaded", function() {
     iniciarModuloFacturacion(usuario);
   }
 });
+
+// Variable global para almacenar el cliente autenticado en el flujo
+let clienteFacturaActual = null;
+
+// Reemplazar la función ejecutarFacturar previa
+function ejecutarFacturar() {
+  if (Object.keys(itemsFactura).length === 0) {
+    return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
+  }
+
+  // 1. Renderizar la Tabla Resumen de Productos dentro del Modal
+  let htmlTabla = "";
+  let totalAcumulado = 0;
+
+  for (let key in itemsFactura) {
+    let item = itemsFactura[key];
+    totalAcumulado += parseFloat(item.precioTotal);
+
+    let precioUnitarioTxt = (item.unidad === 'gramos' || item.unidad === 'mixto')
+      ? `$${item.precioBase.toFixed(2)} / Kg`
+      : `$${item.precioBase.toFixed(2)} / Ud`;
+
+    htmlTabla += `
+      <tr>
+        <td class="text-center">
+          <img src="${item.imgPath || '../img/LOGO-MUNDO123.webp'}" class="img-thumb-factura" alt="${key}">
+        </td>
+        <td class="fw-bold">${key}</td>
+        <td class="text-center">${precioUnitarioTxt}</td>
+        <td class="text-center fw-bold">${item.cantidadTxt}</td>
+        <td class="text-end fw-bold text-success">$${item.precioTotal}</td>
+      </tr>`;
+  }
+
+  document.getElementById('tablaModalResumenProductos').innerHTML = htmlTabla;
+  document.getElementById('montoModalTotalFactura').textContent = `$${totalAcumulado.toFixed(2)}`;
+
+  // 2. Limpiar estados previos de búsqueda de cliente
+  document.getElementById('facCedulaBuscar').value = "";
+  document.getElementById('boxClienteEncontrado').classList.add('hidden');
+  document.getElementById('boxClienteNuevo').classList.add('hidden');
+  document.getElementById('facFormaPagoSelect').value = "";
+  clienteFacturaActual = null;
+
+  // 3. Abrir el Modal de Procesamiento de Factura
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
+}
+
+// Búsqueda de Cliente mediante POST al backend
+async function buscarClienteFactura() {
+  const cedula = document.getElementById('facCedulaBuscar').value.trim();
+  if (!cedula) {
+    return mostrarAvisoFactura("Ingrese el número de Cédula o RIF.");
+  }
+
+  const btn = document.getElementById('btnBuscarClienteFac');
+  btn.disabled = true;
+  btn.textContent = "Buscando...";
+
+  try {
+    const response = await fetch(API_URL_GAS, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        action: "buscarCliente",
+        cedula: cedula
+      })
+    });
+
+    const res = await response.json();
+    btn.disabled = false;
+    btn.textContent = "🔍 Buscar";
+
+    const boxEncontrado = document.getElementById('boxClienteEncontrado');
+    const boxNuevo = document.getElementById('boxClienteNuevo');
+
+    if (res.status === "success") {
+      clienteFacturaActual = res.cliente;
+      
+      document.getElementById('facClienteCedulaRead').value = res.cliente.cedula;
+      document.getElementById('facClienteNombreRead').value = res.cliente.nombre;
+      document.getElementById('facClienteTelefonoRead').value = res.cliente.telefono || "N/A";
+      document.getElementById('facClienteDireccionRead').value = res.cliente.direccion || "N/A";
+
+      boxEncontrado.classList.remove('hidden');
+      boxNuevo.classList.add('hidden');
+      mostrarAvisoFactura("Cliente localizado con éxito.");
+
+    } else if (res.status === "not_found") {
+      clienteFacturaActual = null;
+      
+      document.getElementById('facRegCedula').value = cedula.toUpperCase();
+      document.getElementById('facRegNombre').value = "";
+      document.getElementById('facRegTelefono').value = "";
+      document.getElementById('facRegDireccion').value = "";
+
+      boxEncontrado.classList.add('hidden');
+      boxNuevo.classList.remove('hidden');
+      mostrarAvisoFactura("Cliente no registrado. Ingrese los datos para registrarlo.");
+
+    } else {
+      mostrarAvisoFactura(res.message || "Error al consultar cliente.");
+    }
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "🔍 Buscar";
+    console.error("Error buscar cliente:", err);
+    mostrarAvisoFactura("Error de conexión al consultar cliente.");
+  }
+}
+
+// Registro de Cliente Nuevo mediante POST al backend
+async function registrarClienteFactura() {
+  const cedula = document.getElementById('facRegCedula').value.trim();
+  const nombre = document.getElementById('facRegNombre').value.trim();
+  const telefono = document.getElementById('facRegTelefono').value.trim();
+  const direccion = document.getElementById('facRegDireccion').value.trim();
+
+  if (!cedula || !nombre) {
+    return mostrarAvisoFactura("Cédula y Nombre son obligatorios.");
+  }
+
+  const btn = document.getElementById('btnRegistrarClienteFac');
+  btn.disabled = true;
+  btn.textContent = "Registrando...";
+
+  try {
+    const response = await fetch(API_URL_GAS, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        action: "registrarCliente",
+        cedula: cedula,
+        nombre: nombre,
+        telefono: telefono,
+        direccion: direccion
+      })
+    });
+
+    const res = await response.json();
+    btn.disabled = false;
+    btn.textContent = "💾 Registrar Nuevo Cliente";
+
+    if (res.status === "success") {
+      clienteFacturaActual = res.cliente;
+
+      document.getElementById('facClienteCedulaRead').value = res.cliente.cedula;
+      document.getElementById('facClienteNombreRead').value = res.cliente.nombre;
+      document.getElementById('facClienteTelefonoRead').value = res.cliente.telefono || "N/A";
+      document.getElementById('facClienteDireccionRead').value = res.cliente.direccion || "N/A";
+
+      document.getElementById('boxClienteNuevo').classList.add('hidden');
+      document.getElementById('boxClienteEncontrado').classList.remove('hidden');
+      mostrarAvisoFactura("Cliente registrado exitosamente.");
+
+    } else {
+      mostrarAvisoFactura(res.message || "No se pudo registrar el cliente.");
+    }
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "💾 Registrar Nuevo Cliente";
+    console.error("Error registrar cliente:", err);
+    mostrarAvisoFactura("Error de conexión al registrar cliente.");
+  }
+}
+
+// Control de Navegación: Retroceder (Cierra modal y conserva productos seleccionados)
+function retrocederProcesoFactura() {
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
+}
+
+// Control de Navegación: Cancelar (Cierra modal, borra toda la selección y reinicia en cero)
+function cancelarProcesoFactura() {
+  if (confirm("¿Está seguro de cancelar el proceso? Se borrarán los productos seleccionados.")) {
+    itemsFactura = {};
+    clienteFacturaActual = null;
+    renderizarResumenFactura();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
+    mostrarAvisoFactura("Facturación cancelada y selección reiniciada.");
+  }
+}
+
+// Marcador de posición para la Fase 3 (Procesamiento final)
+function emitirFacturaFinal() {
+  if (!clienteFacturaActual) {
+    return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir la factura.");
+  }
+  
+  const formaPago = document.getElementById('facFormaPagoSelect').value;
+  if (!formaPago) {
+    return mostrarAvisoFactura("Seleccione una Forma de Pago.");
+  }
+
+  console.log("=== LISTO PARA FASE 3 ===");
+  console.log("Cliente:", clienteFacturaActual);
+  console.log("Forma de Pago:", formaPago);
+  console.log("Items:", itemsFactura);
+  
+  mostrarAvisoFactura("Validaciones completadas. Listo para Fase 3 (Emisión/Impresión).");
+}
