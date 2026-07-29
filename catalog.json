@@ -137,11 +137,13 @@
         ],
         [
           "CHARCUTERO 2",
-          29,
+          30,
           "img/charcu_2.webp",
           true,
           1,
-          "unidades"
+          "unidades",
+          0,
+          ""
         ],
         [
           "CHARCUTERO 3",
