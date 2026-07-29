@@ -426,8 +426,10 @@
           11.9,
           "img/queso_paisa.webp",
           true,
-          250,
-          "gramos"
+          100,
+          "gramos",
+          0,
+          ""
         ],
         [
           "QUESO MOZZARELLA",
