@@ -9,7 +9,7 @@
     <!-- Estilo Local Aislado -->
     <link rel="stylesheet" href="style.css">
     <!-- Configuración de App Instalable para Facturación -->
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="manifest.json?v=1.0.2">
     <meta name="theme-color" content="#dc3545">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -71,7 +71,7 @@
               <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
                 <h5 class="fw-bold mb-0">📋 Detalle de Factura</h5>
                 <div class="d-flex gap-1">
-                  <!-- Nuevo Botón + Códigos -->
+                  <!-- Botón + Códigos -->
                   <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="abrirModalCodigos()">
                     📟 + Códigos
                   </button>
@@ -352,12 +352,14 @@
                   <option value="Zelle">Zelle</option>
                   <option value="PayPal">PayPal</option>
                   <option value="Punto de Venta">Punto de Venta</option>
+                  <option value="Biopago">Biopago</option>
                   <option value="Cashea + Efectivo Divisas">Cashea + Efectivo Divisas</option>
                   <option value="Cashea + Efectivo Bolívares">Cashea + Efectivo Bolívares</option>
                   <option value="Cashea + Pago Móvil">Cashea + Pago Móvil</option>
                   <option value="Cashea + Zelle">Cashea + Zelle</option>
                   <option value="Cashea + PayPal">Cashea + PayPal</option>
                   <option value="Cashea + Punto de Venta">Cashea + Punto de Venta</option>
+                  <option value="Cashea + Biopago">Cashea + Biopago</option>
                   <option value="Pago Mixto">Pago Mixto</option>
                 </select>
 
@@ -509,6 +511,6 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="script.js?v=1.2.3"></script>
+    <script src="script.js?v=1.2.5"></script>
   </body>
 </html>
