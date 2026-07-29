@@ -428,8 +428,10 @@
           7.5,
           "img/queso_guayanes.webp",
           true,
-          250,
-          "gramos"
+          100,
+          "gramos",
+          0,
+          ""
         ],
         [
           "QUESO AMARILLO",
