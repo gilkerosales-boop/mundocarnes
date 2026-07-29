@@ -1078,6 +1078,7 @@ async function emitirFacturaFinal() {
       totalUSD: totalUSD,
       totalBs: totalBs,
       tasaBCV: tasa,
+      monedaVistaModal: monedaVistaModal, // Transfiere la moneda seleccionada (USD o BS)
       productosSummary: productosSummaryList.join(' | ')
     };
 
@@ -1099,28 +1100,66 @@ async function emitirFacturaFinal() {
 function renderizarTicketTermicoHTML(d) {
   let filasProductosHtml = "";
   let i = 1;
+  let esModoBs = (d.monedaVistaModal === "BS");
+  let tasa = d.tasaBCV || 1;
 
   for (let key in itemsFactura) {
     let item = itemsFactura[key];
-    let precUnit = (item.unidad === 'gramos' || item.unidad === 'mixto')
-      ? `$${item.precioBase.toFixed(2)}/Kg`
-      : `$${item.precioBase.toFixed(2)}/Ud`;
+    let precUnit = "";
+    let itemTotalTxt = "";
+
+    if (esModoBs) {
+      let precBaseBs = (parseFloat(item.precioBase) || 0) * tasa;
+      let precTotalBs = (parseFloat(item.precioTotal) || 0) * tasa;
+      let unidadBs = (item.unidad === 'gramos' || item.unidad === 'mixto') ? '/Kg' : '/Ud';
+
+      precUnit = `Bs. ${precBaseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${unidadBs}`;
+      itemTotalTxt = `Bs. ${precTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
+      let unidadUsd = (item.unidad === 'gramos' || item.unidad === 'mixto') ? '/Kg' : '/Ud';
+
+      precUnit = `$${item.precioBase.toFixed(2)}${unidadUsd}`;
+      itemTotalTxt = `$${item.precioTotal}`;
+    }
 
     filasProductosHtml += `
       <tr>
-        <td style="width:8%;">${i++}</td>
-        <td style="width:42%;" class="fw-bold">${key}</td>
-        <td style="width:18%;" class="text-center">${precUnit}</td>
-        <td style="width:16%;" class="text-center">${item.cantidadTxt}</td>
-        <td style="width:16%;" class="text-end fw-bold">$${item.precioTotal}</td>
+        <td style="width:6%;">${i++}</td>
+        <td style="width:38%;" class="fw-bold">${key}</td>
+        <td style="width:24%;" class="text-center">${precUnit}</td>
+        <td style="width:14%;" class="text-center">${item.cantidadTxt}</td>
+        <td style="width:18%;" class="text-end fw-bold">${itemTotalTxt}</td>
       </tr>`;
+  }
+
+  // Totales dinámicos según la moneda activa
+  let bloqueTotalesHtml = "";
+  if (esModoBs) {
+    bloqueTotalesHtml = `
+      <div class="d-flex justify-content-between">
+        <span>TOTAL FACTURA (Bs):</span>
+        <strong class="fs-6">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+      </div>
+      <div class="d-flex justify-content-between text-muted">
+        <span>TOTAL FACTURA ($):</span>
+        <span>$${d.totalUSD.toFixed(2)}</span>
+      </div>`;
+  } else {
+    bloqueTotalesHtml = `
+      <div class="d-flex justify-content-between">
+        <span>TOTAL FACTURA ($):</span>
+        <strong class="fs-6">$${d.totalUSD.toFixed(2)}</strong>
+      </div>
+      <div class="d-flex justify-content-between text-muted">
+        <span>TOTAL FACTURA (Bs):</span>
+        <span>Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+      </div>`;
   }
 
   const ticketHtml = `
     <div class="ticket-container shadow-sm border">
       <div class="ticket-header">
         <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
-        <div class="ticket-title">FRIGORÍFICO MUNDOCARNE C.A.</div>
         <div>RIF: J-505072889 | TELF: 0412-1753275</div>
         <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
         <div>HORARIO: 7:30am - 19:00pm</div>
@@ -1150,25 +1189,13 @@ function renderizarTicketTermicoHTML(d) {
       </table>
 
       <div class="ticket-totals border-top pt-1">
-        <div class="d-flex justify-content-between">
-          <span>TOTAL FACTURA ($):</span>
-          <strong class="fs-6">$${d.totalUSD.toFixed(2)}</strong>
-        </div>
-        <div class="d-flex justify-content-between text-muted">
-          <span>TASA BCV:</span>
-          <span>Bs. ${d.tasaBCV.toFixed(2)}</span>
-        </div>
-        <div class="d-flex justify-content-between">
-          <span>TOTAL FACTURA (Bs):</span>
-          <strong>Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-        </div>
+        ${bloqueTotalesHtml}
         <div class="ticket-divider"></div>
         <div><strong>FORMA DE PAGO:</strong></div>
         <div class="small">${d.formaPagoStr}</div>
       </div>
 
       <div class="ticket-footer">
-        <div class="fw-bold">COMPROBANTE NO FISCAL</div>
         <div>¡Gracias por su preferencia!</div>
       </div>
     </div>
