@@ -258,8 +258,10 @@
           10.9,
           "img/12.webp",
           true,
-          250,
-          "gramos"
+          100,
+          "gramos",
+          0,
+          ""
         ],
         [
           "COSTILLA DE COCHINO",
