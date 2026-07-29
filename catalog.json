@@ -239,7 +239,9 @@
           "img/chuleta_ahumada.webp",
           true,
           250,
-          "gramos"
+          "gramos",
+          0,
+          "00150"
         ],
         [
           "CHULETA DE COCHINO",
