@@ -486,8 +486,10 @@
           11.9,
           "img/chorizos.webp",
           true,
-          250,
-          "gramos"
+          100,
+          "gramos",
+          0,
+          ""
         ],
         [
           "MORTADELA DON RAMÓN 400g",
