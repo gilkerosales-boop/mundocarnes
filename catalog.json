@@ -506,8 +506,10 @@
           6.9,
           "img/salchicha_polaca.webp",
           true,
-          250,
-          "gramos"
+          100,
+          "gramos",
+          0,
+          ""
         ],
         [
           "CHORIZOS (ahumado, ajo, picante)",
