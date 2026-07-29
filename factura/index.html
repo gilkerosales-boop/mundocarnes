@@ -62,7 +62,14 @@
           <!-- Columna Derecha: Resumen e Imprimir Factura -->
           <div class="col-lg-4 col-xl-3">
             <div class="panel-factura-resumen">
-              <h5 class="fw-bold mb-3 border-bottom pb-2">📋 Detalle de Factura</h5>
+              <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                <h5 class="fw-bold mb-0">📋 Detalle de Factura</h5>
+                <!-- Botón Producto Manual Principal -->
+                <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="abrirModalProductoManual()">
+                  + Manual
+                </button>
+              </div>
+
               <div id="contenedorListaFactura" class="table-responsive mb-3" style="max-height: 400px; overflow-y: auto;">
                 <p class="text-muted text-center py-3 small">No hay productos seleccionados.</p>
               </div>
@@ -80,7 +87,7 @@
       </div>
     </div>
 
-    <!-- Modal para Selección de Cantidad / Peso al seleccionar un Producto -->
+    <!-- Modal para Selección de Cantidad / Peso de Catálogo -->
     <div class="modal fade" id="modalFacturaCantidad" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-dark border-2">
@@ -122,20 +129,85 @@
       </div>
     </div>
 
-    <!-- MODAL FASE 2: Procesamiento e Impresión de Factura -->
-    <div class="modal fade" id="modalProcesarFactura" data-bs-backdrop="static" tabindex="-1" aria-labelledby="labelProcesarFactura" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <!-- MODAL AGREGAR PRODUCTO MANUAL (FUERA DE CATÁLOGO) -->
+    <div class="modal fade" id="modalProductoManual" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-dark text-white">
+          <div class="modal-header bg-danger text-white">
+            <h5 class="modal-title fw-bold">➕ Agregar Producto Manual</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="manualNombre" class="form-label fw-bold small">Nombre / Descripción del Producto *:</label>
+              <input type="text" id="manualNombre" class="form-control border-dark text-uppercase fw-bold" placeholder="Ej: HIELO 5KG / REFRESCO 2L">
+            </div>
+            
+            <div class="mb-3">
+              <label for="manualModoVenta" class="form-label fw-bold small">Modo de Venta *:</label>
+              <select id="manualModoVenta" class="form-select border-dark fw-bold" onchange="alternarCamposManual(this.value)">
+                <option value="unidades" selected>Unidades (uds)</option>
+                <option value="gramos">Peso por Gramos / Kg</option>
+              </select>
+            </div>
+
+            <!-- Contenedor Unidades -->
+            <div id="contManualUnidades" class="row g-2 mb-3">
+              <div class="col-6">
+                <label for="manualPrecioUd" class="form-label fw-bold small">Precio por Ud ($) *:</label>
+                <input type="number" id="manualPrecioUd" class="form-control border-dark fw-bold text-center" step="0.01" min="0.01" placeholder="0.00">
+              </div>
+              <div class="col-6">
+                <label for="manualCantUd" class="form-label fw-bold small">Cantidad (uds) *:</label>
+                <input type="number" id="manualCantUd" class="form-control border-dark fw-bold text-center" min="1" value="1">
+              </div>
+            </div>
+
+            <!-- Contenedor Peso Gramos (Oculto inicialmente) -->
+            <div id="contManualPeso" class="row g-2 mb-3 hidden">
+              <div class="col-12 mb-2">
+                <label for="manualPrecioKg" class="form-label fw-bold small">Precio por Kilo ($/Kg) *:</label>
+                <input type="number" id="manualPrecioKg" class="form-control border-dark fw-bold text-center" step="0.01" min="0.01" placeholder="0.00">
+              </div>
+              <div class="col-6">
+                <label for="manualKg" class="form-label fw-bold small">Kilogramos (Kg):</label>
+                <input type="number" id="manualKg" class="form-control border-dark fw-bold text-center" min="0" step="1" placeholder="0">
+              </div>
+              <div class="col-6">
+                <label for="manualGramos" class="form-label fw-bold small">Gramos (g):</label>
+                <input type="number" id="manualGramos" class="form-control border-dark fw-bold text-center" min="0" step="10" placeholder="0">
+              </div>
+            </div>
+
+            <div id="errorModalManual" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-success fw-bold px-4" onclick="confirmarAgregarProductoManual()">Agregar a Factura ✓</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL FASE 2: Procesamiento e Impresión de Factura (PANTALLA COMPLETA) -->
+    <div class="modal fade" id="modalProcesarFactura" data-bs-backdrop="static" tabindex="-1" aria-labelledby="labelProcesarFactura" aria-hidden="true">
+      <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content rounded-0">
+          <div class="modal-header bg-dark text-white rounded-0">
             <h5 class="modal-title fw-bold" id="labelProcesarFactura">🧾 Procesar Facturación No Fiscal</h5>
             <button type="button" class="btn-close btn-close-white" onclick="retrocederProcesoFactura()"></button>
           </div>
           
-          <div class="modal-body p-4">
+          <div class="modal-body p-4 bg-light">
             
-            <!-- SECCIÓN 1: Tabla Resumen de Productos + Tasa BCV + Conmutador Moneda -->
+            <!-- SECCIÓN 1: Tabla Resumen de Productos + Tasa BCV + Conmutador Moneda + Botón Manual -->
             <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2 flex-wrap gap-2">
-              <h6 class="fw-bold text-danger mb-0">1. Detalle de Productos Seleccionados</h6>
+              <div class="d-flex align-items-center gap-2">
+                <h6 class="fw-bold text-danger mb-0">1. Detalle de Productos Seleccionados</h6>
+                <button type="button" class="btn btn-sm btn-outline-danger fw-bold ms-2" onclick="abrirModalProductoManual()">
+                  + Producto Manual
+                </button>
+              </div>
               
               <div class="d-flex align-items-center gap-2">
                 <!-- Botón Conmutador Moneda ($ / Bs) -->
@@ -144,7 +216,7 @@
                 </button>
 
                 <!-- Cuadro Tasa BCV -->
-                <div class="d-flex align-items-center bg-light p-1 px-2 rounded border border-dark">
+                <div class="d-flex align-items-center bg-white p-1 px-2 rounded border border-dark">
                   <span class="fw-bold small me-2 text-danger">💵 Tasa BCV:</span>
                   <input type="number" id="facTasaBCV" class="form-control form-control-sm border-dark fw-bold text-center me-2" style="width: 100px;" step="0.01" min="0" placeholder="0.00" oninput="actualizarCalculosBCV()">
                   <span class="small fw-bold text-muted me-2">Bs/$</span>
@@ -154,7 +226,7 @@
               </div>
             </div>
 
-            <div class="table-responsive mb-4">
+            <div class="table-responsive mb-4 bg-white rounded border">
               <table class="table table-bordered align-middle mb-0">
                 <thead class="table-dark text-center">
                   <tr>
@@ -181,7 +253,7 @@
 
             <!-- SECCIÓN 2: Módulo de Cliente -->
             <h6 class="fw-bold text-danger border-bottom pb-2 mb-3">2. Datos del Cliente</h6>
-            <div class="card p-3 bg-light border-secondary mb-4">
+            <div class="card p-3 bg-white border-secondary mb-4">
               
               <!-- Búsqueda de Cédula/RIF -->
               <div class="row g-2 align-items-end mb-3">
@@ -197,7 +269,7 @@
               </div>
 
               <!-- Caso A: Cliente Encontrado (Lectura Únicamente) -->
-              <div id="boxClienteEncontrado" class="p-3 bg-white border rounded border-success hidden">
+              <div id="boxClienteEncontrado" class="p-3 bg-light border rounded border-success hidden">
                 <div class="d-flex align-items-center mb-2">
                   <span class="badge bg-success me-2">✔ Cliente Registrado</span>
                   <span class="small text-muted">Datos verificados en el sistema</span>
@@ -205,25 +277,25 @@
                 <div class="row g-2">
                   <div class="col-md-3">
                     <label class="form-label small fw-bold mb-0">Cédula / RIF:</label>
-                    <input type="text" id="facClienteCedulaRead" class="form-control form-control-sm bg-light" readonly>
+                    <input type="text" id="facClienteCedulaRead" class="form-control form-control-sm bg-white" readonly>
                   </div>
                   <div class="col-md-4">
                     <label class="form-label small fw-bold mb-0">Nombre / Razón Social:</label>
-                    <input type="text" id="facClienteNombreRead" class="form-control form-control-sm bg-light" readonly>
+                    <input type="text" id="facClienteNombreRead" class="form-control form-control-sm bg-white" readonly>
                   </div>
                   <div class="col-md-2">
                     <label class="form-label small fw-bold mb-0">Teléfono:</label>
-                    <input type="text" id="facClienteTelefonoRead" class="form-control form-control-sm bg-light" readonly>
+                    <input type="text" id="facClienteTelefonoRead" class="form-control form-control-sm bg-white" readonly>
                   </div>
                   <div class="col-md-3">
                     <label class="form-label small fw-bold mb-0">Dirección:</label>
-                    <input type="text" id="facClienteDireccionRead" class="form-control form-control-sm bg-light" readonly>
+                    <input type="text" id="facClienteDireccionRead" class="form-control form-control-sm bg-white" readonly>
                   </div>
                 </div>
               </div>
 
               <!-- Caso B: Cliente No Encontrado (Formulario Dinámico de Registro) -->
-              <div id="boxClienteNuevo" class="p-3 bg-white border rounded border-warning hidden">
+              <div id="boxClienteNuevo" class="p-3 bg-light border rounded border-warning hidden">
                 <div class="d-flex align-items-center mb-2">
                   <span class="badge bg-warning text-dark me-2">⚠️ Cliente No Registrado</span>
                   <span class="small text-muted">Complete la información para registrar al cliente</span>
@@ -257,7 +329,7 @@
 
             <!-- SECCIÓN 3: Forma de Pago -->
             <h6 class="fw-bold text-danger border-bottom pb-2 mb-3">3. Forma de Pago</h6>
-            <div class="row g-3">
+            <div class="row g-3 mb-4">
               <div class="col-md-8 col-lg-6">
                 <label for="facFormaPagoSelect" class="form-label fw-bold small">Seleccione Método de Pago *:</label>
                 <select id="facFormaPagoSelect" class="form-select border-dark fw-bold" onchange="evaluarFormaPagoFactura(this.value)">
@@ -301,7 +373,7 @@
           </div>
 
           <!-- FOOTER: Controles de Navegación -->
-          <div class="modal-footer bg-light justify-content-between">
+          <div class="modal-footer bg-white border-top justify-content-between p-3">
             <button type="button" class="btn btn-outline-danger fw-bold" onclick="cancelarProcesoFactura()">
               🚫 Cancelar Selección
             </button>
@@ -331,6 +403,6 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="script.js?v=1.0.7"></script>
+    <script src="script.js?v=1.0.8"></script>
   </body>
 </html>
