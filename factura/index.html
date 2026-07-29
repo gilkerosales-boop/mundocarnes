@@ -133,17 +133,24 @@
           
           <div class="modal-body p-4">
             
-            <!-- SECCIÓN 1: Tabla Resumen de Productos + Cuadrito Tasa BCV -->
-            <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+            <!-- SECCIÓN 1: Tabla Resumen de Productos + Tasa BCV + Conmutador Moneda -->
+            <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2 flex-wrap gap-2">
               <h6 class="fw-bold text-danger mb-0">1. Detalle de Productos Seleccionados</h6>
               
-              <!-- Cuadro Tasa BCV y Total Bs dentro del Modal -->
-              <div class="d-flex align-items-center bg-light p-2 rounded border border-dark">
-                <span class="fw-bold small me-2 text-danger">💵 Tasa BCV Oficial:</span>
-                <input type="number" id="facTasaBCV" class="form-control form-control-sm border-dark fw-bold text-center me-3" style="width: 110px;" step="0.01" min="0" placeholder="0.00" oninput="actualizarCalculosBCV()">
-                <span class="small fw-bold text-muted me-3">Bs/$</span>
-                <span class="small fw-bold text-dark me-1">Total Bs:</span>
-                <span id="montoModalTotalFacturaBs" class="fw-bold text-primary fs-6">Bs. 0.00</span>
+              <div class="d-flex align-items-center gap-2">
+                <!-- Botón Conmutador $ / Bs -->
+                <button type="button" id="btnConmutarMoneda" class="btn btn-sm btn-outline-dark fw-bold" onclick="alternarMonedaTablaFactura()">
+                  💱 Ver en Bolívares (Bs)
+                </button>
+
+                <!-- Cuadro Tasa BCV y Total Bs -->
+                <div class="d-flex align-items-center bg-light p-1 px-2 rounded border border-dark">
+                  <span class="fw-bold small me-2 text-danger">💵 Tasa BCV:</span>
+                  <input type="number" id="facTasaBCV" class="form-control form-control-sm border-dark fw-bold text-center me-2" style="width: 100px;" step="0.01" min="0" placeholder="0.00" oninput="actualizarCalculosBCV()">
+                  <span class="small fw-bold text-muted me-2">Bs/$</span>
+                  <span class="small fw-bold text-dark me-1">Total Bs:</span>
+                  <span id="montoModalTotalFacturaBs" class="fw-bold text-primary fs-6">Bs. 0.00</span>
+                </div>
               </div>
             </div>
 
@@ -153,9 +160,9 @@
                   <tr>
                     <th style="width: 70px;">Item</th>
                     <th>Producto</th>
-                    <th style="width: 150px;">Precio Base</th>
+                    <th style="width: 160px;">Precio Base</th>
                     <th style="width: 180px;">Cantidad / Peso</th>
-                    <th style="width: 140px;">Subtotal</th>
+                    <th style="width: 160px;">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody id="tablaModalResumenProductos">
@@ -163,8 +170,10 @@
                 </tbody>
                 <tfoot class="table-light">
                   <tr>
-                    <td colspan="4" class="text-end fw-bold fs-5 align-middle">TOTAL FACTURA ($):</td>
-                    <td class="text-end fw-bold fs-5 text-danger" id="montoModalTotalFactura">$0.00</td>
+                    <td colspan="4" class="text-end fw-bold fs-5 align-middle" id="labelModalTotalFactura">TOTAL FACTURA ($):</td>
+                    <td class="text-end align-middle">
+                      <div class="fw-bold fs-5 text-danger" id="montoModalTotalFactura">$0.00</div>
+                    </td>
                   </tr>
                 </tfoot>
               </table>
