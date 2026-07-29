@@ -27,30 +27,27 @@ function obtenerTasaBCV() {
   return parseFloat(inputTasa.value) || 0;
 }
 
-// ACTUALIZAR CÁLCULOS EN BOLÍVARES EN TIEMPO REAL
+// ACTUALIZAR CÁLCULOS EN BOLÍVARES Y GUARDAR TASA PERMANENTEMENTE
 function actualizarCalculosBCV() {
   const tasa = obtenerTasaBCV();
-  sessionStorage.setItem("factura_tasa_bcv", tasa);
+  const usuario = sessionStorage.getItem("factura_usuario") || "global";
+  
+  // Guardado permanente en localStorage por usuario
+  localStorage.setItem("tasa_bcv_user_" + usuario, tasa);
 
-  // 1. Recalcular total del panel lateral del catálogo
+  // Calcular total en Bolívares dentro del modal
   let totalUSD = 0;
   for (let key in itemsFactura) {
     totalUSD += parseFloat(itemsFactura[key].precioTotal) || 0;
   }
   let totalBs = totalUSD * tasa;
 
-  const elemTotalBs = document.getElementById('montoTotalFacturaBs');
-  if (elemTotalBs) {
-    elemTotalBs.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
-
-  // 2. Recalcular total dentro del modal de facturación (si está abierto)
   const elemModalTotalBs = document.getElementById('montoModalTotalFacturaBs');
   if (elemModalTotalBs) {
     elemModalTotalBs.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
-  // 3. Recalcular balance de pago mixto
+  // Recalcular balance de pago mixto si está desplegado
   if (typeof calcularTotalPagoMixto === "function") {
     calcularTotalPagoMixto();
   }
@@ -323,7 +320,6 @@ function renderizarResumenFactura() {
     : '<p class="text-muted text-center py-3 small">No hay productos seleccionados.</p>';
 
   document.getElementById('montoTotalFactura').textContent = `$${totalAcumulado.toFixed(2)}`;
-  actualizarCalculosBCV();
 }
 
 function eliminarItemFactura(nombre) {
@@ -376,13 +372,21 @@ function ejecutarFacturar() {
   document.getElementById('tablaModalResumenProductos').innerHTML = htmlTabla;
   document.getElementById('montoModalTotalFactura').textContent = `$${totalAcumulado.toFixed(2)}`;
 
-  // 3. Limpiar campos de búsqueda de cliente
+  // 3. Cargar la Tasa BCV guardada permanentemente para este usuario
+  const usuario = sessionStorage.getItem("factura_usuario") || "global";
+  const tasaGuardada = localStorage.getItem("tasa_bcv_user_" + usuario);
+  const inputTasa = document.getElementById('facTasaBCV');
+  if (inputTasa) {
+    inputTasa.value = tasaGuardada ? tasaGuardada : "";
+  }
+
+  // 4. Limpiar campos de búsqueda de cliente
   document.getElementById('facCedulaBuscar').value = "";
   document.getElementById('boxClienteEncontrado').classList.add('hidden');
   document.getElementById('boxClienteNuevo').classList.add('hidden');
   clienteFacturaActual = null;
 
-  // 4. Desplegar Modal en el DOM y actualizar conversión a Bolívares
+  // 5. Desplegar Modal en el DOM y actualizar cálculo en Bolívares
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
   actualizarCalculosBCV();
 }
@@ -749,21 +753,15 @@ function emitirFacturaFinal() {
   console.log("Cliente:", clienteFacturaActual);
   console.log("Forma de Pago Resuelta:", formaPagoStr);
   console.log("Productos:", itemsFactura);
-  console.log("Tasa BCV:", obtenerTasaBCV());
+  console.log("Tasa BCV Permanecida:", obtenerTasaBCV());
 
   mostrarAvisoFactura("Pago validado correctamente. Listo para Fase 3.");
 }
 
-// Autenticación Persistente en Sesión y Restaurar Tasa BCV
+// Autenticación Persistente en Sesión
 document.addEventListener("DOMContentLoaded", function() {
   const token = sessionStorage.getItem("factura_token");
   const usuario = sessionStorage.getItem("factura_usuario");
-  const tasaGuardada = sessionStorage.getItem("factura_tasa_bcv");
-
-  const inputTasa = document.getElementById('facTasaBCV');
-  if (tasaGuardada && inputTasa) {
-    inputTasa.value = tasaGuardada;
-  }
 
   if (token && usuario) {
     iniciarModuloFacturacion(usuario);
