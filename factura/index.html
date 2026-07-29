@@ -231,12 +231,12 @@
 
         </div>
 
-        <!-- SECCIÓN 3: Forma de Pago -->
+       <!-- SECCIÓN 3: Forma de Pago -->
         <h6 class="fw-bold text-danger border-bottom pb-2 mb-3">3. Forma de Pago</h6>
         <div class="row g-3">
-          <div class="col-md-6 col-lg-4">
+          <div class="col-md-8 col-lg-6">
             <label for="facFormaPagoSelect" class="form-label fw-bold small">Seleccione Método de Pago *:</label>
-           <select id="facFormaPagoSelect" class="form-select border-dark fw-bold">
+            <select id="facFormaPagoSelect" class="form-select border-dark fw-bold" onchange="evaluarFormaPagoFactura(this.value)">
               <option value="" disabled selected>-- Seleccione --</option>
               <option value="Efectivo Divisas">Efectivo Divisas</option>
               <option value="Efectivo Bolívares">Efectivo Bolívares</option>
@@ -246,11 +246,32 @@
               <option value="Cashea + Efectivo Divisas">Cashea + Efectivo Divisas</option>
               <option value="Cashea + Efectivo Bolívares">Cashea + Efectivo Bolívares</option>
               <option value="Cashea + Pago Móvil">Cashea + Pago Móvil</option>
+              <option value="Cashea + Zelle">Cashea + Zelle</option>
+              <option value="Cashea + PayPal">Cashea + PayPal</option>
+              <option value="Pago Mixto">Pago Mixto</option>
             </select>
+
+            <!-- Contenedor Dinámico para Pago Mixto -->
+            <div id="contenedorPagoMixto" class="mt-3 p-3 border border-dark rounded bg-white hidden">
+              <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                <span class="fw-bold text-dark small">🔀 Desglose de Pago Mixto:</span>
+                <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="agregarLineaPagoMixto()">
+                  + Agregar Forma de Pago
+                </button>
+              </div>
+
+              <!-- Filas dinámicas inyectadas por JavaScript -->
+              <div id="listaFilasPagoMixto"></div>
+
+              <!-- Suma y Balance -->
+              <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top small fw-bold">
+                <span>Asignado: <span id="montoAsignadoMixto" class="text-primary">$0.00</span></span>
+                <span>Total Factura: <span id="montoEsperadoMixto" class="text-danger">$0.00</span></span>
+              </div>
+            </div>
+
           </div>
         </div>
-
-      </div>
 
       <!-- FOOTER: Controles de Navegación -->
       <div class="modal-footer bg-light justify-content-between">
