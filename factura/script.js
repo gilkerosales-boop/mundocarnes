@@ -767,3 +767,144 @@ document.addEventListener("DOMContentLoaded", function() {
     iniciarModuloFacturacion(usuario);
   }
 });
+
+let monedaVistaModal = "USD"; // "USD" o "BS"
+
+// ALTERNAR ENTRE DIVISAS ($) Y BOLÍVARES (Bs) EN LA TABLA DEL MODAL
+function alternarMonedaTablaFactura() {
+  monedaVistaModal = (monedaVistaModal === "USD") ? "BS" : "USD";
+  
+  const btn = document.getElementById('btnConmutarMoneda');
+  if (btn) {
+    if (monedaVistaModal === "BS") {
+      btn.textContent = "💵 Ver en Divisas ($)";
+      btn.className = "btn btn-sm btn-dark fw-bold";
+    } else {
+      btn.textContent = "💱 Ver en Bolívares (Bs)";
+      btn.className = "btn btn-sm btn-outline-dark fw-bold";
+    }
+  }
+
+  renderizarTablaModalFactura();
+}
+
+// RENDERIZAR TABLA DE PRODUCTOS EN EL MODAL SEGÚN MONEDA SELECCIONADA
+function renderizarTablaModalFactura() {
+  const tasa = obtenerTasaBCV();
+  let htmlTabla = "";
+  let totalUSD = 0;
+
+  for (let key in itemsFactura) {
+    let item = itemsFactura[key];
+    let precioTotalUSD = parseFloat(item.precioTotal) || 0;
+    let precioBaseUSD = parseFloat(item.precioBase) || 0;
+    totalUSD += precioTotalUSD;
+
+    let precioBaseTxt = "";
+    let subtotalTxt = "";
+
+    if (monedaVistaModal === "BS") {
+      let precioBaseBs = precioBaseUSD * tasa;
+      let subtotalBs = precioTotalUSD * tasa;
+
+      let unidadBs = (item.unidad === 'gramos' || item.unidad === 'mixto') ? '/ Kg' : '/ Ud';
+      precioBaseTxt = `Bs. ${precioBaseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${unidadBs}`;
+      subtotalTxt = `Bs. ${subtotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
+      let unidadUsd = (item.unidad === 'gramos' || item.unidad === 'mixto') ? '/ Kg' : '/ Ud';
+      precioBaseTxt = `$${precioBaseUSD.toFixed(2)} ${unidadUsd}`;
+      subtotalTxt = `$${precioTotalUSD.toFixed(2)}`;
+    }
+
+    let imgRuta = item.imgPath || '../img/LOGO-MUNDO123.webp';
+
+    htmlTabla += `
+      <tr>
+        <td class="text-center">
+          <img src="${imgRuta}" class="img-thumb-factura" alt="${key}">
+        </td>
+        <td class="fw-bold">${key}</td>
+        <td class="text-center">${precioBaseTxt}</td>
+        <td class="text-center fw-bold">${item.cantidadTxt}</td>
+        <td class="text-end fw-bold text-success">${subtotalTxt}</td>
+      </tr>`;
+  }
+
+  const tbody = document.getElementById('tablaModalResumenProductos');
+  if (tbody) tbody.innerHTML = htmlTabla;
+
+  // Actualizar Totales del modal
+  const elemEtiquetaTotal = document.getElementById('labelModalTotalFactura');
+  const elemMontoTotal = document.getElementById('montoModalTotalFactura');
+
+  if (monedaVistaModal === "BS") {
+    let totalBs = totalUSD * tasa;
+    if (elemEtiquetaTotal) elemEtiquetaTotal.textContent = "TOTAL FACTURA (Bs):";
+    if (elemMontoTotal) elemMontoTotal.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  } else {
+    if (elemEtiquetaTotal) elemEtiquetaTotal.textContent = "TOTAL FACTURA ($):";
+    if (elemMontoTotal) elemMontoTotal.textContent = `$${totalUSD.toFixed(2)}`;
+  }
+}
+
+// ACTUALIZAR CÁLCULOS BCV Y RE-RENDERIZAR
+function actualizarCalculosBCV() {
+  const tasa = obtenerTasaBCV();
+  const usuario = sessionStorage.getItem("factura_usuario") || "global";
+  localStorage.setItem("tasa_bcv_user_" + usuario, tasa);
+
+  let totalUSD = 0;
+  for (let key in itemsFactura) {
+    totalUSD += parseFloat(itemsFactura[key].precioTotal) || 0;
+  }
+  let totalBs = totalUSD * tasa;
+
+  const elemModalTotalBs = document.getElementById('montoModalTotalFacturaBs');
+  if (elemModalTotalBs) {
+    elemModalTotalBs.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  // Re-renderizar la tabla si la vista está activa en Bolívares
+  renderizarTablaModalFactura();
+}
+
+// DENTRO DE ejecutarFacturar() RESTABLECER MONEDA A DÓLARES AL ABRIR:
+function ejecutarFacturar() {
+  if (Object.keys(itemsFactura).length === 0) {
+    return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
+  }
+
+  // Restablecer vista por defecto en USD
+  monedaVistaModal = "USD";
+  const btnConmutar = document.getElementById('btnConmutarMoneda');
+  if (btnConmutar) {
+    btnConmutar.textContent = "💱 Ver en Bolívares (Bs)";
+    btnConmutar.className = "btn btn-sm btn-outline-dark fw-bold";
+  }
+
+  // Resetear selección de pago
+  const selectPago = document.getElementById('facFormaPagoSelect');
+  if (selectPago) selectPago.value = "";
+
+  const contMixto = document.getElementById('contenedorPagoMixto');
+  if (contMixto) contMixto.classList.add('hidden');
+
+  // Cargar Tasa BCV
+  const usuario = sessionStorage.getItem("factura_usuario") || "global";
+  const tasaGuardada = localStorage.getItem("tasa_bcv_user_" + usuario);
+  const inputTasa = document.getElementById('facTasaBCV');
+  if (inputTasa) {
+    inputTasa.value = tasaGuardada ? tasaGuardada : "";
+  }
+
+  // Limpiar campos cliente
+  document.getElementById('facCedulaBuscar').value = "";
+  document.getElementById('boxClienteEncontrado').classList.add('hidden');
+  document.getElementById('boxClienteNuevo').classList.add('hidden');
+  clienteFacturaActual = null;
+
+  // Renderizar tabla y desplegar modal
+  renderizarTablaModalFactura();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
+  actualizarCalculosBCV();
+}
