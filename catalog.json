@@ -197,8 +197,10 @@
           13.9,
           "img/5.webp",
           true,
-          250,
-          "gramos"
+          100,
+          "gramos",
+          0,
+          ""
         ],
         [
           "LOMITO",
