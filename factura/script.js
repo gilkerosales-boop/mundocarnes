@@ -1787,11 +1787,11 @@ async function procesarSiguienteCierreCaja() {
       const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
       const tasa = obtenerTasaBCV();
 
-      // Calcular el Total General de Ventas en Bs (Suma de montos en Bs + equivalente de montos en USD)
-      const sumaIngresosBsDirectos = resumen.ventasEfectivoBS + resumen.ventasPagoMovil + resumen.ventasPuntoVenta + resumen.ventasBiopago + resumen.ventasTransferencia;
-      const sumaIngresosUSDInBs = (resumen.ventasEfectivoUSD + resumen.ventasZelle + resumen.ventasPayPal + resumen.ventasCashea) * tasa;
-      
-      resumen.totalGeneralVentasBS = sumaIngresosBsDirectos + sumaIngresosUSDInBs;
+      // TOTAL VENTAS INGRESOS ($): Sumatoria estricta de ingresos en Divisas ($)
+      resumen.totalGeneralVentasUSD = resumen.ventasEfectivoUSD + resumen.ventasZelle + resumen.ventasPayPal + resumen.ventasCashea;
+
+      // TOTAL VENTAS INGRESOS (Bs): Sumatoria estricta de ingresos en Bolívares (Bs)
+      resumen.totalGeneralVentasBS = resumen.ventasEfectivoBS + resumen.ventasPagoMovil + resumen.ventasPuntoVenta + resumen.ventasBiopago + resumen.ventasTransferencia;
 
       const totalCajaUSD = inicialUSD + resumen.ventasEfectivoUSD;
       const totalCajaBS = inicialBS + resumen.ventasEfectivoBS;
