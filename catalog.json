@@ -164,11 +164,13 @@
         ],
         [
           "MOLIDA",
-          10.9,
+          11.9,
           "img/2.webp",
           true,
           250,
-          "gramos"
+          "gramos",
+          0,
+          ""
         ],
         [
           "GUISAR",
