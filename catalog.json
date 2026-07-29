@@ -486,8 +486,10 @@
           9.9,
           "img/jamon_de_pavo.webp",
           true,
-          250,
-          "gramos"
+          100,
+          "gramos",
+          0,
+          ""
         ],
         [
           "SALCHICHA DE POLLO",
