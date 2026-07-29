@@ -1028,7 +1028,7 @@ function obtenerDetalleFormaPagoFinal() {
   return formaSelect;
 }
 
-// REEMPLAZAR LA FUNCIÓN emitirFacturaFinal()
+// EMITIR FACTURA FINAL
 async function emitirFacturaFinal() {
   if (!clienteFacturaActual) {
     return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
@@ -1097,78 +1097,8 @@ async function emitirFacturaFinal() {
 
 // RENDERIZAR LA ESTRUCTURA DEL TICKET TÉRMICO (XP-80C 72mm)
 function renderizarTicketTermicoHTML(d) {
-  let item = itemsFactura[key];
-    let precUnit = (item.unidad === 'gramos' || item.unidad === 'mixto')
-      ? `$${item.precioBase.toFixed(2)}/Kg`
-      : `$${item.precioBase.toFixed(2)}/Ud`;
-
-    filasProductosHtml += `
-      <tr>
-        <td style="width:10%;">${i++}</td>
-        <td style="width:40%;" class="fw-bold">${key}</td>
-        <td style="width:20%;" class="text-center">${precUnit}</td>
-        <td style="width:15%;" class="text-center">${item.cantidadTxt}</td>
-        <td style="width:15%;" class="text-end fw-bold">$${item.precioTotal}</td>
-      </tr>`;
-  }
-
-  const ticketHtml = `
-    <div class="ticket-header">
-      <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
-      <div>RIF: J-505072889 | TELF: 0412-1753275</div>
-      <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
-      <div>HORARIO: 7:30am - 19:00pm</div>
-    </div>
-
-    <div class="ticket-info">
-      <div><strong>FACTURA N°:</strong> <span class="fs-6">${d.numFactura}</span></div>
-      <div><strong>FECHA:</strong> ${d.fechaStr}</div>
-      <div><strong>CLIENTE:</strong> ${d.cliente.nombre}</div>
-      <div><strong>CI/RIF:</strong> ${d.cliente.cedula} | <strong>TELF:</strong> ${d.cliente.telefono || 'N/D'}</div>
-      <div><strong>DIR:</strong> ${d.cliente.direccion || 'N/D'}</div>
-    </div>
-
-    <table class="ticket-table">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>PRODUCTO</th>
-          <th class="text-center">PRECIO</th>
-          <th class="text-center">CANT/PESO</th>
-          <th class="text-end">TOTAL</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${filasProductosHtml}
-      </tbody>
-    </table>
-
-    <div class="ticket-totals border-top pt-1">
-      <div class="d-flex justify-content-between">
-        <span>TOTAL FACTURA ($):</span>
-        <strong class="fs-6">$${d.totalUSD.toFixed(2)}</strong>
-      </div>
-      <div class="d-flex justify-content-between text-muted">
-        <span>TASA BCV:</span>
-        <span>Bs. ${d.tasaBCV.toFixed(2)}</span>
-      </div>
-      <div class="d-flex justify-content-between">
-        <span>TOTAL FACTURA (Bs):</span>
-        <strong>Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-      </div>
-      <div class="ticket-divider"></div>
-      <div><strong>FORMA DE PAGO:</strong></div>
-      <div class="small">${d.formaPagoStr}</div>
-    </div>
-
-    <div class="ticket-footer">
-      <div class="fw-bold">COMPROBANTE NO FISCAL</div>
-      <div>¡Gracias por su preferencia!</div>
-    </div>
-  `;
-
-  document.getElementById('contenidoTicketImprimible').innerHTML = ticketHtml;
-}
+  let filasProductosHtml = "";
+  let i = 1;
 
   for (let key in itemsFactura) {
     let item = itemsFactura[key];
@@ -1188,7 +1118,7 @@ function renderizarTicketTermicoHTML(d) {
 
   const ticketHtml = `
     <div class="ticket-header">
-      <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo" alt="Logo">
+      <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
       <div class="ticket-title">FRIGORÍFICO MUNDOCARNE C.A.</div>
       <div>RIF: J-505072889 | TELF: 0412-1753275</div>
       <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
@@ -1291,7 +1221,7 @@ function obtenerObjetoDesgloseMetodos() {
 }
 
 // CONFIRMAR, GUARDAR EN HOJA E IMPRIMIR EN TÉRMICA XP-80C
-async async function confirmarEImprimirFactura() {
+async function confirmarEImprimirFactura() {
   if (!datosFacturaPendiente) return;
 
   const btn = document.getElementById('btnConfirmarEmisionFinal');
@@ -1338,7 +1268,6 @@ async async function confirmarEImprimirFactura() {
       mostrarAvisoFactura(`Factura ${res.facturaNum} emitida y guardada con éxito 🎉`);
 
     } else {
-      // Muestra el mensaje exacto que devuelve la API
       mostrarAvisoFactura(res.message || res.error || "Error al guardar la factura en la base de datos.");
     }
 
