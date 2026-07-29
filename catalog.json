@@ -371,8 +371,10 @@
           3.6,
           "img/higado_de_pollo.webp",
           true,
-          250,
-          "gramos"
+          100,
+          "gramos",
+          0,
+          ""
         ],
         [
           "BOLSA DE MUSLO 5Kg",
