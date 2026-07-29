@@ -51,7 +51,7 @@ function alternarMonedaTablaFactura() {
   calcularTotalPagoMixto();
 }
 
-// RENDERIZAR TABLA DE PRODUCTOS EN EL MODAL SEGÚN LA MONEDA SELECCIONADA
+// RENDERIZAR TABLA DE PRODUCTOS EN EL MODAL SEGÚN MONEDA Y PESO REAL
 function renderizarTablaModalFactura() {
   const tasa = obtenerTasaBCV();
   let htmlTabla = "";
@@ -81,6 +81,20 @@ function renderizarTablaModalFactura() {
 
     let imgRuta = item.imgPath || '../img/LOGO-MUNDO123.webp';
 
+    // Generar la celda de Cantidad/Peso editable para productos MIXTO (POLLO ENTERO, LOMITO)
+    let colCantidadHtml = item.cantidadTxt;
+    if (item.unidad === 'mixto') {
+      let pesoGramosActual = item.pesoTotalGramos || 0;
+      colCantidadHtml = `
+        <div class="d-flex align-items-center justify-content-center gap-1">
+          <span class="small fw-bold">${item.cantNumerica} uds (</span>
+          <input type="number" class="form-control form-control-sm text-center fw-bold border-dark p-1 text-danger" style="width: 85px;" value="${pesoGramosActual}" min="1" step="10" oninput="ajustarPesoMixtoFactura('${key}', this.value)" title="Modificar peso real de balanza en gramos">
+          <span class="small fw-bold">g)</span>
+        </div>`;
+    }
+
+    let safeIdKey = key.replace(/[^a-zA-Z0-9]/g, '_');
+
     htmlTabla += `
       <tr>
         <td class="text-center">
@@ -88,8 +102,8 @@ function renderizarTablaModalFactura() {
         </td>
         <td class="fw-bold">${key}</td>
         <td class="text-center">${precioBaseTxt}</td>
-        <td class="text-center fw-bold">${item.cantidadTxt}</td>
-        <td class="text-end fw-bold text-success">${subtotalTxt}</td>
+        <td class="text-center fw-bold">${colCantidadHtml}</td>
+        <td class="text-end fw-bold text-success" id="subtotal-modal-${safeIdKey}">${subtotalTxt}</td>
       </tr>`;
   }
 
@@ -110,7 +124,44 @@ function renderizarTablaModalFactura() {
   }
 }
 
-// ACTUALIZAR CÁLCULOS BCV Y RE-RENDERIZAR EN TIEMPO REAL
+// RECALCULAR PESO REAL Y SUBTOTALES PARA PRODUCTOS MIXTOS (POLLO ENTERO, LOMITO)
+function ajustarPesoMixtoFactura(nombreProducto, nuevoPesoGramos) {
+  let item = itemsFactura[nombreProducto];
+  if (!item) return;
+
+  let g = parseFloat(nuevoPesoGramos) || 0;
+  item.pesoTotalGramos = g;
+
+  // Recalcular subtotal en USD
+  let calc = (item.precioBase / 1000) * g;
+  item.precioTotal = calc.toFixed(2);
+
+  // Formatear texto descriptivo de la cantidad
+  let kg = Math.floor(g / 1000);
+  let rest = g % 1000;
+  let pesoTxt = kg > 0 ? (rest > 0 ? `${kg}Kg ${rest}g` : `${kg}Kg`) : `${rest}g`;
+  item.cantidadTxt = `${item.cantNumerica} uds (~${pesoTxt})`;
+
+  // Actualizar la celda del subtotal de este producto
+  const tasa = obtenerTasaBCV();
+  let safeIdKey = nombreProducto.replace(/[^a-zA-Z0-9]/g, '_');
+  const elemSubtotal = document.getElementById('subtotal-modal-' + safeIdKey);
+
+  if (elemSubtotal) {
+    if (monedaVistaModal === "BS") {
+      let subBs = calc * tasa;
+      elemSubtotal.textContent = `Bs. ${subBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
+      elemSubtotal.textContent = `$${calc.toFixed(2)}`;
+    }
+  }
+
+  // Recalcular totales globales y pago mixto
+  actualizarCalculosBCV();
+  renderizarResumenFactura(); // Actualizar panel derecho de la ventana principal
+}
+
+// ACTUALIZAR CÁLCULOS BCV Y RE-RENDERIZAR
 function actualizarCalculosBCV() {
   const tasa = obtenerTasaBCV();
   const usuario = sessionStorage.getItem("factura_usuario") || "global";
@@ -127,8 +178,21 @@ function actualizarCalculosBCV() {
     elemModalTotalBs.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
-  renderizarTablaModalFactura();
-  calcularTotalPagoMixto();
+  // Actualizar Fila de Total de la Tabla Modal
+  const elemEtiquetaTotal = document.getElementById('labelModalTotalFactura');
+  const elemMontoTotal = document.getElementById('montoModalTotalFactura');
+
+  if (monedaVistaModal === "BS") {
+    if (elemEtiquetaTotal) elemEtiquetaTotal.textContent = "TOTAL FACTURA (Bs):";
+    if (elemMontoTotal) elemMontoTotal.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  } else {
+    if (elemEtiquetaTotal) elemEtiquetaTotal.textContent = "TOTAL FACTURA ($):";
+    if (elemMontoTotal) elemMontoTotal.textContent = `$${totalUSD.toFixed(2)}`;
+  }
+
+  if (typeof calcularTotalPagoMixto === "function") {
+    calcularTotalPagoMixto();
+  }
 }
 
 // Inicio de Sesión
@@ -319,12 +383,13 @@ function confirmarAgregarAFactura() {
 
     let calc = 0;
     let cantTxt = cant + ' uds';
+    let pesoTotalGramos = 0;
 
     if (prod.unidad === 'mixto') {
-      let totalGramos = cant * (prod.pesoPromedio || 0);
-      calc = (prod.precio / 1000) * totalGramos;
-      let kg = Math.floor(totalGramos / 1000);
-      let g = totalGramos % 1000;
+      pesoTotalGramos = cant * (prod.pesoPromedio || 0);
+      calc = (prod.precio / 1000) * pesoTotalGramos;
+      let kg = Math.floor(pesoTotalGramos / 1000);
+      let g = pesoTotalGramos % 1000;
       let pesoTxt = kg > 0 ? (g > 0 ? `${kg}Kg ${g}g` : `${kg}Kg`) : `${g}g`;
       cantTxt = `${cant} uds (~${pesoTxt})`;
     } else {
@@ -334,6 +399,7 @@ function confirmarAgregarAFactura() {
     itemsFactura[prod.nombre] = {
       cantidadTxt: cantTxt,
       cantNumerica: cant,
+      pesoTotalGramos: pesoTotalGramos, // Almacenar peso total real en gramos
       precioTotal: calc.toFixed(2),
       precioBase: prod.precio,
       unidad: prod.unidad,
@@ -359,6 +425,7 @@ function confirmarAgregarAFactura() {
     itemsFactura[prod.nombre] = {
       cantidadTxt: cantTxt,
       cantNumerica: totalGramos,
+      pesoTotalGramos: totalGramos,
       precioTotal: calc.toFixed(2),
       precioBase: prod.precio,
       unidad: prod.unidad,
@@ -731,11 +798,9 @@ function calcularTotalPagoMixto() {
       let montoTipado = parseFloat(inputMonto.value) || 0;
 
       if (METODOS_BS.includes(metodo)) {
-        // Entrada en Bolívares
         sumaAsignadaBs += montoTipado;
         sumaAsignadaUSD += tasa > 0 ? (montoTipado / tasa) : 0;
       } else {
-        // Entrada en Divisas ($)
         sumaAsignadaUSD += montoTipado;
         sumaAsignadaBs += montoTipado * tasa;
       }
@@ -760,7 +825,6 @@ function calcularTotalPagoMixto() {
   const elemRestante = document.getElementById('montoRestanteMixto');
 
   if (monedaVistaModal === "BS") {
-    // VISTA EN BOLÍVARES (Bs)
     if (elemAsignado) elemAsignado.textContent = `Bs. ${sumaAsignadaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     if (elemEsperado) elemEsperado.textContent = `Bs. ${totalFacturaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -784,7 +848,6 @@ function calcularTotalPagoMixto() {
     }
 
   } else {
-    // VISTA EN DIVISAS ($)
     if (elemAsignado) elemAsignado.textContent = `$${sumaAsignadaUSD.toFixed(2)}`;
     if (elemEsperado) elemEsperado.textContent = `$${totalFacturaUSD.toFixed(2)}`;
 
