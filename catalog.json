@@ -458,8 +458,10 @@
           11.9,
           "img/queso_mozzarella.webp",
           true,
-          250,
-          "gramos"
+          100,
+          "gramos",
+          0,
+          ""
         ],
         [
           "QUESO PECORINO",
