@@ -361,8 +361,10 @@
           3.9,
           "img/molleja.webp",
           true,
-          250,
-          "gramos"
+          100,
+          "gramos",
+          0,
+          ""
         ],
         [
           "HIGADO DE POLLO",
