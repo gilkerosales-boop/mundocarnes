@@ -402,11 +402,13 @@
         ],
         [
           "BOLSA DE ALAS 5Kg",
-          22,
+          21,
           "img/b_alas_5.webp",
           true,
           1,
-          "unidades"
+          "unidades",
+          0,
+          ""
         ],
         [
           "BOLSA DE PECHUGA 5Kg",
