@@ -740,11 +740,13 @@
         ],
         [
           "SALSA DE TOMATE PAMPERO 397g",
-          2.9,
+          3.3,
           "img/salsa_de_tomate_pampero_397g.webp",
           true,
           1,
-          "unidades"
+          "unidades",
+          0,
+          ""
         ],
         [
           "MOSTAZA EUREKA 285g",
