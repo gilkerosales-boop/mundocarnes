@@ -70,11 +70,17 @@
             <div class="panel-factura-resumen">
               <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
                 <h5 class="fw-bold mb-0">📋 Detalle de Factura</h5>
-                <!-- Botón Producto Manual Principal -->
-                <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="abrirModalProductoManual()">
-                  + Manual
+                 <div class="d-flex gap-1">
+               <!-- Nuevo Botón + Códigos -->
+              <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="abrirModalCodigos()">
+               📟 + Códigos
+           </button>
+             <!-- Botón + Manual -->
+              <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="abrirModalProductoManual()">
+               + Manual
                 </button>
-              </div>
+                  </div>
+                   </div>
 
               <div id="contenedorListaFactura" class="table-responsive mb-3" style="max-height: 400px; overflow-y: auto;">
                 <p class="text-muted text-center py-3 small">No hay productos seleccionados.</p>
@@ -443,6 +449,61 @@
     <div id="seccionImpresionTicket">
       <div id="contenidoTicketImprimible"></div>
     </div>
+
+    <!-- MODAL LECTOR DE CÓDIGOS DE BARRA / QR DE BALANZA PS-30 -->
+<div class="modal fade" id="modalLectorCodigos" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-dark border-2">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title fw-bold">📟 Lectura de Códigos / QR Balanza Tecniscale</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        
+        <div class="alert alert-info border-primary mb-3">
+          <strong>ℹ️ Instrucciones:</strong> Escanee con el lector el código QR del ticket de la balanza PS-30 o pegue la cadena de códigos en el recuadro.
+        </div>
+
+        <!-- Campo de entrada enfocado para la pistola / lector -->
+        <div class="mb-3">
+          <label for="inputScannerQR" class="form-label fw-bold">Entrada del Lector de Código / QR:</label>
+          <textarea id="inputScannerQR" class="form-control border-dark fw-bold font-monospace" rows="3" placeholder="Escanee el ticket aquí... (Ej: 290035005550000383, 290015009950000985...)" oninput="procesarEntradaScanner(this.value)"></textarea>
+        </div>
+
+        <!-- Tabla Resumen de Productos Detectados del QR -->
+        <h6 class="fw-bold text-dark border-bottom pb-2 mb-2">📦 Productos Detectados en Ticket:</h6>
+        <div class="table-responsive bg-light rounded border mb-3" style="max-height: 250px; overflow-y: auto;">
+          <table class="table table-sm table-striped align-middle mb-0">
+            <thead class="table-dark small text-center">
+              <tr>
+                <th>Código</th>
+                <th>Producto Detectado</th>
+                <th>Precio Base</th>
+                <th>Peso / Cantidad</th>
+                <th>Subtotal</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="tablaItemsEscaneados" class="small">
+              <tr>
+                <td colspan="6" class="text-center text-muted py-3">Esperando lectura del escáner...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div id="errorModalScanner" class="text-danger small fw-bold mb-2 hidden"></div>
+
+      </div>
+      <div class="modal-footer bg-light justify-content-between">
+        <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="btnAgregarEscaneadosFactura" class="btn btn-success fw-bold px-4" onclick="confirmarAgregarCodigosAFactura()" disabled>
+          🛒 Agregar Ítems a Factura
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
