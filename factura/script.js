@@ -506,3 +506,128 @@ document.addEventListener("DOMContentLoaded", function() {
     iniciarModuloFacturacion(usuario);
   }
 });
+
+// EVALUAR SI SE SELECCIONA PAGO MIXTO
+function evaluarFormaPagoFactura(valor) {
+  const contMixto = document.getElementById('contenedorPagoMixto');
+  if (valor === 'Pago Mixto') {
+    contMixto.classList.remove('hidden');
+    const lista = document.getElementById('listaFilasPagoMixto');
+    if (lista.children.length === 0) {
+      agregarLineaPagoMixto(); // Primera línea por defecto
+      agregarLineaPagoMixto(); // Segunda línea por defecto
+    }
+    calcularTotalPagoMixto();
+  } else {
+    contMixto.classList.add('hidden');
+  }
+}
+
+// AGREGAR UNA NUEVA FILA A PAGO MIXTO
+function agregarLineaPagoMixto() {
+  const lista = document.getElementById('listaFilasPagoMixto');
+  
+  const divFila = document.createElement('div');
+  divFila.className = 'row g-2 mb-2 align-items-center fila-pago-mixto';
+
+  divFila.innerHTML = `
+    <div class="col-6">
+      <select class="form-select form-select-sm border-dark select-metodo-mixto" onchange="calcularTotalPagoMixto()">
+        <option value="" disabled selected>-- Método --</option>
+        <option value="Efectivo Divisas">Efectivo Divisas</option>
+        <option value="Efectivo Bolívares">Efectivo Bolívares</option>
+        <option value="Pago Móvil">Pago Móvil</option>
+        <option value="Zelle">Zelle</option>
+        <option value="PayPal">PayPal</option>
+        <option value="Cashea">Cashea</option>
+        <option value="Punto de Venta">Punto de Venta</option>
+        <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+      </select>
+    </div>
+    <div class="col-4">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text border-dark">$</span>
+        <input type="number" class="form-control border-dark input-monto-mixto" step="0.01" min="0" placeholder="0.00" oninput="calcularTotalPagoMixto()">
+      </div>
+    </div>
+    <div class="col-2 text-end">
+      <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 border-0 fw-bold" onclick="eliminarLineaPagoMixto(this)">✕</button>
+    </div>
+  `;
+
+  lista.appendChild(divFila);
+  calcularTotalPagoMixto();
+}
+
+// ELIMINAR FILA DE PAGO MIXTO
+function eliminarLineaPagoMixto(btn) {
+  const lista = document.getElementById('listaFilasPagoMixto');
+  if (lista.children.length <= 1) {
+    return mostrarAvisoFactura("El Pago Mixto requiere al menos una forma de pago.");
+  }
+  btn.closest('.fila-pago-mixto').remove();
+  calcularTotalPagoMixto();
+}
+
+// CALCULAR Y VALIDAR TOTALES EN PAGO MIXTO
+function calcularTotalPagoMixto() {
+  let suma = 0;
+  const montos = document.querySelectorAll('.input-monto-mixto');
+  montos.forEach(inp => {
+    let v = parseFloat(inp.value) || 0;
+    suma += v;
+  });
+
+  // Obtener el Total General de la Factura desde el modal
+  let totalFacturaTxt = document.getElementById('montoModalTotalFactura').textContent.replace('$', '').trim();
+  let totalFactura = parseFloat(totalFacturaTxt) || 0;
+
+  document.getElementById('montoAsignadoMixto').textContent = `$${suma.toFixed(2)}`;
+  document.getElementById('montoEsperadoMixto').textContent = `$${totalFactura.toFixed(2)}`;
+
+  if (Math.abs(suma - totalFactura) < 0.01) {
+    document.getElementById('montoAsignadoMixto').className = 'text-success fw-bold';
+  } else {
+    document.getElementById('montoAsignadoMixto').className = 'text-primary fw-bold';
+  }
+
+  return { suma: suma, totalFactura: totalFactura };
+}
+
+// OBTENER LA FORMA DE PAGO SELECCIONADA
+function obtenerDetalleFormaPagoFinal() {
+  const formaSelect = document.getElementById('facFormaPagoSelect').value;
+  if (!formaSelect) return null;
+
+  if (formaSelect === 'Pago Mixto') {
+    const filas = document.querySelectorAll('.fila-pago-mixto');
+    let desglose = [];
+    let valido = true;
+
+    filas.forEach(f => {
+      let metodo = f.querySelector('.select-metodo-mixto').value;
+      let monto = parseFloat(f.querySelector('.input-monto-mixto').value) || 0;
+
+      if (!metodo || monto <= 0) {
+        valido = false;
+      } else {
+        desglose.push(`${metodo}: $${monto.toFixed(2)}`);
+      }
+    });
+
+    if (!valido) {
+      mostrarAvisoFactura("Indique método y monto válido en cada renglón del Pago Mixto.");
+      return null;
+    }
+
+    const calc = calcularTotalPagoMixto();
+    if (Math.abs(calc.suma - calc.totalFactura) >= 0.01) {
+      mostrarAvisoFactura(`La suma del Pago Mixto ($${calc.suma.toFixed(2)}) debe coincidir con el Total ($${calc.totalFactura.toFixed(2)}).`);
+      return null;
+    }
+
+    return `Pago Mixto (${desglose.join(' + ')})`;
+  }
+
+  return formaSelect;
+}
