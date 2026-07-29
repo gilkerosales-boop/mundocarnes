@@ -416,7 +416,9 @@
           "img/b_pechuga_5.webp",
           true,
           1,
-          "unidades"
+          "mixto",
+          5000,
+          ""
         ]
       ]
     },
