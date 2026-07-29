@@ -117,11 +117,13 @@
         ],
         [
           "DE TODITO",
-          29,
+          30,
           "img/detodito.webp",
           true,
           1,
-          "unidades"
+          "unidades",
+          0,
+          ""
         ],
         [
           "CHARCUTERO 1",
