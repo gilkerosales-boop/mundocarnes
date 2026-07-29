@@ -416,8 +416,10 @@
           15,
           "img/queso_amarillo.webp",
           true,
-          250,
-          "gramos"
+          100,
+          "gramos",
+          0,
+          ""
         ],
         [
           "QUESO PAISA",
