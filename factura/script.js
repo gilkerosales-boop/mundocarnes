@@ -14,6 +14,7 @@ let productoTemporalFactura = {};
 let cacheCategoriasFactura = [];
 let clienteFacturaActual = null;
 let monedaVistaModal = "USD"; // Estado del conmutador: "USD" o "BS"
+let datosFacturaPendiente = null;
 
 // Notificaciones Toast
 function mostrarAvisoFactura(mensaje) {
@@ -286,7 +287,6 @@ function confirmarAgregarProductoManual() {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProductoManual')).hide();
   renderizarResumenFactura();
 
-  // Si el modal de facturación está abierto, refrescarlo
   const modalProcesar = document.getElementById('modalProcesarFactura');
   if (modalProcesar && modalProcesar.classList.contains('show')) {
     renderizarTablaModalFactura();
@@ -579,7 +579,6 @@ function ejecutarFacturar() {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
   }
 
-  // Restablecer vista inicial por defecto en USD
   monedaVistaModal = "USD";
   const btnConmutar = document.getElementById('btnConmutarMoneda');
   if (btnConmutar) {
@@ -587,14 +586,12 @@ function ejecutarFacturar() {
     btnConmutar.className = "btn btn-sm btn-outline-dark fw-bold";
   }
 
-  // Resetear selección de pago
   const selectPago = document.getElementById('facFormaPagoSelect');
   if (selectPago) selectPago.value = "";
 
   const contMixto = document.getElementById('contenedorPagoMixto');
   if (contMixto) contMixto.classList.add('hidden');
 
-  // Cargar Tasa BCV guardada permanentemente
   const usuario = sessionStorage.getItem("factura_usuario") || "global";
   const tasaGuardada = localStorage.getItem("tasa_bcv_user_" + usuario);
   const inputTasa = document.getElementById('facTasaBCV');
@@ -602,13 +599,11 @@ function ejecutarFacturar() {
     inputTasa.value = tasaGuardada ? tasaGuardada : "";
   }
 
-  // Limpiar campos de cliente
   document.getElementById('facCedulaBuscar').value = "";
   document.getElementById('boxClienteEncontrado').classList.add('hidden');
   document.getElementById('boxClienteNuevo').classList.add('hidden');
   clienteFacturaActual = null;
 
-  // Renderizar tabla y desplegar modal en pantalla completa
   renderizarTablaModalFactura();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
   actualizarCalculosBCV();
@@ -772,7 +767,7 @@ function evaluarFormaPagoFactura(valor) {
   }
 }
 
-// ACTUALIZAR PREFIJO $ / Bs SEGÚN EL MÉTODO DE PAGO ELEGIDO EN CADA RENGLÓN
+// ACTUALIZAR PREFIJO $ / Bs SEGÚN EL MÉTODO DE PAGO ELEGIDO
 function actualizarPrefijoFilaMixta(selectElem) {
   const fila = selectElem.closest('.fila-pago-mixto');
   if (!fila) return;
@@ -1033,12 +1028,263 @@ function obtenerDetalleFormaPagoFinal() {
   return formaSelect;
 }
 
-// Control Navegación: Retroceder (Cierra modal y conserva los productos)
+// REEMPLAZAR LA FUNCIÓN emitirFacturaFinal()
+async function emitirFacturaFinal() {
+  if (!clienteFacturaActual) {
+    return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
+  }
+
+  const formaPagoStr = obtenerDetalleFormaPagoFinal();
+  if (!formaPagoStr) return;
+
+  const btn = document.getElementById('btnEmitirFacturaFinal');
+  btn.disabled = true;
+  btn.textContent = "Generando Ticket...";
+
+  try {
+    // 1. Obtener el número correlativo desde Google Apps Script
+    const response = await fetch(API_URL_GAS, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "obtenerCorrelativoFactura" })
+    });
+
+    const res = await response.json();
+    btn.disabled = false;
+    btn.textContent = "🧾 Emitir Factura";
+
+    let numFactura = res.facturaNum || "001-00001";
+
+    // 2. Construir el objeto con los datos completos
+    const tasa = obtenerTasaBCV();
+    let totalUSD = 0;
+    let productosSummaryList = [];
+
+    for (let key in itemsFactura) {
+      let item = itemsFactura[key];
+      totalUSD += parseFloat(item.precioTotal) || 0;
+      productosSummaryList.push(`${key} (${item.cantidadTxt}) - $${item.precioTotal}`);
+    }
+
+    let totalBs = totalUSD * tasa;
+
+    datosFacturaPendiente = {
+      numFactura: numFactura,
+      fechaStr: new Date().toLocaleString('es-VE'),
+      cliente: clienteFacturaActual,
+      formaPagoStr: formaPagoStr,
+      desglosePagos: obtenerObjetoDesgloseMetodos(),
+      totalUSD: totalUSD,
+      totalBs: totalBs,
+      tasaBCV: tasa,
+      productosSummary: productosSummaryList.join(' | ')
+    };
+
+    // 3. Renderizar la maquetación exacta del Ticket Térmico de 72mm
+    renderizarTicketTermicoHTML(datosFacturaPendiente);
+
+    // 4. Desplegar el Modal de Vista Previa (Sin abrir pop-ups)
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVistaPreviaFactura')).show();
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "🧾 Emitir Factura";
+    console.error("Error al obtener correlativo:", err);
+    mostrarAvisoFactura("Error de conexión al obtener correlativo de factura.");
+  }
+}
+
+// RENDERIZAR LA ESTRUCTURA DEL TICKET TÉRMICO (XP-80C 72mm)
+function renderizarTicketTermicoHTML(d) {
+  let filasProductosHtml = "";
+  let i = 1;
+
+  for (let key in itemsFactura) {
+    let item = itemsFactura[key];
+    let precUnit = (item.unidad === 'gramos' || item.unidad === 'mixto')
+      ? `$${item.precioBase.toFixed(2)}/Kg`
+      : `$${item.precioBase.toFixed(2)}/Ud`;
+
+    filasProductosHtml += `
+      <tr>
+        <td style="width:10%;">${i++}</td>
+        <td style="width:40%;" class="fw-bold">${key}</td>
+        <td style="width:20%;" class="text-center">${precUnit}</td>
+        <td style="width:15%;" class="text-center">${item.cantidadTxt}</td>
+        <td style="width:15%;" class="text-end fw-bold">$${item.precioTotal}</td>
+      </tr>`;
+  }
+
+  const ticketHtml = `
+    <div class="ticket-header">
+      <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo" alt="Logo">
+      <div class="ticket-title">FRIGORÍFICO MUNDOCARNE C.A.</div>
+      <div>RIF: J-505072889 | TELF: 0412-1753275</div>
+      <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
+      <div>HORARIO: 7:30am - 19:00pm</div>
+    </div>
+
+    <div class="ticket-info">
+      <div><strong>FACTURA N°:</strong> <span class="fs-6">${d.numFactura}</span></div>
+      <div><strong>FECHA:</strong> ${d.fechaStr}</div>
+      <div><strong>CLIENTE:</strong> ${d.cliente.nombre}</div>
+      <div><strong>CI/RIF:</strong> ${d.cliente.cedula} | <strong>TELF:</strong> ${d.cliente.telefono || 'N/D'}</div>
+      <div><strong>DIR:</strong> ${d.cliente.direccion || 'N/D'}</div>
+    </div>
+
+    <table class="ticket-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>PRODUCTO</th>
+          <th class="text-center">PRECIO</th>
+          <th class="text-center">CANT/PESO</th>
+          <th class="text-end">TOTAL</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filasProductosHtml}
+      </tbody>
+    </table>
+
+    <div class="ticket-totals border-top pt-1">
+      <div class="d-flex justify-content-between">
+        <span>TOTAL FACTURA ($):</span>
+        <strong class="fs-6">$${d.totalUSD.toFixed(2)}</strong>
+      </div>
+      <div class="d-flex justify-content-between text-muted">
+        <span>TASA BCV:</span>
+        <span>Bs. ${d.tasaBCV.toFixed(2)}</span>
+      </div>
+      <div class="d-flex justify-content-between">
+        <span>TOTAL FACTURA (Bs):</span>
+        <strong>Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+      </div>
+      <div class="ticket-divider"></div>
+      <div><strong>FORMA DE PAGO:</strong></div>
+      <div class="small">${d.formaPagoStr}</div>
+    </div>
+
+    <div class="ticket-footer">
+      <div class="fw-bold">COMPROBANTE NO FISCAL</div>
+      <div>¡Gracias por su preferencia!</div>
+    </div>
+  `;
+
+  document.getElementById('contenidoTicketImprimible').innerHTML = ticketHtml;
+}
+
+// OBTENER OBJETO CON MONTO POR CADA MÉTODO
+function obtenerObjetoDesgloseMetodos() {
+  const formaSelect = document.getElementById('facFormaPagoSelect').value;
+  let desgl = {
+    "Efectivo Divisas": 0,
+    "Efectivo Bolívares": 0,
+    "Pago Móvil": 0,
+    "Zelle": 0,
+    "PayPal": 0,
+    "Cashea": 0,
+    "Punto de Venta": 0,
+    "Transferencia Bancaria": 0
+  };
+
+  let totalUSD = 0;
+  for (let key in itemsFactura) {
+    totalUSD += parseFloat(itemsFactura[key].precioTotal) || 0;
+  }
+
+  const esCasheaCombinado = formaSelect.startsWith("Cashea + ");
+
+  if (formaSelect === 'Pago Mixto' || esCasheaCombinado) {
+    const tasa = obtenerTasaBCV();
+    const filas = document.querySelectorAll('.fila-pago-mixto');
+
+    filas.forEach(f => {
+      let metodo = f.querySelector('.select-metodo-mixto').value;
+      let montoTipado = parseFloat(f.querySelector('.input-monto-mixto').value) || 0;
+
+      if (metodo && montoTipado > 0) {
+        if (METODOS_BS.includes(metodo)) {
+          let eqUSD = tasa > 0 ? (montoTipado / tasa) : 0;
+          desgl[metodo] = (desgl[metodo] || 0) + eqUSD;
+        } else {
+          desgl[metodo] = (desgl[metodo] || 0) + montoTipado;
+        }
+      }
+    });
+  } else {
+    desgl[formaSelect] = totalUSD;
+  }
+
+  return desgl;
+}
+
+// CONFIRMAR, GUARDAR EN HOJA E IMPRIMIR EN TÉRMICA XP-80C
+async function confirmarEImprimirFactura() {
+  if (!datosFacturaPendiente) return;
+
+  const btn = document.getElementById('btnConfirmarEmisionFinal');
+  btn.disabled = true;
+  btn.textContent = "Procesando e Imprimiendo...";
+
+  try {
+    const response = await fetch(API_URL_GAS, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        action: "guardarFacturaFinal",
+        datosFactura: {
+          cedula: datosFacturaPendiente.cliente.cedula,
+          nombre: datosFacturaPendiente.cliente.nombre,
+          direccion: datosFacturaPendiente.cliente.direccion || 'N/D',
+          productosSummary: datosFacturaPendiente.productosSummary,
+          formaPago: datosFacturaPendiente.formaPagoStr,
+          montoTotal: datosFacturaPendiente.totalUSD,
+          desglosePagos: datosFacturaPendiente.desglosePagos
+        }
+      })
+    });
+
+    const res = await response.json();
+    btn.disabled = false;
+    btn.textContent = "🖨️ Confirmar y Facturar";
+
+    if (res.status === "success") {
+      // 1. Orden de impresión térmica
+      window.print();
+
+      // 2. Resetear el módulo
+      itemsFactura = {};
+      clienteFacturaActual = null;
+      datosFacturaPendiente = null;
+      renderizarResumenFactura();
+
+      // 3. Cerrar modales
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVistaPreviaFactura')).hide();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
+
+      mostrarAvisoFactura(`Factura ${res.facturaNum} emitida y guardada con éxito 🎉`);
+
+    } else {
+      mostrarAvisoFactura(res.message || "Error al guardar la factura en la base de datos.");
+    }
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "🖨️ Confirmar y Facturar";
+    console.error("Error al guardar factura:", err);
+    mostrarAvisoFactura("Error de conexión al registrar la venta.");
+  }
+}
+
+// Control Navegación: Retroceder
 function retrocederProcesoFactura() {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
 }
 
-// Control Navegación: Cancelar (Limpia selección completa y regresa a cero)
+// Control Navegación: Cancelar
 function cancelarProcesoFactura() {
   if (confirm("¿Está seguro de cancelar el proceso? Se limpiará toda la selección actual.")) {
     itemsFactura = {};
@@ -1047,24 +1293,6 @@ function cancelarProcesoFactura() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
     mostrarAvisoFactura("Proceso cancelado. Selección reiniciada.");
   }
-}
-
-// Preparado para la Fase 3
-function emitirFacturaFinal() {
-  if (!clienteFacturaActual) {
-    return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
-  }
-
-  const formaPagoStr = obtenerDetalleFormaPagoFinal();
-  if (!formaPagoStr) return;
-
-  console.log("=== DATOS CAPTURADOS PARA EMISIÓN ===");
-  console.log("Cliente:", clienteFacturaActual);
-  console.log("Forma de Pago Resuelta:", formaPagoStr);
-  console.log("Productos:", itemsFactura);
-  console.log("Tasa BCV:", obtenerTasaBCV());
-
-  mostrarAvisoFactura("Pago validado correctamente. Listo para Fase 3.");
 }
 
 // Autenticación Persistente en Sesión
