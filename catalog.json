@@ -592,11 +592,13 @@
         ],
         [
           "ARROZ MARY PREMIUM",
-          2.9,
+          2.5,
           "img/arroz_p.webp",
           true,
           1,
-          "unidades"
+          "unidades",
+          0,
+          ""
         ],
         [
           "ARROZ MARY ESMERALDA",
