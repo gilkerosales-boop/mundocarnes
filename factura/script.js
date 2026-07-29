@@ -5,10 +5,15 @@
 // URL de la API de Google Apps Script
 const API_URL_GAS = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
 
+// Clasificación de Métodos por Naturaleza de Moneda
+const METODOS_USD = ["Efectivo Divisas", "Zelle", "PayPal", "Cashea"];
+const METODOS_BS = ["Pago Móvil", "Efectivo Bolívares", "Punto de Venta", "Transferencia Bancaria"];
+
 let itemsFactura = {};
 let productoTemporalFactura = {};
 let cacheCategoriasFactura = [];
 let clienteFacturaActual = null;
+let monedaVistaModal = "USD"; // Estado del conmutador: "USD" o "BS"
 
 // Notificaciones Toast
 function mostrarAvisoFactura(mensaje) {
@@ -27,15 +32,90 @@ function obtenerTasaBCV() {
   return parseFloat(inputTasa.value) || 0;
 }
 
-// ACTUALIZAR CÁLCULOS EN BOLÍVARES Y GUARDAR TASA PERMANENTEMENTE
+// ALTERNAR ENTRE DIVISAS ($) Y BOLÍVARES (Bs) EN LA TABLA DEL MODAL
+function alternarMonedaTablaFactura() {
+  monedaVistaModal = (monedaVistaModal === "USD") ? "BS" : "USD";
+  
+  const btn = document.getElementById('btnConmutarMoneda');
+  if (btn) {
+    if (monedaVistaModal === "BS") {
+      btn.textContent = "💵 Ver en Divisas ($)";
+      btn.className = "btn btn-sm btn-dark fw-bold";
+    } else {
+      btn.textContent = "💱 Ver en Bolívares (Bs)";
+      btn.className = "btn btn-sm btn-outline-dark fw-bold";
+    }
+  }
+
+  renderizarTablaModalFactura();
+  calcularTotalPagoMixto();
+}
+
+// RENDERIZAR TABLA DE PRODUCTOS EN EL MODAL SEGÚN LA MONEDA SELECCIONADA
+function renderizarTablaModalFactura() {
+  const tasa = obtenerTasaBCV();
+  let htmlTabla = "";
+  let totalUSD = 0;
+
+  for (let key in itemsFactura) {
+    let item = itemsFactura[key];
+    let precioTotalUSD = parseFloat(item.precioTotal) || 0;
+    let precioBaseUSD = parseFloat(item.precioBase) || 0;
+    totalUSD += precioTotalUSD;
+
+    let precioBaseTxt = "";
+    let subtotalTxt = "";
+
+    if (monedaVistaModal === "BS") {
+      let precioBaseBs = precioBaseUSD * tasa;
+      let subtotalBs = precioTotalUSD * tasa;
+
+      let unidadBs = (item.unidad === 'gramos' || item.unidad === 'mixto') ? '/ Kg' : '/ Ud';
+      precioBaseTxt = `Bs. ${precioBaseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${unidadBs}`;
+      subtotalTxt = `Bs. ${subtotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
+      let unidadUsd = (item.unidad === 'gramos' || item.unidad === 'mixto') ? '/ Kg' : '/ Ud';
+      precioBaseTxt = `$${precioBaseUSD.toFixed(2)} ${unidadUsd}`;
+      subtotalTxt = `$${precioTotalUSD.toFixed(2)}`;
+    }
+
+    let imgRuta = item.imgPath || '../img/LOGO-MUNDO123.webp';
+
+    htmlTabla += `
+      <tr>
+        <td class="text-center">
+          <img src="${imgRuta}" class="img-thumb-factura" alt="${key}">
+        </td>
+        <td class="fw-bold">${key}</td>
+        <td class="text-center">${precioBaseTxt}</td>
+        <td class="text-center fw-bold">${item.cantidadTxt}</td>
+        <td class="text-end fw-bold text-success">${subtotalTxt}</td>
+      </tr>`;
+  }
+
+  const tbody = document.getElementById('tablaModalResumenProductos');
+  if (tbody) tbody.innerHTML = htmlTabla;
+
+  // Actualizar Totales del modal
+  const elemEtiquetaTotal = document.getElementById('labelModalTotalFactura');
+  const elemMontoTotal = document.getElementById('montoModalTotalFactura');
+
+  if (monedaVistaModal === "BS") {
+    let totalBs = totalUSD * tasa;
+    if (elemEtiquetaTotal) elemEtiquetaTotal.textContent = "TOTAL FACTURA (Bs):";
+    if (elemMontoTotal) elemMontoTotal.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  } else {
+    if (elemEtiquetaTotal) elemEtiquetaTotal.textContent = "TOTAL FACTURA ($):";
+    if (elemMontoTotal) elemMontoTotal.textContent = `$${totalUSD.toFixed(2)}`;
+  }
+}
+
+// ACTUALIZAR CÁLCULOS BCV Y RE-RENDERIZAR EN TIEMPO REAL
 function actualizarCalculosBCV() {
   const tasa = obtenerTasaBCV();
   const usuario = sessionStorage.getItem("factura_usuario") || "global";
-  
-  // Guardado permanente en localStorage por usuario
   localStorage.setItem("tasa_bcv_user_" + usuario, tasa);
 
-  // Calcular total en Bolívares dentro del modal
   let totalUSD = 0;
   for (let key in itemsFactura) {
     totalUSD += parseFloat(itemsFactura[key].precioTotal) || 0;
@@ -47,10 +127,8 @@ function actualizarCalculosBCV() {
     elemModalTotalBs.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
-  // Recalcular balance de pago mixto si está desplegado
-  if (typeof calcularTotalPagoMixto === "function") {
-    calcularTotalPagoMixto();
-  }
+  renderizarTablaModalFactura();
+  calcularTotalPagoMixto();
 }
 
 // Inicio de Sesión
@@ -333,46 +411,22 @@ function ejecutarFacturar() {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
   }
 
-  // 1. Resetear selección de forma de pago y contenedor mixto si existe
+  // Restablecer vista inicial por defecto en USD
+  monedaVistaModal = "USD";
+  const btnConmutar = document.getElementById('btnConmutarMoneda');
+  if (btnConmutar) {
+    btnConmutar.textContent = "💱 Ver en Bolívares (Bs)";
+    btnConmutar.className = "btn btn-sm btn-outline-dark fw-bold";
+  }
+
+  // Resetear selección de pago
   const selectPago = document.getElementById('facFormaPagoSelect');
   if (selectPago) selectPago.value = "";
 
   const contMixto = document.getElementById('contenedorPagoMixto');
   if (contMixto) contMixto.classList.add('hidden');
 
-  const listaMixto = document.getElementById('listaFilasPagoMixto');
-  if (listaMixto) listaMixto.innerHTML = "";
-
-  // 2. Renderizar la Tabla Resumen de Productos dentro del Modal
-  let htmlTabla = "";
-  let totalAcumulado = 0;
-
-  for (let key in itemsFactura) {
-    let item = itemsFactura[key];
-    totalAcumulado += parseFloat(item.precioTotal);
-
-    let precioUnitarioTxt = (item.unidad === 'gramos' || item.unidad === 'mixto')
-      ? `$${item.precioBase.toFixed(2)} / Kg`
-      : `$${item.precioBase.toFixed(2)} / Ud`;
-
-    let imgRuta = item.imgPath || '../img/LOGO-MUNDO123.webp';
-
-    htmlTabla += `
-      <tr>
-        <td class="text-center">
-          <img src="${imgRuta}" class="img-thumb-factura" alt="${key}">
-        </td>
-        <td class="fw-bold">${key}</td>
-        <td class="text-center">${precioUnitarioTxt}</td>
-        <td class="text-center fw-bold">${item.cantidadTxt}</td>
-        <td class="text-end fw-bold text-success">$${item.precioTotal}</td>
-      </tr>`;
-  }
-
-  document.getElementById('tablaModalResumenProductos').innerHTML = htmlTabla;
-  document.getElementById('montoModalTotalFactura').textContent = `$${totalAcumulado.toFixed(2)}`;
-
-  // 3. Cargar la Tasa BCV guardada permanentemente para este usuario
+  // Cargar Tasa BCV guardada permanentemente
   const usuario = sessionStorage.getItem("factura_usuario") || "global";
   const tasaGuardada = localStorage.getItem("tasa_bcv_user_" + usuario);
   const inputTasa = document.getElementById('facTasaBCV');
@@ -380,13 +434,14 @@ function ejecutarFacturar() {
     inputTasa.value = tasaGuardada ? tasaGuardada : "";
   }
 
-  // 4. Limpiar campos de búsqueda de cliente
+  // Limpiar campos de cliente
   document.getElementById('facCedulaBuscar').value = "";
   document.getElementById('boxClienteEncontrado').classList.add('hidden');
   document.getElementById('boxClienteNuevo').classList.add('hidden');
   clienteFacturaActual = null;
 
-  // 5. Desplegar Modal en el DOM y actualizar cálculo en Bolívares
+  // Renderizar tabla y desplegar modal
+  renderizarTablaModalFactura();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
   actualizarCalculosBCV();
 }
@@ -549,6 +604,23 @@ function evaluarFormaPagoFactura(valor) {
   }
 }
 
+// ACTUALIZAR PREFIJO $ / Bs SEGÚN EL MÉTODO DE PAGO ELEGIDO EN CADA RENGLÓN
+function actualizarPrefijoFilaMixta(selectElem) {
+  const fila = selectElem.closest('.fila-pago-mixto');
+  if (!fila) return;
+  const prefijoSpan = fila.querySelector('.simbolo-moneda-mixto');
+  if (!prefijoSpan) return;
+
+  const metodo = selectElem.value;
+  if (METODOS_BS.includes(metodo)) {
+    prefijoSpan.textContent = "Bs";
+    prefijoSpan.className = "input-group-text border-dark simbolo-moneda-mixto bg-warning text-dark fw-bold";
+  } else {
+    prefijoSpan.textContent = "$";
+    prefijoSpan.className = "input-group-text border-dark simbolo-moneda-mixto bg-light text-dark fw-bold";
+  }
+}
+
 // AGREGAR FILA PAGO MIXTO FIJA (PARA CASHEA)
 function agregarLineaPagoMixtoFija(metodoPredeterminado, esEliminable = true) {
   const lista = document.getElementById('listaFilasPagoMixto');
@@ -572,15 +644,19 @@ function agregarLineaPagoMixtoFija(metodoPredeterminado, esEliminable = true) {
     ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 border-0 fw-bold" onclick="eliminarLineaPagoMixto(this)">✕</button>`
     : `<button type="button" class="btn btn-sm btn-light py-0 px-2 border-0 fw-bold text-muted" disabled>🔒</button>`;
 
+  let esBs = METODOS_BS.includes(metodoPredeterminado);
+  let prefijoTxt = esBs ? "Bs" : "$";
+  let prefijoClass = esBs ? "bg-warning text-dark fw-bold" : "bg-light text-dark fw-bold";
+
   divFila.innerHTML = `
     <div class="col-6">
-      <select class="form-select form-select-sm border-dark select-metodo-mixto" onchange="calcularTotalPagoMixto()" ${disabledAttr}>
+      <select class="form-select form-select-sm border-dark select-metodo-mixto" onchange="actualizarPrefijoFilaMixta(this); calcularTotalPagoMixto();" ${disabledAttr}>
         ${selectOptions}
       </select>
     </div>
     <div class="col-4">
       <div class="input-group input-group-sm">
-        <span class="input-group-text border-dark">$</span>
+        <span class="input-group-text border-dark simbolo-moneda-mixto ${prefijoClass}">${prefijoTxt}</span>
         <input type="number" class="form-control border-dark input-monto-mixto" step="0.01" min="0" placeholder="0.00" oninput="calcularTotalPagoMixto()">
       </div>
     </div>
@@ -602,7 +678,7 @@ function agregarLineaPagoMixto() {
 
   divFila.innerHTML = `
     <div class="col-6">
-      <select class="form-select form-select-sm border-dark select-metodo-mixto" onchange="calcularTotalPagoMixto()">
+      <select class="form-select form-select-sm border-dark select-metodo-mixto" onchange="actualizarPrefijoFilaMixta(this); calcularTotalPagoMixto();">
         <option value="" disabled selected>-- Método --</option>
         <option value="Efectivo Divisas">Efectivo Divisas</option>
         <option value="Efectivo Bolívares">Efectivo Bolívares</option>
@@ -616,7 +692,7 @@ function agregarLineaPagoMixto() {
     </div>
     <div class="col-4">
       <div class="input-group input-group-sm">
-        <span class="input-group-text border-dark">$</span>
+        <span class="input-group-text border-dark simbolo-moneda-mixto bg-light fw-bold">$</span>
         <input type="number" class="form-control border-dark input-monto-mixto" step="0.01" min="0" placeholder="0.00" oninput="calcularTotalPagoMixto()">
       </div>
     </div>
@@ -639,52 +715,110 @@ function eliminarLineaPagoMixto(btn) {
   calcularTotalPagoMixto();
 }
 
-// CALCULAR Y VALIDAR TOTALES EN PAGO MIXTO (CON RESTANTE DINÁMICO)
+// CALCULAR Y VALIDAR TOTALES EN PAGO MIXTO (CON DISTINCIÓN DE NATURALEZA Y MONEDA VISTA)
 function calcularTotalPagoMixto() {
-  let suma = 0;
-  const montos = document.querySelectorAll('.input-monto-mixto');
-  montos.forEach(inp => {
-    let v = parseFloat(inp.value) || 0;
-    suma += v;
+  const tasa = obtenerTasaBCV();
+  let sumaAsignadaUSD = 0;
+  let sumaAsignadaBs = 0;
+
+  const filas = document.querySelectorAll('.fila-pago-mixto');
+  filas.forEach(f => {
+    let selectMetodo = f.querySelector('.select-metodo-mixto');
+    let inputMonto = f.querySelector('.input-monto-mixto');
+
+    if (selectMetodo && inputMonto) {
+      let metodo = selectMetodo.value;
+      let montoTipado = parseFloat(inputMonto.value) || 0;
+
+      if (METODOS_BS.includes(metodo)) {
+        // Entrada en Bolívares
+        sumaAsignadaBs += montoTipado;
+        sumaAsignadaUSD += tasa > 0 ? (montoTipado / tasa) : 0;
+      } else {
+        // Entrada en Divisas ($)
+        sumaAsignadaUSD += montoTipado;
+        sumaAsignadaBs += montoTipado * tasa;
+      }
+    }
   });
 
-  let elemModalTotal = document.getElementById('montoModalTotalFactura');
-  let totalFacturaTxt = elemModalTotal ? elemModalTotal.textContent : "0";
-  let totalFactura = parseFloat(totalFacturaTxt.replace(/[^0-9.-]+/g, "")) || 0;
-  
-  let restante = totalFactura - suma;
-  if (Math.abs(restante) < 0.001) restante = 0;
+  // Calcular el Total de la Factura desde el modelo de datos real (itemsFactura)
+  let totalFacturaUSD = 0;
+  for (let key in itemsFactura) {
+    totalFacturaUSD += parseFloat(itemsFactura[key].precioTotal) || 0;
+  }
+  let totalFacturaBs = totalFacturaUSD * tasa;
+
+  let restanteUSD = totalFacturaUSD - sumaAsignadaUSD;
+  let restanteBs = totalFacturaBs - sumaAsignadaBs;
+
+  if (Math.abs(restanteUSD) < 0.001) restanteUSD = 0;
+  if (Math.abs(restanteBs) < 0.01) restanteBs = 0;
 
   const elemAsignado = document.getElementById('montoAsignadoMixto');
   const elemEsperado = document.getElementById('montoEsperadoMixto');
   const elemRestante = document.getElementById('montoRestanteMixto');
 
-  if (elemAsignado) elemAsignado.textContent = `$${suma.toFixed(2)}`;
-  if (elemEsperado) elemEsperado.textContent = `$${totalFactura.toFixed(2)}`;
+  if (monedaVistaModal === "BS") {
+    // VISTA EN BOLÍVARES (Bs)
+    if (elemAsignado) elemAsignado.textContent = `Bs. ${sumaAsignadaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (elemEsperado) elemEsperado.textContent = `Bs. ${totalFacturaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  if (elemRestante) {
-    elemRestante.textContent = `$${restante.toFixed(2)}`;
-    if (restante === 0) {
-      elemRestante.className = 'text-success fw-bold';
-    } else if (restante > 0) {
-      elemRestante.className = 'text-warning fw-bold';
-    } else {
-      elemRestante.className = 'text-danger fw-bold';
+    if (elemRestante) {
+      elemRestante.textContent = `Bs. ${restanteBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (restanteBs === 0) {
+        elemRestante.className = 'text-success fw-bold';
+      } else if (restanteBs > 0) {
+        elemRestante.className = 'text-warning fw-bold';
+      } else {
+        elemRestante.className = 'text-danger fw-bold';
+      }
+    }
+
+    if (elemAsignado) {
+      if (Math.abs(sumaAsignadaBs - totalFacturaBs) < 0.01) {
+        elemAsignado.className = 'text-success fw-bold';
+      } else {
+        elemAsignado.className = 'text-primary fw-bold';
+      }
+    }
+
+  } else {
+    // VISTA EN DIVISAS ($)
+    if (elemAsignado) elemAsignado.textContent = `$${sumaAsignadaUSD.toFixed(2)}`;
+    if (elemEsperado) elemEsperado.textContent = `$${totalFacturaUSD.toFixed(2)}`;
+
+    if (elemRestante) {
+      elemRestante.textContent = `$${restanteUSD.toFixed(2)}`;
+      if (restanteUSD === 0) {
+        elemRestante.className = 'text-success fw-bold';
+      } else if (restanteUSD > 0) {
+        elemRestante.className = 'text-warning fw-bold';
+      } else {
+        elemRestante.className = 'text-danger fw-bold';
+      }
+    }
+
+    if (elemAsignado) {
+      if (Math.abs(sumaAsignadaUSD - totalFacturaUSD) < 0.01) {
+        elemAsignado.className = 'text-success fw-bold';
+      } else {
+        elemAsignado.className = 'text-primary fw-bold';
+      }
     }
   }
 
-  if (elemAsignado) {
-    if (Math.abs(suma - totalFactura) < 0.01) {
-      elemAsignado.className = 'text-success fw-bold';
-    } else {
-      elemAsignado.className = 'text-primary fw-bold';
-    }
-  }
-
-  return { suma: suma, totalFactura: totalFactura, restante: restante };
+  return { 
+    sumaUSD: sumaAsignadaUSD, 
+    totalUSD: totalFacturaUSD, 
+    restanteUSD: restanteUSD,
+    sumaBs: sumaAsignadaBs,
+    totalBs: totalFacturaBs,
+    restanteBs: restanteBs
+  };
 }
 
-// RESOLVER CADENA FINAL DEL PAGO
+// RESOLVER CADENA FINAL DEL PAGO PARA EMISIÓN CON EXPLICITUD DE MONEDAS
 function obtenerDetalleFormaPagoFinal() {
   const formaSelect = document.getElementById('facFormaPagoSelect').value;
   if (!formaSelect) return null;
@@ -692,29 +826,41 @@ function obtenerDetalleFormaPagoFinal() {
   const esCasheaCombinado = formaSelect.startsWith("Cashea + ");
 
   if (formaSelect === 'Pago Mixto' || esCasheaCombinado) {
+    const tasa = obtenerTasaBCV();
+    if (tasa <= 0) {
+      mostrarAvisoFactura("Indique una Tasa BCV válida antes de procesar un pago en Bolívares o Mixto.");
+      return null;
+    }
+
     const filas = document.querySelectorAll('.fila-pago-mixto');
     let desglose = [];
     let valido = true;
 
     filas.forEach(f => {
       let metodo = f.querySelector('.select-metodo-mixto').value;
-      let monto = parseFloat(f.querySelector('.input-monto-mixto').value) || 0;
+      let montoTipado = parseFloat(f.querySelector('.input-monto-mixto').value) || 0;
 
-      if (!metodo || monto <= 0) {
+      if (!metodo || montoTipado <= 0) {
         valido = false;
       } else {
-        desglose.push(`${metodo}: $${monto.toFixed(2)}`);
+        if (METODOS_BS.includes(metodo)) {
+          let eqUSD = montoTipado / tasa;
+          desglose.push(`${metodo}: Bs. ${montoTipado.toLocaleString('es-VE', { minimumFractionDigits: 2 })} (~$${eqUSD.toFixed(2)})`);
+        } else {
+          let eqBs = montoTipado * tasa;
+          desglose.push(`${metodo}: $${montoTipado.toFixed(2)} (~Bs. ${eqBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })})`);
+        }
       }
     });
 
     if (!valido) {
-      mostrarAvisoFactura("Indique un monto mayor a $0.00 en cada renglón de pago.");
+      mostrarAvisoFactura("Indique un monto mayor a cero en cada renglón de pago.");
       return null;
     }
 
     const calc = calcularTotalPagoMixto();
-    if (Math.abs(calc.suma - calc.totalFactura) >= 0.01) {
-      mostrarAvisoFactura(`La suma asignada ($${calc.suma.toFixed(2)}) debe coincidir con el Total de la Factura ($${calc.totalFactura.toFixed(2)}).`);
+    if (Math.abs(calc.restanteUSD) >= 0.02) {
+      mostrarAvisoFactura(`La suma asignada debe cubrir el total de la factura. Restante: $${Math.abs(calc.restanteUSD).toFixed(2)}.`);
       return null;
     }
 
@@ -753,7 +899,7 @@ function emitirFacturaFinal() {
   console.log("Cliente:", clienteFacturaActual);
   console.log("Forma de Pago Resuelta:", formaPagoStr);
   console.log("Productos:", itemsFactura);
-  console.log("Tasa BCV Permanecida:", obtenerTasaBCV());
+  console.log("Tasa BCV:", obtenerTasaBCV());
 
   mostrarAvisoFactura("Pago validado correctamente. Listo para Fase 3.");
 }
@@ -767,144 +913,3 @@ document.addEventListener("DOMContentLoaded", function() {
     iniciarModuloFacturacion(usuario);
   }
 });
-
-let monedaVistaModal = "USD"; // "USD" o "BS"
-
-// ALTERNAR ENTRE DIVISAS ($) Y BOLÍVARES (Bs) EN LA TABLA DEL MODAL
-function alternarMonedaTablaFactura() {
-  monedaVistaModal = (monedaVistaModal === "USD") ? "BS" : "USD";
-  
-  const btn = document.getElementById('btnConmutarMoneda');
-  if (btn) {
-    if (monedaVistaModal === "BS") {
-      btn.textContent = "💵 Ver en Divisas ($)";
-      btn.className = "btn btn-sm btn-dark fw-bold";
-    } else {
-      btn.textContent = "💱 Ver en Bolívares (Bs)";
-      btn.className = "btn btn-sm btn-outline-dark fw-bold";
-    }
-  }
-
-  renderizarTablaModalFactura();
-}
-
-// RENDERIZAR TABLA DE PRODUCTOS EN EL MODAL SEGÚN MONEDA SELECCIONADA
-function renderizarTablaModalFactura() {
-  const tasa = obtenerTasaBCV();
-  let htmlTabla = "";
-  let totalUSD = 0;
-
-  for (let key in itemsFactura) {
-    let item = itemsFactura[key];
-    let precioTotalUSD = parseFloat(item.precioTotal) || 0;
-    let precioBaseUSD = parseFloat(item.precioBase) || 0;
-    totalUSD += precioTotalUSD;
-
-    let precioBaseTxt = "";
-    let subtotalTxt = "";
-
-    if (monedaVistaModal === "BS") {
-      let precioBaseBs = precioBaseUSD * tasa;
-      let subtotalBs = precioTotalUSD * tasa;
-
-      let unidadBs = (item.unidad === 'gramos' || item.unidad === 'mixto') ? '/ Kg' : '/ Ud';
-      precioBaseTxt = `Bs. ${precioBaseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${unidadBs}`;
-      subtotalTxt = `Bs. ${subtotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    } else {
-      let unidadUsd = (item.unidad === 'gramos' || item.unidad === 'mixto') ? '/ Kg' : '/ Ud';
-      precioBaseTxt = `$${precioBaseUSD.toFixed(2)} ${unidadUsd}`;
-      subtotalTxt = `$${precioTotalUSD.toFixed(2)}`;
-    }
-
-    let imgRuta = item.imgPath || '../img/LOGO-MUNDO123.webp';
-
-    htmlTabla += `
-      <tr>
-        <td class="text-center">
-          <img src="${imgRuta}" class="img-thumb-factura" alt="${key}">
-        </td>
-        <td class="fw-bold">${key}</td>
-        <td class="text-center">${precioBaseTxt}</td>
-        <td class="text-center fw-bold">${item.cantidadTxt}</td>
-        <td class="text-end fw-bold text-success">${subtotalTxt}</td>
-      </tr>`;
-  }
-
-  const tbody = document.getElementById('tablaModalResumenProductos');
-  if (tbody) tbody.innerHTML = htmlTabla;
-
-  // Actualizar Totales del modal
-  const elemEtiquetaTotal = document.getElementById('labelModalTotalFactura');
-  const elemMontoTotal = document.getElementById('montoModalTotalFactura');
-
-  if (monedaVistaModal === "BS") {
-    let totalBs = totalUSD * tasa;
-    if (elemEtiquetaTotal) elemEtiquetaTotal.textContent = "TOTAL FACTURA (Bs):";
-    if (elemMontoTotal) elemMontoTotal.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  } else {
-    if (elemEtiquetaTotal) elemEtiquetaTotal.textContent = "TOTAL FACTURA ($):";
-    if (elemMontoTotal) elemMontoTotal.textContent = `$${totalUSD.toFixed(2)}`;
-  }
-}
-
-// ACTUALIZAR CÁLCULOS BCV Y RE-RENDERIZAR
-function actualizarCalculosBCV() {
-  const tasa = obtenerTasaBCV();
-  const usuario = sessionStorage.getItem("factura_usuario") || "global";
-  localStorage.setItem("tasa_bcv_user_" + usuario, tasa);
-
-  let totalUSD = 0;
-  for (let key in itemsFactura) {
-    totalUSD += parseFloat(itemsFactura[key].precioTotal) || 0;
-  }
-  let totalBs = totalUSD * tasa;
-
-  const elemModalTotalBs = document.getElementById('montoModalTotalFacturaBs');
-  if (elemModalTotalBs) {
-    elemModalTotalBs.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
-
-  // Re-renderizar la tabla si la vista está activa en Bolívares
-  renderizarTablaModalFactura();
-}
-
-// DENTRO DE ejecutarFacturar() RESTABLECER MONEDA A DÓLARES AL ABRIR:
-function ejecutarFacturar() {
-  if (Object.keys(itemsFactura).length === 0) {
-    return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
-  }
-
-  // Restablecer vista por defecto en USD
-  monedaVistaModal = "USD";
-  const btnConmutar = document.getElementById('btnConmutarMoneda');
-  if (btnConmutar) {
-    btnConmutar.textContent = "💱 Ver en Bolívares (Bs)";
-    btnConmutar.className = "btn btn-sm btn-outline-dark fw-bold";
-  }
-
-  // Resetear selección de pago
-  const selectPago = document.getElementById('facFormaPagoSelect');
-  if (selectPago) selectPago.value = "";
-
-  const contMixto = document.getElementById('contenedorPagoMixto');
-  if (contMixto) contMixto.classList.add('hidden');
-
-  // Cargar Tasa BCV
-  const usuario = sessionStorage.getItem("factura_usuario") || "global";
-  const tasaGuardada = localStorage.getItem("tasa_bcv_user_" + usuario);
-  const inputTasa = document.getElementById('facTasaBCV');
-  if (inputTasa) {
-    inputTasa.value = tasaGuardada ? tasaGuardada : "";
-  }
-
-  // Limpiar campos cliente
-  document.getElementById('facCedulaBuscar').value = "";
-  document.getElementById('boxClienteEncontrado').classList.add('hidden');
-  document.getElementById('boxClienteNuevo').classList.add('hidden');
-  clienteFacturaActual = null;
-
-  // Renderizar tabla y desplegar modal
-  renderizarTablaModalFactura();
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
-  actualizarCalculosBCV();
-}
