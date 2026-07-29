@@ -1,29 +1,26 @@
 /* ==========================================================================
-   Lógica del Frontend e Interacción Optimizada sin Google Sheets - Mundocarnes
+   Lógica del Frontend e Interacción Optimizada - Mundocarnes
    ========================================================================== */
 
-// Configuración de tu repositorio de GitHub para guardar imágenes y el JSON
 const GITHUB_CONFIG = {
-  owner: "gilkerosales-boop",         // Tu usuario de GitHub
-  repo: "mundocarnes",                // Tu nombre de repositorio
-  branch: "main"                      // Rama de tu despliegue (usualmente main)
+  owner: "gilkerosales-boop",
+  repo: "mundocarnes",
+  branch: "main"
 };
 
-// Enlace REST de Apps Script únicamente para la validación de inicio de sesión de clientes
 const API_URL_CLIENTES = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
 
-// Variables globales de la sesión y el carrito (Declaradas de forma segura al inicio)
 let carrito = {};
 let productoTemporal = {};
-let productoZoomActivo = null; // Almacena el producto visualizado actualmente en la lupa
+let productoZoomActivo = null;
 let cacheUsuario = { cedula: "", nombre: "", apellido: "", telefono: "", rol: "" };
 let datosCheckout = { ubicacion: "", formaPago: "" };
 let cacheCategorias = []; 
-let iti;            // Instancia de intl-tel-input para el formulario de registro tradicional
-let itiCheckout;    // Instancia de intl-tel-input para el modal de Checkout
-let isZoomStatePushed = false; // Bandera de control para historial en zoom de imagen
+let iti;
+let itiCheckout;
+let isZoomStatePushed = false;
 
-// Función de comunicación REST asíncrona exclusiva para clientes
+// Comunicación REST con Apps Script de Clientes
 async function callClientesAPI(action, data = {}) {
   try {
     const response = await fetch(API_URL_CLIENTES, {
@@ -39,14 +36,13 @@ async function callClientesAPI(action, data = {}) {
   }
 }
 
-// Función genérica para subir o actualizar un archivo en GitHub mediante su API REST
+// Subida directa de archivos a GitHub vía API REST
 async function subirArchivoAGitHub(path, contentBase64, commitMessage) {
   const token = sessionStorage.getItem("github_token");
   if (!token) throw new Error("Sesión administrativa no válida o expirada.");
 
   const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${path}`;
 
-  // 1. Intentar obtener el SHA del archivo si ya existe para poder sobrescribirlo
   let sha = null;
   try {
     const resInfo = await fetch(url, {
@@ -56,11 +52,8 @@ async function subirArchivoAGitHub(path, contentBase64, commitMessage) {
       const info = await resInfo.json();
       sha = info.sha;
     }
-  } catch (e) {
-    // Archivo nuevo en el repositorio
-  }
+  } catch (e) {}
 
-  // 2. Ejecutar la subida del contenido codificado en Base64
   const body = {
     message: commitMessage,
     content: contentBase64,
@@ -84,31 +77,28 @@ async function subirArchivoAGitHub(path, contentBase64, commitMessage) {
   return await response.json();
 }
 
-// Sincroniza el catálogo JSON en memoria directamente con el repositorio de GitHub
+// Sincronizar Catálogo JSON completo con GitHub
 async function guardarCatalogoEnGitHub() {
   const contentString = JSON.stringify({ categorias: cacheCategorias }, null, 2);
-  // Conversión segura de string UTF-8 a Base64 compatible
   const base64Content = btoa(unescape(encodeURIComponent(contentString)));
   await subirArchivoAGitHub("catalog.json", base64Content, "Sincronización automática de catálogo desde el Modo Editor");
 }
 
-// Valida si un archivo subido es .webp y pesa menos de 120 KB, devolviendo su base64
+// Lectura e inspección de imágenes WebP < 120 KB
 function validarYLeerArchivoWebP(fileElement) {
   return new Promise((resolve, reject) => {
     const file = fileElement.files[0];
     if (!file) {
-      resolve(null); // No se seleccionó archivo nuevo (se conserva el actual)
+      resolve(null);
       return;
     }
 
-    // Validación formal de formato WebP
     const esWebP = file.type === "image/webp" || file.name.toLowerCase().endsWith(".webp");
     if (!esWebP) {
       reject("La imagen no cumple con el formato exigido. Debe ser .webp");
       return;
     }
 
-    // Validación estricta de tamaño (120 KB = 122880 bytes)
     const limitePeso = 120 * 1024;
     if (file.size > limitePeso) {
       reject("La imagen no cumple con el tamaño exigido. Debe pesar menos de 120 KB.");
@@ -117,14 +107,9 @@ function validarYLeerArchivoWebP(fileElement) {
 
     const reader = new FileReader();
     reader.onload = function(e) {
-      // Extrae la cadena de datos pura en Base64
       const base64 = e.target.result.split(",")[1];
-      // Reemplaza espacios por caracteres limpios en el nombre del archivo
       const safeName = file.name.replace(/\s+/g, "_").toLowerCase();
-      resolve({
-        base64: base64,
-        name: safeName
-      });
+      resolve({ base64: base64, name: safeName });
     };
     reader.onerror = function() {
       reject("Error al leer el archivo físico.");
@@ -133,26 +118,23 @@ function validarYLeerArchivoWebP(fileElement) {
   });
 }
 
-// Validador personalizado para los prefijos de Venezuela (+58) incluyendo el nuevo 0422 de Digitel
+// Validador de Teléfonos Venezuela (+58)
 function validarTelefonoVenezuela(itiInstance) {
   if (!itiInstance) return false;
   const countryData = itiInstance.getSelectedCountryData();
-  const rawNumber = itiInstance.getNumber(); // ej: +584221234567
+  const rawNumber = itiInstance.getNumber();
   
   if (countryData.dialCode === "58") {
-    const digitos = rawNumber.replace(/\D/g, ""); // "584221234567"
+    const digitos = rawNumber.replace(/\D/g, "");
     if (digitos.length === 12 && digitos.startsWith("584")) {
-      const prefijoCelular = digitos.substring(2, 5); // "422"
+      const prefijoCelular = digitos.substring(2, 5);
       const prefijosValidos = ["412", "422", "414", "424", "416", "426"];
-      if (prefijosValidos.includes(prefijoCelular)) {
-        return true; // Prefijo correcto de Venezuela
-      }
+      if (prefijosValidos.includes(prefijoCelular)) return true;
     }
   }
   return itiInstance.isValidNumber();
 }
 
-// Muestra el aviso dinámico usando el Toast de Bootstrap 5
 function mostrarAviso(mensaje) {
   try { 
     document.getElementById('toastMensaje').textContent = mensaje; 
@@ -162,11 +144,15 @@ function mostrarAviso(mensaje) {
   }
 }
 
-// Reestablece los estados de interfaz a su modo cliente público
 function regresarAlInicio() {
-  cacheUsuario = { cedula: "", nombre: "", apellido: "", telefono: "", rol: "" }; carrito = {}; cacheCategorias = [];
-  document.getElementById('cedula').value = ""; document.getElementById('passwordAdmin').value = "";
-  document.getElementById('regNombre').value = ""; document.getElementById('regApellido').value = "";
+  cacheUsuario = { cedula: "", nombre: "", apellido: "", telefono: "", rol: "" }; 
+  carrito = {}; 
+  cacheCategorias = [];
+  
+  document.getElementById('cedula').value = ""; 
+  document.getElementById('passwordAdmin').value = "";
+  document.getElementById('regNombre').value = ""; 
+  document.getElementById('regApellido').value = "";
   
   if (iti) iti.setNumber(""); 
   if (itiCheckout) itiCheckout.setNumber("");
@@ -176,13 +162,11 @@ function regresarAlInicio() {
   document.getElementById('vistaPedido').classList.add('hidden'); 
   document.getElementById('vistaIngreso').classList.add('hidden');
   
-  // Ocultar elementos de administración del catálogo público
   document.getElementById('btnAdminPanel').classList.add('hidden');
   document.getElementById('btnVerPedido').classList.remove('hidden');
   document.getElementById('btnSesionHeader').classList.add('hidden');
   document.getElementById('saludoUsuario').innerHTML = "¡Bienvenido a <strong>Mundocarnes</strong>! 🥩";
 
-  // Saneamiento de URL: Limpia el "?admin" de la barra de direcciones sin recargar la página
   if (window.location.search.includes('admin') || window.location.hash === "#admin") {
     window.history.replaceState({}, document.title, window.location.pathname);
   }
@@ -225,14 +209,20 @@ function procesarPrimerPaso() {
     cacheUsuario.cedula = cedulaInput;
     
     if (respuesta.status === "ADMIN") {
-      cacheUsuario.nombre = respuesta.nombre; cacheUsuario.apellido = respuesta.apellido;
+      cacheUsuario.nombre = respuesta.nombre; 
+      cacheUsuario.apellido = respuesta.apellido;
       document.getElementById('saludoAdmin').textContent = `Bienvenido: ${respuesta.nombre} ${respuesta.apellido}`;
-      document.getElementById('vistaIngreso').classList.add('hidden'); document.getElementById('vistaAdminPassword').classList.remove('hidden');
+      document.getElementById('vistaIngreso').classList.add('hidden'); 
+      document.getElementById('vistaAdminPassword').classList.remove('hidden');
     } else if (respuesta.status === "CLIENTE") {
-      cacheUsuario.nombre = respuesta.nombre; cacheUsuario.apellido = respuesta.apellido; cacheUsuario.telefono = respuesta.telefono; cacheUsuario.rol = "CLIENTE";
+      cacheUsuario.nombre = respuesta.nombre; 
+      cacheUsuario.apellido = respuesta.apellido; 
+      cacheUsuario.telefono = respuesta.telefono; 
+      cacheUsuario.rol = "CLIENTE";
       concederAccesoAlSistema();
     } else {
-      document.getElementById('vistaIngreso').classList.add('hidden'); document.getElementById('vistaRegistro').classList.remove('hidden');
+      document.getElementById('vistaIngreso').classList.add('hidden'); 
+      document.getElementById('vistaRegistro').classList.remove('hidden');
     }
   }).catch(function(err) {
     btn.disabled = false; 
@@ -241,7 +231,6 @@ function procesarPrimerPaso() {
   });
 }
 
-// Verifica el Token de GitHub validando permisos de escritura en el repositorio
 async function verificarPasswordAdministrador() {
   const token = document.getElementById('passwordAdmin').value.trim();
   if (!token) return mostrarAviso("Por favor, ingrese su Token.");
@@ -252,8 +241,6 @@ async function verificarPasswordAdministrador() {
 
   try {
     const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}`;
-    console.log("Intentando conectar con el repositorio en:", url); 
-    
     const response = await fetch(url, {
       headers: { 
         "Authorization": `Bearer ${token}`, 
@@ -271,15 +258,7 @@ async function verificarPasswordAdministrador() {
         mostrarAviso("El token no cuenta con permisos de escritura (push) en este repositorio.");
       }
     } else {
-      console.error("Respuesta fallida de GitHub API. Código de Estado:", response.status);
-      
-      if (response.status === 404) {
-        mostrarAviso("Repositorio no encontrado. Verifique que 'owner' y 'repo' en script.js coincidan con su cuenta de GitHub.");
-      } else if (response.status === 401) {
-        mostrarAviso("Token inválido o incorrecto.");
-      } else {
-        mostrarAviso("Token inválido o repositorio inaccesible.");
-      }
+      mostrarAviso("Token inválido o repositorio inaccesible.");
     }
   } catch (error) {
     console.error("Error en validación:", error);
@@ -291,14 +270,15 @@ async function verificarPasswordAdministrador() {
 }
 
 function ejecutarRegistroNuevoCliente() {
-  const nom = document.getElementById('regNombre').value.trim(), ape = document.getElementById('regApellido').value.trim();
+  const nom = document.getElementById('regNombre').value.trim();
+  const ape = document.getElementById('regApellido').value.trim();
   
   if (!nom || !ape) return mostrarAviso("Llene todos los campos.");
   
   let tel = "";
   if (iti) {
     if (!validarTelefonoVenezuela(iti)) {
-      return mostrarAviso("Por favor, introduzca un número de teléfono celular válido de Venezuela (prefijos: 0412, 0422, 0414, 0424, 0416, 0426).");
+      return mostrarAviso("Por favor, introduzca un número celular válido de Venezuela.");
     }
     tel = iti.getNumber();
   } else {
@@ -319,7 +299,10 @@ function ejecutarRegistroNuevoCliente() {
     btn.disabled = false; 
     btn.textContent = "Registrar y Comprar";
     if (res.error) return alert(res.error);
-    cacheUsuario.nombre = nom.toUpperCase(); cacheUsuario.apellido = ape.toUpperCase(); cacheUsuario.telefono = tel; cacheUsuario.rol = "CLIENTE";
+    cacheUsuario.nombre = nom.toUpperCase(); 
+    cacheUsuario.apellido = ape.toUpperCase(); 
+    cacheUsuario.telefono = tel; 
+    cacheUsuario.rol = "CLIENTE";
     concederAccesoAlSistema();
   }).catch(function() {
     btn.disabled = false;
@@ -328,8 +311,11 @@ function ejecutarRegistroNuevoCliente() {
 }
 
 function concederAccesoAlSistema() {
-  document.getElementById('vistaIngreso').classList.add('hidden'); document.getElementById('vistaAdminPassword').classList.add('hidden');
-  document.getElementById('vistaRegistro').classList.add('hidden'); document.getElementById('vistaCombos').classList.remove('hidden');
+  document.getElementById('vistaIngreso').classList.add('hidden'); 
+  document.getElementById('vistaAdminPassword').classList.add('hidden');
+  document.getElementById('vistaRegistro').classList.add('hidden'); 
+  document.getElementById('vistaCombos').classList.remove('hidden');
+
   if (cacheUsuario.rol === "ADMIN") {
     document.getElementById('saludoUsuario').innerHTML = `⚙️ <strong>Modo Editor:</strong> ${cacheUsuario.nombre}`;
     document.getElementById('btnVerPedido').classList.add('hidden'); 
@@ -352,10 +338,9 @@ function concederAccesoAlSistema() {
 }
 
 function renderizarCatalogo(resp) {
-  if(resp.error) return alert(resp.error);
+  if (resp.error) return alert(resp.error);
   
   cacheCategorias = resp.categorias || [];
-  
   let tabsHtml = "";
   let contentHtml = "";
   
@@ -385,15 +370,21 @@ function renderizarCatalogo(resp) {
   });
 }
 
+// Cargar Lista manteniendo las tarjetas públicas limpias (sin mostrar el código PLU al cliente)
 function cargarLista(idElemento, datos, nombreCategoria) {
   document.getElementById(idElemento).innerHTML = datos.map(f => {
-    let esDisp = f[3]; let cantMin = f[4]; let unidad = f[5]; let pesoProm = f[6] || 0;
+    let esDisp = f[3]; 
+    let cantMin = f[4]; 
+    let unidad = f[5]; 
+    let pesoProm = f[6] || 0;
+    let codigoBalanza = f[7] || ""; // Campo 8: Código PLU privado de balanza
+
     let claseImg = esDisp ? "" : "img-agotado";
     let etiquetaDisp = esDisp ? "" : `<span class="badge bg-danger position-absolute top-0 start-0 m-2">Agotado</span>`;
     let boton = "";
     
     if (cacheUsuario.rol === "ADMIN") {
-      boton = `<button class="btn btn-sm btn-warning border-dark fw-bold mt-2 w-100" onclick="abrirModalEdicion('${f[0]}', '${f[1]}', '${nombreCategoria}', ${esDisp}, ${cantMin}, '${unidad}', ${pesoProm})">Configurar ⚙️</button>`;
+      boton = `<button class="btn btn-sm btn-warning border-dark fw-bold mt-2 w-100" onclick="abrirModalEdicion('${f[0]}', '${f[1]}', '${nombreCategoria}', ${esDisp}, ${cantMin}, '${unidad}', ${pesoProm}, '${codigoBalanza}')">Configurar ⚙️</button>`;
     } else {
       if (esDisp) boton = `<button class="btn btn-sm btn-outline-dark fw-bold mt-2 w-100" onclick="seleccionarProducto('${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">Seleccionar</button>`;
       else boton = `<button class="btn btn-sm btn-secondary fw-bold mt-2 w-100 border-dark" disabled>🚫 No Disponible</button>`;
@@ -404,7 +395,8 @@ function cargarLista(idElemento, datos, nombreCategoria) {
   }).join('');
 }
 
-function abrirModalEdicion(nom, prec, cat, disp, min, unidad, pesoProm = 0) {
+// Abrir Modal de Edición del Administrador
+function abrirModalEdicion(nom, prec, cat, disp, min, unidad, pesoProm = 0, codigoBalanza = "") {
   productoTemporal = { nombre: nom, categoria: cat };
   
   document.getElementById('editProductoNuevoNombre').value = nom; 
@@ -422,9 +414,14 @@ function abrirModalEdicion(nom, prec, cat, disp, min, unidad, pesoProm = 0) {
   }
   alternarCampoPesoPromedio(unidad || "unidades");
 
-  document.getElementById('editProductoArchivoImagen').value = ""; // Limpiar selector
+  // Asignar Código PLU privado
+  const inputCodigo = document.getElementById('editProductoCodigo');
+  if (inputCodigo) {
+    inputCodigo.value = codigoBalanza || "";
+  }
+
+  document.getElementById('editProductoArchivoImagen').value = "";
   
-  // Calcular la posición actual y el límite máximo dentro del array
   let catObj = cacheCategorias.find(c => c.nombre === cat);
   if (catObj) {
     const index = catObj.productos.findIndex(p => p[0] === nom);
@@ -451,6 +448,7 @@ function alternarCampoPesoPromedio(val) {
 }
 window.alternarCampoPesoPromedio = alternarCampoPesoPromedio;
 
+// Guardar Edición del Administrador
 async function guardarEdicionAdministrador() {
   const nuevoNombre = document.getElementById('editProductoNuevoNombre').value.trim();
   const prec = parseFloat(document.getElementById('editProductoPrecio').value);
@@ -458,10 +456,11 @@ async function guardarEdicionAdministrador() {
   const min = parseInt(document.getElementById('editProductoMinimo').value);
   const unidad = document.getElementById('editProductoUnidad').value;
   const pesoProm = unidad === "mixto" ? parseInt(document.getElementById('editProductoPesoPromedio').value) : 0;
+  const nuevoCodigo = document.getElementById('editProductoCodigo').value.trim();
   const nuevaPosicion = parseInt(document.getElementById('editProductoPosicion').value);
   
   if (!nuevoNombre || isNaN(prec) || isNaN(min) || !unidad || isNaN(nuevaPosicion) || (unidad === "mixto" && (!pesoProm || pesoProm <= 0))) {
-    return mostrarAviso("Llene todos los campos de forma correcta" + (unidad === "mixto" ? " (incluyendo el peso promedio estimado en gramos)." : "."));
+    return mostrarAviso("Llene todos los campos de forma correcta.");
   }
   
   const modalEl = document.getElementById('modalEditarProducto');
@@ -470,66 +469,51 @@ async function guardarEdicionAdministrador() {
   btn.textContent = "Procesando...";
 
   try {
-    // 1. Validar e intentar procesar la imagen cargada localmente
     const imgData = await validarYLeerArchivoWebP(document.getElementById('editProductoArchivoImagen'));
     let relativeImgPath = null;
 
     if (imgData) {
-      // Subir archivo a GitHub de forma directa
       const filePath = `img/${imgData.name}`;
       await subirArchivoAGitHub(filePath, imgData.base64, `Subida de imagen de producto: ${imgData.name}`);
       relativeImgPath = filePath;
     }
 
-    // 2. Localizar y actualizar el objeto del catálogo en memoria
     let cat = cacheCategorias.find(c => c.nombre === productoTemporal.categoria);
     if (cat) {
       const oldIndex = cat.productos.findIndex(p => p[0] === productoTemporal.nombre);
       if (oldIndex !== -1) {
         let prod = cat.productos[oldIndex];
         
-        // Actualizar valores del producto
         prod[0] = nuevoNombre;
         prod[1] = prec;
         prod[3] = disp;
         prod[4] = min;
         prod[5] = unidad;
-        if (unidad === "mixto") {
-          prod[6] = pesoProm;
-        } else if (prod.length > 6) {
-          prod.splice(6, 1); // Remover pesoProm si deja de ser mixto
-        }
+        prod[6] = pesoProm;
+        prod[7] = nuevoCodigo; // Guardar Código PLU / Balanza privado
 
         if (relativeImgPath) {
           prod[2] = relativeImgPath;
         }
         
-        // Procesar la nueva posición (Ordenación del array)
         let targetIndex = nuevaPosicion - 1;
         if (targetIndex < 0) targetIndex = 0;
         if (targetIndex >= cat.productos.length) targetIndex = cat.productos.length - 1;
         
         if (oldIndex !== targetIndex) {
-          // Mover quirúrgicamente el producto dentro del array
-          cat.productos.splice(oldIndex, 1); // Remover del índice viejo
-          cat.productos.splice(targetIndex, 0, prod); // Insertar en el índice nuevo
+          cat.productos.splice(oldIndex, 1);
+          cat.productos.splice(targetIndex, 0, prod);
         }
-      } else {
-        throw new Error("No se localizó el producto original.");
       }
-    } else {
-      throw new Error("Categoría no encontrada.");
     }
 
-    // 3. Sincronizar catálogo con GitHub
     await guardarCatalogoEnGitHub();
 
     btn.disabled = false;
     btn.textContent = "Guardar Cambios 💾";
     bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-    mostrarAviso("Producto guardado y sincronizado correctamente");
+    mostrarAviso("Producto guardado correctamente con su Código PLU.");
     
-    // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
     renderizarCatalogo({ categorias: cacheCategorias });
 
   } catch (error) {
@@ -539,7 +523,6 @@ async function guardarEdicionAdministrador() {
   }
 }
 
-// Configura la visualización del Modal de Cantidad / Peso según la unidad del producto
 function seleccionarProducto(nom, prec, tipo, cantMin, unidad, pesoPromedio = 0) {
   productoTemporal = { nombre: nom, precio: prec, tipo: tipo, minBase: cantMin, unidad: unidad, pesoPromedio: pesoPromedio };
   document.getElementById('nombreProductoModal').textContent = nom;
@@ -548,7 +531,6 @@ function seleccionarProducto(nom, prec, tipo, cantMin, unidad, pesoPromedio = 0)
   const contPeso = document.getElementById('contenedorPeso');
   const errorDiv = document.getElementById('errorModalCantidad');
   
-  // Limpiar errores visuales previos
   document.getElementById('inputCantidad').classList.remove('is-invalid');
   document.getElementById('inputKg').classList.remove('is-invalid');
   document.getElementById('inputGramos').classList.remove('is-invalid');
@@ -565,7 +547,6 @@ function seleccionarProducto(nom, prec, tipo, cantMin, unidad, pesoPromedio = 0)
     contUnidades.classList.add('hidden');
     contPeso.classList.remove('hidden');
     
-    // Dejar campos vacíos por defecto según requerimiento
     document.getElementById('inputKg').value = "";
     document.getElementById('inputGramos').value = "";
   }
@@ -573,11 +554,9 @@ function seleccionarProducto(nom, prec, tipo, cantMin, unidad, pesoPromedio = 0)
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCantidad')).show();
 }
 
-// Procesa, valida y agrega el producto (Unidad, Peso o Mixto) al carrito local
 function confirmarSeleccion() {
   const errorDiv = document.getElementById('errorModalCantidad');
   
-  // Si el producto se cuenta por unidades o modo mixto
   if (productoTemporal.unidad === 'unidades' || productoTemporal.unidad === 'mixto') {
     const inputCant = document.getElementById('inputCantidad');
     let cant = parseInt(inputCant.value);
@@ -589,7 +568,6 @@ function confirmarSeleccion() {
       return;
     }
     
-    // Quitar clases de error
     inputCant.classList.remove('is-invalid');
     errorDiv.classList.add('hidden');
     
@@ -617,18 +595,14 @@ function confirmarSeleccion() {
       minBase: productoTemporal.minBase,
       pesoPromedio: productoTemporal.pesoPromedio || 0
     };
-  } 
-  // Si el producto se cuenta por peso (Kg y g separados)
-  else {
+  } else {
     const kgInput = document.getElementById('inputKg');
     const gInput = document.getElementById('inputGramos');
     
     const kgVal = parseFloat(kgInput.value) || 0;
     const gVal = parseFloat(gInput.value) || 0;
-    
     const totalGramos = (kgVal * 1000) + gVal;
     
-    // Validación: Ambos campos vacíos o peso acumulado menor que el mínimo editable por producto
     const ambosVacios = (kgInput.value.trim() === "" && gInput.value.trim() === "");
     if (ambosVacios || totalGramos < productoTemporal.minBase) {
       kgInput.classList.add('is-invalid');
@@ -638,14 +612,12 @@ function confirmarSeleccion() {
       return;
     }
     
-    // Remover clases de error si pasa la validación
     kgInput.classList.remove('is-invalid');
     gInput.classList.remove('is-invalid');
     errorDiv.classList.add('hidden');
     
     let calc = (productoTemporal.precio / 1000) * totalGramos;
     
-    // Formatear texto de cantidad de forma estética para el carrito, ej: "1 Kg 250 g" o "350 g"
     let cantidadTxt = "";
     const kgEnteros = Math.floor(totalGramos / 1000);
     const gramosRestantes = totalGramos % 1000;
@@ -673,10 +645,14 @@ function confirmarSeleccion() {
 }
 
 function mostrarPedido() {
-  document.getElementById('vistaCombos').classList.add('hidden'); document.getElementById('vistaPedido').classList.remove('hidden');
-  let html = '<table class="table align-middle"><tbody>'; let t = 0;
+  document.getElementById('vistaCombos').classList.add('hidden'); 
+  document.getElementById('vistaPedido').classList.remove('hidden');
+  
+  let html = '<table class="table align-middle"><tbody>'; 
+  let t = 0;
   for (let p in carrito) {
-    let item = carrito[p]; t += parseFloat(item.precio);
+    let item = carrito[p]; 
+    t += parseFloat(item.precio);
     html += `<tr><td style="max-width: 120px;" class="text-wrap">${p}</td><td><input type="number" class="form-control form-control-sm text-center fw-bold border-dark p-1" value="${item.cantNumerica}" min="${item.minBase}" style="width:70px" onchange="cambiarCantidadInline('${p}', this.value)"></td><td class="text-success text-nowrap">$${item.precio}</td><td><button class="btn btn-sm btn-danger px-2 py-1" onclick="eliminarDelCarrito('${p}')">X</button></td></tr>`;
   }
   html += `<tr class="table-active fw-bold border-dark border-top"><td colspan="2" class="text-end">TOTAL:</td><td class="text-danger">$${t.toFixed(2)}</td><td></td></tr></tbody></table>`;
@@ -684,7 +660,8 @@ function mostrarPedido() {
 }
 
 function cambiarCantidadInline(nombre, nuevaCant) {
-  let item = carrito[nombre]; let cant = parseInt(nuevaCant);
+  let item = carrito[nombre]; 
+  let cant = parseInt(nuevaCant);
   if (isNaN(cant) || cant < item.minBase) { mostrarAviso(`Mínimo requerido: ${item.minBase}`); mostrarPedido(); return; }
   item.cantNumerica = cant; 
   
@@ -699,7 +676,6 @@ function cambiarCantidadInline(nombre, nuevaCant) {
     item.cantidad = `${cant} uds (~${pesoTxt})`;
     item.precio = ((item.precioBase / 1000) * totalGramos).toFixed(2);
   } else {
-    // Re-formatear peso dinámico en Kg / g si es inline
     let cantidadTxt = "";
     const kgEnteros = Math.floor(cant / 1000);
     const gramosRestantes = cant % 1000;
@@ -718,15 +694,12 @@ function cambiarCantidadInline(nombre, nuevaCant) {
 function eliminarDelCarrito(p) { delete carrito[p]; mostrarPedido(); }
 function cerrarPedido() { document.getElementById('vistaPedido').classList.add('hidden'); document.getElementById('vistaCombos').classList.remove('hidden'); }
 
-// Redirección y lógica de autenticación diferida en Checkout
 function abrirSolicitudPago() {
-  if(!Object.keys(carrito).length) return;
+  if (!Object.keys(carrito).length) return;
   
-  // Si el cliente ya está identificado por haber iniciado sesión o haberse registrado previamente
   if (cacheUsuario.cedula && cacheUsuario.telefono) {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show();
   } else {
-    // Abrir modal de autenticación diferido
     document.getElementById('checkoutPasoCedula').classList.remove('hidden');
     document.getElementById('checkoutPasoRegistro').classList.add('hidden');
     document.getElementById('checkoutCedula').value = "";
@@ -735,7 +708,6 @@ function abrirSolicitudPago() {
   }
 }
 
-// Evalúa si la cédula ingresada en Checkout existe para autocompletar o registrar
 function verificarClienteCheckout() {
   const cedulaInput = document.getElementById('checkoutCedula').value.trim();
   if (!cedulaInput) return mostrarAviso("Por favor, ingrese su Cédula o RIF.");
@@ -753,7 +725,6 @@ function verificarClienteCheckout() {
     cacheUsuario.cedula = cedulaInput;
     
     if (respuesta.status === "CLIENTE") {
-      // Cliente recurrente localizado, autocompletamos su sesión de compra
       cacheUsuario.nombre = respuesta.nombre;
       cacheUsuario.apellido = respuesta.apellido;
       cacheUsuario.telefono = respuesta.telefono;
@@ -761,7 +732,6 @@ function verificarClienteCheckout() {
       
       mostrarAviso(`Bienvenido de nuevo, ${respuesta.nombre} 👋`);
       
-      // Ocultar modal de autenticación y abrir modal de entrega/pago
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAutenticacionCheckout')).hide();
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show();
       
@@ -770,7 +740,6 @@ function verificarClienteCheckout() {
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAutenticacionCheckout')).hide();
       irALoginAdministrador();
     } else {
-      // Cliente nuevo. Transicionar al formulario de registro del checkout
       document.getElementById('checkoutPasoCedula').classList.add('hidden');
       document.getElementById('checkoutPasoRegistro').classList.remove('hidden');
       document.getElementById('checkoutNombre').value = "";
@@ -784,7 +753,6 @@ function verificarClienteCheckout() {
   });
 }
 
-// Ejecuta el registro del cliente nuevo directamente en el checkout
 function ejecutarRegistroCheckout() {
   const nom = document.getElementById('checkoutNombre').value.trim();
   const ape = document.getElementById('checkoutApellido').value.trim();
@@ -793,9 +761,8 @@ function ejecutarRegistroCheckout() {
   
   let tel = "";
   if (itiCheckout) {
-    // Validación adaptada compatible con prefijo 0422 de Digitel
     if (!validarTelefonoVenezuela(itiCheckout)) {
-      return mostrarAviso("Número celular no válido. Ingrese un formato correcto de Venezuela (prefijos: 0412, 0422, 0414, 0424, 0416, 0426).");
+      return mostrarAviso("Número celular no válido. Ingrese un formato correcto de Venezuela.");
     }
     tel = itiCheckout.getNumber();
   } else {
@@ -824,7 +791,6 @@ function ejecutarRegistroCheckout() {
     
     mostrarAviso("Registro completado con éxito 🎉");
     
-    // Cerrar modal de autenticación y pasar directamente a la selección de entrega/pago
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAutenticacionCheckout')).hide();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show();
   }).catch(function() {
@@ -886,14 +852,15 @@ function procesarEnvioSolicitud() {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfirmacionFinal')).show();
 }
 
-function regresarAFormulario() { bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfirmacionFinal')).hide(); bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show(); }
+function regresarAFormulario() { 
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfirmacionFinal')).hide(); 
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show(); 
+}
 
-// Confirmación instantánea y apertura directa de WhatsApp
 function ejecutarAccionFinal() {
   let telConfirmado = "";
   
   if (window.itiConfirm) {
-    // Validación compatible integrada
     if (!validarTelefonoVenezuela(window.itiConfirm)) {
       return mostrarAviso("Por favor, introduzca un número de teléfono de confirmación válido.");
     }
@@ -906,8 +873,6 @@ function ejecutarAccionFinal() {
   const numeroOriginal = cacheUsuario.telefono;
   if (telConfirmado !== numeroOriginal) {
     cacheUsuario.telefono = telConfirmado;
-    
-    // Llamada asíncrona ("fire-and-forget"). No bloquea el flujo principal de redirección
     callClientesAPI("actualizarTelefonoCliente", { cedula: cacheUsuario.cedula, nuevoTelefono: telConfirmado })
       .catch(function(err) {
         console.error("Error al actualizar teléfono en base de datos:", err);
@@ -927,10 +892,8 @@ function ejecutarAccionFinal() {
 
   let mensajeWA = `📱 *Teléfono:* ${cacheUsuario.telefono}\n👤 *Cliente:* ${cacheUsuario.nombre} ${cacheUsuario.apellido}\n📍 *Ubicación:* ${datosCheckout.ubicacion}\n\n🛒 *Pedido Solicitado:*\n${listaWA}\n💵 *Monto Aproximado:* $${total.toFixed(2)}\n💳 *Forma de Pago:* ${datosCheckout.formaPago}\n\n⚠️ *Nota Importante:* Entiendo y acepto que el monto total reflejado es una estimación. El pago final podría variar dependiendo del peso exacto de los productos al momento de prepararlos y de la tarifa aplicable al servicio de delivery. ✅`;
   
-  // Abre WhatsApp instantáneamente
   window.open(`https://wa.me/584121753275?text=${encodeURIComponent(mensajeWA)}`, '_blank');
   
-  // Resetear interfaz del carrito localmente
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfirmacionFinal')).hide();
   document.getElementById('vistaPedido').classList.add('hidden'); 
   document.getElementById('vistaCombos').classList.remove('hidden');
@@ -939,7 +902,6 @@ function ejecutarAccionFinal() {
   btn.disabled = false;
   btn.textContent = "Aceptar ✓";
 
-  // Mostrar aviso de éxito local sin esperas de red
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalExito')).show();
 }
 
@@ -947,9 +909,11 @@ function abrirPanelAdmin() {
   document.getElementById('adminCatNombre').value = "";
   document.getElementById('adminCatProdNombre').value = "";
   document.getElementById('adminCatProdPrecio').value = "";
+  document.getElementById('adminCatProdCodigo').value = "";
   document.getElementById('adminCatProdArchivoImagen').value = "";
   document.getElementById('adminAddProdNombre').value = "";
   document.getElementById('adminAddProdPrecio').value = "";
+  document.getElementById('adminAddProdCodigo').value = "";
   document.getElementById('adminAddProdArchivoImagen').value = "";
   
   let addSelect = document.getElementById('adminAddCatSelect');
@@ -975,9 +939,10 @@ async function ejecutarCrearCategoria() {
   const catNombre = document.getElementById('adminCatNombre').value.trim();
   const prodNombre = document.getElementById('adminCatProdNombre').value.trim();
   const prodPrecio = parseFloat(document.getElementById('adminCatProdPrecio').value.trim());
+  const prodCodigo = document.getElementById('adminCatProdCodigo').value.trim();
   
   if (!catNombre || !prodNombre || isNaN(prodPrecio)) {
-    return mostrarAviso("Todos los campos son obligatorios.");
+    return mostrarAviso("Todos los campos obligatorios deben estar llenos.");
   }
   
   const modalEl = document.getElementById('modalAdminPanel');
@@ -987,23 +952,18 @@ async function ejecutarCrearCategoria() {
 
   try {
     const imgData = await validarYLeerArchivoWebP(document.getElementById('adminCatProdArchivoImagen'));
-    if (!imgData) {
-      throw new Error("Debe seleccionar una imagen obligatoria para el producto inicial.");
-    }
+    if (!imgData) throw new Error("Debe seleccionar una imagen obligatoria para el producto inicial.");
 
-    // 1. Subir imagen a GitHub
     const relativePath = `img/${imgData.name}`;
     await subirArchivoAGitHub(relativePath, imgData.base64, `Creación de categoría con imagen: ${imgData.name}`);
 
-    // 2. Insertar nueva categoría en memoria
     cacheCategorias.push({
       nombre: catNombre.toUpperCase(),
       productos: [
-        [prodNombre, prodPrecio, relativePath, true, 1, "unidades"]
+        [prodNombre, prodPrecio, relativePath, true, 1, "unidades", 0, prodCodigo]
       ]
     });
 
-    // 3. Sincronizar catálogo
     await guardarCatalogoEnGitHub();
 
     btn.disabled = false;
@@ -1011,7 +971,6 @@ async function ejecutarCrearCategoria() {
     mostrarAviso("Categoría creada con éxito.");
     bootstrap.Modal.getOrCreateInstance(modalEl).hide();
     
-    // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
     renderizarCatalogo({ categorias: cacheCategorias });
 
   } catch (error) {
@@ -1025,9 +984,10 @@ async function ejecutarAnexarProducto() {
   const catNombre = document.getElementById('adminAddCatSelect').value;
   const prodNombre = document.getElementById('adminAddProdNombre').value.trim();
   const prodPrecio = parseFloat(document.getElementById('adminAddProdPrecio').value.trim());
+  const prodCodigo = document.getElementById('adminAddProdCodigo').value.trim();
   
   if (!catNombre || !prodNombre || isNaN(prodPrecio)) {
-    return mostrarAviso("Todos los campos son obligatorios.");
+    return mostrarAviso("Todos los campos obligatorios deben estar llenos.");
   }
   
   const modalEl = document.getElementById('modalAdminPanel');
@@ -1037,25 +997,19 @@ async function ejecutarAnexarProducto() {
 
   try {
     const imgData = await validarYLeerArchivoWebP(document.getElementById('adminAddProdArchivoImagen'));
-    if (!imgData) {
-      throw new Error("Debe seleccionar una imagen obligatoria para el producto.");
-    }
+    if (!imgData) throw new Error("Debe seleccionar una imagen obligatoria para el producto.");
 
-    // 1. Subir imagen a GitHub
     const relativePath = `img/${imgData.name}`;
     await subirArchivoAGitHub(relativePath, imgData.base64, `Anexo de producto con imagen: ${imgData.name}`);
 
-    // 2. Insertar en la categoría correspondiente en memoria
     let cat = cacheCategorias.find(c => c.nombre === catNombre);
     if (cat) {
-      // Por defecto asume unidades para combos y gramos para el resto
       let esCombo = catNombre.toUpperCase().includes("COMBO");
       let defaultUnidad = esCombo ? "unidades" : "gramos";
-      let minVal = esCombo ? 1 : 1000;
-      cat.productos.push([prodNombre, prodPrecio, relativePath, true, minVal, defaultUnidad]);
+      let minVal = esCombo ? 1 : 250;
+      cat.productos.push([prodNombre, prodPrecio, relativePath, true, minVal, defaultUnidad, 0, prodCodigo]);
     }
 
-    // 3. Sincronizar catálogo
     await guardarCatalogoEnGitHub();
 
     btn.disabled = false;
@@ -1063,7 +1017,6 @@ async function ejecutarAnexarProducto() {
     mostrarAviso("Producto anexado con éxito.");
     bootstrap.Modal.getOrCreateInstance(modalEl).hide();
     
-    // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
     renderizarCatalogo({ categorias: cacheCategorias });
 
   } catch (error) {
@@ -1091,11 +1044,9 @@ async function ejecutarEliminarProducto() {
   try {
     let cat = cacheCategorias.find(c => c.nombre === catNombre);
     if (cat) {
-      // Filtrar y eliminar el producto del array
       cat.productos = cat.productos.filter(p => p[0] !== prodNombre);
     }
 
-    // Sincronizar catálogo actualizado
     await guardarCatalogoEnGitHub();
 
     btn.disabled = false;
@@ -1103,7 +1054,6 @@ async function ejecutarEliminarProducto() {
     mostrarAviso("Producto eliminado con éxito.");
     bootstrap.Modal.getInstance(modalEl).hide();
     
-    // OPTIMIZACIÓN: Renderiza el catálogo al instante usando los datos en memoria
     renderizarCatalogo({ categorias: cacheCategorias });
 
   } catch (error) {
@@ -1113,15 +1063,12 @@ async function ejecutarEliminarProducto() {
   }
 }
 
-// Abre la imagen ampliada y guarda las referencias dinámicas del producto
 function mostrarImagenGrande(url, nom, prec, tipo, cantMin, unidad, pesoPromedio = 0) { 
   document.getElementById('imagenGrandePopUp').src = url; 
   document.getElementById('overlayImagenGrande').classList.add('show'); 
   
-  // Guardar la referencia exacta del producto para selección rápida desde la lupa
   productoZoomActivo = { nom, prec, tipo, cantMin, unidad, pesoPromedio };
 
-  // Ocultar botón de selección rápida si el usuario actual es administrador (Modo Editor)
   const btnSelect = document.getElementById('btnSeleccionarZoom');
   if (cacheUsuario.rol === "ADMIN") {
     btnSelect.classList.add('hidden');
@@ -1129,27 +1076,19 @@ function mostrarImagenGrande(url, nom, prec, tipo, cantMin, unidad, pesoPromedio
     btnSelect.classList.remove('hidden');
   }
 
-  // Push del estado virtual al historial para capturar botón "Atrás" en móviles
   pushZoomState();
 }
 
-// Cierra el zoom manualmente evaluando clics en el fondo
 function cerrarImagenGrande(e) { 
   if (e.target.id === 'overlayImagenGrande') { 
     forzarCerrarImagenGrande(); 
   } 
 }
 
-// Cierra la lupa y ejecuta la redirección directa al modal de selección de peso/unidades
 function seleccionarDesdeZoom() {
   if (productoZoomActivo && productoZoomActivo.nom) {
-    // 1. Hacemos una copia local de seguridad del producto ANTES de cerrar la lupa
     const tempProd = { ...productoZoomActivo };
-    
-    // 2. Al ejecutar esto, se limpia la variable global productoZoomActivo = null, pero tempProd queda a salvo
     forzarCerrarImagenGrande();
-    
-    // 3. Levantamos el modal de selección utilizando la copia local segura
     seleccionarProducto(
       tempProd.nom,
       tempProd.prec,
@@ -1159,13 +1098,11 @@ function seleccionarDesdeZoom() {
       tempProd.pesoPromedio
     );
   } else {
-    // Saneamiento por si la caché del navegador conserva tarjetas antiguas sin metadatos
     forzarCerrarImagenGrande();
     mostrarAviso("Por favor, seleccione el producto directamente desde su tarjeta en el catálogo.");
   }
 }
 
-// Registra el estado virtual en la pila del navegador para móviles
 function pushZoomState() {
   if (!isZoomStatePushed) {
     history.pushState({ zoomOpen: true }, "", "#zoom");
@@ -1173,7 +1110,6 @@ function pushZoomState() {
   }
 }
 
-// Cierre forzado manual (limpia estado de historial retrocediendo)
 function forzarCerrarImagenGrande() {
   const overlay = document.getElementById('overlayImagenGrande');
   if (overlay && overlay.classList.contains('show')) {
@@ -1181,12 +1117,11 @@ function forzarCerrarImagenGrande() {
     productoZoomActivo = null;
     if (isZoomStatePushed && window.location.hash === "#zoom") {
       isZoomStatePushed = false;
-      history.back(); // Pop del estado virtual
+      history.back();
     }
   }
 }
 
-// Cierre silencioso desencadenado por el botón físico "Atrás" (evita bucles)
 function cerrarImagenGrandeSilencioso() {
   const overlay = document.getElementById('overlayImagenGrande');
   if (overlay) {
@@ -1196,7 +1131,7 @@ function cerrarImagenGrandeSilencioso() {
   }
 }
 
-// Inicialización de intl-tel-input en la carga del DOM y listeners dinámicos
+// Inicialización de Eventos y Carga
 document.addEventListener("DOMContentLoaded", function() {
   const inputTelefono = document.querySelector("#regTelefono");
   if (inputTelefono) {
@@ -1207,7 +1142,6 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   }
 
-  // Inicialización de intl-tel-input para el Checkout
   const inputCheckoutTel = document.querySelector("#checkoutTelefono");
   if (inputCheckoutTel) {
     itiCheckout = window.intlTelInput(inputCheckoutTel, {
@@ -1217,7 +1151,6 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   }
 
-  // DETECTAR PARÁMETRO OCULTO DE ADMINISTRADOR (?admin o #admin)
   const urlParams = new URLSearchParams(window.location.search);
   const esAdminUrl = urlParams.has('admin') || window.location.hash === "#admin";
 
@@ -1229,7 +1162,6 @@ document.addEventListener("DOMContentLoaded", function() {
     document.getElementById('saludoUsuario').innerHTML = "¡Bienvenido a <strong>Mundocarnes</strong>! 🥩";
   }
 
-  // Listeners para limpiar bordes rojos de error en tiempo real
   document.getElementById('inputKg').addEventListener('input', function() {
     this.classList.remove('is-invalid');
     document.getElementById('inputGramos').classList.remove('is-invalid');
@@ -1247,7 +1179,6 @@ document.addEventListener("DOMContentLoaded", function() {
     document.getElementById('errorModalCantidad').classList.add('hidden');
   });
 
-  // Escucha global de eventos de historial para el botón "Atrás" en móviles
   window.addEventListener('popstate', function(event) {
     const overlay = document.getElementById('overlayImagenGrande');
     if (overlay && overlay.classList.contains('show')) {
@@ -1255,7 +1186,6 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
-  // Cargar Catálogo de forma local directa de GitHub Pages
   fetch("catalog.json?t=" + new Date().getTime())
     .then(res => res.json())
     .then(renderizarCatalogo)
