@@ -47,6 +47,10 @@
           <span class="fw-bold fs-5 text-white">Módulo de Facturación No Fiscal</span>
         </div>
         <div class="d-flex align-items-center">
+          <!-- Botón Historial y Búsqueda -->
+          <button type="button" class="btn btn-sm btn-outline-warning fw-bold me-3" onclick="abrirModalBuscarFacturas()">
+            🔍 Buscar / Historial
+          </button>
           <span id="usuarioActivo" class="me-3 small fw-bold text-light"></span>
           <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="cerrarSesionFacturacion()">Cerrar Sesión 🚪</button>
         </div>
@@ -438,20 +442,63 @@
         </div>
       </div>
     </div>
-    
-    <!-- Toast de Notificaciones -->
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
-      <div id="toastFactura" class="toast align-items-center text-white bg-dark border-0" role="alert">
-        <div class="d-flex">
-          <div class="toast-body" id="toastMensajeFactura"></div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+
+    <!-- MODAL BÚSQUEDA Y HISTORIAL DE FACTURAS -->
+    <div class="modal fade" id="modalBuscarFacturas" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-dark border-2">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title fw-bold">🔍 Historial y Búsqueda de Facturas Emitidas</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            
+            <!-- Búsqueda y Botón Últimas 10 -->
+            <div class="row g-2 align-items-end mb-4 bg-white p-3 rounded border">
+              <div class="col-md-6 col-lg-7">
+                <label for="facBusquedaInput" class="form-label fw-bold small mb-1">Cédula / RIF, Nombre o N° de Factura:</label>
+                <input type="text" id="facBusquedaInput" class="form-control border-dark text-uppercase fw-bold" placeholder="Ej: V19255985 o 001-00008..." onkeyup="if(event.key==='Enter') buscarFacturasHistorial('busqueda')">
+              </div>
+              <div class="col-md-3 col-lg-3">
+                <button type="button" class="btn btn-dark w-100 fw-bold" onclick="buscarFacturasHistorial('busqueda')">
+                  🔍 Buscar Factura
+                </button>
+              </div>
+              <div class="col-md-3 col-lg-2">
+                <button type="button" class="btn btn-warning w-100 fw-bold border-dark" onclick="buscarFacturasHistorial('ultimas10')">
+                  🕒 Últimas 10
+                </button>
+              </div>
+            </div>
+
+            <!-- Tabla Resumen de Facturas -->
+            <div class="table-responsive bg-white rounded border mb-2" style="max-height: 380px; overflow-y: auto;">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark small text-center">
+                  <tr>
+                    <th>N° Factura</th>
+                    <th>Fecha y Hora</th>
+                    <th>Cédula / RIF</th>
+                    <th>Cliente</th>
+                    <th>Forma de Pago</th>
+                    <th>Total ($)</th>
+                    <th style="width: 180px;">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaHistorialFacturas" class="small">
+                  <tr>
+                    <td colspan="7" class="text-center text-muted py-4">Ingrese un criterio de búsqueda o presione "Últimas 10".</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+          <div class="modal-footer bg-white">
+            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cerrar</button>
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- Contenedor Exclusivo de Impresión Térmica (Hijo directo de BODY) -->
-    <div id="seccionImpresionTicket">
-      <div id="contenidoTicketImprimible"></div>
     </div>
 
     <!-- MODAL LECTOR DE CÓDIGOS DE BARRA / QR DE BALANZA PS-30 -->
@@ -509,8 +556,23 @@
       </div>
     </div>
 
+    <!-- Toast de Notificaciones -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+      <div id="toastFactura" class="toast align-items-center text-white bg-dark border-0" role="alert">
+        <div class="d-flex">
+          <div class="toast-body" id="toastMensajeFactura"></div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contenedor Exclusivo de Impresión Térmica (Hijo directo de BODY) -->
+    <div id="seccionImpresionTicket">
+      <div id="contenidoTicketImprimible"></div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="script.js?v=1.2.5"></script>
+    <script src="script.js?v=1.2.6"></script>
   </body>
 </html>
