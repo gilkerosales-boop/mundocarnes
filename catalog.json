@@ -297,8 +297,10 @@
           7.2,
           "img/milanesa.webp",
           true,
-          500,
-          "gramos"
+          300,
+          "gramos",
+          0,
+          ""
         ],
         [
           "CHURRASCO DE POLLO",
