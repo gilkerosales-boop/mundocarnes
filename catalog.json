@@ -476,8 +476,10 @@
           9.9,
           "img/jamon_cocido.webp",
           true,
-          250,
-          "gramos"
+          100,
+          "gramos",
+          0,
+          ""
         ],
         [
           "JAMON DE PAVO",
