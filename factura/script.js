@@ -296,14 +296,21 @@ function eliminarItemFactura(nombre) {
 
 // Acción del Botón 'Facturar'
 function ejecutarFacturar() {
-  document.getElementById('facFormaPagoSelect').value = "";
-  document.getElementById('contenedorPagoMixto').classList.add('hidden');
-  document.getElementById('listaFilasPagoMixto').innerHTML = "";
   if (Object.keys(itemsFactura).length === 0) {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
   }
 
-  // 1. Renderizar la Tabla Resumen de Productos dentro del Modal
+  // 1. Resetear la selección del método de pago
+  const selectPago = document.getElementById('facFormaPagoSelect');
+  if (selectPago) selectPago.value = "";
+
+  const contMixto = document.getElementById('contenedorPagoMixto');
+  if (contMixto) contMixto.classList.add('hidden');
+
+  const listaMixto = document.getElementById('listaFilasPagoMixto');
+  if (listaMixto) listaMixto.innerHTML = "";
+
+  // 2. Renderizar la Tabla Resumen de Productos dentro del Modal
   let htmlTabla = "";
   let totalAcumulado = 0;
 
@@ -332,14 +339,13 @@ function ejecutarFacturar() {
   document.getElementById('tablaModalResumenProductos').innerHTML = htmlTabla;
   document.getElementById('montoModalTotalFactura').textContent = `$${totalAcumulado.toFixed(2)}`;
 
-  // 2. Limpiar campos de búsqueda de cliente
+  // 3. Limpiar campos de búsqueda de cliente
   document.getElementById('facCedulaBuscar').value = "";
   document.getElementById('boxClienteEncontrado').classList.add('hidden');
   document.getElementById('boxClienteNuevo').classList.add('hidden');
-  document.getElementById('facFormaPagoSelect').value = "";
   clienteFacturaActual = null;
 
-  // 3. Desplegar Modal en el DOM (Sin pop-ups)
+  // 4. Desplegar Modal en el DOM
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
 }
 
@@ -465,84 +471,32 @@ async function registrarClienteFactura() {
   }
 }
 
-// Control Navegación: Retroceder (Cierra modal y conserva los productos)
-function retrocederProcesoFactura() {
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
-}
-
-// Control Navegación: Cancelar (Limpia selección completa y regresa a cero)
-function cancelarProcesoFactura() {
-  if (confirm("¿Está seguro de cancelar el proceso? Se limpiará toda la selección actual.")) {
-    itemsFactura = {};
-    clienteFacturaActual = null;
-    renderizarResumenFactura();
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
-    mostrarAvisoFactura("Proceso cancelado. Selección reiniciada.");
-  }
-}
-
-// Preparado para la Fase 3
-function emitirFacturaFinal() {
-  if (!clienteFacturaActual) {
-    return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
-  }
-
-  const formaPagoStr = obtenerDetalleFormaPagoFinal();
-  if (!formaPagoStr) return; // Si retorna null, ya mostró la alerta correspondiente
-
-  console.log("=== DATOS CAPTURADOS PARA EMISIÓN ===");
-  console.log("Cliente:", clienteFacturaActual);
-  console.log("Forma de Pago Resuelta:", formaPagoStr);
-  console.log("Productos:", itemsFactura);
-
-  mostrarAvisoFactura("Pago validado correctamente. Listo para Fase 3.");
-}
-
-// Autenticación Persistente en Sesión
-document.addEventListener("DOMContentLoaded", function() {
-  const token = sessionStorage.getItem("factura_token");
-  const usuario = sessionStorage.getItem("factura_usuario");
-
-  if (token && usuario) {
-    iniciarModuloFacturacion(usuario);
-  }
-});
-
-// EVALUAR SI SE SELECCIONA PAGO MIXTO
-// EVALUAR SI SE SELECCIONA PAGO MIXTO O CUALQUIER COMBINACIÓN DE CASHEA
+// EVALUAR SI SE SELECCIONA PAGO MIXTO O COMBINACIÓN CASHEA
 function evaluarFormaPagoFactura(valor) {
   const contMixto = document.getElementById('contenedorPagoMixto');
   const btnAgregar = document.getElementById('btnAgregarLineaMixto');
   const lista = document.getElementById('listaFilasPagoMixto');
+
+  if (!contMixto) return;
 
   if (!valor) {
     contMixto.classList.add('hidden');
     return;
   }
 
-  // Detectar si la opción seleccionada comienza por "Cashea + "
   const esCasheaCombinado = valor.startsWith("Cashea + ");
 
   if (valor === 'Pago Mixto' || esCasheaCombinado) {
     contMixto.classList.remove('hidden');
-    lista.innerHTML = ""; // Limpiar renglones anteriores
+    if (lista) lista.innerHTML = "";
 
     if (esCasheaCombinado) {
-      // 1. Ocultar el botón "+" para impedir agregar más filas
       if (btnAgregar) btnAgregar.classList.add('hidden');
-
-      // 2. Extraer el segundo método (Ej: de "Cashea + Pago Móvil" obtiene "Pago Móvil")
       let segundoMetodo = valor.replace("Cashea + ", "").trim();
-
-      // 3. Crear Fila 1 (Cashea bloqueada) y Fila 2 (Segundo método bloqueado)
       agregarLineaPagoMixtoFija("Cashea", false);
       agregarLineaPagoMixtoFija(segundoMetodo, false);
-
     } else {
-      // Es 'Pago Mixto' libre
       if (btnAgregar) btnAgregar.classList.remove('hidden');
-
-      // Crear 2 filas libres seleccionables
       agregarLineaPagoMixto();
       agregarLineaPagoMixto();
     }
@@ -553,9 +507,11 @@ function evaluarFormaPagoFactura(valor) {
   }
 }
 
-// MÉTODOS DE FILA MIXTA (FIJOS PARA CASHEA O EDITABLES PARA MIXTO LIBRE)
+// AGREGAR FILA PAGO MIXTO FIJA (PARA CASHEA)
 function agregarLineaPagoMixtoFija(metodoPredeterminado, esEliminable = true) {
   const lista = document.getElementById('listaFilasPagoMixto');
+  if (!lista) return;
+
   const divFila = document.createElement('div');
   divFila.className = 'row g-2 mb-2 align-items-center fila-pago-mixto';
 
@@ -594,9 +550,10 @@ function agregarLineaPagoMixtoFija(metodoPredeterminado, esEliminable = true) {
   lista.appendChild(divFila);
 }
 
-// AGREGAR UNA NUEVA FILA A PAGO MIXTO
+// AGREGAR FILA PAGO MIXTO EDITABLE
 function agregarLineaPagoMixto() {
   const lista = document.getElementById('listaFilasPagoMixto');
+  if (!lista) return;
   
   const divFila = document.createElement('div');
   divFila.className = 'row g-2 mb-2 align-items-center fila-pago-mixto';
@@ -633,14 +590,14 @@ function agregarLineaPagoMixto() {
 // ELIMINAR FILA DE PAGO MIXTO
 function eliminarLineaPagoMixto(btn) {
   const lista = document.getElementById('listaFilasPagoMixto');
-  if (lista.children.length <= 1) {
+  if (lista && lista.children.length <= 1) {
     return mostrarAvisoFactura("El Pago Mixto requiere al menos una forma de pago.");
   }
   btn.closest('.fila-pago-mixto').remove();
   calcularTotalPagoMixto();
 }
 
-// CALCULAR Y VALIDAR TOTALES EN PAGO MIXTO (CON RESTANTE DINÁMICO)
+// CALCULAR Y VALIDAR TOTALES EN PAGO MIXTO
 function calcularTotalPagoMixto() {
   let suma = 0;
   const montos = document.querySelectorAll('.input-monto-mixto');
@@ -649,39 +606,43 @@ function calcularTotalPagoMixto() {
     suma += v;
   });
 
-  // Extraer limpiamente el Total General de la Factura (ignorando símbolos de moneda)
-  let totalFacturaTxt = document.getElementById('montoModalTotalFactura').textContent;
+  let elemModalTotal = document.getElementById('montoModalTotalFactura');
+  let totalFacturaTxt = elemModalTotal ? elemModalTotal.textContent : "0";
   let totalFactura = parseFloat(totalFacturaTxt.replace(/[^0-9.-]+/g, "")) || 0;
   
   let restante = totalFactura - suma;
-  if (Math.abs(restante) < 0.001) restante = 0; // Evitar imprecisiones decimales de JavaScript
+  if (Math.abs(restante) < 0.001) restante = 0;
 
-  // Actualizar indicadores
-  document.getElementById('montoAsignadoMixto').textContent = `$${suma.toFixed(2)}`;
-  document.getElementById('montoEsperadoMixto').textContent = `$${totalFactura.toFixed(2)}`;
-
+  const elemAsignado = document.getElementById('montoAsignadoMixto');
+  const elemEsperado = document.getElementById('montoEsperadoMixto');
   const elemRestante = document.getElementById('montoRestanteMixto');
+
+  if (elemAsignado) elemAsignado.textContent = `$${suma.toFixed(2)}`;
+  if (elemEsperado) elemEsperado.textContent = `$${totalFactura.toFixed(2)}`;
+
   if (elemRestante) {
     elemRestante.textContent = `$${restante.toFixed(2)}`;
-    
     if (restante === 0) {
-      elemRestante.className = 'text-success fw-bold'; // Verde: pago exacto y completo
+      elemRestante.className = 'text-success fw-bold';
     } else if (restante > 0) {
-      elemRestante.className = 'text-warning fw-bold'; // Amarillo: aún falta dinero por asignar
+      elemRestante.className = 'text-warning fw-bold';
     } else {
-      elemRestante.className = 'text-danger fw-bold';  // Rojo: el pago asignado supera el total
+      elemRestante.className = 'text-danger fw-bold';
     }
   }
 
-  if (Math.abs(suma - totalFactura) < 0.01) {
-    document.getElementById('montoAsignadoMixto').className = 'text-success fw-bold';
-  } else {
-    document.getElementById('montoAsignadoMixto').className = 'text-primary fw-bold';
+  if (elemAsignado) {
+    if (Math.abs(suma - totalFactura) < 0.01) {
+      elemAsignado.className = 'text-success fw-bold';
+    } else {
+      elemAsignado.className = 'text-primary fw-bold';
+    }
   }
 
   return { suma: suma, totalFactura: totalFactura, restante: restante };
 }
-// RESOLVER LA CADENA FINAL DEL PAGO PARA EMISIÓN
+
+// RESOLVER CADENA FINAL DEL PAGO
 function obtenerDetalleFormaPagoFinal() {
   const formaSelect = document.getElementById('facFormaPagoSelect').value;
   if (!formaSelect) return null;
@@ -720,3 +681,46 @@ function obtenerDetalleFormaPagoFinal() {
 
   return formaSelect;
 }
+
+// Control Navegación: Retroceder (Cierra modal y conserva los productos)
+function retrocederProcesoFactura() {
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
+}
+
+// Control Navegación: Cancelar (Limpia selección completa y regresa a cero)
+function cancelarProcesoFactura() {
+  if (confirm("¿Está seguro de cancelar el proceso? Se limpiará toda la selección actual.")) {
+    itemsFactura = {};
+    clienteFacturaActual = null;
+    renderizarResumenFactura();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
+    mostrarAvisoFactura("Proceso cancelado. Selección reiniciada.");
+  }
+}
+
+// Preparado para la Fase 3
+function emitirFacturaFinal() {
+  if (!clienteFacturaActual) {
+    return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
+  }
+
+  const formaPagoStr = obtenerDetalleFormaPagoFinal();
+  if (!formaPagoStr) return;
+
+  console.log("=== DATOS CAPTURADOS PARA EMISIÓN ===");
+  console.log("Cliente:", clienteFacturaActual);
+  console.log("Forma de Pago Resuelta:", formaPagoStr);
+  console.log("Productos:", itemsFactura);
+
+  mostrarAvisoFactura("Pago validado correctamente. Listo para Fase 3.");
+}
+
+// Autenticación Persistente en Sesión
+document.addEventListener("DOMContentLoaded", function() {
+  const token = sessionStorage.getItem("factura_token");
+  const usuario = sessionStorage.getItem("factura_usuario");
+
+  if (token && usuario) {
+    iniciarModuloFacturacion(usuario);
+  }
+});
