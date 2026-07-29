@@ -496,8 +496,10 @@
           5,
           "img/salchicha_de_pollo.webp",
           true,
-          250,
-          "gramos"
+          100,
+          "gramos",
+          0,
+          ""
         ],
         [
           "SALCHICHA POLACA",
