@@ -110,10 +110,10 @@ body {
 }
 
 /* ==========================================================================
-   ESTILOS TICKET TÉRMICO XP-80C (ANCHO 72mm)
+   ESTILOS TICKET TÉRMICO XP-80C (ANCHO 72mm EN PAPEL DE 80mm)
    ========================================================================== */
 
-/* Ocultar el contenedor de impresión directo en pantalla normal */
+/* En pantalla normal, ocultar el contenedor de impresión puro */
 #seccionImpresionTicket {
   display: none;
 }
@@ -122,7 +122,7 @@ body {
   width: 72mm;
   max-width: 72mm;
   margin: 0 auto;
-  padding: 8px 4px;
+  padding: 4px;
   background-color: #ffffff;
   color: #000000;
   font-family: Arial, Helvetica, sans-serif;
@@ -144,8 +144,8 @@ body {
 }
 
 .ticket-logo-centrado {
-  max-width: 150px;
-  width: 70%;
+  max-width: 140px;
+  width: 65%;
   height: auto;
   display: block;
   margin: 0 auto 6px auto;
@@ -156,7 +156,7 @@ body {
   font-size: 10px;
   margin-bottom: 6px;
   border-bottom: 1px dashed #000;
-  padding-bottom: 6px;
+  padding-bottom: 4px;
 }
 
 .ticket-table {
@@ -170,8 +170,8 @@ body {
   color: #000000 !important;
   border-top: 1px solid #000;
   border-bottom: 1px solid #000;
-  padding: 3px 1px;
-  font-size: 8.5px;
+  padding: 4px 2px;
+  font-size: 9px;
   text-align: left;
   text-transform: uppercase;
   -webkit-print-color-adjust: exact;
@@ -179,14 +179,15 @@ body {
 }
 
 .ticket-table td {
-  padding: 3px 1px;
+  padding: 4px 2px;
   border-bottom: 1px dotted #ccc;
-  font-size: 8.5px;
+  font-size: 9.5px;
   word-break: break-word;
 }
 
 .ticket-totals {
-  font-size: 10px;
+  font-size: 10.5px;
+  line-height: 1.4;
   margin-bottom: 6px;
 }
 
@@ -206,63 +207,59 @@ body {
 /* ==========================================================================
    REGLAS DE IMPRESIÓN EXCLUSIVAS PARA IMPRESORA TÉRMICA XP-80C
    ========================================================================== */
-
-/* En pantalla normal, ocultar el contenedor de impresión puro */
-#seccionImpresionTicket {
-  display: none;
-}
-
 @media print {
   @page {
     size: 80mm auto;
     margin: 0mm !important;
   }
 
-  /* 1. Ocultar la visibilidad de todo el sitio web y modales */
   html, body {
-    visibility: hidden !important;
     background: #ffffff !important;
     margin: 0 !important;
     padding: 0 !important;
     width: 80mm !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 
-  /* 2. Ocultar elementos de interfaz molestos */
-  .modal-backdrop, .modal-header, .modal-footer, .alert, .btn, .toast-container {
+  /* 1. Ocultar absolutamente TODO en el DOM directo de BODY excepto el ticket */
+  body > *:not(#seccionImpresionTicket) {
     display: none !important;
   }
 
-  /* 3. Hacer visible ÚNICAMENTE la sección del ticket y sus componentes */
-  #seccionImpresionTicket, 
+  /* 2. Mostrar únicamente el contenedor de impresión del ticket */
+  #seccionImpresionTicket {
+    display: block !important;
+    position: relative !important;
+    width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    float: none !important;
+  }
+
   #seccionImpresionTicket * {
     visibility: visible !important;
   }
 
-  /* 4. Fijar la posición del ticket arriba a la izquierda en el papel impreso */
-  #seccionImpresionTicket {
-    display: block !important;
-    position: fixed !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 72mm !important;
-    margin: 0 !important;
-    padding: 2mm !important;
-    background: #ffffff !important;
-    z-index: 999999 !important;
-  }
-
+  /* 3. Centrar simétricamente el ticket de 72mm dentro de los 80mm del papel */
   .ticket-container {
     width: 72mm !important;
     max-width: 72mm !important;
-    margin: 0 !important;
-    padding: 0 !important;
+    margin: 0 auto !important;
+    padding: 4mm 2mm !important;
     box-shadow: none !important;
     border: none !important;
+    background: #ffffff !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .d-flex {
     display: flex !important;
+    flex-direction: row !important;
     justify-content: space-between !important;
+    align-items: center !important;
   }
 
   .ticket-table {
