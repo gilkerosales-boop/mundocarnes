@@ -1108,71 +1108,78 @@ function renderizarTicketTermicoHTML(d) {
 
     filasProductosHtml += `
       <tr>
-        <td style="width:10%;">${i++}</td>
-        <td style="width:40%;" class="fw-bold">${key}</td>
-        <td style="width:20%;" class="text-center">${precUnit}</td>
-        <td style="width:15%;" class="text-center">${item.cantidadTxt}</td>
-        <td style="width:15%;" class="text-end fw-bold">$${item.precioTotal}</td>
+        <td style="width:8%;">${i++}</td>
+        <td style="width:42%;" class="fw-bold">${key}</td>
+        <td style="width:18%;" class="text-center">${precUnit}</td>
+        <td style="width:16%;" class="text-center">${item.cantidadTxt}</td>
+        <td style="width:16%;" class="text-end fw-bold">$${item.precioTotal}</td>
       </tr>`;
   }
 
   const ticketHtml = `
-    <div class="ticket-header">
-      <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
-      <div class="ticket-title">FRIGORÍFICO MUNDOCARNE C.A.</div>
-      <div>RIF: J-505072889 | TELF: 0412-1753275</div>
-      <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
-      <div>HORARIO: 7:30am - 19:00pm</div>
-    </div>
-
-    <div class="ticket-info">
-      <div><strong>FACTURA N°:</strong> <span class="fs-6">${d.numFactura}</span></div>
-      <div><strong>FECHA:</strong> ${d.fechaStr}</div>
-      <div><strong>CLIENTE:</strong> ${d.cliente.nombre}</div>
-      <div><strong>CI/RIF:</strong> ${d.cliente.cedula} | <strong>TELF:</strong> ${d.cliente.telefono || 'N/D'}</div>
-      <div><strong>DIR:</strong> ${d.cliente.direccion || 'N/D'}</div>
-    </div>
-
-    <table class="ticket-table">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>PRODUCTO</th>
-          <th class="text-center">PRECIO</th>
-          <th class="text-center">CANT/PESO</th>
-          <th class="text-end">TOTAL</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${filasProductosHtml}
-      </tbody>
-    </table>
-
-    <div class="ticket-totals border-top pt-1">
-      <div class="d-flex justify-content-between">
-        <span>TOTAL FACTURA ($):</span>
-        <strong class="fs-6">$${d.totalUSD.toFixed(2)}</strong>
+    <div class="ticket-container shadow-sm border">
+      <div class="ticket-header">
+        <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
+        <div class="ticket-title">FRIGORÍFICO MUNDOCARNE C.A.</div>
+        <div>RIF: J-505072889 | TELF: 0412-1753275</div>
+        <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
+        <div>HORARIO: 7:30am - 19:00pm</div>
       </div>
-      <div class="d-flex justify-content-between text-muted">
-        <span>TASA BCV:</span>
-        <span>Bs. ${d.tasaBCV.toFixed(2)}</span>
-      </div>
-      <div class="d-flex justify-content-between">
-        <span>TOTAL FACTURA (Bs):</span>
-        <strong>Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-      </div>
-      <div class="ticket-divider"></div>
-      <div><strong>FORMA DE PAGO:</strong></div>
-      <div class="small">${d.formaPagoStr}</div>
-    </div>
 
-    <div class="ticket-footer">
-      <div class="fw-bold">COMPROBANTE NO FISCAL</div>
-      <div>¡Gracias por su preferencia!</div>
+      <div class="ticket-info">
+        <div><strong>FACTURA N°:</strong> <span class="fs-6">${d.numFactura}</span></div>
+        <div><strong>FECHA:</strong> ${d.fechaStr}</div>
+        <div><strong>CLIENTE:</strong> ${d.cliente.nombre}</div>
+        <div><strong>CI/RIF:</strong> ${d.cliente.cedula} | <strong>TELF:</strong> ${d.cliente.telefono || 'N/D'}</div>
+        <div><strong>DIR:</strong> ${d.cliente.direccion || 'N/D'}</div>
+      </div>
+
+      <table class="ticket-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>PRODUCTO</th>
+            <th class="text-center">PRECIO</th>
+            <th class="text-center">CANT/PESO</th>
+            <th class="text-end">TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filasProductosHtml}
+        </tbody>
+      </table>
+
+      <div class="ticket-totals border-top pt-1">
+        <div class="d-flex justify-content-between">
+          <span>TOTAL FACTURA ($):</span>
+          <strong class="fs-6">$${d.totalUSD.toFixed(2)}</strong>
+        </div>
+        <div class="d-flex justify-content-between text-muted">
+          <span>TASA BCV:</span>
+          <span>Bs. ${d.tasaBCV.toFixed(2)}</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span>TOTAL FACTURA (Bs):</span>
+          <strong>Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+        </div>
+        <div class="ticket-divider"></div>
+        <div><strong>FORMA DE PAGO:</strong></div>
+        <div class="small">${d.formaPagoStr}</div>
+      </div>
+
+      <div class="ticket-footer">
+        <div class="fw-bold">COMPROBANTE NO FISCAL</div>
+        <div>¡Gracias por su preferencia!</div>
+      </div>
     </div>
   `;
 
-  document.getElementById('contenidoTicketImprimible').innerHTML = ticketHtml;
+  // Renderizar tanto en el contenedor de impresión como en la vista previa del modal
+  const elemImpresion = document.getElementById('contenidoTicketImprimible');
+  const elemModal = document.getElementById('vistaPreviaTicketModal');
+
+  if (elemImpresion) elemImpresion.innerHTML = ticketHtml;
+  if (elemModal) elemModal.innerHTML = ticketHtml;
 }
 
 // OBTENER OBJETO CON MONTO POR CADA MÉTODO
