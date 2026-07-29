@@ -29,11 +29,17 @@ function mostrarAvisoFactura(mensaje) {
   }
 }
 
-// OBTENER LA TASA BCV ACTUAL DE FORMA SEGURA
+// OBTENER LA TASA BCV ACTUAL DE FORMA SEGURA (CON RESPALDO EN MEMORIA LOCAL)
 function obtenerTasaBCV() {
   const inputTasa = document.getElementById('facTasaBCV');
-  if (!inputTasa) return 0;
-  return parseFloat(inputTasa.value) || 0;
+  let val = inputTasa ? parseFloat(inputTasa.value) : 0;
+  
+  if (!val || isNaN(val) || val <= 0) {
+    const usuario = sessionStorage.getItem("factura_usuario") || "global";
+    const tasaGuardada = localStorage.getItem("tasa_bcv_user_" + usuario);
+    val = parseFloat(tasaGuardada) || 0;
+  }
+  return val;
 }
 
 // ALTERNAR ENTRE DIVISAS ($) Y BOLÍVARES (Bs) EN LA TABLA DEL MODAL
@@ -163,7 +169,9 @@ function ajustarPesoMixtoFactura(nombreProducto, nuevoPesoGramos) {
 function actualizarCalculosBCV() {
   const tasa = obtenerTasaBCV();
   const usuario = sessionStorage.getItem("factura_usuario") || "global";
-  localStorage.setItem("tasa_bcv_user_" + usuario, tasa);
+  if (tasa > 0) {
+    localStorage.setItem("tasa_bcv_user_" + usuario, tasa);
+  }
 
   let totalUSD = 0;
   for (let key in itemsFactura) {
@@ -1778,6 +1786,12 @@ async function procesarSiguienteCierreCaja() {
       const resumen = res.resumen;
       const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
       const tasa = obtenerTasaBCV();
+
+      // Calcular el Total General de Ventas en Bs (Suma de montos en Bs + equivalente de montos en USD)
+      const sumaIngresosBsDirectos = resumen.ventasEfectivoBS + resumen.ventasPagoMovil + resumen.ventasPuntoVenta + resumen.ventasBiopago + resumen.ventasTransferencia;
+      const sumaIngresosUSDInBs = (resumen.ventasEfectivoUSD + resumen.ventasZelle + resumen.ventasPayPal + resumen.ventasCashea) * tasa;
+      
+      resumen.totalGeneralVentasBS = sumaIngresosBsDirectos + sumaIngresosUSDInBs;
 
       const totalCajaUSD = inicialUSD + resumen.ventasEfectivoUSD;
       const totalCajaBS = inicialBS + resumen.ventasEfectivoBS;
