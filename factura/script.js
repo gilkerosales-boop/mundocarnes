@@ -2,12 +2,13 @@
    Lógica del Módulo de Facturación No Fiscal - Mundocarnes
    ========================================================================== */
 
-// URL de la API de Google Apps Script para autenticación
+// URL de la API de Google Apps Script
 const API_URL_GAS = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
 
 let itemsFactura = {};
 let productoTemporalFactura = {};
 let cacheCategoriasFactura = [];
+let clienteFacturaActual = null;
 
 // Notificaciones Toast
 function mostrarAvisoFactura(mensaje) {
@@ -77,6 +78,7 @@ function cerrarSesionFacturacion() {
   sessionStorage.removeItem("factura_token");
   sessionStorage.removeItem("factura_usuario");
   itemsFactura = {};
+  clienteFacturaActual = null;
   document.getElementById('vistaFacturacion').classList.add('hidden');
   document.getElementById('vistaLogin').classList.remove('hidden');
   document.getElementById('facUsuario').value = "";
@@ -138,7 +140,7 @@ function cargarListaFacturacion(idElemento, productos, nombreCategoria) {
 
     let claseImg = esDisp ? "" : "img-agotado";
     let boton = esDisp 
-      ? `<button class="btn btn-sm btn-outline-danger fw-bold mt-2 w-100" onclick="abrirModalAgregarFactura('${nom}', ${prec}, '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoPromedio})">+ Seleccionar</button>`
+      ? `<button class="btn btn-sm btn-outline-danger fw-bold mt-2 w-100" onclick="abrirModalAgregarFactura('${nom}', ${prec}, '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoPromedio}, '${imgPath}')">+ Seleccionar</button>`
       : `<button class="btn btn-sm btn-secondary fw-bold mt-2 w-100" disabled>Agotado</button>`;
 
     let unidadTxt = (unidad === 'gramos') ? 'g' : 'uds';
@@ -157,14 +159,15 @@ function cargarListaFacturacion(idElemento, productos, nombreCategoria) {
 }
 
 // Modal de Cantidad / Peso
-function abrirModalAgregarFactura(nom, prec, cat, cantMin, unidad, pesoProm) {
+function abrirModalAgregarFactura(nom, prec, cat, cantMin, unidad, pesoProm, imgPath) {
   productoTemporalFactura = { 
     nombre: nom, 
     precio: prec, 
     categoria: cat, 
     minBase: cantMin, 
     unidad: unidad, 
-    pesoPromedio: pesoProm 
+    pesoPromedio: pesoProm,
+    imgPath: imgPath
   };
 
   document.getElementById('modalNombreProducto').textContent = nom;
@@ -218,15 +221,14 @@ function confirmarAgregarAFactura() {
     }
 
     itemsFactura[prod.nombre] = {
-       imgPath: prod.imgPath || ('../' + (prod.imagen || ''))
-};
       cantidadTxt: cantTxt,
       cantNumerica: cant,
       precioTotal: calc.toFixed(2),
       precioBase: prod.precio,
       unidad: prod.unidad,
       minBase: prod.minBase,
-      pesoPromedio: prod.pesoPromedio || 0
+      pesoPromedio: prod.pesoPromedio || 0,
+      imgPath: prod.imgPath || '../img/LOGO-MUNDO123.webp'
     };
 
   } else {
@@ -250,7 +252,8 @@ function confirmarAgregarAFactura() {
       precioBase: prod.precio,
       unidad: prod.unidad,
       minBase: prod.minBase,
-      pesoPromedio: 0
+      pesoPromedio: 0,
+      imgPath: prod.imgPath || '../img/LOGO-MUNDO123.webp'
     };
   }
 
@@ -297,48 +300,6 @@ function ejecutarFacturar() {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
   }
 
-  let resumenConsola = [];
-  let total = 0;
-
-  for (let prod in itemsFactura) {
-    let item = itemsFactura[prod];
-    total += parseFloat(item.precioTotal);
-    resumenConsola.push({
-      producto: prod,
-      cantidad: item.cantidadTxt,
-      precioCalculado: item.precioTotal
-    });
-  }
-
-  console.log("=== SOLICITUD DE FACTURACIÓN GENERADA ===");
-  console.log("Usuario:", sessionStorage.getItem("factura_usuario"));
-  console.log("Fecha:", new Date().toLocaleString());
-  console.log("Detalle de Productos:", resumenConsola);
-  console.log("Monto Total estimado:", `$${total.toFixed(2)}`);
-  console.log("=========================================");
-
-  mostrarAvisoFactura("Factura capturada correctamente (Consola revisada).");
-}
-
-// Autenticación Persistente en Sesión
-document.addEventListener("DOMContentLoaded", function() {
-  const token = sessionStorage.getItem("factura_token");
-  const usuario = sessionStorage.getItem("factura_usuario");
-
-  if (token && usuario) {
-    iniciarModuloFacturacion(usuario);
-  }
-});
-
-// Variable global para almacenar el cliente autenticado en el flujo
-let clienteFacturaActual = null;
-
-// Reemplazar la función ejecutarFacturar previa
-function ejecutarFacturar() {
-  if (Object.keys(itemsFactura).length === 0) {
-    return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
-  }
-
   // 1. Renderizar la Tabla Resumen de Productos dentro del Modal
   let htmlTabla = "";
   let totalAcumulado = 0;
@@ -351,10 +312,12 @@ function ejecutarFacturar() {
       ? `$${item.precioBase.toFixed(2)} / Kg`
       : `$${item.precioBase.toFixed(2)} / Ud`;
 
+    let imgRuta = item.imgPath || '../img/LOGO-MUNDO123.webp';
+
     htmlTabla += `
       <tr>
         <td class="text-center">
-          <img src="${item.imgPath || '../img/LOGO-MUNDO123.webp'}" class="img-thumb-factura" alt="${key}">
+          <img src="${imgRuta}" class="img-thumb-factura" alt="${key}">
         </td>
         <td class="fw-bold">${key}</td>
         <td class="text-center">${precioUnitarioTxt}</td>
@@ -366,22 +329,22 @@ function ejecutarFacturar() {
   document.getElementById('tablaModalResumenProductos').innerHTML = htmlTabla;
   document.getElementById('montoModalTotalFactura').textContent = `$${totalAcumulado.toFixed(2)}`;
 
-  // 2. Limpiar estados previos de búsqueda de cliente
+  // 2. Limpiar campos de búsqueda de cliente
   document.getElementById('facCedulaBuscar').value = "";
   document.getElementById('boxClienteEncontrado').classList.add('hidden');
   document.getElementById('boxClienteNuevo').classList.add('hidden');
   document.getElementById('facFormaPagoSelect').value = "";
   clienteFacturaActual = null;
 
-  // 3. Abrir el Modal de Procesamiento de Factura
+  // 3. Desplegar Modal en el DOM (Sin pop-ups)
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
 }
 
-// Búsqueda de Cliente mediante POST al backend
+// Búsqueda de Cliente vía POST a Google Apps Script
 async function buscarClienteFactura() {
   const cedula = document.getElementById('facCedulaBuscar').value.trim();
   if (!cedula) {
-    return mostrarAvisoFactura("Ingrese el número de Cédula o RIF.");
+    return mostrarAvisoFactura("Ingrese la Cédula o RIF.");
   }
 
   const btn = document.getElementById('btnBuscarClienteFac');
@@ -408,11 +371,11 @@ async function buscarClienteFactura() {
 
     if (res.status === "success") {
       clienteFacturaActual = res.cliente;
-      
+
       document.getElementById('facClienteCedulaRead').value = res.cliente.cedula;
       document.getElementById('facClienteNombreRead').value = res.cliente.nombre;
-      document.getElementById('facClienteTelefonoRead').value = res.cliente.telefono || "N/A";
-      document.getElementById('facClienteDireccionRead').value = res.cliente.direccion || "N/A";
+      document.getElementById('facClienteTelefonoRead').value = res.cliente.telefono || "N/D";
+      document.getElementById('facClienteDireccionRead').value = res.cliente.direccion || "N/D";
 
       boxEncontrado.classList.remove('hidden');
       boxNuevo.classList.add('hidden');
@@ -420,7 +383,7 @@ async function buscarClienteFactura() {
 
     } else if (res.status === "not_found") {
       clienteFacturaActual = null;
-      
+
       document.getElementById('facRegCedula').value = cedula.toUpperCase();
       document.getElementById('facRegNombre').value = "";
       document.getElementById('facRegTelefono').value = "";
@@ -428,7 +391,7 @@ async function buscarClienteFactura() {
 
       boxEncontrado.classList.add('hidden');
       boxNuevo.classList.remove('hidden');
-      mostrarAvisoFactura("Cliente no registrado. Ingrese los datos para registrarlo.");
+      mostrarAvisoFactura("Cliente no registrado. Complete los datos para crearlo.");
 
     } else {
       mostrarAvisoFactura(res.message || "Error al consultar cliente.");
@@ -442,7 +405,7 @@ async function buscarClienteFactura() {
   }
 }
 
-// Registro de Cliente Nuevo mediante POST al backend
+// Registro de Cliente Nuevo vía POST a Google Apps Script
 async function registrarClienteFactura() {
   const cedula = document.getElementById('facRegCedula').value.trim();
   const nombre = document.getElementById('facRegNombre').value.trim();
@@ -463,7 +426,7 @@ async function registrarClienteFactura() {
       mode: "cors",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({
-        action: "registrarCliente",
+        action: "registrarClienteFactura",
         cedula: cedula,
         nombre: nombre,
         telefono: telefono,
@@ -480,8 +443,8 @@ async function registrarClienteFactura() {
 
       document.getElementById('facClienteCedulaRead').value = res.cliente.cedula;
       document.getElementById('facClienteNombreRead').value = res.cliente.nombre;
-      document.getElementById('facClienteTelefonoRead').value = res.cliente.telefono || "N/A";
-      document.getElementById('facClienteDireccionRead').value = res.cliente.direccion || "N/A";
+      document.getElementById('facClienteTelefonoRead').value = res.cliente.telefono || "N/D";
+      document.getElementById('facClienteDireccionRead').value = res.cliente.direccion || "N/D";
 
       document.getElementById('boxClienteNuevo').classList.add('hidden');
       document.getElementById('boxClienteEncontrado').classList.remove('hidden');
@@ -499,37 +462,47 @@ async function registrarClienteFactura() {
   }
 }
 
-// Control de Navegación: Retroceder (Cierra modal y conserva productos seleccionados)
+// Control Navegación: Retroceder (Cierra modal y conserva los productos)
 function retrocederProcesoFactura() {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
 }
 
-// Control de Navegación: Cancelar (Cierra modal, borra toda la selección y reinicia en cero)
+// Control Navegación: Cancelar (Limpia selección completa y regresa a cero)
 function cancelarProcesoFactura() {
-  if (confirm("¿Está seguro de cancelar el proceso? Se borrarán los productos seleccionados.")) {
+  if (confirm("¿Está seguro de cancelar el proceso? Se limpiará toda la selección actual.")) {
     itemsFactura = {};
     clienteFacturaActual = null;
     renderizarResumenFactura();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
-    mostrarAvisoFactura("Facturación cancelada y selección reiniciada.");
+    mostrarAvisoFactura("Proceso cancelado. Selección reiniciada.");
   }
 }
 
-// Marcador de posición para la Fase 3 (Procesamiento final)
+// Preparado para la Fase 3
 function emitirFacturaFinal() {
   if (!clienteFacturaActual) {
-    return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir la factura.");
+    return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
   }
-  
+
   const formaPago = document.getElementById('facFormaPagoSelect').value;
   if (!formaPago) {
     return mostrarAvisoFactura("Seleccione una Forma de Pago.");
   }
 
-  console.log("=== LISTO PARA FASE 3 ===");
+  console.log("=== DATOS CAPTURADOS PARA FASE 3 ===");
   console.log("Cliente:", clienteFacturaActual);
   console.log("Forma de Pago:", formaPago);
-  console.log("Items:", itemsFactura);
-  
-  mostrarAvisoFactura("Validaciones completadas. Listo para Fase 3 (Emisión/Impresión).");
+  console.log("Productos:", itemsFactura);
+
+  mostrarAvisoFactura("Validación exitosa. Listo para implementar la Fase 3.");
 }
+
+// Autenticación Persistente en Sesión
+document.addEventListener("DOMContentLoaded", function() {
+  const token = sessionStorage.getItem("factura_token");
+  const usuario = sessionStorage.getItem("factura_usuario");
+
+  if (token && usuario) {
+    iniciarModuloFacturacion(usuario);
+  }
+});
