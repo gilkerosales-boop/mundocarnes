@@ -206,51 +206,63 @@ body {
 /* ==========================================================================
    REGLAS DE IMPRESIÓN EXCLUSIVAS PARA IMPRESORA TÉRMICA XP-80C
    ========================================================================== */
+
+/* En pantalla normal, ocultar el contenedor de impresión puro */
+#seccionImpresionTicket {
+  display: none;
+}
+
 @media print {
   @page {
     size: 80mm auto;
     margin: 0mm !important;
   }
 
-  body {
+  /* 1. Ocultar la visibilidad de todo el sitio web y modales */
+  html, body {
+    visibility: hidden !important;
     background: #ffffff !important;
     margin: 0 !important;
     padding: 0 !important;
     width: 80mm !important;
   }
 
-  /* 1. Eliminar completamente del flujo de impresión toda la interfaz web y modales */
-  body > * {
+  /* 2. Ocultar elementos de interfaz molestos */
+  .modal-backdrop, .modal-header, .modal-footer, .alert, .btn, .toast-container {
     display: none !important;
   }
 
-  /* 2. Mostrar únicamente la sección del ticket directo de BODY */
-  body > #seccionImpresionTicket {
-    display: block !important;
-    position: static !important;
-    width: 72mm !important;
-    margin: 0 auto !important;
-    padding: 0 !important;
-    background: #ffffff !important;
-  }
-
+  /* 3. Hacer visible ÚNICAMENTE la sección del ticket y sus componentes */
+  #seccionImpresionTicket, 
   #seccionImpresionTicket * {
     visibility: visible !important;
   }
 
-  /* 3. Asegurar formateo de tablas y flexbox en papel térmico */
-  .d-flex {
-    display: flex !important;
-    justify-content: space-between !important;
+  /* 4. Fijar la posición del ticket arriba a la izquierda en el papel impreso */
+  #seccionImpresionTicket {
+    display: block !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 72mm !important;
+    margin: 0 !important;
+    padding: 2mm !important;
+    background: #ffffff !important;
+    z-index: 999999 !important;
   }
 
   .ticket-container {
     width: 72mm !important;
     max-width: 72mm !important;
-    margin: 0 auto !important;
-    padding: 2mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
     box-shadow: none !important;
     border: none !important;
+  }
+
+  .d-flex {
+    display: flex !important;
+    justify-content: space-between !important;
   }
 
   .ticket-table {
