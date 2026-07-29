@@ -1333,11 +1333,19 @@ function cancelarProcesoFactura() {
 }
 
 // Autenticación Persistente en Sesión
+// Registrar App de Facturación en el navegador
 document.addEventListener("DOMContentLoaded", function() {
   const token = sessionStorage.getItem("factura_token");
   const usuario = sessionStorage.getItem("factura_usuario");
 
   if (token && usuario) {
     iniciarModuloFacturacion(usuario);
+  }
+
+  // Registro de Service Worker exclusivo para /factura
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js', { scope: '/factura/' })
+      .then(reg => console.log('App de Facturación lista para instalar:', reg.scope))
+      .catch(err => console.error('Error PWA Facturación:', err));
   }
 });
