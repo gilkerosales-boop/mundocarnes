@@ -458,10 +458,8 @@
           11.9,
           "img/queso_mozzarella.webp",
           true,
-          100,
-          "gramos",
-          0,
-          ""
+          250,
+          "gramos"
         ],
         [
           "QUESO PECORINO",
@@ -476,40 +474,32 @@
           9.9,
           "img/jamon_cocido.webp",
           true,
-          100,
-          "gramos",
-          0,
-          ""
+          250,
+          "gramos"
         ],
         [
           "JAMON DE PAVO",
           9.9,
           "img/jamon_de_pavo.webp",
           true,
-          100,
-          "gramos",
-          0,
-          ""
+          250,
+          "gramos"
         ],
         [
           "SALCHICHA DE POLLO",
           5,
           "img/salchicha_de_pollo.webp",
           true,
-          100,
-          "gramos",
-          0,
-          ""
+          250,
+          "gramos"
         ],
         [
           "SALCHICHA POLACA",
           6.9,
           "img/salchicha_polaca.webp",
           true,
-          100,
-          "gramos",
-          0,
-          ""
+          250,
+          "gramos"
         ],
         [
           "CHORIZOS (ahumado, ajo, picante)",
