@@ -384,11 +384,13 @@
         ],
         [
           "BOLSA DE MUSLO 5Kg",
-          19,
+          18,
           "img/b_muslo_5.webp",
           true,
           1,
-          "unidades"
+          "unidades",
+          0,
+          ""
         ],
         [
           "BOLSA DE MILANESA 5Kg",
