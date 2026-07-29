@@ -81,7 +81,7 @@ function renderizarTablaModalFactura() {
 
     let imgRuta = item.imgPath || '../img/LOGO-MUNDO123.webp';
 
-    // Generar la celda de Cantidad/Peso editable para productos MIXTO (POLLO ENTERO, LOMITO)
+    // Celda de Cantidad / Peso
     let colCantidadHtml = item.cantidadTxt;
     if (item.unidad === 'mixto') {
       let pesoGramosActual = item.pesoTotalGramos || 0;
@@ -132,17 +132,14 @@ function ajustarPesoMixtoFactura(nombreProducto, nuevoPesoGramos) {
   let g = parseFloat(nuevoPesoGramos) || 0;
   item.pesoTotalGramos = g;
 
-  // Recalcular subtotal en USD
   let calc = (item.precioBase / 1000) * g;
   item.precioTotal = calc.toFixed(2);
 
-  // Formatear texto descriptivo de la cantidad
   let kg = Math.floor(g / 1000);
   let rest = g % 1000;
   let pesoTxt = kg > 0 ? (rest > 0 ? `${kg}Kg ${rest}g` : `${kg}Kg`) : `${rest}g`;
   item.cantidadTxt = `${item.cantNumerica} uds (~${pesoTxt})`;
 
-  // Actualizar la celda del subtotal de este producto
   const tasa = obtenerTasaBCV();
   let safeIdKey = nombreProducto.replace(/[^a-zA-Z0-9]/g, '_');
   const elemSubtotal = document.getElementById('subtotal-modal-' + safeIdKey);
@@ -156,9 +153,8 @@ function ajustarPesoMixtoFactura(nombreProducto, nuevoPesoGramos) {
     }
   }
 
-  // Recalcular totales globales y pago mixto
   actualizarCalculosBCV();
-  renderizarResumenFactura(); // Actualizar panel derecho de la ventana principal
+  renderizarResumenFactura();
 }
 
 // ACTUALIZAR CÁLCULOS BCV Y RE-RENDERIZAR
@@ -178,7 +174,6 @@ function actualizarCalculosBCV() {
     elemModalTotalBs.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
-  // Actualizar Fila de Total de la Tabla Modal
   const elemEtiquetaTotal = document.getElementById('labelModalTotalFactura');
   const elemMontoTotal = document.getElementById('montoModalTotalFactura');
 
@@ -193,6 +188,112 @@ function actualizarCalculosBCV() {
   if (typeof calcularTotalPagoMixto === "function") {
     calcularTotalPagoMixto();
   }
+}
+
+// FUNCIONES PRODUCTO MANUAL (FUERA DE CATÁLOGO)
+function abrirModalProductoManual() {
+  document.getElementById('manualNombre').value = "";
+  document.getElementById('manualPrecioUd').value = "";
+  document.getElementById('manualCantUd').value = "1";
+  document.getElementById('manualPrecioKg').value = "";
+  document.getElementById('manualKg').value = "";
+  document.getElementById('manualGramos').value = "";
+  document.getElementById('manualModoVenta').value = "unidades";
+
+  alternarCamposManual("unidades");
+  document.getElementById('errorModalManual').classList.add('hidden');
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProductoManual')).show();
+}
+
+function alternarCamposManual(modo) {
+  const contUds = document.getElementById('contManualUnidades');
+  const contPeso = document.getElementById('contManualPeso');
+  if (modo === "unidades") {
+    contUds.classList.remove('hidden');
+    contPeso.classList.add('hidden');
+  } else {
+    contUds.classList.add('hidden');
+    contPeso.classList.remove('hidden');
+  }
+}
+
+function confirmarAgregarProductoManual() {
+  const nombre = document.getElementById('manualNombre').value.trim().toUpperCase();
+  const modo = document.getElementById('manualModoVenta').value;
+  const errorDiv = document.getElementById('errorModalManual');
+
+  if (!nombre) {
+    errorDiv.textContent = "Indique el nombre o descripción del producto.";
+    errorDiv.classList.remove('hidden');
+    return;
+  }
+
+  if (modo === "unidades") {
+    let precioUd = parseFloat(document.getElementById('manualPrecioUd').value);
+    let cant = parseInt(document.getElementById('manualCantUd').value);
+
+    if (isNaN(precioUd) || precioUd <= 0 || isNaN(cant) || cant < 1) {
+      errorDiv.textContent = "Indique precio unitario y cantidad válida.";
+      errorDiv.classList.remove('hidden');
+      return;
+    }
+
+    let calc = precioUd * cant;
+
+    itemsFactura[nombre] = {
+      cantidadTxt: `${cant} uds`,
+      cantNumerica: cant,
+      pesoTotalGramos: 0,
+      precioTotal: calc.toFixed(2),
+      precioBase: precioUd,
+      unidad: "unidades",
+      minBase: 1,
+      pesoPromedio: 0,
+      imgPath: '../img/LOGO-MUNDO123.webp',
+      esManual: true
+    };
+
+  } else {
+    let precioKg = parseFloat(document.getElementById('manualPrecioKg').value);
+    let kg = parseFloat(document.getElementById('manualKg').value) || 0;
+    let g = parseFloat(document.getElementById('manualGramos').value) || 0;
+    let totalGramos = (kg * 1000) + g;
+
+    if (isNaN(precioKg) || precioKg <= 0 || totalGramos <= 0) {
+      errorDiv.textContent = "Indique precio por Kilo y un peso mayor a 0g.";
+      errorDiv.classList.remove('hidden');
+      return;
+    }
+
+    let calc = (precioKg / 1000) * totalGramos;
+    let cantTxt = kg > 0 ? (g > 0 ? `${kg} Kg ${g} g` : `${kg} Kg`) : `${g} g`;
+
+    itemsFactura[nombre] = {
+      cantidadTxt: cantTxt,
+      cantNumerica: totalGramos,
+      pesoTotalGramos: totalGramos,
+      precioTotal: calc.toFixed(2),
+      precioBase: precioKg,
+      unidad: "gramos",
+      minBase: 1,
+      pesoPromedio: 0,
+      imgPath: '../img/LOGO-MUNDO123.webp',
+      esManual: true
+    };
+  }
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProductoManual')).hide();
+  renderizarResumenFactura();
+
+  // Si el modal de facturación está abierto, refrescarlo
+  const modalProcesar = document.getElementById('modalProcesarFactura');
+  if (modalProcesar && modalProcesar.classList.contains('show')) {
+    renderizarTablaModalFactura();
+    actualizarCalculosBCV();
+  }
+
+  mostrarAvisoFactura(`Producto manual agregado: ${nombre}`);
 }
 
 // Inicio de Sesión
@@ -399,7 +500,7 @@ function confirmarAgregarAFactura() {
     itemsFactura[prod.nombre] = {
       cantidadTxt: cantTxt,
       cantNumerica: cant,
-      pesoTotalGramos: pesoTotalGramos, // Almacenar peso total real en gramos
+      pesoTotalGramos: pesoTotalGramos,
       precioTotal: calc.toFixed(2),
       precioBase: prod.precio,
       unidad: prod.unidad,
@@ -507,7 +608,7 @@ function ejecutarFacturar() {
   document.getElementById('boxClienteNuevo').classList.add('hidden');
   clienteFacturaActual = null;
 
-  // Renderizar tabla y desplegar modal
+  // Renderizar tabla y desplegar modal en pantalla completa
   renderizarTablaModalFactura();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
   actualizarCalculosBCV();
@@ -782,7 +883,7 @@ function eliminarLineaPagoMixto(btn) {
   calcularTotalPagoMixto();
 }
 
-// CALCULAR Y VALIDAR TOTALES EN PAGO MIXTO (CON DISTINCIÓN DE NATURALEZA Y MONEDA VISTA)
+// CALCULAR Y VALIDAR TOTALES EN PAGO MIXTO
 function calcularTotalPagoMixto() {
   const tasa = obtenerTasaBCV();
   let sumaAsignadaUSD = 0;
@@ -807,7 +908,6 @@ function calcularTotalPagoMixto() {
     }
   });
 
-  // Calcular el Total de la Factura desde el modelo de datos real (itemsFactura)
   let totalFacturaUSD = 0;
   for (let key in itemsFactura) {
     totalFacturaUSD += parseFloat(itemsFactura[key].precioTotal) || 0;
@@ -881,7 +981,7 @@ function calcularTotalPagoMixto() {
   };
 }
 
-// RESOLVER CADENA FINAL DEL PAGO PARA EMISIÓN CON EXPLICITUD DE MONEDAS
+// RESOLVER CADENA FINAL DEL PAGO PARA EMISIÓN
 function obtenerDetalleFormaPagoFinal() {
   const formaSelect = document.getElementById('facFormaPagoSelect').value;
   if (!formaSelect) return null;
