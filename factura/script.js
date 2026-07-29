@@ -570,7 +570,7 @@ function eliminarLineaPagoMixto(btn) {
   calcularTotalPagoMixto();
 }
 
-// CALCULAR Y VALIDAR TOTALES EN PAGO MIXTO (CON RESTANTE)
+// CALCULAR Y VALIDAR TOTALES EN PAGO MIXTO (CON RESTANTE DINÁMICO)
 function calcularTotalPagoMixto() {
   let suma = 0;
   const montos = document.querySelectorAll('.input-monto-mixto');
@@ -579,24 +579,27 @@ function calcularTotalPagoMixto() {
     suma += v;
   });
 
-  // Obtener el Total General de la Factura desde el modal
-  let totalFacturaTxt = document.getElementById('montoModalTotalFactura').textContent.replace('$', '').trim();
-  let totalFactura = parseFloat(totalFacturaTxt) || 0;
+  // Extraer limpiamente el Total General de la Factura (ignorando símbolos de moneda)
+  let totalFacturaTxt = document.getElementById('montoModalTotalFactura').textContent;
+  let totalFactura = parseFloat(totalFacturaTxt.replace(/[^0-9.-]+/g, "")) || 0;
+  
   let restante = totalFactura - suma;
+  if (Math.abs(restante) < 0.001) restante = 0; // Evitar imprecisiones decimales de JavaScript
 
+  // Actualizar indicadores
   document.getElementById('montoAsignadoMixto').textContent = `$${suma.toFixed(2)}`;
   document.getElementById('montoEsperadoMixto').textContent = `$${totalFactura.toFixed(2)}`;
 
-  // Actualizar indicador de Restante y sus estados visuales
   const elemRestante = document.getElementById('montoRestanteMixto');
   if (elemRestante) {
     elemRestante.textContent = `$${restante.toFixed(2)}`;
-    if (Math.abs(restante) < 0.01) {
-      elemRestante.className = 'text-success fw-bold'; // Pago cubierto exactamente ($0.00)
+    
+    if (restante === 0) {
+      elemRestante.className = 'text-success fw-bold'; // Verde: pago exacto y completo
     } else if (restante > 0) {
-      elemRestante.className = 'text-warning fw-bold'; // Falta dinero por asignar
+      elemRestante.className = 'text-warning fw-bold'; // Amarillo: aún falta dinero por asignar
     } else {
-      elemRestante.className = 'text-danger fw-bold';  // Se excedió del total
+      elemRestante.className = 'text-danger fw-bold';  // Rojo: el pago asignado supera el total
     }
   }
 
@@ -608,7 +611,6 @@ function calcularTotalPagoMixto() {
 
   return { suma: suma, totalFactura: totalFactura, restante: restante };
 }
-
 // OBTENER LA FORMA DE PAGO SELECCIONADA
 function obtenerDetalleFormaPagoFinal() {
   const formaSelect = document.getElementById('facFormaPagoSelect').value;
