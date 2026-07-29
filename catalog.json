@@ -174,11 +174,13 @@
         ],
         [
           "GUISAR",
-          10.9,
+          11.9,
           "img/3.webp",
           true,
           250,
-          "gramos"
+          "gramos",
+          0,
+          ""
         ],
         [
           "MECHAR",
