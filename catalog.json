@@ -301,7 +301,9 @@
           "img/muslo.webp",
           true,
           400,
-          "gramos"
+          "gramos",
+          0,
+          "00080"
         ],
         [
           "ALAS",
