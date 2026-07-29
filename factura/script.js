@@ -17,6 +17,7 @@ let monedaVistaModal = "USD"; // Estado del conmutador: "USD" o "BS"
 let datosFacturaPendiente = null;
 let itemsEscaneadosTemporales = [];
 let cacheHistorialFacturas = [];
+let datosCierreCajaPendiente = null;
 
 // Notificaciones Toast
 function mostrarAvisoFactura(mensaje) {
@@ -1739,6 +1740,235 @@ async function eliminarFacturaHistorial(numFactura) {
   } catch (err) {
     console.error("Error al eliminar factura:", err);
     mostrarAvisoFactura("Error de conexión al eliminar la factura.");
+  }
+}
+
+// LÓGICA CIERRE DE CAJA (REPORTE Z)
+function abrirModalCierreCaja() {
+  const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
+  document.getElementById('cierreUsuarioNombre').textContent = `👤 Cajero: ${usuario.toUpperCase()}`;
+  document.getElementById('cierreInicialUSD').value = "0.00";
+  document.getElementById('cierreInicialBS').value = "0.00";
+  document.getElementById('errorModalCierrePaso1').classList.add('hidden');
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso1')).show();
+}
+
+async function procesarSiguienteCierreCaja() {
+  const inicialUSD = parseFloat(document.getElementById('cierreInicialUSD').value) || 0;
+  const inicialBS = parseFloat(document.getElementById('cierreInicialBS').value) || 0;
+  const btn = document.getElementById('btnSiguienteCierreCaja');
+
+  btn.disabled = true;
+  btn.textContent = "Consultando ventas...";
+
+  try {
+    const response = await fetch(API_URL_GAS, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "obtenerResumenCierreCaja" })
+    });
+
+    const res = await response.json();
+    btn.disabled = false;
+    btn.textContent = "Siguiente ➡️";
+
+    if (res.status === "success") {
+      const resumen = res.resumen;
+      const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
+      const tasa = obtenerTasaBCV();
+
+      const totalCajaUSD = inicialUSD + resumen.ventasEfectivoUSD;
+      const totalCajaBS = inicialBS + resumen.ventasEfectivoBS;
+
+      datosCierreCajaPendiente = {
+        fechaStr: new Date().toLocaleString('es-VE'),
+        usuario: usuario.toUpperCase(),
+        tasaBCV: tasa,
+        inicialUSD: inicialUSD,
+        inicialBS: inicialBS,
+        resumen: resumen,
+        totalCajaUSD: totalCajaUSD,
+        totalCajaBS: totalCajaBS
+      };
+
+      renderizarTicketCierreCajaHTML(datosCierreCajaPendiente);
+
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso1')).hide();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso2')).show();
+
+    } else {
+      mostrarAvisoFactura(res.message || "Error al calcular cierre de caja.");
+    }
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "Siguiente ➡️";
+    console.error("Error Cierre Caja:", err);
+    mostrarAvisoFactura("Error de conexión al obtener resumen de caja.");
+  }
+}
+
+// RENDERIZAR TICKET TÉRMICO DE CIERRE DE CAJA (REPORTE Z)
+function renderizarTicketCierreCajaHTML(d) {
+  const r = d.resumen;
+
+  const ticketHtml = `
+    <div class="ticket-container shadow-sm border text-start">
+      <div class="ticket-header">
+        <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
+        <div class="ticket-title fs-6">COMPROBANTE DE CIERRE DE CAJA</div>
+        <div>RIF: J-505072889 | TELF: 0412-1753275</div>
+        <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
+      </div>
+
+      <div class="ticket-info">
+        <div><strong>FECHA / HORA:</strong> ${d.fechaStr}</div>
+        <div><strong>CAJERO(A):</strong> ${d.usuario}</div>
+        <div><strong>TASA BCV:</strong> Bs. ${d.tasaBCV.toFixed(2)}</div>
+      </div>
+
+      <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
+        1. INICIO DE JORNADA (SALDO INICIAL)
+      </div>
+      <table class="ticket-table mb-2">
+        <tbody>
+          <tr>
+            <td>EFECTIVO INICIAL DIVISAS:</td>
+            <td class="text-end fw-bold">$${d.inicialUSD.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>EFECTIVO INICIAL BOLÍVARES:</td>
+            <td class="text-end fw-bold">Bs. ${d.inicialBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
+        2. INGRESOS DEL DÍA (VENTAS)
+      </div>
+      <table class="ticket-table mb-2">
+        <tbody>
+          <tr>
+            <td>EFECTIVO DIVISAS:</td>
+            <td class="text-end fw-bold">$${r.ventasEfectivoUSD.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>EFECTIVO BOLÍVARES:</td>
+            <td class="text-end fw-bold">Bs. ${r.ventasEfectivoBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+          </tr>
+          <tr>
+            <td>PAGO MÓVIL:</td>
+            <td class="text-end fw-bold">Bs. ${r.ventasPagoMovil.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+          </tr>
+          <tr>
+            <td>ZELLE:</td>
+            <td class="text-end fw-bold">$${r.ventasZelle.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>PAYPAL:</td>
+            <td class="text-end fw-bold">$${r.ventasPayPal.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>PUNTO DE VENTA:</td>
+            <td class="text-end fw-bold">Bs. ${r.ventasPuntoVenta.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+          </tr>
+          <tr>
+            <td>BIOPAGO:</td>
+            <td class="text-end fw-bold">Bs. ${r.ventasBiopago.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+          </tr>
+          <tr>
+            <td>CASHEA:</td>
+            <td class="text-end fw-bold">$${r.ventasCashea.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>TRANSFERENCIA BANCARIA:</td>
+            <td class="text-end fw-bold">Bs. ${r.ventasTransferencia.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
+        3. TOTALES GENERALES Y BALANCE CAJA
+      </div>
+      <div class="ticket-totals border-top pt-1">
+        <div class="d-flex justify-content-between">
+          <span>TOTAL VENTAS INGRESOS ($):</span>
+          <strong class="fs-6">$${r.totalGeneralVentasUSD.toFixed(2)}</strong>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span>TOTAL VENTAS INGRESOS (Bs):</span>
+          <strong class="fs-6">Bs. ${r.totalGeneralVentasBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong>
+        </div>
+        <div class="ticket-divider"></div>
+        <div class="d-flex justify-content-between text-success fw-bold">
+          <span>EFECTIVO FINAL EN CAJA ($):</span>
+          <span class="fs-6">$${d.totalCajaUSD.toFixed(2)}</span>
+        </div>
+        <div class="d-flex justify-content-between text-primary fw-bold">
+          <span>EFECTIVO FINAL EN CAJA (Bs):</span>
+          <span class="fs-6">Bs. ${d.totalCajaBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+        </div>
+      </div>
+
+      <div class="ticket-footer mt-3">
+        <div class="mt-4 pt-3 border-top border-dark text-center">
+          ____________________________________<br>
+          <strong>FIRMA Y CONFORMIDAD CAJERO(A)</strong>
+        </div>
+        <div class="small mt-2">CIERRE DE CAJA REGISTRADO EXITOSAMENTE</div>
+      </div>
+    </div>
+  `;
+
+  const elemImpresion = document.getElementById('contenidoTicketImprimible');
+  const elemModal = document.getElementById('vistaPreviaCierreCajaModal');
+
+  if (elemImpresion) elemImpresion.innerHTML = ticketHtml;
+  if (elemModal) elemModal.innerHTML = ticketHtml;
+}
+
+// CONFIRMAR, GUARDAR EN GOOGLE SHEETS E IMPRIMIR RECIBO DE CIERRE
+async function confirmarEImprimirCierreCaja() {
+  if (!datosCierreCajaPendiente) return;
+
+  const btn = document.getElementById('btnConfirmarCierreFinal');
+  btn.disabled = true;
+  btn.textContent = "Guardando e Imprimiendo...";
+
+  try {
+    const response = await fetch(API_URL_GAS, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        action: "guardarCierreCaja",
+        datosCierre: datosCierreCajaPendiente
+      })
+    });
+
+    const res = await response.json();
+    btn.disabled = false;
+    btn.textContent = "🔒 Realizar Cierre";
+
+    if (res.status === "success") {
+      window.print();
+
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso2')).hide();
+      datosCierreCajaPendiente = null;
+
+      mostrarAvisoFactura("🔒 Cierre de caja registrado e impreso exitosamente. 🎉");
+
+    } else {
+      mostrarAvisoFactura(res.message || "Error al guardar cierre de caja.");
+    }
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "🔒 Realizar Cierre";
+    console.error("Error al guardar cierre de caja:", err);
+    mostrarAvisoFactura("Error de conexión al registrar el cierre de caja.");
   }
 }
 
