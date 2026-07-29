@@ -20,6 +20,42 @@ function mostrarAvisoFactura(mensaje) {
   }
 }
 
+// OBTENER LA TASA BCV ACTUAL DE FORMA SEGURA
+function obtenerTasaBCV() {
+  const inputTasa = document.getElementById('facTasaBCV');
+  if (!inputTasa) return 0;
+  return parseFloat(inputTasa.value) || 0;
+}
+
+// ACTUALIZAR CÁLCULOS EN BOLÍVARES EN TIEMPO REAL
+function actualizarCalculosBCV() {
+  const tasa = obtenerTasaBCV();
+  sessionStorage.setItem("factura_tasa_bcv", tasa);
+
+  // 1. Recalcular total del panel lateral del catálogo
+  let totalUSD = 0;
+  for (let key in itemsFactura) {
+    totalUSD += parseFloat(itemsFactura[key].precioTotal) || 0;
+  }
+  let totalBs = totalUSD * tasa;
+
+  const elemTotalBs = document.getElementById('montoTotalFacturaBs');
+  if (elemTotalBs) {
+    elemTotalBs.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  // 2. Recalcular total dentro del modal de facturación (si está abierto)
+  const elemModalTotalBs = document.getElementById('montoModalTotalFacturaBs');
+  if (elemModalTotalBs) {
+    elemModalTotalBs.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  // 3. Recalcular balance de pago mixto
+  if (typeof calcularTotalPagoMixto === "function") {
+    calcularTotalPagoMixto();
+  }
+}
+
 // Inicio de Sesión
 async function procesarLoginFacturacion(event) {
   event.preventDefault();
@@ -287,6 +323,7 @@ function renderizarResumenFactura() {
     : '<p class="text-muted text-center py-3 small">No hay productos seleccionados.</p>';
 
   document.getElementById('montoTotalFactura').textContent = `$${totalAcumulado.toFixed(2)}`;
+  actualizarCalculosBCV();
 }
 
 function eliminarItemFactura(nombre) {
@@ -300,7 +337,7 @@ function ejecutarFacturar() {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
   }
 
-  // 1. Resetear la selección del método de pago
+  // 1. Resetear selección de forma de pago y contenedor mixto si existe
   const selectPago = document.getElementById('facFormaPagoSelect');
   if (selectPago) selectPago.value = "";
 
@@ -345,8 +382,9 @@ function ejecutarFacturar() {
   document.getElementById('boxClienteNuevo').classList.add('hidden');
   clienteFacturaActual = null;
 
-  // 4. Desplegar Modal en el DOM
+  // 4. Desplegar Modal en el DOM y actualizar conversión a Bolívares
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
+  actualizarCalculosBCV();
 }
 
 // Búsqueda de Cliente vía POST a Google Apps Script
@@ -597,7 +635,7 @@ function eliminarLineaPagoMixto(btn) {
   calcularTotalPagoMixto();
 }
 
-// CALCULAR Y VALIDAR TOTALES EN PAGO MIXTO
+// CALCULAR Y VALIDAR TOTALES EN PAGO MIXTO (CON RESTANTE DINÁMICO)
 function calcularTotalPagoMixto() {
   let suma = 0;
   const montos = document.querySelectorAll('.input-monto-mixto');
@@ -711,14 +749,21 @@ function emitirFacturaFinal() {
   console.log("Cliente:", clienteFacturaActual);
   console.log("Forma de Pago Resuelta:", formaPagoStr);
   console.log("Productos:", itemsFactura);
+  console.log("Tasa BCV:", obtenerTasaBCV());
 
   mostrarAvisoFactura("Pago validado correctamente. Listo para Fase 3.");
 }
 
-// Autenticación Persistente en Sesión
+// Autenticación Persistente en Sesión y Restaurar Tasa BCV
 document.addEventListener("DOMContentLoaded", function() {
   const token = sessionStorage.getItem("factura_token");
   const usuario = sessionStorage.getItem("factura_usuario");
+  const tasaGuardada = sessionStorage.getItem("factura_tasa_bcv");
+
+  const inputTasa = document.getElementById('facTasaBCV');
+  if (tasaGuardada && inputTasa) {
+    inputTasa.value = tasaGuardada;
+  }
 
   if (token && usuario) {
     iniciarModuloFacturacion(usuario);
