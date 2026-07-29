@@ -323,6 +323,16 @@
           "00080"
         ],
         [
+          "POLLO PICADO",
+          5.8,
+          "img/1000469656.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
+        ],
+        [
           "ALAS",
           4.5,
           "img/alas.webp",
@@ -377,16 +387,6 @@
           true,
           1,
           "unidades"
-        ],
-        [
-          "POLLO PICADO",
-          5.8,
-          "img/1000469656.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          ""
         ]
       ]
     },
