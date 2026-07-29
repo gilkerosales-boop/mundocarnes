@@ -1254,7 +1254,7 @@ function obtenerObjetoDesgloseMetodos() {
   return desgl;
 }
 
-// CONFIRMAR, GUARDAR EN HOJA E IMPRIMIR EN TÉRMICA XP-80C
+// CONFIRMAR, GUARDAR EN HOJA E IMPRIMIR EN TÉRMICA XP-80C (2 COPIAS)
 async function confirmarEImprimirFactura() {
   if (!datosFacturaPendiente) return;
 
@@ -1286,8 +1286,11 @@ async function confirmarEImprimirFactura() {
     btn.textContent = "🖨️ Confirmar y Facturar";
 
     if (res.status === "success") {
-      // 1. Invocación de la orden de impresión térmica
-      window.print();
+      // 1. Envío de 2 copias consecutivas a la impresora térmica
+      window.print(); // Copia 1 (Cliente)
+      setTimeout(() => {
+        window.print(); // Copia 2 (Comercio / Caja)
+      }, 500);
 
       // 2. Resetear la interfaz del módulo
       itemsFactura = {};
