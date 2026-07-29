@@ -296,6 +296,9 @@ function eliminarItemFactura(nombre) {
 
 // Acción del Botón 'Facturar'
 function ejecutarFacturar() {
+  document.getElementById('facFormaPagoSelect').value = "";
+  document.getElementById('contenedorPagoMixto').classList.add('hidden');
+  document.getElementById('listaFilasPagoMixto').innerHTML = "";
   if (Object.keys(itemsFactura).length === 0) {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
   }
@@ -484,17 +487,15 @@ function emitirFacturaFinal() {
     return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
   }
 
-  const formaPago = document.getElementById('facFormaPagoSelect').value;
-  if (!formaPago) {
-    return mostrarAvisoFactura("Seleccione una Forma de Pago.");
-  }
+  const formaPagoStr = obtenerDetalleFormaPagoFinal();
+  if (!formaPagoStr) return; // Si retorna null, ya mostró la alerta correspondiente
 
-  console.log("=== DATOS CAPTURADOS PARA FASE 3 ===");
+  console.log("=== DATOS CAPTURADOS PARA EMISIÓN ===");
   console.log("Cliente:", clienteFacturaActual);
-  console.log("Forma de Pago:", formaPago);
+  console.log("Forma de Pago Resuelta:", formaPagoStr);
   console.log("Productos:", itemsFactura);
 
-  mostrarAvisoFactura("Validación exitosa. Listo para implementar la Fase 3.");
+  mostrarAvisoFactura("Pago validado correctamente. Listo para Fase 3.");
 }
 
 // Autenticación Persistente en Sesión
