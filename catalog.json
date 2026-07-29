@@ -227,11 +227,13 @@
         ],
         [
           "LAGARTO SIN HUESO",
-          10.9,
+          11.9,
           "img/9.webp",
           true,
           250,
-          "gramos"
+          "gramos",
+          0,
+          ""
         ],
         [
           "HIGADO DE RES",
