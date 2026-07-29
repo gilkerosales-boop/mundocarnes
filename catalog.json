@@ -184,11 +184,13 @@
         ],
         [
           "MECHAR",
-          10.9,
+          11.9,
           "img/4.webp",
           true,
           250,
-          "gramos"
+          "gramos",
+          0,
+          ""
         ],
         [
           "SOLOMO DE CUERITO",
