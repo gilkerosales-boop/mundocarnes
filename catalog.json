@@ -398,7 +398,9 @@
           "img/1100.webp",
           true,
           1,
-          "unidades"
+          "mixto",
+          5000,
+          ""
         ],
         [
           "BOLSA DE ALAS 5Kg",
