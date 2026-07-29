@@ -1349,3 +1349,219 @@ document.addEventListener("DOMContentLoaded", function() {
       .catch(err => console.error('Error PWA Facturación:', err));
   }
 });
+
+// ==========================================================================
+// LÓGICA DE LECTURA DE CÓDIGOS Y QR BALANZA TECNISCALE PS-30
+// ==========================================================================
+
+let itemsEscaneadosTemporales = [];
+
+// Abrir Modal de Códigos y autofocalizar el recuadro
+function abrirModalCodigos() {
+  itemsEscaneadosTemporales = [];
+  const input = document.getElementById('inputScannerQR');
+  if (input) input.value = "";
+  
+  renderizarTablaEscaneados();
+  
+  const modalObj = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalLectorCodigos'));
+  modalObj.show();
+
+  setTimeout(() => {
+    if (input) input.focus();
+  }, 400);
+}
+
+// Procesa la cadena escaneada (múltiples códigos separados por coma o salto de línea)
+function procesarEntradaScanner(cadenaTexto) {
+  if (!cadenaTexto.trim()) {
+    itemsEscaneadosTemporales = [];
+    renderizarTablaEscaneados();
+    return;
+  }
+
+  // Separar por comas, saltos de línea, punto y coma o espacios
+  const listaCodigos = cadenaTexto.split(/[\n,;\s]+/).map(c => c.trim()).filter(c => c.length >= 13);
+  itemsEscaneadosTemporales = [];
+
+  listaCodigos.forEach(codigoCompleto => {
+    // 1. Quitar caracteres no numéricos
+    const numStr = codigoCompleto.replace(/\D/g, '');
+    if (numStr.length < 13) return;
+
+    // 2. Regla Tecniscale PS-30:
+    // Digitos 1-2: Prefijo (Ignorado)
+    // Digitos 3-7: Código Producto (5 dígitos)
+    // Digitos 8-13: Peso / Cantidad (6 dígitos)
+    const codProducto = numStr.substring(2, 7); // e.j. "00350"
+    const valPesoCantStr = numStr.substring(7, 13); // e.j. "055500"
+    const numCodInt = parseInt(codProducto, 10);
+
+    // 3. Buscar Producto en el Catálogo por Código o Nombre/Índice
+    let productoEncontrado = buscarProductoPorCodigo(codProducto, numCodInt);
+
+    if (productoEncontrado) {
+      let valRaw = parseInt(valPesoCantStr, 10) || 0;
+      let pesoTotalGramos = 0;
+      let cantidadUds = 0;
+      let calcSubtotal = 0;
+      let cantTxt = "";
+
+      if (productoEncontrado.unidad === 'gramos' || productoEncontrado.unidad === 'mixto') {
+        // En balanzas PS-30, 055500 representa 555 gramos (división por 100)
+        pesoTotalGramos = valRaw > 10000 ? Math.round(valRaw / 100) : valRaw;
+        calcSubtotal = (productoEncontrado.precio / 1000) * pesoTotalGramos;
+
+        let kg = Math.floor(pesoTotalGramos / 1000);
+        let g = pesoTotalGramos % 1000;
+        cantTxt = kg > 0 ? (g > 0 ? `${kg} Kg ${g} g` : `${kg} Kg`) : `${g} g`;
+        cantidadUds = 1;
+
+      } else {
+        // Producto vendido por unidades
+        cantidadUds = valRaw > 10000 ? Math.round(valRaw / 10000) : (valRaw || 1);
+        calcSubtotal = productoEncontrado.precio * cantidadUds;
+        cantTxt = `${cantidadUds} uds`;
+        pesoTotalGramos = 0;
+      }
+
+      itemsEscaneadosTemporales.push({
+        codigoLeido: codProducto,
+        nombre: productoEncontrado.nombre,
+        precioBase: productoEncontrado.precio,
+        unidad: productoEncontrado.unidad,
+        cantidadTxt: cantTxt,
+        cantNumerica: cantidadUds,
+        pesoTotalGramos: pesoTotalGramos,
+        precioTotal: calcSubtotal.toFixed(2),
+        imgPath: productoEncontrado.imgPath,
+        encontrado: true
+      });
+
+    } else {
+      // Producto no localizado con ese código
+      itemsEscaneadosTemporales.push({
+        codigoLeido: codProducto,
+        nombre: `PRODUCTO NO ENCONTRADO (CÓD: ${codProducto})`,
+        precioBase: 0,
+        unidad: "N/A",
+        cantidadTxt: "N/A",
+        cantNumerica: 0,
+        pesoTotalGramos: 0,
+        precioTotal: "0.00",
+        imgPath: "../img/LOGO-MUNDO123.webp",
+        encontrado: false
+      });
+    }
+  });
+
+  renderizarTablaEscaneados();
+}
+
+// Búsqueda Inteligente del producto por código o coincidencia
+function buscarProductoPorCodigo(codStr, numInt) {
+  if (!cacheCategoriasFactura || !cacheCategoriasFactura.length) return null;
+
+  for (let cat of cacheCategoriasFactura) {
+    for (let p of cat.productos) {
+      // p[0]: Nombre, p[1]: Precio, p[2]: Imagen, p[3]: Disponible, p[4]: Min, p[5]: Unidad, p[6]: PesoProm, p[7]: Codigo
+      let codAsignado = p[7] ? String(p[7]).trim() : "";
+      
+      // Coincidencia exacta por código asignado o número ordinal
+      if (codAsignado === codStr || parseInt(codAsignado, 10) === numInt) {
+        return {
+          nombre: p[0],
+          precio: p[1],
+          imgPath: p[2].startsWith('../') ? p[2] : '../' + p[2],
+          unidad: p[5]
+        };
+      }
+    }
+  }
+
+  // Búsqueda secundaria por índice ordinal si no se configuró código explícito
+  let listaFlat = [];
+  cacheCategoriasFactura.forEach(cat => cat.productos.forEach(prod => listaFlat.push(prod)));
+  if (numInt > 0 && numInt <= listaFlat.length) {
+    let p = listaFlat[numInt - 1];
+    return {
+      nombre: p[0],
+      precio: p[1],
+      imgPath: p[2].startsWith('../') ? p[2] : '../' + p[2],
+      unidad: p[5]
+    };
+  }
+
+  return null;
+}
+
+// Muestra los ítems reconocidos en la tabla del modal
+function renderizarTablaEscaneados() {
+  const tbody = document.getElementById('tablaItemsEscaneados');
+  const btn = document.getElementById('btnAgregarEscaneadosFactura');
+  if (!tbody) return;
+
+  if (itemsEscaneadosTemporales.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">Esperando lectura del escáner...</td></tr>`;
+    if (btn) btn.disabled = true;
+    return;
+  }
+
+  let html = "";
+  let hayValidos = false;
+
+  itemsEscaneadosTemporales.forEach((it, idx) => {
+    if (it.encontrado) hayValidos = true;
+    let badgeState = it.encontrado 
+      ? `<span class="badge bg-success">✔ Encontrado</span>` 
+      : `<span class="badge bg-danger">✕ No Registrado</span>`;
+
+    let precUnitTxt = (it.unidad === 'gramos' || it.unidad === 'mixto') ? `$${it.precioBase.toFixed(2)}/Kg` : `$${it.precioBase.toFixed(2)}/Ud`;
+
+    html += `
+      <tr>
+        <td class="fw-bold text-center">${it.codigoLeido}</td>
+        <td class="fw-bold ${it.encontrado ? 'text-dark' : 'text-danger'}">${it.nombre}</td>
+        <td class="text-center">${precUnitTxt}</td>
+        <td class="text-center fw-bold text-primary">${it.cantidadTxt}</td>
+        <td class="text-end fw-bold text-success">$${it.precioTotal}</td>
+        <td class="text-center">${badgeState}</td>
+      </tr>`;
+  });
+
+  tbody.innerHTML = html;
+  if (btn) btn.disabled = !hayValidos;
+}
+
+// Vuelca los ítems escaneados directamente al carrito de facturación
+function confirmarAgregarCodigosAFactura() {
+  let agregados = 0;
+
+  itemsEscaneadosTemporales.forEach(it => {
+    if (it.encontrado) {
+      itemsFactura[it.nombre] = {
+        cantidadTxt: it.cantidadTxt,
+        cantNumerica: it.cantNumerica,
+        pesoTotalGramos: it.pesoTotalGramos,
+        precioTotal: it.precioTotal,
+        precioBase: it.precioBase,
+        unidad: it.unidad,
+        minBase: 1,
+        pesoPromedio: 0,
+        imgPath: it.imgPath
+      };
+      agregados++;
+    }
+  });
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalLectorCodigos')).hide();
+  renderizarResumenFactura();
+
+  const modalProcesar = document.getElementById('modalProcesarFactura');
+  if (modalProcesar && modalProcesar.classList.contains('show')) {
+    renderizarTablaModalFactura();
+    actualizarCalculosBCV();
+  }
+
+  mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
+}
