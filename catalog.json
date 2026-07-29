@@ -602,11 +602,13 @@
         ],
         [
           "ARROZ MARY ESMERALDA",
-          2.4,
+          2.2,
           "img/arroz_e.webp",
           true,
           1,
-          "unidades"
+          "unidades",
+          0,
+          ""
         ],
         [
           "PASTA CORTA RONCO RIGATON 500g",
