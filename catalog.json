@@ -301,8 +301,10 @@
           6.2,
           "img/pechuga.webp",
           true,
-          500,
-          "gramos"
+          300,
+          "gramos",
+          0,
+          ""
         ],
         [
           "MILANESA",
