@@ -390,6 +390,40 @@
         </div>
       </div>
     </div>
+
+    <!-- MODAL VISTA PREVIA E IMPRESIÓN DE TICKET TÉRMICO -->
+    <div class="modal fade" id="modalVistaPreviaFactura" data-bs-backdrop="static" tabindex="-1" aria-labelledby="labelVistaPrevia" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-dark border-2">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title fw-bold" id="labelVistaPrevia">🔍 Vista Previa del Ticket Térmico</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+
+          <div class="modal-body p-3 bg-light">
+            <div class="alert alert-warning border-dark text-center fw-bold mb-3">
+              ¿Está seguro de que desea registrar y emitir esta factura?
+            </div>
+
+            <!-- Contenedor Imprimible de 72mm -->
+            <div id="seccionImpresionTicket">
+              <div class="ticket-container shadow-sm border" id="contenidoTicketImprimible">
+                <!-- Inyectado Dinámicamente -->
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer bg-light justify-content-between">
+            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">
+              ⬅️ Cancelar / Volver
+            </button>
+            <button type="button" id="btnConfirmarEmisionFinal" class="btn btn-success fw-bold px-4 fs-5" onclick="confirmarEImprimirFactura()">
+              🖨️ Confirmar y Facturar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
     
     <!-- Toast de Notificaciones -->
     <div class="toast-container position-fixed bottom-0 end-0 p-3">
