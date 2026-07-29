@@ -158,7 +158,9 @@
           "img/1.webp",
           true,
           250,
-          "gramos"
+          "gramos",
+          0,
+          "00020"
         ],
         [
           "MOLIDA",
