@@ -218,6 +218,8 @@ function confirmarAgregarAFactura() {
     }
 
     itemsFactura[prod.nombre] = {
+       imgPath: prod.imgPath || ('../' + (prod.imagen || ''))
+};
       cantidadTxt: cantTxt,
       cantNumerica: cant,
       precioTotal: calc.toFixed(2),
