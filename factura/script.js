@@ -16,6 +16,7 @@ let clienteFacturaActual = null;
 let monedaVistaModal = "USD"; // Estado del conmutador: "USD" o "BS"
 let datosFacturaPendiente = null;
 let itemsEscaneadosTemporales = [];
+let cacheHistorialFacturas = [];
 
 // Notificaciones Toast
 function mostrarAvisoFactura(mensaje) {
@@ -1512,6 +1513,233 @@ function confirmarAgregarCodigosAFactura() {
   }
 
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
+}
+
+// BÚSQUEDA, REIMPRESIÓN Y ELIMINACIÓN DE FACTURAS EMITIDAS
+function abrirModalBuscarFacturas() {
+  document.getElementById('facBusquedaInput').value = "";
+  buscarFacturasHistorial('ultimas10');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalBuscarFacturas')).show();
+}
+
+async function buscarFacturasHistorial(modo) {
+  const inputVal = document.getElementById('facBusquedaInput').value.trim();
+  const tbody = document.getElementById('tablaHistorialFacturas');
+  
+  if (modo === 'busqueda' && !inputVal) {
+    return mostrarAvisoFactura("Ingrese Cédula, RIF o N° de Factura a buscar.");
+  }
+
+  tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">⏳ Cargando facturas desde el servidor...</td></tr>`;
+
+  try {
+    const response = await fetch(API_URL_GAS, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        action: "buscarFacturasHistorial",
+        busqueda: inputVal,
+        modo: modo
+      })
+    });
+
+    const res = await response.json();
+
+    if (res.status === "success") {
+      cacheHistorialFacturas = res.facturas || [];
+      renderizarTablaHistorialFacturas();
+    } else {
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">${res.message || "Error al consultar facturas."}</td></tr>`;
+    }
+
+  } catch (err) {
+    console.error("Error historial:", err);
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">Error de conexión al consultar el historial.</td></tr>`;
+  }
+}
+
+function renderizarTablaHistorialFacturas() {
+  const tbody = document.getElementById('tablaHistorialFacturas');
+  if (!tbody) return;
+
+  if (cacheHistorialFacturas.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No se encontraron facturas registradas.</td></tr>`;
+    return;
+  }
+
+  let html = "";
+  cacheHistorialFacturas.forEach(f => {
+    html += `
+      <tr>
+        <td class="fw-bold text-center text-danger">${f.numFactura}</td>
+        <td class="text-center small">${f.fechaStr}</td>
+        <td class="fw-bold text-center">${f.cedula}</td>
+        <td class="fw-bold text-wrap">${f.nombre}</td>
+        <td class="small text-muted">${f.formaPagoStr}</td>
+        <td class="text-end fw-bold text-success">$${parseFloat(f.montoTotalUSD).toFixed(2)}</td>
+        <td class="text-center">
+          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold me-1" onclick="reimprimirFacturaHistorial('${f.numFactura}')" title="Reimprimir Ticket">
+            🖨️ Imprimir
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold" onclick="eliminarFacturaHistorial('${f.numFactura}')" title="Eliminar Factura">
+            🗑️
+          </button>
+        </td>
+      </tr>`;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function reimprimirFacturaHistorial(numFactura) {
+  const fac = cacheHistorialFacturas.find(f => f.numFactura === numFactura);
+  if (!fac) return mostrarAvisoFactura("No se localizó la información de la factura.");
+
+  const tasa = obtenerTasaBCV();
+  const totalUSD = parseFloat(fac.montoTotalUSD) || 0;
+  const totalBs = totalUSD * tasa;
+
+  datosFacturaPendiente = {
+    numFactura: fac.numFactura,
+    fechaStr: fac.fechaStr,
+    cliente: {
+      cedula: fac.cedula,
+      nombre: fac.nombre,
+      direccion: fac.direccion || 'N/D',
+      telefono: 'N/D'
+    },
+    formaPagoStr: fac.formaPagoStr,
+    totalUSD: totalUSD,
+    totalBs: totalBs,
+    tasaBCV: tasa,
+    monedaVistaModal: "USD",
+    productosSummary: fac.productosSummary
+  };
+
+  renderizarTicketTermicoHistorialHTML(datosFacturaPendiente);
+  window.print();
+  mostrarAvisoFactura(`🖨️ Reimprimiendo Factura N° ${numFactura}...`);
+}
+
+function renderizarTicketTermicoHistorialHTML(d) {
+  let filasProductosHtml = "";
+  let i = 1;
+
+  if (d.productosSummary) {
+    const listaProds = d.productosSummary.split(' | ');
+    listaProds.forEach(prodStr => {
+      const match = prodStr.match(/^(.*?)(?:\s*\((.*?)\))?\s*-\s*\$(.*)$/);
+      if (match) {
+        let nom = match[1].trim();
+        let cant = match[2] ? match[2].trim() : "1 uds";
+        let tot = match[3] ? match[3].trim() : "0.00";
+
+        filasProductosHtml += `
+          <tr>
+            <td style="width:6%;">${i++}</td>
+            <td style="width:42%;" class="fw-bold">${nom}</td>
+            <td style="width:18%;" class="text-center">--</td>
+            <td style="width:16%;" class="text-center">${cant}</td>
+            <td style="width:18%;" class="text-end fw-bold">$${tot}</td>
+          </tr>`;
+      } else {
+        filasProductosHtml += `
+          <tr>
+            <td style="width:6%;">${i++}</td>
+            <td colspan="3" class="fw-bold">${prodStr}</td>
+            <td style="width:18%;" class="text-end fw-bold">--</td>
+          </tr>`;
+      }
+    });
+  }
+
+  const ticketHtml = `
+    <div class="ticket-container shadow-sm border">
+      <div class="ticket-header">
+        <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
+        <div>RIF: J-505072889 | TELF: 0412-1753275</div>
+        <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
+        <div>HORARIO: 7:30am - 19:00pm</div>
+      </div>
+
+      <div class="ticket-info">
+        <div><strong>FACTURA N°:</strong> <span class="fs-6">${d.numFactura}</span> (COPIA)</div>
+        <div><strong>FECHA:</strong> ${d.fechaStr}</div>
+        <div><strong>CLIENTE:</strong> ${d.cliente.nombre}</div>
+        <div><strong>CI/RIF:</strong> ${d.cliente.cedula}</div>
+        <div><strong>DIR:</strong> ${d.cliente.direccion || 'N/D'}</div>
+      </div>
+
+      <table class="ticket-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>PRODUCTO</th>
+            <th class="text-center">PRECIO</th>
+            <th class="text-center">CANT/PESO</th>
+            <th class="text-end">TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filasProductosHtml}
+        </tbody>
+      </table>
+
+      <div class="ticket-totals border-top pt-1">
+        <div class="d-flex justify-content-between">
+          <span>TOTAL FACTURA ($):</span>
+          <strong class="fs-6">$${d.totalUSD.toFixed(2)}</strong>
+        </div>
+        <div class="d-flex justify-content-between text-muted">
+          <span>TOTAL FACTURA (Bs):</span>
+          <span>Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="ticket-divider"></div>
+        <div><strong>FORMA DE PAGO:</strong></div>
+        <div class="small">${d.formaPagoStr}</div>
+      </div>
+
+      <div class="ticket-footer">
+        <div>¡Gracias por su preferencia!</div>
+      </div>
+    </div>
+  `;
+
+  const elemImpresion = document.getElementById('contenidoTicketImprimible');
+  if (elemImpresion) elemImpresion.innerHTML = ticketHtml;
+}
+
+async function eliminarFacturaHistorial(numFactura) {
+  if (!confirm(`⚠️ ¿Está seguro que desea eliminar permanentemente la Factura N° ${numFactura} del registro de ventas?`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(API_URL_GAS, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        action: "eliminarFactura",
+        numFactura: numFactura
+      })
+    });
+
+    const res = await response.json();
+
+    if (res.status === "success") {
+      cacheHistorialFacturas = cacheHistorialFacturas.filter(f => f.numFactura !== numFactura);
+      renderizarTablaHistorialFacturas();
+      mostrarAvisoFactura(`🗑️ Factura ${numFactura} eliminada con éxito.`);
+    } else {
+      mostrarAvisoFactura(res.message || "Error al eliminar la factura.");
+    }
+
+  } catch (err) {
+    console.error("Error al eliminar factura:", err);
+    mostrarAvisoFactura("Error de conexión al eliminar la factura.");
+  }
 }
 
 // Autenticación Persistente y PWA
