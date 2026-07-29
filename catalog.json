@@ -372,7 +372,9 @@
           "img/queso_duro.webp",
           true,
           250,
-          "gramos"
+          "gramos",
+          0,
+          "00350"
         ],
         [
           "QUESO GUAYANES",
