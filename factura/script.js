@@ -5,9 +5,9 @@
 // URL de la API de Google Apps Script
 const API_URL_GAS = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
 
-// Clasificación de Métodos por Naturaleza de Moneda
+// Clasificación de Métodos por Naturaleza de Moneda (Incluye Biopago)
 const METODOS_USD = ["Efectivo Divisas", "Zelle", "PayPal", "Cashea"];
-const METODOS_BS = ["Pago Móvil", "Efectivo Bolívares", "Punto de Venta", "Transferencia Bancaria"];
+const METODOS_BS = ["Pago Móvil", "Efectivo Bolívares", "Punto de Venta", "Transferencia Bancaria", "Biopago"];
 
 let itemsFactura = {};
 let productoTemporalFactura = {};
@@ -15,6 +15,7 @@ let cacheCategoriasFactura = [];
 let clienteFacturaActual = null;
 let monedaVistaModal = "USD"; // Estado del conmutador: "USD" o "BS"
 let datosFacturaPendiente = null;
+let itemsEscaneadosTemporales = [];
 
 // Notificaciones Toast
 function mostrarAvisoFactura(mensaje) {
@@ -82,7 +83,6 @@ function renderizarTablaModalFactura() {
 
     let imgRuta = item.imgPath || '../img/LOGO-MUNDO123.webp';
 
-    // Celda de Cantidad / Peso
     let colCantidadHtml = item.cantidadTxt;
     if (item.unidad === 'mixto') {
       let pesoGramosActual = item.pesoTotalGramos || 0;
@@ -111,7 +111,6 @@ function renderizarTablaModalFactura() {
   const tbody = document.getElementById('tablaModalResumenProductos');
   if (tbody) tbody.innerHTML = htmlTabla;
 
-  // Actualizar Totales del modal
   const elemEtiquetaTotal = document.getElementById('labelModalTotalFactura');
   const elemMontoTotal = document.getElementById('montoModalTotalFactura');
 
@@ -125,7 +124,7 @@ function renderizarTablaModalFactura() {
   }
 }
 
-// RECALCULAR PESO REAL Y SUBTOTALES PARA PRODUCTOS MIXTOS (POLLO ENTERO, LOMITO)
+// RECALCULAR PESO REAL Y SUBTOTALES PARA PRODUCTOS MIXTOS
 function ajustarPesoMixtoFactura(nombreProducto, nuevoPesoGramos) {
   let item = itemsFactura[nombreProducto];
   if (!item) return;
@@ -191,7 +190,7 @@ function actualizarCalculosBCV() {
   }
 }
 
-// FUNCIONES PRODUCTO MANUAL (FUERA DE CATÁLOGO)
+// FUNCIONES PRODUCTO MANUAL
 function abrirModalProductoManual() {
   document.getElementById('manualNombre').value = "";
   document.getElementById('manualPrecioUd').value = "";
@@ -784,7 +783,7 @@ function actualizarPrefijoFilaMixta(selectElem) {
   }
 }
 
-// AGREGAR FILA PAGO MIXTO FIJA (PARA CASHEA)
+// AGREGAR FILA PAGO MIXTO FIJA (PARA CASHEA / COMBINADOS)
 function agregarLineaPagoMixtoFija(metodoPredeterminado, esEliminable = true) {
   const lista = document.getElementById('listaFilasPagoMixto');
   if (!lista) return;
@@ -794,7 +793,7 @@ function agregarLineaPagoMixtoFija(metodoPredeterminado, esEliminable = true) {
 
   const opciones = [
     "Cashea", "Efectivo Divisas", "Efectivo Bolívares", "Pago Móvil", 
-    "Zelle", "PayPal", "Punto de Venta", "Transferencia Bancaria"
+    "Zelle", "PayPal", "Punto de Venta", "Transferencia Bancaria", "Biopago"
   ];
 
   let selectOptions = opciones.map(opt => {
@@ -851,6 +850,7 @@ function agregarLineaPagoMixto() {
         <option value="Cashea">Cashea</option>
         <option value="Punto de Venta">Punto de Venta</option>
         <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+        <option value="Biopago">Biopago</option>
       </select>
     </div>
     <div class="col-4">
@@ -1042,7 +1042,6 @@ async function emitirFacturaFinal() {
   btn.textContent = "Generando Ticket...";
 
   try {
-    // 1. Obtener el número correlativo desde Google Apps Script
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
@@ -1056,7 +1055,6 @@ async function emitirFacturaFinal() {
 
     let numFactura = res.facturaNum || "001-00001";
 
-    // 2. Construir el objeto con los datos completos
     const tasa = obtenerTasaBCV();
     let totalUSD = 0;
     let productosSummaryList = [];
@@ -1078,14 +1076,11 @@ async function emitirFacturaFinal() {
       totalUSD: totalUSD,
       totalBs: totalBs,
       tasaBCV: tasa,
-      monedaVistaModal: monedaVistaModal, // Transfiere la moneda seleccionada (USD o BS)
+      monedaVistaModal: monedaVistaModal,
       productosSummary: productosSummaryList.join(' | ')
     };
 
-    // 3. Renderizar la maquetación exacta del Ticket Térmico de 72mm
     renderizarTicketTermicoHTML(datosFacturaPendiente);
-
-    // 4. Desplegar el Modal de Vista Previa (Sin abrir pop-ups)
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVistaPreviaFactura')).show();
 
   } catch (err) {
@@ -1132,7 +1127,6 @@ function renderizarTicketTermicoHTML(d) {
       </tr>`;
   }
 
-  // Totales dinámicos según la moneda activa
   let bloqueTotalesHtml = "";
   if (esModoBs) {
     bloqueTotalesHtml = `
@@ -1201,7 +1195,6 @@ function renderizarTicketTermicoHTML(d) {
     </div>
   `;
 
-  // Renderizar tanto en el contenedor de impresión como en la vista previa del modal
   const elemImpresion = document.getElementById('contenidoTicketImprimible');
   const elemModal = document.getElementById('vistaPreviaTicketModal');
 
@@ -1209,9 +1202,11 @@ function renderizarTicketTermicoHTML(d) {
   if (elemModal) elemModal.innerHTML = ticketHtml;
 }
 
-// OBTENER OBJETO CON MONTO POR CADA MÉTODO
+// OBTENER OBJETO CON MONTO EN SU MONEDA RESPECTIVA ($ O Bs)
 function obtenerObjetoDesgloseMetodos() {
   const formaSelect = document.getElementById('facFormaPagoSelect').value;
+  const tasa = obtenerTasaBCV();
+
   let desgl = {
     "Efectivo Divisas": 0,
     "Efectivo Bolívares": 0,
@@ -1220,18 +1215,19 @@ function obtenerObjetoDesgloseMetodos() {
     "PayPal": 0,
     "Cashea": 0,
     "Punto de Venta": 0,
-    "Transferencia Bancaria": 0
+    "Transferencia Bancaria": 0,
+    "Biopago": 0
   };
 
   let totalUSD = 0;
   for (let key in itemsFactura) {
     totalUSD += parseFloat(itemsFactura[key].precioTotal) || 0;
   }
+  let totalBs = totalUSD * tasa;
 
   const esCasheaCombinado = formaSelect.startsWith("Cashea + ");
 
   if (formaSelect === 'Pago Mixto' || esCasheaCombinado) {
-    const tasa = obtenerTasaBCV();
     const filas = document.querySelectorAll('.fila-pago-mixto');
 
     filas.forEach(f => {
@@ -1239,22 +1235,21 @@ function obtenerObjetoDesgloseMetodos() {
       let montoTipado = parseFloat(f.querySelector('.input-monto-mixto').value) || 0;
 
       if (metodo && montoTipado > 0) {
-        if (METODOS_BS.includes(metodo)) {
-          let eqUSD = tasa > 0 ? (montoTipado / tasa) : 0;
-          desgl[metodo] = (desgl[metodo] || 0) + eqUSD;
-        } else {
-          desgl[metodo] = (desgl[metodo] || 0) + montoTipado;
-        }
+        desgl[metodo] = (desgl[metodo] || 0) + montoTipado;
       }
     });
   } else {
-    desgl[formaSelect] = totalUSD;
+    if (METODOS_BS.includes(formaSelect)) {
+      desgl[formaSelect] = parseFloat(totalBs.toFixed(2));
+    } else {
+      desgl[formaSelect] = parseFloat(totalUSD.toFixed(2));
+    }
   }
 
   return desgl;
 }
 
-// CONFIRMAR, GUARDAR EN HOJA E IMPRIMIR EN TÉRMICA XP-80C (2 COPIAS)
+// CONFIRMAR, GUARDAR EN HOJA E IMPRIMIR EN TÉRMICA XP-80C
 async function confirmarEImprimirFactura() {
   if (!datosFacturaPendiente) return;
 
@@ -1286,19 +1281,13 @@ async function confirmarEImprimirFactura() {
     btn.textContent = "🖨️ Confirmar y Facturar";
 
     if (res.status === "success") {
-      // 1. Envío de 2 copias consecutivas a la impresora térmica
-      window.print(); // Copia 1 (Cliente)
-      setTimeout(() => {
-        window.print(); // Copia 2 (Comercio / Caja)
-      }, 500);
+      window.print();
 
-      // 2. Resetear la interfaz del módulo
       itemsFactura = {};
       clienteFacturaActual = null;
       datosFacturaPendiente = null;
       renderizarResumenFactura();
 
-      // 3. Cerrar modales
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVistaPreviaFactura')).hide();
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
 
@@ -1332,31 +1321,7 @@ function cancelarProcesoFactura() {
   }
 }
 
-// Autenticación Persistente en Sesión
-// Registrar App de Facturación en el navegador
-document.addEventListener("DOMContentLoaded", function() {
-  const token = sessionStorage.getItem("factura_token");
-  const usuario = sessionStorage.getItem("factura_usuario");
-
-  if (token && usuario) {
-    iniciarModuloFacturacion(usuario);
-  }
-
-  // Registro de Service Worker exclusivo para /factura
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js', { scope: '/factura/' })
-      .then(reg => console.log('App de Facturación lista para instalar:', reg.scope))
-      .catch(err => console.error('Error PWA Facturación:', err));
-  }
-});
-
-// ==========================================================================
-// LÓGICA DE LECTURA DE CÓDIGOS Y QR BALANZA TECNISCALE PS-30
-// ==========================================================================
-
-let itemsEscaneadosTemporales = [];
-
-// Abrir Modal de Códigos y autofocalizar el recuadro
+// LÓGICA LECTOR CÓDIGOS DE BALANZA TECNISCALE PS-30
 function abrirModalCodigos() {
   itemsEscaneadosTemporales = [];
   const input = document.getElementById('inputScannerQR');
@@ -1372,7 +1337,6 @@ function abrirModalCodigos() {
   }, 400);
 }
 
-// Procesa la cadena escaneada (múltiples códigos separados por coma o salto de línea)
 function procesarEntradaScanner(cadenaTexto) {
   if (!cadenaTexto.trim()) {
     itemsEscaneadosTemporales = [];
@@ -1380,24 +1344,17 @@ function procesarEntradaScanner(cadenaTexto) {
     return;
   }
 
-  // Separar por comas, saltos de línea, punto y coma o espacios
   const listaCodigos = cadenaTexto.split(/[\n,;\s]+/).map(c => c.trim()).filter(c => c.length >= 13);
   itemsEscaneadosTemporales = [];
 
   listaCodigos.forEach(codigoCompleto => {
-    // 1. Quitar caracteres no numéricos
     const numStr = codigoCompleto.replace(/\D/g, '');
     if (numStr.length < 13) return;
 
-    // 2. Regla Tecniscale PS-30:
-    // Digitos 1-2: Prefijo (Ignorado)
-    // Digitos 3-7: Código Producto (5 dígitos)
-    // Digitos 8-13: Peso / Cantidad (6 dígitos)
-    const codProducto = numStr.substring(2, 7); // e.j. "00350"
-    const valPesoCantStr = numStr.substring(7, 13); // e.j. "055500"
+    const codProducto = numStr.substring(2, 7);
+    const valPesoCantStr = numStr.substring(7, 13);
     const numCodInt = parseInt(codProducto, 10);
 
-    // 3. Buscar Producto en el Catálogo por Código o Nombre/Índice
     let productoEncontrado = buscarProductoPorCodigo(codProducto, numCodInt);
 
     if (productoEncontrado) {
@@ -1408,7 +1365,6 @@ function procesarEntradaScanner(cadenaTexto) {
       let cantTxt = "";
 
       if (productoEncontrado.unidad === 'gramos' || productoEncontrado.unidad === 'mixto') {
-        // En balanzas PS-30, 055500 representa 555 gramos (división por 100)
         pesoTotalGramos = valRaw > 10000 ? Math.round(valRaw / 100) : valRaw;
         calcSubtotal = (productoEncontrado.precio / 1000) * pesoTotalGramos;
 
@@ -1418,7 +1374,6 @@ function procesarEntradaScanner(cadenaTexto) {
         cantidadUds = 1;
 
       } else {
-        // Producto vendido por unidades
         cantidadUds = valRaw > 10000 ? Math.round(valRaw / 10000) : (valRaw || 1);
         calcSubtotal = productoEncontrado.precio * cantidadUds;
         cantTxt = `${cantidadUds} uds`;
@@ -1439,7 +1394,6 @@ function procesarEntradaScanner(cadenaTexto) {
       });
 
     } else {
-      // Producto no localizado con ese código
       itemsEscaneadosTemporales.push({
         codigoLeido: codProducto,
         nombre: `PRODUCTO NO ENCONTRADO (CÓD: ${codProducto})`,
@@ -1458,16 +1412,13 @@ function procesarEntradaScanner(cadenaTexto) {
   renderizarTablaEscaneados();
 }
 
-// Búsqueda Inteligente del producto por código o coincidencia
 function buscarProductoPorCodigo(codStr, numInt) {
   if (!cacheCategoriasFactura || !cacheCategoriasFactura.length) return null;
 
   for (let cat of cacheCategoriasFactura) {
     for (let p of cat.productos) {
-      // p[0]: Nombre, p[1]: Precio, p[2]: Imagen, p[3]: Disponible, p[4]: Min, p[5]: Unidad, p[6]: PesoProm, p[7]: Codigo
       let codAsignado = p[7] ? String(p[7]).trim() : "";
       
-      // Coincidencia exacta por código asignado o número ordinal
       if (codAsignado === codStr || parseInt(codAsignado, 10) === numInt) {
         return {
           nombre: p[0],
@@ -1479,7 +1430,6 @@ function buscarProductoPorCodigo(codStr, numInt) {
     }
   }
 
-  // Búsqueda secundaria por índice ordinal si no se configuró código explícito
   let listaFlat = [];
   cacheCategoriasFactura.forEach(cat => cat.productos.forEach(prod => listaFlat.push(prod)));
   if (numInt > 0 && numInt <= listaFlat.length) {
@@ -1495,7 +1445,6 @@ function buscarProductoPorCodigo(codStr, numInt) {
   return null;
 }
 
-// Muestra los ítems reconocidos en la tabla del modal
 function renderizarTablaEscaneados() {
   const tbody = document.getElementById('tablaItemsEscaneados');
   const btn = document.getElementById('btnAgregarEscaneadosFactura');
@@ -1533,7 +1482,6 @@ function renderizarTablaEscaneados() {
   if (btn) btn.disabled = !hayValidos;
 }
 
-// Vuelca los ítems escaneados directamente al carrito de facturación
 function confirmarAgregarCodigosAFactura() {
   let agregados = 0;
 
@@ -1565,3 +1513,19 @@ function confirmarAgregarCodigosAFactura() {
 
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
 }
+
+// Autenticación Persistente y PWA
+document.addEventListener("DOMContentLoaded", function() {
+  const token = sessionStorage.getItem("factura_token");
+  const usuario = sessionStorage.getItem("factura_usuario");
+
+  if (token && usuario) {
+    iniciarModuloFacturacion(usuario);
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js', { scope: '/factura/' })
+      .then(reg => console.log('App de Facturación lista para instalar:', reg.scope))
+      .catch(err => console.error('Error PWA Facturación:', err));
+  }
+});
