@@ -221,3 +221,12 @@ body {
     padding: 2mm !important;
   }
 }
+
+.ticket-logo-centrado {
+  max-width: 180px;
+  width: 75%;
+  height: auto;
+  display: block;
+  margin: 0 auto 8px auto;
+  text-align: center;
+}
