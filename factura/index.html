@@ -48,8 +48,12 @@
         </div>
         <div class="d-flex align-items-center">
           <!-- Botón Historial y Búsqueda -->
-          <button type="button" class="btn btn-sm btn-outline-warning fw-bold me-3" onclick="abrirModalBuscarFacturas()">
+          <button type="button" class="btn btn-sm btn-outline-warning fw-bold me-2" onclick="abrirModalBuscarFacturas()">
             🔍 Buscar / Historial
+          </button>
+          <!-- NUEVO BOTÓN CIERRE DE CAJA -->
+          <button type="button" class="btn btn-sm btn-danger fw-bold me-3 border-light" onclick="abrirModalCierreCaja()">
+            🔒 Cierre de Caja
           </button>
           <span id="usuarioActivo" class="me-3 small fw-bold text-light"></span>
           <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="cerrarSesionFacturacion()">Cerrar Sesión 🚪</button>
@@ -179,7 +183,7 @@
               </div>
             </div>
 
-            <!-- Contenedor Peso Gramos (Oculto inicialmente) -->
+            <!-- Contenedor Peso Gramos -->
             <div id="contManualPeso" class="row g-2 mb-3 hidden">
               <div class="col-12 mb-2">
                 <label for="manualPrecioKg" class="form-label fw-bold small">Precio por Kilo ($/Kg) *:</label>
@@ -284,7 +288,7 @@
                 </div>
               </div>
 
-              <!-- Caso A: Cliente Encontrado (Lectura Únicamente) -->
+              <!-- Caso A: Cliente Encontrado -->
               <div id="boxClienteEncontrado" class="p-3 bg-light border rounded border-success hidden">
                 <div class="d-flex align-items-center mb-2">
                   <span class="badge bg-success me-2">✔ Cliente Registrado</span>
@@ -310,7 +314,7 @@
                 </div>
               </div>
 
-              <!-- Caso B: Cliente No Encontrado (Formulario Dinámico de Registro) -->
+              <!-- Caso B: Cliente No Encontrado -->
               <div id="boxClienteNuevo" class="p-3 bg-light border rounded border-warning hidden">
                 <div class="d-flex align-items-center mb-2">
                   <span class="badge bg-warning text-dark me-2">⚠️ Cliente No Registrado</span>
@@ -367,7 +371,7 @@
                   <option value="Pago Mixto">Pago Mixto</option>
                 </select>
 
-                <!-- Contenedor Dinámico para Pago Mixto / Combinados -->
+                <!-- Contenedor Dinámico para Pago Mixto -->
                 <div id="contenedorPagoMixto" class="mt-3 p-3 border border-dark rounded bg-white hidden">
                   <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
                     <span class="fw-bold text-dark small">🔀 Desglose de Pago Mixto:</span>
@@ -376,10 +380,8 @@
                     </button>
                   </div>
 
-                  <!-- Filas dinámicas inyectadas por JavaScript -->
                   <div id="listaFilasPagoMixto"></div>
 
-                  <!-- Suma y Balance con Restante -->
                   <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top small fw-bold">
                     <span>Asignado: <span id="montoAsignadoMixto" class="text-primary">$0.00</span></span>
                     <span>Restante: <span id="montoRestanteMixto" class="text-warning">$0.00</span></span>
@@ -390,7 +392,7 @@
               </div>
             </div>
 
-          </div><!-- CIERRE DE modal-body p-4 bg-light -->
+          </div><!-- CIERRE DE modal-body -->
 
           <!-- FOOTER: Controles de Navegación -->
           <div class="modal-footer bg-white border-top justify-content-between p-3">
@@ -407,9 +409,9 @@
             </div>
           </div>
 
-        </div><!-- CIERRE DE modal-content -->
-      </div><!-- CIERRE DE modal-dialog -->
-    </div><!-- CIERRE DE modalProcesarFactura -->
+        </div>
+      </div>
+    </div>
 
     <!-- MODAL VISTA PREVIA E IMPRESIÓN DE TICKET TÉRMICO -->
     <div class="modal fade" id="modalVistaPreviaFactura" data-bs-backdrop="static" tabindex="-1" aria-labelledby="labelVistaPrevia" aria-hidden="true">
@@ -443,6 +445,82 @@
       </div>
     </div>
 
+    <!-- MODAL CIERRE DE CAJA - PASO 1: REGISTRO DE SALDO INICIAL -->
+    <div class="modal fade" id="modalCierreCajaPaso1" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-dark border-2">
+          <div class="modal-header bg-danger text-white">
+            <h5 class="modal-title fw-bold">🔒 Cierre de Caja - Registro Inicial</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            <div class="alert alert-dark border-dark mb-3">
+              <div class="fw-bold fs-6 text-warning mb-1" id="cierreUsuarioNombre">👤 Cajero: CERRANDO SESIÓN...</div>
+              <small class="text-white-50">Ingrese los montos en efectivo presentes en caja al iniciar la jornada / turno.</small>
+            </div>
+
+            <div class="mb-3">
+              <label for="cierreInicialUSD" class="form-label fw-bold">💵 Efectivo Inicial en Divisas ($):</label>
+              <div class="input-group">
+                <span class="input-group-text border-dark bg-white fw-bold">$</span>
+                <input type="number" id="cierreInicialUSD" class="form-control border-dark fw-bold fs-5 text-center text-success" step="0.01" min="0" placeholder="0.00" value="0.00">
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="cierreInicialBS" class="form-label fw-bold">🇻🇪 Efectivo Inicial en Bolívares (Bs):</label>
+              <div class="input-group">
+                <span class="input-group-text border-dark bg-warning text-dark fw-bold">Bs</span>
+                <input type="number" id="cierreInicialBS" class="form-control border-dark fw-bold fs-5 text-center text-primary" step="0.01" min="0" placeholder="0.00" value="0.00">
+              </div>
+            </div>
+
+            <div id="errorModalCierrePaso1" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer bg-white justify-content-between">
+            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnSiguienteCierreCaja" class="btn btn-danger fw-bold px-4" onclick="procesarSiguienteCierreCaja()">
+              Siguiente ➡️
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CIERRE DE CAJA - PASO 2: PREVISUALIZACIÓN Y CONFIRMACIÓN -->
+    <div class="modal fade" id="modalCierreCajaPaso2" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-dark border-2">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title fw-bold">🧾 Previsualización de Recibo de Cierre (Z)</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+
+          <div class="modal-body p-3 bg-light text-center">
+            
+            <div class="alert alert-warning border-dark text-center fw-bold mb-3 fs-5">
+              ¿Está seguro de que desea realizar el cierre de caja?
+            </div>
+
+            <!-- Previsualización del Recibo en Pantalla -->
+            <div id="vistaPreviaCierreCajaModal" class="d-flex justify-content-center">
+              <!-- Inyectado Dinámicamente -->
+            </div>
+
+          </div>
+
+          <div class="modal-footer bg-white justify-content-between p-3">
+            <button type="button" class="btn btn-outline-secondary fw-bold px-4" data-bs-dismiss="modal">
+              🚫 Cancelar
+            </button>
+            <button type="button" id="btnConfirmarCierreFinal" class="btn btn-danger fw-bold px-4 fs-5" onclick="confirmarEImprimirCierreCaja()">
+              🔒 Realizar Cierre
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
     <!-- MODAL BÚSQUEDA Y HISTORIAL DE FACTURAS -->
     <div class="modal fade" id="modalBuscarFacturas" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -573,6 +651,6 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="script.js?v=1.2.6"></script>
+    <script src="script.js?v=1.3.0"></script>
   </body>
 </html>
