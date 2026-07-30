@@ -1381,6 +1381,7 @@ function procesarEntradaScanner(cadenaTexto) {
       let pesoTotalGramos = parseInt(valPesoStr, 10) || 0;
       let cantidadUds = 1;
       let calcSubtotal = 0;
+      let calcPrecioBase = productoEncontrado.precio;
       let cantTxt = "";
 
       if (productoEncontrado.unidad === 'gramos' || productoEncontrado.unidad === 'mixto') {
@@ -1393,28 +1394,38 @@ function procesarEntradaScanner(cadenaTexto) {
           let parteEntera = parseInt(valPrecioStr.substring(0, valPrecioStr.length - 2), 10) || 0;
           let parteDecimal = valPrecioStr.substring(valPrecioStr.length - 2);
           calcSubtotal = parseFloat(`${parteEntera}.${parteDecimal}`) || 0;
+
+          // RECALCULAR PRECIO BASE DINÁMICO ($/Kg) = Monto Total / Peso en Kg
+          if (pesoTotalGramos > 0) {
+            calcPrecioBase = calcSubtotal / (pesoTotalGramos / 1000);
+          }
         } else {
-          calcSubtotal = (productoEncontrado.precio / 1000) * pesoTotalGramos;
+          calcPrecioBase = productoEncontrado.precio;
+          calcSubtotal = (calcPrecioBase / 1000) * pesoTotalGramos;
         }
 
       } else {
-        cantidadUds = pesoTotalGramos || 1;
-        cantTxt = `${cantidadUds} uds`;
-        pesoTotalGramos = 0;
+        // Producto por Unidades (uds)
+        cantidadUds = 1;
+        cantTxt = `1 uds`;
 
         if (usarPrecioTicket && valPrecioStr.length >= 3) {
           let parteEntera = parseInt(valPrecioStr.substring(0, valPrecioStr.length - 2), 10) || 0;
           let parteDecimal = valPrecioStr.substring(valPrecioStr.length - 2);
           calcSubtotal = parseFloat(`${parteEntera}.${parteDecimal}`) || 0;
+
+          // RECALCULAR PRECIO BASE DINÁMICO ($/Ud) = Monto Total / Cantidad
+          calcPrecioBase = calcSubtotal / cantidadUds;
         } else {
-          calcSubtotal = productoEncontrado.precio * cantidadUds;
+          calcPrecioBase = productoEncontrado.precio;
+          calcSubtotal = calcPrecioBase * cantidadUds;
         }
       }
 
       itemsEscaneadosTemporales.push({
         codigoLeido: codProducto,
         nombre: productoEncontrado.nombre,
-        precioBase: productoEncontrado.precio,
+        precioBase: calcPrecioBase,
         unidad: productoEncontrado.unidad,
         cantidadTxt: cantTxt,
         cantNumerica: cantidadUds,
