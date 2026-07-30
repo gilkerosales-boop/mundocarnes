@@ -105,7 +105,9 @@
           "img/combo_parrillero_1.webp",
           true,
           1,
-          "unidades"
+          "unidades",
+          0,
+          "0067"
         ],
         [
           "PARRILLERO 2",
