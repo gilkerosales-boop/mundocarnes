@@ -1366,13 +1366,13 @@ function procesarEntradaScanner(cadenaTexto) {
     if (numStr.length < 12) return;
 
     // ESTRUCTURA NUEVA BALANZA PS-30 (Ej: 290062034950003914)
-    // 1. Digitos 1-3 (3 dígitos): Identificador Balanza "290" [IGNORAR]
-    // 2. Digitos 4-7 (4 dígitos): Código Producto PLU "0062"
-    // 3. Digitos 8-12 (5 dígitos): Peso en gramos "03495" (3495g = 3.495Kg)
-    // 4. Digitos 13+ (resto): Precio "0003914" (Enteros: "00039", Decimales: "14" -> $39.14)
-    const codProducto = numStr.substring(3, 7);
-    const valPesoStr = numStr.substring(7, 12);
-    const valPrecioStr = numStr.length >= 18 ? numStr.substring(12) : "";
+    // 1. Digitos 1-2 (2 dígitos): Prefijo Balanza "29" [IGNORAR]
+    // 2. Digitos 3-6 (4 dígitos): Código Producto PLU "0062"
+    // 3. Digitos 7-11 (5 dígitos): Peso en gramos "03495" (3495g = 3.495Kg)
+    // 4. Digitos 12+ (resto): Precio "0003914" (Enteros: "00039", Decimales: "14" -> $39.14)
+    const codProducto = numStr.substring(2, 6);
+    const valPesoStr = numStr.substring(6, 11);
+    const valPrecioStr = numStr.length >= 18 ? numStr.substring(11) : "";
     const numCodInt = parseInt(codProducto, 10);
 
     let productoEncontrado = buscarProductoPorCodigo(codProducto, numCodInt);
