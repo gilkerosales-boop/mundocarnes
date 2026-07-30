@@ -163,7 +163,9 @@
           "img/charcu_3.webp",
           true,
           1,
-          "unidades"
+          "unidades",
+          0,
+          "78"
         ]
       ]
     },
