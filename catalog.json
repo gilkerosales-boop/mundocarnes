@@ -105,7 +105,9 @@
           "img/chicken_1.webp",
           true,
           1,
-          "unidades"
+          "unidades",
+          0,
+          "0070"
         ],
         [
           "CHICKEN 2",
