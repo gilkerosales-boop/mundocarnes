@@ -1354,40 +1354,61 @@ function procesarEntradaScanner(cadenaTexto) {
     return;
   }
 
-  const listaCodigos = cadenaTexto.split(/[\n,;\s]+/).map(c => c.trim()).filter(c => c.length >= 13);
+  const usarPrecioTicket = document.getElementById('chkUsarPrecioTicket') 
+    ? document.getElementById('chkUsarPrecioTicket').checked 
+    : false;
+
+  const listaCodigos = cadenaTexto.split(/[\n,;\s]+/).map(c => c.trim()).filter(c => c.length >= 12);
   itemsEscaneadosTemporales = [];
 
   listaCodigos.forEach(codigoCompleto => {
     const numStr = codigoCompleto.replace(/\D/g, '');
-    if (numStr.length < 13) return;
+    if (numStr.length < 12) return;
 
-    const codProducto = numStr.substring(2, 7);
-    const valPesoCantStr = numStr.substring(7, 13);
+    // ESTRUCTURA NUEVA BALANZA PS-30 (Ej: 290062034950003914)
+    // 1. Digitos 1-3 (3 dígitos): Identificador Balanza "290" [IGNORAR]
+    // 2. Digitos 4-7 (4 dígitos): Código Producto PLU "0062"
+    // 3. Digitos 8-12 (5 dígitos): Peso en gramos "03495" (3495g = 3.495Kg)
+    // 4. Digitos 13+ (resto): Precio "0003914" (Enteros: "00039", Decimales: "14" -> $39.14)
+    const codProducto = numStr.substring(3, 7);
+    const valPesoStr = numStr.substring(7, 12);
+    const valPrecioStr = numStr.length >= 18 ? numStr.substring(12) : "";
     const numCodInt = parseInt(codProducto, 10);
 
     let productoEncontrado = buscarProductoPorCodigo(codProducto, numCodInt);
 
     if (productoEncontrado) {
-      let valRaw = parseInt(valPesoCantStr, 10) || 0;
-      let pesoTotalGramos = 0;
-      let cantidadUds = 0;
+      let pesoTotalGramos = parseInt(valPesoStr, 10) || 0;
+      let cantidadUds = 1;
       let calcSubtotal = 0;
       let cantTxt = "";
 
       if (productoEncontrado.unidad === 'gramos' || productoEncontrado.unidad === 'mixto') {
-        pesoTotalGramos = valRaw > 10000 ? Math.round(valRaw / 100) : valRaw;
-        calcSubtotal = (productoEncontrado.precio / 1000) * pesoTotalGramos;
-
         let kg = Math.floor(pesoTotalGramos / 1000);
         let g = pesoTotalGramos % 1000;
         cantTxt = kg > 0 ? (g > 0 ? `${kg} Kg ${g} g` : `${kg} Kg`) : `${g} g`;
         cantidadUds = 1;
 
+        if (usarPrecioTicket && valPrecioStr.length >= 3) {
+          let parteEntera = parseInt(valPrecioStr.substring(0, valPrecioStr.length - 2), 10) || 0;
+          let parteDecimal = valPrecioStr.substring(valPrecioStr.length - 2);
+          calcSubtotal = parseFloat(`${parteEntera}.${parteDecimal}`) || 0;
+        } else {
+          calcSubtotal = (productoEncontrado.precio / 1000) * pesoTotalGramos;
+        }
+
       } else {
-        cantidadUds = valRaw > 10000 ? Math.round(valRaw / 10000) : (valRaw || 1);
-        calcSubtotal = productoEncontrado.precio * cantidadUds;
+        cantidadUds = pesoTotalGramos || 1;
         cantTxt = `${cantidadUds} uds`;
         pesoTotalGramos = 0;
+
+        if (usarPrecioTicket && valPrecioStr.length >= 3) {
+          let parteEntera = parseInt(valPrecioStr.substring(0, valPrecioStr.length - 2), 10) || 0;
+          let parteDecimal = valPrecioStr.substring(valPrecioStr.length - 2);
+          calcSubtotal = parseFloat(`${parteEntera}.${parteDecimal}`) || 0;
+        } else {
+          calcSubtotal = productoEncontrado.precio * cantidadUds;
+        }
       }
 
       itemsEscaneadosTemporales.push({
