@@ -854,6 +854,16 @@
           "gramos",
           0,
           ""
+        ],
+        [
+          "COCA COLA 2 LITROS",
+          2.2,
+          "img/coca_cola_2_litros.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
         ]
       ]
     }
