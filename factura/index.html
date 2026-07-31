@@ -55,9 +55,9 @@
           <button type="button" class="btn btn-sm btn-danger fw-bold me-2 border-light" onclick="abrirModalCierreCaja()">
             🔒 Cierre de Caja
           </button>
-          <!-- NUEVO BOTÓN CÓDIGOS DE PRODUCTOS PLU -->
+          <!-- BOTÓN CÓDIGOS DE PRODUCTOS CON ÍCONO DE CÓDIGO DE BARRAS -->
           <button type="button" class="btn btn-sm btn-info fw-bold me-3 border-dark text-dark" onclick="abrirModalGestionCodigos()">
-            🔑 Códigos de Productos
+            📊 Cód. de Productos
           </button>
           <span id="usuarioActivo" class="me-3 small fw-bold text-light"></span>
           <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="cerrarSesionFacturacion()">Cerrar Sesión 🚪</button>
@@ -386,10 +386,11 @@
 
                   <div id="listaFilasPagoMixto"></div>
 
-                  <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top small fw-bold">
-                    <span>Asignado: <span id="montoAsignadoMixto" class="text-primary">$0.00</span></span>
-                    <span>Restante: <span id="montoRestanteMixto" class="text-warning">$0.00</span></span>
-                    <span>Total Factura: <span id="montoEsperadoMixto" class="text-danger">$0.00</span></span>
+                  <!-- REORDENADO CON FUENTE AL 150% PARA MONTOS -->
+                  <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top fw-bold" style="font-size: 0.95rem;">
+                    <span>Total Factura: <span id="montoEsperadoMixto" class="text-danger" style="font-size: 150%;">$0.00</span></span>
+                    <span>Asignado: <span id="montoAsignadoMixto" class="text-primary" style="font-size: 150%;">$0.00</span></span>
+                    <span>Restante: <span id="montoRestanteMixto" class="text-warning" style="font-size: 150%;">$0.00</span></span>
                   </div>
                 </div>
 
@@ -530,7 +531,7 @@
       <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-dark border-2">
           <div class="modal-header bg-info text-dark">
-            <h5 class="modal-title fw-bold">🔑 Configuración de Códigos de Productos (PLU Balanza)</h5>
+            <h5 class="modal-title fw-bold">📊 Configuración de Códigos de Productos (PLU Balanza)</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4 bg-light">
@@ -718,6 +719,6 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="script.js?v=1.3.2"></script>
+    <script src="script.js?v=1.3.3"></script>
   </body>
 </html>
