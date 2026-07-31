@@ -460,6 +460,16 @@
           "gramos",
           0,
           ""
+        ],
+        [
+          "GRANJERO DE POLLO",
+          9.9,
+          "img/granjero_de_pollo.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
         ]
       ]
     },
