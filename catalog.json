@@ -565,6 +565,16 @@
           "0043"
         ],
         [
+          "MORCILLAS",
+          4,
+          "img/morcillas.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
+        ],
+        [
           "MORTADELA DON RAMÓN 400g",
           1.8,
           "img/don_ramon_400.webp",
@@ -618,16 +628,6 @@
           "NUGGETS DE POLLO",
           9.9,
           "img/nuggets_de_pollo.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          ""
-        ],
-        [
-          "MORCILLAS",
-          4,
-          "img/morcillas.webp",
           true,
           250,
           "gramos",
