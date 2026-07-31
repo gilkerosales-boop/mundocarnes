@@ -1465,33 +1465,29 @@ function procesarEntradaScanner(cadenaTexto) {
 function buscarProductoPorCodigo(codStr, numInt) {
   if (!cacheCategoriasFactura || !cacheCategoriasFactura.length) return null;
 
+  const codLimpio = String(codStr || "").trim();
+  const codNum = parseInt(codLimpio, 10);
+
+  // BÚSQUEDA ESTRICTA POR CÓDIGO PLU ASIGNADO
   for (let cat of cacheCategoriasFactura) {
     for (let p of cat.productos) {
       let codAsignado = p[7] ? String(p[7]).trim() : "";
       
-      if (codAsignado === codStr || parseInt(codAsignado, 10) === numInt) {
-        return {
-          nombre: p[0],
-          precio: p[1],
-          imgPath: p[2].startsWith('../') ? p[2] : '../' + p[2],
-          unidad: p[5]
-        };
+      if (codAsignado !== "") {
+        let codAsignadoNum = parseInt(codAsignado, 10);
+        if (codAsignado === codLimpio || (!isNaN(codAsignadoNum) && codAsignadoNum === codNum)) {
+          return {
+            nombre: p[0],
+            precio: p[1],
+            imgPath: p[2].startsWith('../') ? p[2] : '../' + p[2],
+            unidad: p[5]
+          };
+        }
       }
     }
   }
 
-  let listaFlat = [];
-  cacheCategoriasFactura.forEach(cat => cat.productos.forEach(prod => listaFlat.push(prod)));
-  if (numInt > 0 && numInt <= listaFlat.length) {
-    let p = listaFlat[numInt - 1];
-    return {
-      nombre: p[0],
-      precio: p[1],
-      imgPath: p[2].startsWith('../') ? p[2] : '../' + p[2],
-      unidad: p[5]
-    };
-  }
-
+  // Si no está asignado explícitamente en el catálogo, retorna null (No Encontrado)
   return null;
 }
 
