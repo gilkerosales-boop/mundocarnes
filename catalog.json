@@ -824,6 +824,16 @@
           "gramos",
           0,
           ""
+        ],
+        [
+          "CAFE FLOR DE ARAUCA 200G",
+          4.5,
+          "img/cafe_flor_de_arauca_200g.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
         ]
       ]
     }
