@@ -918,8 +918,8 @@
           2.2,
           "img/7up_2_litros.webp",
           true,
-          250,
-          "gramos",
+          1,
+          "unidades",
           0,
           ""
         ],
