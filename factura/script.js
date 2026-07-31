@@ -5,6 +5,13 @@
 // URL de la API de Google Apps Script
 const API_URL_GAS = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
 
+// GitHub API Config para sincronizar catalog.json desde Facturación
+const GITHUB_CONFIG_FAC = {
+  owner: "gilkerosales-boop",
+  repo: "mundocarnes",
+  branch: "main"
+};
+
 // Clasificación de Métodos por Naturaleza de Moneda (Incluye Biopago)
 const METODOS_USD = ["Efectivo Divisas", "Zelle", "PayPal", "Cashea"];
 const METODOS_BS = ["Pago Móvil", "Efectivo Bolívares", "Punto de Venta", "Transferencia Bancaria", "Biopago"];
@@ -18,6 +25,7 @@ let datosFacturaPendiente = null;
 let itemsEscaneadosTemporales = [];
 let cacheHistorialFacturas = [];
 let datosCierreCajaPendiente = null;
+let listaFlatProductosCodigos = [];
 
 // Notificaciones Toast
 function mostrarAvisoFactura(mensaje) {
@@ -1554,6 +1562,194 @@ function confirmarAgregarCodigosAFactura() {
   }
 
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
+}
+
+// LÓGICA GESTIÓN Y CONFIGURACIÓN DE CÓDIGOS DE PRODUCTOS (PLU)
+function abrirModalGestionCodigos() {
+  document.getElementById('facFiltroCodigosInput').value = "";
+  prepararListaProductosCodigos();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).show();
+}
+
+function prepararListaProductosCodigos() {
+  listaFlatProductosCodigos = [];
+
+  cacheCategoriasFactura.forEach(cat => {
+    cat.productos.forEach(p => {
+      let nom = p[0];
+      let prec = p[1];
+      let unidad = p[5];
+      let codPLU = p[7] ? String(p[7]).trim() : "";
+
+      listaFlatProductosCodigos.push({
+        nombre: nom,
+        precio: prec,
+        categoria: cat.nombre,
+        unidad: unidad,
+        codigoPLU: codPLU
+      });
+    });
+  });
+
+  // Ordenar Numérica de Menor a Mayor por Código PLU
+  listaFlatProductosCodigos.sort((a, b) => {
+    let numA = a.codigoPLU !== "" ? parseInt(a.codigoPLU, 10) : 999999;
+    let numB = b.codigoPLU !== "" ? parseInt(b.codigoPLU, 10) : 999999;
+
+    if (isNaN(numA)) numA = 999999;
+    if (isNaN(numB)) numB = 999999;
+
+    if (numA !== numB) {
+      return numA - numB;
+    }
+    return a.nombre.localeCompare(b.nombre);
+  });
+
+  renderizarTablaGestionCodigos(listaFlatProductosCodigos);
+}
+
+function renderizarTablaGestionCodigos(lista) {
+  const tbody = document.getElementById('tablaGestionCodigos');
+  const badgeCount = document.getElementById('cntTotalProductosCodigos');
+  if (!tbody) return;
+
+  if (badgeCount) badgeCount.textContent = `Total: ${lista.length} Productos`;
+
+  if (lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
+    return;
+  }
+
+  let html = "";
+  lista.forEach((item, idx) => {
+    let safeName = item.nombre.replace(/["']/g, '');
+    let unidadTxt = (item.unidad === 'gramos') ? 'g' : (item.unidad === 'mixto' ? 'mixto' : 'uds');
+
+    html += `
+      <tr>
+        <td class="text-center">
+          <input type="text" class="form-control form-control-sm text-center fw-bold border-dark text-primary input-codigo-plu-item" 
+                 data-nombre="${safeName}" 
+                 data-cat="${item.categoria}" 
+                 value="${item.codigoPLU}" 
+                 placeholder="Sin código" style="max-width: 120px; margin: 0 auto;">
+        </td>
+        <td class="fw-bold text-dark">${item.nombre}</td>
+        <td class="small text-muted">${item.categoria}</td>
+        <td class="text-center"><span class="badge bg-light text-dark border">${unidadTxt}</span></td>
+        <td class="text-end fw-bold text-success">$${item.precio.toFixed(2)}</td>
+      </tr>`;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function filtrarTablaCodigos(query) {
+  if (!query.trim()) {
+    renderizarTablaGestionCodigos(listaFlatProductosCodigos);
+    return;
+  }
+
+  const q = query.trim().toLowerCase();
+  const filtrados = listaFlatProductosCodigos.filter(item => {
+    return item.nombre.toLowerCase().includes(q) || 
+           item.categoria.toLowerCase().includes(q) || 
+           item.codigoPLU.toLowerCase().includes(q);
+  });
+
+  renderizarTablaGestionCodigos(filtrados);
+}
+
+async function guardarTodosLosCodigosPLU() {
+  let token = sessionStorage.getItem("github_token");
+  if (!token) {
+    token = prompt("🔐 Para sincronizar los códigos con GitHub (Modo Editor), ingrese su Token de GitHub:");
+    if (!token || !token.trim()) {
+      return mostrarAvisoFactura("Se requiere el Token de GitHub para guardar los cambios permanentemente.");
+    }
+    sessionStorage.setItem("github_token", token.trim());
+  }
+
+  const btn = document.getElementById('btnGuardarCodigosPLU');
+  btn.disabled = true;
+  btn.textContent = "Sincronizando con GitHub...";
+
+  try {
+    const inputs = document.querySelectorAll('.input-codigo-plu-item');
+    let mapaNuevosCodigos = {};
+
+    inputs.forEach(inp => {
+      let nombreProd = inp.getAttribute('data-nombre');
+      let nuevoCod = inp.value.trim();
+      mapaNuevosCodigos[nombreProd] = nuevoCod;
+    });
+
+    cacheCategoriasFactura.forEach(cat => {
+      cat.productos.forEach(p => {
+        let nom = p[0];
+        if (mapaNuevosCodigos[nom] !== undefined) {
+          p[7] = mapaNuevosCodigos[nom];
+        }
+      });
+    });
+
+    const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
+    const base64Content = btoa(unescape(encodeURIComponent(contentString)));
+
+    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización de códigos PLU desde Módulo de Facturación");
+
+    btn.disabled = false;
+    btn.textContent = "💾 Guardar Todos los Cambios";
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
+    mostrarAvisoFactura("🎉 Códigos PLU actualizados y sincronizados en GitHub con éxito.");
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "💾 Guardar Todos los Cambios";
+    console.error("Error al guardar códigos en GitHub:", err);
+    mostrarAvisoFactura("Error al sincronizar con GitHub: " + err.message);
+  }
+}
+
+async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
+  const token = sessionStorage.getItem("github_token");
+  if (!token) throw new Error("Token de GitHub no disponible.");
+
+  const url = `https://api.github.com/repos/${GITHUB_CONFIG_FAC.owner}/${GITHUB_CONFIG_FAC.repo}/contents/${path}`;
+
+  let sha = null;
+  try {
+    const resInfo = await fetch(url, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    if (resInfo.ok) {
+      const info = await resInfo.json();
+      sha = info.sha;
+    }
+  } catch (e) {}
+
+  const body = {
+    message: commitMessage,
+    content: contentBase64,
+    branch: GITHUB_CONFIG_FAC.branch
+  };
+  if (sha) body.sha = sha;
+
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const errData = await response.json();
+    throw new Error(errData.message || "Fallo en la comunicación con GitHub.");
+  }
+  return await response.json();
 }
 
 // BÚSQUEDA, REIMPRESIÓN Y ELIMINACIÓN DE FACTURAS EMITIDAS
