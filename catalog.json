@@ -202,7 +202,7 @@
           "MOLIDA",
           11.9,
           "img/2.webp",
-          false,
+          true,
           100,
           "gramos",
           0,
