@@ -450,6 +450,16 @@
           "mixto",
           5000,
           ""
+        ],
+        [
+          "NUGGETS DE POLLO",
+          9.9,
+          "img/nuggets_de_pollo.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
         ]
       ]
     },
