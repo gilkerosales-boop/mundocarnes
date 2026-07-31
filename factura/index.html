@@ -55,9 +55,9 @@
           <button type="button" class="btn btn-sm btn-danger fw-bold me-2 border-light" onclick="abrirModalCierreCaja()">
             🔒 Cierre de Caja
           </button>
-          <!-- BOTÓN CÓDIGOS DE PRODUCTOS CON ÍCONO DE CÓDIGO DE BARRAS -->
+          <!-- BOTÓN GESTIÓN DE PRODUCTOS (CÓDIGOS Y DISPONIBILIDAD) -->
           <button type="button" class="btn btn-sm btn-info fw-bold me-3 border-dark text-dark" onclick="abrirModalGestionCodigos()">
-            📊 Cód. de Productos
+            ⚙️ Gestión de Productos
           </button>
           <span id="usuarioActivo" class="me-3 small fw-bold text-light"></span>
           <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="cerrarSesionFacturacion()">Cerrar Sesión 🚪</button>
@@ -386,7 +386,6 @@
 
                   <div id="listaFilasPagoMixto"></div>
 
-                  <!-- REORDENADO CON FUENTE AL 150% PARA MONTOS -->
                   <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top fw-bold" style="font-size: 0.95rem;">
                     <span>Total Factura: <span id="montoEsperadoMixto" class="text-danger" style="font-size: 150%;">$0.00</span></span>
                     <span>Asignado: <span id="montoAsignadoMixto" class="text-primary" style="font-size: 150%;">$0.00</span></span>
@@ -526,18 +525,18 @@
       </div>
     </div>
 
-    <!-- MODAL GESTIÓN Y CONFIGURACIÓN DE CÓDIGOS DE PRODUCTOS (PLU BALANZA) -->
+    <!-- MODAL GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS (CÓDIGOS Y DISPONIBILIDAD) -->
     <div class="modal fade" id="modalGestionCodigos" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-dark border-2">
           <div class="modal-header bg-info text-dark">
-            <h5 class="modal-title fw-bold">📊 Configuración de Códigos de Productos (PLU Balanza)</h5>
+            <h5 class="modal-title fw-bold">⚙️ Gestión de Productos (Códigos PLU y Disponibilidad)</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4 bg-light">
             
             <div class="alert alert-dark border-secondary mb-3 small">
-              <strong>ℹ️ Instrucciones:</strong> Asigne o modifique los códigos PLU de cada producto. La lista se muestra **ordenada de menor a mayor por código**. Al guardar, los cambios se sincronizarán en tiempo real con el Modo Editor (`/admin`) y el sistema de Facturación.
+              <strong>ℹ️ Instrucciones:</strong> Modifique los códigos PLU o la disponibilidad de cada producto. La lista se muestra **ordenada de menor a mayor por código PLU**. Al guardar, los cambios se sincronizarán en tiempo real con el Modo Editor (`/admin`) y el sistema de Facturación.
             </div>
 
             <!-- Filtro de Búsqueda Rápida -->
@@ -550,16 +549,17 @@
               </div>
             </div>
 
-            <!-- Tabla Resumen de Códigos PLU -->
+            <!-- Tabla Resumen de Productos y Códigos -->
             <div class="table-responsive bg-white rounded border mb-2" style="max-height: 420px; overflow-y: auto;">
               <table class="table table-hover table-striped align-middle mb-0">
                 <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
                   <tr>
-                    <th style="width: 140px;">Código PLU</th>
+                    <th style="width: 130px;">Código PLU</th>
                     <th>Producto</th>
                     <th>Categoría</th>
-                    <th style="width: 120px;">Unidad</th>
-                    <th style="width: 120px;">Precio ($)</th>
+                    <th style="width: 150px;">Disponibilidad</th>
+                    <th style="width: 90px;">Unidad</th>
+                    <th style="width: 110px;">Precio ($)</th>
                   </tr>
                 </thead>
                 <tbody id="tablaGestionCodigos" class="small">
@@ -719,6 +719,6 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="script.js?v=1.3.3"></script>
+    <script src="script.js?v=1.3.4"></script>
   </body>
 </html>
