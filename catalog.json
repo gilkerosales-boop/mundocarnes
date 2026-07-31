@@ -192,7 +192,7 @@
           "BISTEC",
           11.9,
           "img/1.webp",
-          false,
+          true,
           100,
           "gramos",
           0,
