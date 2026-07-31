@@ -1560,7 +1560,7 @@ function confirmarAgregarCodigosAFactura() {
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
 }
 
-// LÓGICA GESTIÓN Y CONFIGURACIÓN DE CÓDIGOS DE PRODUCTOS (PLU)
+// LÓGICA GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS (CÓDIGOS Y DISPONIBILIDAD)
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
   prepararListaProductosCodigos();
@@ -1574,6 +1574,7 @@ function prepararListaProductosCodigos() {
     cat.productos.forEach(p => {
       let nom = p[0];
       let prec = p[1];
+      let esDisp = p[3] !== undefined ? p[3] : true;
       let unidad = p[5];
       let codPLU = p[7] ? String(p[7]).trim() : "";
 
@@ -1581,6 +1582,7 @@ function prepararListaProductosCodigos() {
         nombre: nom,
         precio: prec,
         categoria: cat.nombre,
+        disponible: esDisp,
         unidad: unidad,
         codigoPLU: codPLU
       });
@@ -1612,7 +1614,7 @@ function renderizarTablaGestionCodigos(lista) {
   if (badgeCount) badgeCount.textContent = `Total: ${lista.length} Productos`;
 
   if (lista.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
     return;
   }
 
@@ -1632,6 +1634,12 @@ function renderizarTablaGestionCodigos(lista) {
         </td>
         <td class="fw-bold text-dark">${item.nombre}</td>
         <td class="small text-muted">${item.categoria}</td>
+        <td class="text-center">
+          <select class="form-select form-select-sm border-dark fw-bold select-disp-item" data-nombre="${safeName}" style="max-width: 140px; margin: 0 auto;">
+            <option value="true" ${item.disponible ? 'selected' : ''}>✅ Disponible</option>
+            <option value="false" ${!item.disponible ? 'selected' : ''}>🚫 Agotado</option>
+          </select>
+        </td>
         <td class="text-center"><span class="badge bg-light text-dark border">${unidadTxt}</span></td>
         <td class="text-end fw-bold text-success">$${item.precio.toFixed(2)}</td>
       </tr>`;
@@ -1659,7 +1667,7 @@ function filtrarTablaCodigos(query) {
 async function guardarTodosLosCodigosPLU() {
   let token = sessionStorage.getItem("github_token");
   if (!token) {
-    token = prompt("🔐 Para sincronizar los códigos con GitHub (Modo Editor), ingrese su Token de GitHub:");
+    token = prompt("🔐 Para sincronizar los cambios con GitHub (Modo Editor), ingrese su Token de GitHub:");
     if (!token || !token.trim()) {
       return mostrarAvisoFactura("Se requiere el Token de GitHub para guardar los cambios permanentemente.");
     }
@@ -1671,39 +1679,56 @@ async function guardarTodosLosCodigosPLU() {
   btn.textContent = "Sincronizando con GitHub...";
 
   try {
-    const inputs = document.querySelectorAll('.input-codigo-plu-item');
-    let mapaNuevosCodigos = {};
+    const inputsPLU = document.querySelectorAll('.input-codigo-plu-item');
+    const selectsDisp = document.querySelectorAll('.select-disp-item');
 
-    inputs.forEach(inp => {
+    let mapaNuevosCodigos = {};
+    let mapaDisponibilidad = {};
+
+    inputsPLU.forEach(inp => {
       let nombreProd = inp.getAttribute('data-nombre');
       let nuevoCod = inp.value.trim();
       mapaNuevosCodigos[nombreProd] = nuevoCod;
     });
 
+    selectsDisp.forEach(sel => {
+      let nombreProd = sel.getAttribute('data-nombre');
+      let esDisp = (sel.value === "true");
+      mapaDisponibilidad[nombreProd] = esDisp;
+    });
+
+    // Actualizar `cacheCategoriasFactura` en memoria (Código PLU p[7] y Disponibilidad p[3])
     cacheCategoriasFactura.forEach(cat => {
       cat.productos.forEach(p => {
         let nom = p[0];
         if (mapaNuevosCodigos[nom] !== undefined) {
           p[7] = mapaNuevosCodigos[nom];
         }
+        if (mapaDisponibilidad[nom] !== undefined) {
+          p[3] = mapaDisponibilidad[nom];
+        }
       });
     });
 
+    // Subir archivo `catalog.json` actualizado a GitHub
     const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
     const base64Content = btoa(unescape(encodeURIComponent(contentString)));
 
-    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización de códigos PLU desde Módulo de Facturación");
+    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización de códigos PLU y disponibilidad desde Módulo de Facturación");
 
     btn.disabled = false;
     btn.textContent = "💾 Guardar Todos los Cambios";
 
+    // Refrescar el catálogo en pantalla de inmediato
+    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
-    mostrarAvisoFactura("🎉 Códigos PLU actualizados y sincronizados en GitHub con éxito.");
+    mostrarAvisoFactura("🎉 Configuración de productos y disponibilidad guardada con éxito.");
 
   } catch (err) {
     btn.disabled = false;
     btn.textContent = "💾 Guardar Todos los Cambios";
-    console.error("Error al guardar códigos en GitHub:", err);
+    console.error("Error al guardar en GitHub:", err);
     mostrarAvisoFactura("Error al sincronizar con GitHub: " + err.message);
   }
 }
