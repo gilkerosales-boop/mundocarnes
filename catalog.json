@@ -928,8 +928,8 @@
           4.5,
           "img/cafe_flor_de_arauca_200g.webp",
           true,
-          250,
-          "gramos",
+          1,
+          "unidades",
           0,
           ""
         ],
