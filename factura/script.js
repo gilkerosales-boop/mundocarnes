@@ -1665,14 +1665,14 @@ function filtrarTablaCodigos(query) {
 }
 
 async function guardarTodosLosCodigosPLU() {
-  let token = sessionStorage.getItem("github_token");
-  if (!token) {
-    token = prompt("🔐 Para sincronizar los cambios con GitHub (Modo Editor), ingrese su Token de GitHub:");
-    if (!token || !token.trim()) {
-      return mostrarAvisoFactura("Se requiere el Token de GitHub para guardar los cambios permanentemente.");
-    }
-    sessionStorage.setItem("github_token", token.trim());
+  // Solicitud explícita de clave en cada intento para mayor seguridad
+  let token = prompt("🔐 Por seguridad, ingrese su Token de GitHub para autorizar los cambios:");
+  if (!token || !token.trim()) {
+    return mostrarAvisoFactura("Operación cancelada: Se requiere la clave/token de GitHub para guardar.");
   }
+
+  token = token.trim();
+  sessionStorage.setItem("github_token", token);
 
   const btn = document.getElementById('btnGuardarCodigosPLU');
   btn.disabled = true;
@@ -1697,7 +1697,7 @@ async function guardarTodosLosCodigosPLU() {
       mapaDisponibilidad[nombreProd] = esDisp;
     });
 
-    // Actualizar `cacheCategoriasFactura` en memoria (Código PLU p[7] y Disponibilidad p[3])
+    // Actualizar `cacheCategoriasFactura` en memoria
     cacheCategoriasFactura.forEach(cat => {
       cat.productos.forEach(p => {
         let nom = p[0];
@@ -1726,10 +1726,12 @@ async function guardarTodosLosCodigosPLU() {
     mostrarAvisoFactura("🎉 Configuración de productos y disponibilidad guardada con éxito.");
 
   } catch (err) {
+    // Si la clave falló, borrar el token almacenado de inmediato
+    sessionStorage.removeItem("github_token");
     btn.disabled = false;
     btn.textContent = "💾 Guardar Todos los Cambios";
     console.error("Error al guardar en GitHub:", err);
-    mostrarAvisoFactura("Error al sincronizar con GitHub: " + err.message);
+    mostrarAvisoFactura("Error de clave/sincronización con GitHub: " + err.message);
   }
 }
 
