@@ -623,6 +623,16 @@
           "gramos",
           0,
           ""
+        ],
+        [
+          "MORCILLAS",
+          4,
+          "img/morcillas.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
         ]
       ]
     },
