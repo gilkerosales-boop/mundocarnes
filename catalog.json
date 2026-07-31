@@ -19,9 +19,7 @@
           "img/combo_express.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "COMBO 2",
@@ -514,9 +512,7 @@
           "img/pecorino.webp",
           true,
           100,
-          "gramos",
-          null,
-          ""
+          "gramos"
         ],
         [
           "JAMON DE PIERNA",
@@ -574,9 +570,7 @@
           "img/don_ramon_400.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "MORTADELA DON RAMÓN 600g",
@@ -584,9 +578,7 @@
           "img/don_ramon_600.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "MORTADELA DON RAMÓN 1kg",
@@ -594,9 +586,7 @@
           "img/don_ramon_900.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "MORTADELA PUNTA DE MONTE 500g",
@@ -604,9 +594,7 @@
           "img/punta_de_monte.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "MORTADELA PUNTA DE MONTE 1Kg",
@@ -614,9 +602,7 @@
           "img/punta_de_monte_1kg.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ]
       ]
     },
@@ -669,9 +655,7 @@
           "img/ronco_rigaton.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "PASTA CORTA RONCO TORNILLO 500g",
@@ -679,9 +663,7 @@
           "img/ronco_tornillo.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "PASTA CORTA RONCO CARACOL 500g",
@@ -689,9 +671,7 @@
           "img/ronco_caracol.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "CAFE LA PROTECTORA 200g",
@@ -719,9 +699,7 @@
           "img/kraft_198.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "MAYONESA KRAFT 445g",
@@ -729,9 +707,7 @@
           "img/kraft_445.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "MAYONESA MAVESA 198g",
@@ -739,9 +715,7 @@
           "img/mavesa_198.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "MAYONESA MAVESA 445g",
@@ -749,9 +723,7 @@
           "img/mavesa_500.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "GUT AJO, CEBOLLA Y PEREJIL",
@@ -769,9 +741,7 @@
           "img/gut_caldo_de_carne.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "GUT CALDO DE POLLO",
@@ -779,9 +749,7 @@
           "img/gut_caldo_de_pollo.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "GUT SABROSEADOR",
@@ -789,9 +757,7 @@
           "img/gut_sabroseador.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "GUT SALSA PARA PASTA",
@@ -799,9 +765,7 @@
           "img/gut_salsa_para_pasta.webp",
           true,
           1,
-          "unidades",
-          null,
-          ""
+          "unidades"
         ],
         [
           "SALSA DE TOMATE HEIZ 198g",
@@ -839,8 +803,16 @@
           "img/papel_higienico_rosal_plus_4_rollos.webp",
           true,
           1,
-          "unidades",
-          null,
+          "unidades"
+        ],
+        [
+          "7up 2L",
+          2.2,
+          "img/7up_2_litros.webp",
+          true,
+          250,
+          "gramos",
+          0,
           ""
         ]
       ]
