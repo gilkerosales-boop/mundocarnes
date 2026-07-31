@@ -650,6 +650,16 @@
           ""
         ],
         [
+          "ARROZ TRADICIONAL AGUA BLANCA",
+          2,
+          "img/arroz_tradicional_agua_blanca.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
+        ],
+        [
           "PASTA CORTA RONCO RIGATON 500g",
           1.4,
           "img/ronco_rigaton.webp",
@@ -809,16 +819,6 @@
           "7up 2L",
           2.2,
           "img/7up_2_litros.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          ""
-        ],
-        [
-          "ARROZ TRADICIONAL AGUA BLANCA",
-          2,
-          "img/arroz_tradicional_agua_blanca.webp",
           true,
           250,
           "gramos",
