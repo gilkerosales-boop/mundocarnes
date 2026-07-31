@@ -633,6 +633,16 @@
           "gramos",
           0,
           ""
+        ],
+        [
+          "SUERO LA CASONA",
+          2.5,
+          "img/suero_la_casona.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
         ]
       ]
     },
