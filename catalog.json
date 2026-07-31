@@ -948,8 +948,8 @@
           1.8,
           "img/coca_cola_1.5_litros.webp",
           true,
-          250,
-          "gramos",
+          1,
+          "unidades",
           0,
           ""
         ],
