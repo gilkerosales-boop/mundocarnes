@@ -649,6 +649,16 @@
           ""
         ],
         [
+          "MORTADELA ESPECIAL AHUMADA BIGCERDY",
+          9.9,
+          "img/mortadela_especial_ahumada_bigcerdy.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
+        ],
+        [
           "SUERO LA CASONA",
           2.5,
           "img/suero_la_casona.webp",
@@ -662,16 +672,6 @@
           "SUERO DIVINA PASTORA",
           2.5,
           "img/suero_divina_pastora.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          ""
-        ],
-        [
-          "MORTADELA ESPECIAL AHUMADA BIGCERDY",
-          9.9,
-          "img/mortadela_especial_ahumada_bigcerdy.webp",
           true,
           250,
           "gramos",
