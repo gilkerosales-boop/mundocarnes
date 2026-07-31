@@ -814,6 +814,16 @@
           "gramos",
           0,
           ""
+        ],
+        [
+          "ARROZ TRADICIONAL AGUA BLANCA",
+          2,
+          "img/arroz_tradicional_agua_blanca.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
         ]
       ]
     }
