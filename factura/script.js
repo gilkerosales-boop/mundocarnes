@@ -1664,19 +1664,48 @@ function filtrarTablaCodigos(query) {
   renderizarTablaGestionCodigos(filtrados);
 }
 
-async function guardarTodosLosCodigosPLU() {
-  // Solicitud explícita de clave en cada intento para mayor seguridad
-  let token = prompt("🔐 Por seguridad, ingrese su Token de GitHub para autorizar los cambios:");
-  if (!token || !token.trim()) {
-    return mostrarAvisoFactura("Operación cancelada: Se requiere la clave/token de GitHub para guardar.");
+// Abrir modal de escáner de QR de seguridad para guardar cambios
+function guardarTodosLosCodigosPLU() {
+  const input = document.getElementById('inputTokenQR');
+  if (input) input.value = "";
+  
+  document.getElementById('errorModalTokenQR').classList.add('hidden');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).show();
+
+  setTimeout(() => {
+    if (input) input.focus();
+  }, 400);
+}
+
+// Ejecutar el guardado leyendo el token del campo password (mascarado)
+async function ejecutarGuardadoConTokenQR() {
+  const input = document.getElementById('inputTokenQR');
+  const errorDiv = document.getElementById('errorModalTokenQR');
+  const token = input ? input.value.trim() : "";
+
+  if (!token) {
+    if (errorDiv) {
+      errorDiv.textContent = "Por favor, escanee el código QR de autorización de seguridad.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
   }
 
-  token = token.trim();
+  // Guardar token en memoria temporal y limpiar input inmediatamente por privacidad
   sessionStorage.setItem("github_token", token);
+  input.value = "";
 
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).hide();
+  procesarSincronizacionGitHub();
+}
+
+// Proceso de subida a GitHub
+async function procesarSincronizacionGitHub() {
   const btn = document.getElementById('btnGuardarCodigosPLU');
-  btn.disabled = true;
-  btn.textContent = "Sincronizando con GitHub...";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Sincronizando con GitHub...";
+  }
 
   try {
     const inputsPLU = document.querySelectorAll('.input-codigo-plu-item');
@@ -1716,8 +1745,10 @@ async function guardarTodosLosCodigosPLU() {
 
     await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización de códigos PLU y disponibilidad desde Módulo de Facturación");
 
-    btn.disabled = false;
-    btn.textContent = "💾 Guardar Todos los Cambios";
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "💾 Guardar Todos los Cambios";
+    }
 
     // Refrescar el catálogo en pantalla de inmediato
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
@@ -1726,12 +1757,14 @@ async function guardarTodosLosCodigosPLU() {
     mostrarAvisoFactura("🎉 Configuración de productos y disponibilidad guardada con éxito.");
 
   } catch (err) {
-    // Si la clave falló, borrar el token almacenado de inmediato
+    // Si la clave falló ("Bad credentials"), borrar el token de inmediato para requerir nuevo escaneo
     sessionStorage.removeItem("github_token");
-    btn.disabled = false;
-    btn.textContent = "💾 Guardar Todos los Cambios";
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "💾 Guardar Todos los Cambios";
+    }
     console.error("Error al guardar en GitHub:", err);
-    mostrarAvisoFactura("Error de clave/sincronización con GitHub: " + err.message);
+    mostrarAvisoFactura("❌ Error de clave/sincronización con GitHub: " + err.message + ". Escanee nuevamente.");
   }
 }
 
