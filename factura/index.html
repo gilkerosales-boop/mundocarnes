@@ -55,9 +55,9 @@
           <button type="button" class="btn btn-sm btn-danger fw-bold me-2 border-light" onclick="abrirModalCierreCaja()">
             🔒 Cierre de Caja
           </button>
-          <!-- BOTÓN GESTIÓN DE PRODUCTOS (CÓDIGOS Y DISPONIBILIDAD) -->
+          <!-- BOTÓN CÓDIGOS DE PRODUCTOS PLU -->
           <button type="button" class="btn btn-sm btn-info fw-bold me-3 border-dark text-dark" onclick="abrirModalGestionCodigos()">
-            ⚙️ Gestión de Productos
+            📊 Cód. de Productos
           </button>
           <span id="usuarioActivo" class="me-3 small fw-bold text-light"></span>
           <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="cerrarSesionFacturacion()">Cerrar Sesión 🚪</button>
@@ -530,7 +530,7 @@
       <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-dark border-2">
           <div class="modal-header bg-info text-dark">
-            <h5 class="modal-title fw-bold">⚙️ Gestión de Productos (Códigos PLU y Disponibilidad)</h5>
+            <h5 class="modal-title fw-bold">📊 Configuración de Códigos de Productos (PLU Balanza)</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4 bg-light">
@@ -702,6 +702,38 @@
       </div>
     </div>
 
+    <!-- MODAL ESCÁNER QR DE TOKEN DE SEGURIDAD GITHUB (MASCARADO) -->
+    <div class="modal fade" id="modalEscanearTokenGitHub" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-dark border-2">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title fw-bold">🔐 Autorización de Seguridad</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light text-center">
+            
+            <div class="alert alert-dark border-dark mb-3">
+              <div class="fw-bold mb-1">📷 Escanee su QR de Seguridad</div>
+              <small class="text-white-50">Utilice el lector para escanear el código QR de autorización. La clave permanecerá oculta.</small>
+            </div>
+
+            <div class="mb-3">
+              <input type="password" id="inputTokenQR" class="form-control border-dark text-center fw-bold fs-3 text-danger font-monospace" placeholder="••••••••••••" autocomplete="off" onkeyup="if(event.key==='Enter') ejecutarGuardadoConTokenQR()">
+            </div>
+
+            <div id="errorModalTokenQR" class="text-danger small fw-bold mb-2 hidden"></div>
+
+          </div>
+          <div class="modal-footer bg-white justify-content-between">
+            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnValidarTokenQR" class="btn btn-danger fw-bold px-4" onclick="ejecutarGuardadoConTokenQR()">
+              🔒 Validar y Sincronizar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast de Notificaciones -->
     <div class="toast-container position-fixed bottom-0 end-0 p-3">
       <div id="toastFactura" class="toast align-items-center text-white bg-dark border-0" role="alert">
@@ -719,6 +751,6 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="script.js?v=1.3.4"></script>
+    <script src="script.js?v=1.3.5"></script>
   </body>
 </html>
