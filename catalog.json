@@ -673,8 +673,8 @@
           2.5,
           "img/suero_divina_pastora.webp",
           true,
-          250,
-          "gramos",
+          1,
+          "unidades",
           0,
           ""
         ]
