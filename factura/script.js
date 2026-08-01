@@ -1373,11 +1373,6 @@ function procesarEntradaScanner(cadenaTexto) {
     const numStr = codigoCompleto.replace(/\D/g, '');
     if (numStr.length < 12) return;
 
-    // ESTRUCTURA NUEVA BALANZA PS-30 (Ej: 290062034950003914)
-    // 1. Digitos 1-2 (2 dígitos): Prefijo Balanza "29" [IGNORAR]
-    // 2. Digitos 3-6 (4 dígitos): Código Producto PLU "0062"
-    // 3. Digitos 7-11 (5 dígitos): Peso en gramos "03495" (3495g = 3.495Kg)
-    // 4. Digitos 12+ (resto): Precio "0003914" (Enteros: "00039", Decimales: "14" -> $39.14)
     const codProducto = numStr.substring(2, 6);
     const valPesoStr = numStr.substring(6, 11);
     const valPrecioStr = numStr.length >= 18 ? numStr.substring(11) : "";
@@ -1403,7 +1398,6 @@ function procesarEntradaScanner(cadenaTexto) {
           let parteDecimal = valPrecioStr.substring(valPrecioStr.length - 2);
           calcSubtotal = parseFloat(`${parteEntera}.${parteDecimal}`) || 0;
 
-          // RECALCULAR PRECIO BASE DINÁMICO ($/Kg) = Monto Total / Peso en Kg
           if (pesoTotalGramos > 0) {
             calcPrecioBase = calcSubtotal / (pesoTotalGramos / 1000);
           }
@@ -1413,7 +1407,6 @@ function procesarEntradaScanner(cadenaTexto) {
         }
 
       } else {
-        // Producto por Unidades (uds)
         cantidadUds = 1;
         cantTxt = `1 uds`;
 
@@ -1422,7 +1415,6 @@ function procesarEntradaScanner(cadenaTexto) {
           let parteDecimal = valPrecioStr.substring(valPrecioStr.length - 2);
           calcSubtotal = parseFloat(`${parteEntera}.${parteDecimal}`) || 0;
 
-          // RECALCULAR PRECIO BASE DINÁMICO ($/Ud) = Monto Total / Cantidad
           calcPrecioBase = calcSubtotal / cantidadUds;
         } else {
           calcPrecioBase = productoEncontrado.precio;
@@ -1468,7 +1460,6 @@ function buscarProductoPorCodigo(codStr, numInt) {
   const codLimpio = String(codStr || "").trim();
   const codNum = parseInt(codLimpio, 10);
 
-  // BÚSQUEDA ESTRICTA POR CÓDIGO PLU ASIGNADO
   for (let cat of cacheCategoriasFactura) {
     for (let p of cat.productos) {
       let codAsignado = p[7] ? String(p[7]).trim() : "";
@@ -1487,7 +1478,6 @@ function buscarProductoPorCodigo(codStr, numInt) {
     }
   }
 
-  // Si no está asignado explícitamente en el catálogo, retorna null (No Encontrado)
   return null;
 }
 
@@ -1560,7 +1550,7 @@ function confirmarAgregarCodigosAFactura() {
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
 }
 
-// LÓGICA GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS (CÓDIGOS Y DISPONIBILIDAD)
+// LÓGICA GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS (CÓDIGOS, PRECIOS Y DISPONIBILIDAD)
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
   prepararListaProductosCodigos();
@@ -1641,7 +1631,12 @@ function renderizarTablaGestionCodigos(lista) {
           </select>
         </td>
         <td class="text-center"><span class="badge bg-light text-dark border">${unidadTxt}</span></td>
-        <td class="text-end fw-bold text-success">$${item.precio.toFixed(2)}</td>
+        <td class="text-center">
+          <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-center fw-bold border-dark text-success input-precio-item" 
+                 data-nombre="${safeName}" 
+                 data-cat="${item.categoria}" 
+                 value="${item.precio.toFixed(2)}" style="max-width: 110px; margin: 0 auto;">
+        </td>
       </tr>`;
   });
 
@@ -1710,9 +1705,11 @@ async function procesarSincronizacionGitHub() {
   try {
     const inputsPLU = document.querySelectorAll('.input-codigo-plu-item');
     const selectsDisp = document.querySelectorAll('.select-disp-item');
+    const inputsPrecio = document.querySelectorAll('.input-precio-item');
 
     let mapaNuevosCodigos = {};
     let mapaDisponibilidad = {};
+    let mapaPrecios = {};
 
     inputsPLU.forEach(inp => {
       let nombreProd = inp.getAttribute('data-nombre');
@@ -1726,24 +1723,35 @@ async function procesarSincronizacionGitHub() {
       mapaDisponibilidad[nombreProd] = esDisp;
     });
 
-    // Actualizar `cacheCategoriasFactura` en memoria
+    inputsPrecio.forEach(inp => {
+      let nombreProd = inp.getAttribute('data-nombre');
+      let nuevoPrec = parseFloat(inp.value);
+      if (!isNaN(nuevoPrec) && nuevoPrec > 0) {
+        mapaPrecios[nombreProd] = nuevoPrec;
+      }
+    });
+
+    // Actualizar cacheCategoriasFactura en memoria (Sincronización total)
     cacheCategoriasFactura.forEach(cat => {
       cat.productos.forEach(p => {
         let nom = p[0];
-        if (mapaNuevosCodigos[nom] !== undefined) {
-          p[7] = mapaNuevosCodigos[nom];
+        if (mapaPrecios[nom] !== undefined) {
+          p[1] = mapaPrecios[nom]; // Actualizar precio
         }
         if (mapaDisponibilidad[nom] !== undefined) {
-          p[3] = mapaDisponibilidad[nom];
+          p[3] = mapaDisponibilidad[nom]; // Actualizar disponibilidad
+        }
+        if (mapaNuevosCodigos[nom] !== undefined) {
+          p[7] = mapaNuevosCodigos[nom]; // Actualizar código PLU
         }
       });
     });
 
-    // Subir archivo `catalog.json` actualizado a GitHub
+    // Subir archivo catalog.json actualizado a GitHub
     const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
     const base64Content = btoa(unescape(encodeURIComponent(contentString)));
 
-    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización de códigos PLU y disponibilidad desde Módulo de Facturación");
+    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización de precios, códigos PLU y disponibilidad desde Módulo de Facturación");
 
     if (btn) {
       btn.disabled = false;
@@ -1754,10 +1762,9 @@ async function procesarSincronizacionGitHub() {
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
-    mostrarAvisoFactura("🎉 Configuración de productos y disponibilidad guardada con éxito.");
+    mostrarAvisoFactura("🎉 Configuración de productos, precios y disponibilidad guardada con éxito.");
 
   } catch (err) {
-    // Si la clave falló ("Bad credentials"), borrar el token de inmediato para requerir nuevo escaneo
     sessionStorage.removeItem("github_token");
     if (btn) {
       btn.disabled = false;
@@ -2035,6 +2042,116 @@ async function eliminarFacturaHistorial(numFactura) {
   }
 }
 
+// LÓGICA DESCARGA Y FILTRADO DE FACTURAS EN FORMATO EXCEL (.XLSX)
+function abrirModalFiltroDescarga() {
+  const inputFecha = document.getElementById('descargaFechaInput');
+  const selectForma = document.getElementById('descargaFormaPagoSelect');
+  const errorDiv = document.getElementById('errorModalDescarga');
+
+  if (inputFecha) {
+    const hoy = new Date().toISOString().split('T')[0];
+    inputFecha.value = hoy;
+  }
+  if (selectForma) selectForma.value = "TODOS";
+  if (errorDiv) errorDiv.classList.add('hidden');
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiltroDescarga')).show();
+}
+
+async function ejecutarDescargaExcelFacturas() {
+  const fechaVal = document.getElementById('descargaFechaInput').value;
+  const formaPagoVal = document.getElementById('descargaFormaPagoSelect').value;
+  const errorDiv = document.getElementById('errorModalDescarga');
+  const btn = document.getElementById('btnProcesarDescargaExcel');
+
+  if (!fechaVal) {
+    if (errorDiv) {
+      errorDiv.textContent = "Por favor, seleccione la fecha deseada.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (errorDiv) errorDiv.classList.add('hidden');
+
+  btn.disabled = true;
+  btn.textContent = "Generando Excel...";
+
+  try {
+    const response = await fetch(API_URL_GAS, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        action: "obtenerFacturasParaDescargaExcel",
+        fecha: fechaVal,
+        formaPago: formaPagoVal
+      })
+    });
+
+    const res = await response.json();
+    btn.disabled = false;
+    btn.textContent = "📊 Descargar Excel (.xlsx)";
+
+    if (res.status === "success" && res.registros && res.registros.length > 0) {
+      // Formatear renglones de la tabla para SheetJS XLSX
+      const filasExcel = res.registros.map(r => ({
+        "Fecha / Hora": r.fechaStr || "N/D",
+        "Factura N°": r.numFactura || "",
+        "Cédula / RIF": r.cedula || "",
+        "Cliente": r.nombre || "",
+        "Dirección / Ubicación": r.direccion || "",
+        "Productos": r.productosSummary || "",
+        "Forma de Pago": r.formaPagoStr || "",
+        "Monto Total ($)": parseFloat(r.montoTotalUSD) || 0,
+        "Efectivo Divisas ($)": parseFloat(r.efectivoUSD) || 0,
+        "Efectivo Bolívares (Bs)": parseFloat(r.efectivoBS) || 0,
+        "Pago Móvil (Bs)": parseFloat(r.pagoMovil) || 0,
+        "Zelle ($)": parseFloat(r.zelle) || 0,
+        "PayPal ($)": parseFloat(r.paypal) || 0,
+        "Cashea ($)": parseFloat(r.cashea) || 0,
+        "Punto de Venta (Bs)": parseFloat(r.puntoVenta) || 0,
+        "Transferencia (Bs)": parseFloat(r.transferencia) || 0,
+        "Biopago (Bs)": parseFloat(r.biopago) || 0
+      }));
+
+      // Crear libro y hoja mediante la librería SheetJS
+      const worksheet = XLSX.utils.json_to_sheet(filasExcel);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Facturas");
+
+      // Auto-ajuste de ancho de columnas
+      const maxCols = Object.keys(filasExcel[0]).map(key => ({
+        wch: Math.max(key.length, ...filasExcel.map(r => String(r[key] || "").length)) + 2
+      }));
+      worksheet['!cols'] = maxCols;
+
+      const nombreArchivo = `Reporte_Facturas_${fechaVal}_${formaPagoVal.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+      XLSX.writeFile(workbook, nombreArchivo);
+
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiltroDescarga')).hide();
+      mostrarAvisoFactura("🎉 Reporte Excel generado y descargado exitosamente.");
+
+    } else {
+      if (errorDiv) {
+        errorDiv.textContent = res.message || "No se encontraron registros de ventas para la fecha y método seleccionados.";
+        errorDiv.classList.remove('hidden');
+      } else {
+        mostrarAvisoFactura("No se encontraron registros de ventas para los criterios seleccionados.");
+      }
+    }
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "📊 Descargar Excel (.xlsx)";
+    console.error("Error al descargar reporte Excel:", err);
+    if (errorDiv) {
+      errorDiv.textContent = "Error de conexión al obtener el reporte Excel.";
+      errorDiv.classList.remove('hidden');
+    }
+  }
+}
+
 // LÓGICA CIERRE DE CAJA (REPORTE Z)
 function abrirModalCierreCaja() {
   const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
@@ -2071,10 +2188,7 @@ async function procesarSiguienteCierreCaja() {
       const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
       const tasa = obtenerTasaBCV();
 
-      // TOTAL VENTAS INGRESOS ($): Sumatoria estricta de ingresos en Divisas ($)
       resumen.totalGeneralVentasUSD = resumen.ventasEfectivoUSD + resumen.ventasZelle + resumen.ventasPayPal + resumen.ventasCashea;
-
-      // TOTAL VENTAS INGRESOS (Bs): Sumatoria estricta de ingresos en Bolívares (Bs)
       resumen.totalGeneralVentasBS = resumen.ventasEfectivoBS + resumen.ventasPagoMovil + resumen.ventasPuntoVenta + resumen.ventasBiopago + resumen.ventasTransferencia;
 
       const totalCajaUSD = inicialUSD + resumen.ventasEfectivoUSD;
