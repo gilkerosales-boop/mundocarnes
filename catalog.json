@@ -347,6 +347,16 @@
           "gramos",
           0,
           "0149"
+        ],
+        [
+          "PANZA DE REZ",
+          5,
+          "img/panza_de_rez.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          "0026"
         ]
       ]
     },
