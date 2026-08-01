@@ -687,6 +687,16 @@
           "gramos",
           0,
           "0020"
+        ],
+        [
+          "RECORTES DE CHACUTERIA",
+          9.5,
+          "img/recortes_de_chacuteria.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          "0048"
         ]
       ]
     },
