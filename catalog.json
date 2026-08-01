@@ -317,6 +317,16 @@
           "gramos",
           0,
           "0019"
+        ],
+        [
+          "PUNTA TRASERA",
+          16,
+          "img/punta_trasera.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          "0001"
         ]
       ]
     },
