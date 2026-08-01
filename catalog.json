@@ -337,6 +337,16 @@
           "gramos",
           0,
           "0124"
+        ],
+        [
+          "RABO DE REZ",
+          8.9,
+          "img/rabo_de_rez.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          "0149"
         ]
       ]
     },
