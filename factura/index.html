@@ -55,9 +55,9 @@
           <button type="button" class="btn btn-sm btn-danger fw-bold me-2 border-light" onclick="abrirModalCierreCaja()">
             🔒 Cierre de Caja
           </button>
-          <!-- BOTÓN CÓDIGOS DE PRODUCTOS PLU -->
+          <!-- BOTÓN CONFIGURACIÓN DE PRODUCTOS (Renombrado con ícono de engranaje) -->
           <button type="button" class="btn btn-sm btn-info fw-bold me-3 border-dark text-dark" onclick="abrirModalGestionCodigos()">
-            📊 Cód. de Productos
+            ⚙️ Configuración de Productos
           </button>
           <span id="usuarioActivo" class="me-3 small fw-bold text-light"></span>
           <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="cerrarSesionFacturacion()">Cerrar Sesión 🚪</button>
@@ -525,18 +525,18 @@
       </div>
     </div>
 
-    <!-- MODAL GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS (CÓDIGOS Y DISPONIBILIDAD) -->
+    <!-- MODAL GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS (CÓDIGOS, PRECIOS Y DISPONIBILIDAD) -->
     <div class="modal fade" id="modalGestionCodigos" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-dark border-2">
           <div class="modal-header bg-info text-dark">
-            <h5 class="modal-title fw-bold">📊 Configuración de Códigos de Productos (PLU Balanza)</h5>
+            <h5 class="modal-title fw-bold">⚙️ Configuración de Productos</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4 bg-light">
             
             <div class="alert alert-dark border-secondary mb-3 small">
-              <strong>ℹ️ Instrucciones:</strong> Modifique los códigos PLU o la disponibilidad de cada producto. La lista se muestra **ordenada de menor a mayor por código PLU**. Al guardar, los cambios se sincronizarán en tiempo real con el Modo Editor (`/admin`) y el sistema de Facturación.
+              <strong>ℹ️ Instrucciones:</strong> Modifique los códigos PLU, precios o disponibilidad de cada producto. La lista se muestra **ordenada de menor a mayor por código PLU**. Al guardar, los cambios se sincronizarán en tiempo real con el catálogo web (`mundocarnes.com.ve`), el Modo Editor (`/admin`) y el sistema de Facturación.
             </div>
 
             <!-- Filtro de Búsqueda Rápida -->
@@ -549,7 +549,7 @@
               </div>
             </div>
 
-            <!-- Tabla Resumen de Productos y Códigos -->
+            <!-- Tabla Resumen de Productos, Precios y Códigos -->
             <div class="table-responsive bg-white rounded border mb-2" style="max-height: 420px; overflow-y: auto;">
               <table class="table table-hover table-striped align-middle mb-0">
                 <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
@@ -559,7 +559,7 @@
                     <th>Categoría</th>
                     <th style="width: 150px;">Disponibilidad</th>
                     <th style="width: 90px;">Unidad</th>
-                    <th style="width: 110px;">Precio ($)</th>
+                    <th style="width: 130px;">Precio ($)</th>
                   </tr>
                 </thead>
                 <tbody id="tablaGestionCodigos" class="small">
@@ -591,20 +591,25 @@
           </div>
           <div class="modal-body p-4 bg-light">
             
-            <!-- Búsqueda y Botón Últimas 10 -->
+            <!-- Búsqueda, Botón Últimas 10 y Botón Descargar Registro -->
             <div class="row g-2 align-items-end mb-4 bg-white p-3 rounded border">
-              <div class="col-md-6 col-lg-7">
+              <div class="col-md-5 col-lg-5">
                 <label for="facBusquedaInput" class="form-label fw-bold small mb-1">Cédula / RIF, Nombre o N° de Factura:</label>
                 <input type="text" id="facBusquedaInput" class="form-control border-dark text-uppercase fw-bold" placeholder="Ej: V19255985 o 001-00008..." onkeyup="if(event.key==='Enter') buscarFacturasHistorial('busqueda')">
               </div>
-              <div class="col-md-3 col-lg-3">
+              <div class="col-md-2 col-lg-2">
                 <button type="button" class="btn btn-dark w-100 fw-bold" onclick="buscarFacturasHistorial('busqueda')">
-                  🔍 Buscar Factura
+                  🔍 Buscar
                 </button>
               </div>
-              <div class="col-md-3 col-lg-2">
-                <button type="button" class="btn btn-warning w-100 fw-bold border-dark" onclick="buscarFacturasHistorial('ultimas10')">
+              <div class="col-md-2 col-lg-2">
+                <button type="button" class="btn btn-warning w-100 fw-bold border-dark text-dark" onclick="buscarFacturasHistorial('ultimas10')">
                   🕒 Últimas 10
+                </button>
+              </div>
+              <div class="col-md-3 col-lg-3">
+                <button type="button" class="btn btn-success w-100 fw-bold border-dark" onclick="abrirModalFiltroDescarga()">
+                  📥 Descargar Registro
                 </button>
               </div>
             </div>
@@ -634,6 +639,59 @@
           </div>
           <div class="modal-footer bg-white">
             <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DESCARGA Y FILTRO DE REGISTRO EN EXCEL (.XLSX) -->
+    <div class="modal fade" id="modalFiltroDescarga" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-dark border-2">
+          <div class="modal-header bg-success text-white">
+            <h5 class="modal-title fw-bold">📥 Descargar Registro de Facturas (.xlsx)</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            <div class="alert alert-dark border-dark mb-3 small">
+              <strong>ℹ️ Instrucciones:</strong> Seleccione la fecha requerida. Puede descargar la totalidad de las facturas de ese día o filtrar por un método de pago específico (e.g., Cashea+, Pago Móvil, etc.).
+            </div>
+
+            <div class="mb-3">
+              <label for="descargaFechaInput" class="form-label fw-bold">📅 Fecha Requerida *:</label>
+              <input type="date" id="descargaFechaInput" class="form-control border-dark fw-bold fs-5 text-center">
+            </div>
+
+            <div class="mb-3">
+              <label for="descargaFormaPagoSelect" class="form-label fw-bold">💳 Método de Pago (Filtro):</label>
+              <select id="descargaFormaPagoSelect" class="form-select border-dark fw-bold">
+                <option value="TODOS" selected>-- Todos los Métodos de Pago --</option>
+                <option value="Efectivo Divisas">Efectivo Divisas</option>
+                <option value="Efectivo Bolívares">Efectivo Bolívares</option>
+                <option value="Pago Móvil">Pago Móvil</option>
+                <option value="Zelle">Zelle</option>
+                <option value="PayPal">PayPal</option>
+                <option value="Punto de Venta">Punto de Venta</option>
+                <option value="Biopago">Biopago</option>
+                <option value="Cashea">Cashea (Cualquiera / Combinados)</option>
+                <option value="Cashea + Efectivo Divisas">Cashea + Efectivo Divisas</option>
+                <option value="Cashea + Efectivo Bolívares">Cashea + Efectivo Bolívares</option>
+                <option value="Cashea + Pago Móvil">Cashea + Pago Móvil</option>
+                <option value="Cashea + Zelle">Cashea + Zelle</option>
+                <option value="Cashea + PayPal">Cashea + PayPal</option>
+                <option value="Cashea + Punto de Venta">Cashea + Punto de Venta</option>
+                <option value="Cashea + Biopago">Cashea + Biopago</option>
+                <option value="Pago Mixto">Pago Mixto</option>
+              </select>
+            </div>
+
+            <div id="errorModalDescarga" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer bg-white justify-content-between p-3">
+            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnProcesarDescargaExcel" class="btn btn-success fw-bold px-4 fs-6" onclick="ejecutarDescargaExcelFacturas()">
+              📊 Descargar Excel (.xlsx)
+            </button>
           </div>
         </div>
       </div>
@@ -751,6 +809,8 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="script.js?v=1.3.5"></script>
+    <!-- Librería SheetJS para exportación nativa a Excel .xlsx -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="script.js?v=1.4.0"></script>
   </body>
 </html>
