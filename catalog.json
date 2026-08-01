@@ -579,7 +579,7 @@
           "0031"
         ],
         [
-          "QUESO CUAJADA",
+          "QUESO QUAJADA",
           7.5,
           "img/queso_quajada.webp",
           true,
@@ -867,7 +867,7 @@
           "MAYONESA KRAFT 445g",
           5.6,
           "img/kraft_445.webp",
-          true,
+          false,
           1,
           "unidades",
           null,
