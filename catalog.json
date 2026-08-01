@@ -609,6 +609,16 @@
           "0039"
         ],
         [
+          "RECORTES DE CHULETA AHUMADA",
+          9.5,
+          "img/recortes_de_chuleta_ahumada.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "0020"
+        ],
+        [
           "SALCHICHA DE POLLO",
           5,
           "img/salchicha_de_pollo.webp",
@@ -727,16 +737,6 @@
           "unidades",
           0,
           ""
-        ],
-        [
-          "RECORTES DE CHULETA AHUMADA",
-          9.5,
-          "img/recortes_de_chuleta_ahumada.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          "0020"
         ],
         [
           "RECORTES DE CHACUTERIA",
