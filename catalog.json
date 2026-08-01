@@ -327,6 +327,16 @@
           "gramos",
           0,
           "0001"
+        ],
+        [
+          "PATA DE REZ",
+          8,
+          "img/pata_de_rez.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          "0124"
         ]
       ]
     },
