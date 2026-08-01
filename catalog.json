@@ -619,6 +619,16 @@
           "0020"
         ],
         [
+          "RECORTES DE CHACUTERIA",
+          9.5,
+          "img/recortes_de_chacuteria.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "0048"
+        ],
+        [
           "SALCHICHA DE POLLO",
           5,
           "img/salchicha_de_pollo.webp",
@@ -737,16 +747,6 @@
           "unidades",
           0,
           ""
-        ],
-        [
-          "RECORTES DE CHACUTERIA",
-          9.5,
-          "img/recortes_de_chacuteria.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          "0048"
         ]
       ]
     },
