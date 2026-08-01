@@ -677,6 +677,16 @@
           "unidades",
           0,
           ""
+        ],
+        [
+          "RECORTES DE CHULETA AHUMADA",
+          9.5,
+          "img/recortes_de_chuleta_ahumada.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          "0020"
         ]
       ]
     },
