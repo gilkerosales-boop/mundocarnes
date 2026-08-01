@@ -579,6 +579,16 @@
           "0031"
         ],
         [
+          "QUESO QUAJADA",
+          7.5,
+          "img/queso_quajada.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "0139"
+        ],
+        [
           "JAMON DE PIERNA",
           9.9,
           "img/jamon_cocido.webp",
@@ -737,16 +747,6 @@
           "gramos",
           0,
           "0048"
-        ],
-        [
-          "QUESO QUAJADA",
-          7.5,
-          "img/queso_quajada.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          "0139"
         ]
       ]
     },
