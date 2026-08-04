@@ -40,6 +40,61 @@ body {
   max-height: 40px;
 }
 
+/* ==========================================================================
+   BOTONES PERSONALIZADOS Y UNIFICADOS DEL NAVBAR SUPERIOR DE FACTURACIÓN
+   ========================================================================== */
+.btn-nav-custom {
+  height: 38px;
+  width: 220px; /* Dimensiones idénticas para los 3 botones */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.82rem;
+  border-width: 2px;
+  border-style: solid;
+  border-radius: 6px;
+  transition: all 0.25s ease-in-out;
+  white-space: nowrap;
+  padding: 0 8px;
+}
+
+/* Botón 1: Buscar / Historial (Amarillo) */
+.btn-nav-yellow {
+  border-color: #ffc107;
+  color: #ffc107;
+  background-color: transparent;
+}
+.btn-nav-yellow:hover, .btn-nav-yellow:focus {
+  background-color: #ffc107;
+  color: #000000;
+  border-color: #ffc107;
+}
+
+/* Botón 2: Cierre de Caja (Rojo) */
+.btn-nav-red {
+  border-color: #dc3545;
+  color: #dc3545;
+  background-color: transparent;
+}
+.btn-nav-red:hover, .btn-nav-red:focus {
+  background-color: #dc3545;
+  color: #000000;
+  border-color: #dc3545;
+}
+
+/* Botón 3: Configuración de Productos (Azul / Cyan) */
+.btn-nav-blue {
+  border-color: #0dcaf0;
+  color: #0dcaf0;
+  background-color: transparent;
+}
+.btn-nav-blue:hover, .btn-nav-blue:focus {
+  background-color: #0dcaf0;
+  color: #000000;
+  border-color: #0dcaf0;
+}
+
 /* Pestañas del Catálogo */
 .nav-tabs .nav-link {
   color: #495057;
