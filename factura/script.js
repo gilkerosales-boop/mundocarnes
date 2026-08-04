@@ -26,6 +26,8 @@ let itemsEscaneadosTemporales = [];
 let cacheHistorialFacturas = [];
 let datosCierreCajaPendiente = null;
 let listaFlatProductosCodigos = [];
+let listaMovimientosEfectivo = [];
+let cacheHistorialCierres = [];
 
 // Notificaciones Toast
 function mostrarAvisoFactura(mensaje) {
@@ -37,7 +39,7 @@ function mostrarAvisoFactura(mensaje) {
   }
 }
 
-// OBTENER LA TASA BCV ACTUAL DE FORMA SEGURA (CON RESPALDO EN MEMORIA LOCAL)
+// OBTENER LA TASA BCV ACTUAL DE FORMA SEGURA
 function obtenerTasaBCV() {
   const inputTasa = document.getElementById('facTasaBCV');
   let val = inputTasa ? parseFloat(inputTasa.value) : 0;
@@ -365,6 +367,7 @@ function iniciarModuloFacturacion(usuario) {
   document.getElementById('usuarioActivo').textContent = `👤 Usuario: ${usuario.toUpperCase()}`;
   
   cargarCatalogoFacturacion();
+  cargarMovimientosEfectivoPersistentes();
 }
 
 function cerrarSesionFacturacion() {
@@ -1686,7 +1689,6 @@ async function ejecutarGuardadoConTokenQR() {
     return;
   }
 
-  // Guardar token en memoria temporal y limpiar input inmediatamente por privacidad
   sessionStorage.setItem("github_token", token);
   input.value = "";
 
@@ -1731,23 +1733,21 @@ async function procesarSincronizacionGitHub() {
       }
     });
 
-    // Actualizar cacheCategoriasFactura en memoria (Sincronización total)
     cacheCategoriasFactura.forEach(cat => {
       cat.productos.forEach(p => {
         let nom = p[0];
         if (mapaPrecios[nom] !== undefined) {
-          p[1] = mapaPrecios[nom]; // Actualizar precio
+          p[1] = mapaPrecios[nom];
         }
         if (mapaDisponibilidad[nom] !== undefined) {
-          p[3] = mapaDisponibilidad[nom]; // Actualizar disponibilidad
+          p[3] = mapaDisponibilidad[nom];
         }
         if (mapaNuevosCodigos[nom] !== undefined) {
-          p[7] = mapaNuevosCodigos[nom]; // Actualizar código PLU
+          p[7] = mapaNuevosCodigos[nom];
         }
       });
     });
 
-    // Subir archivo catalog.json actualizado a GitHub
     const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
     const base64Content = btoa(unescape(encodeURIComponent(contentString)));
 
@@ -1758,7 +1758,6 @@ async function procesarSincronizacionGitHub() {
       btn.textContent = "💾 Guardar Todos los Cambios";
     }
 
-    // Refrescar el catálogo en pantalla de inmediato
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
@@ -2094,7 +2093,6 @@ async function ejecutarDescargaExcelFacturas() {
     btn.textContent = "📊 Descargar Excel (.xlsx)";
 
     if (res.status === "success" && res.registros && res.registros.length > 0) {
-      // Formatear renglones de la tabla para SheetJS XLSX
       const filasExcel = res.registros.map(r => ({
         "Fecha / Hora": r.fechaStr || "N/D",
         "Factura N°": r.numFactura || "",
@@ -2115,12 +2113,10 @@ async function ejecutarDescargaExcelFacturas() {
         "Biopago (Bs)": parseFloat(r.biopago) || 0
       }));
 
-      // Crear libro y hoja mediante la librería SheetJS
       const worksheet = XLSX.utils.json_to_sheet(filasExcel);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Facturas");
 
-      // Auto-ajuste de ancho de columnas
       const maxCols = Object.keys(filasExcel[0]).map(key => ({
         wch: Math.max(key.length, ...filasExcel.map(r => String(r[key] || "").length)) + 2
       }));
@@ -2152,7 +2148,119 @@ async function ejecutarDescargaExcelFacturas() {
   }
 }
 
-// LÓGICA CIERRE DE CAJA (REPORTE Z)
+// --------------------------------------------------------------------------
+// LÓGICA DE REGISTRO DE MOVIMIENTOS DE EFECTIVO (INGRESOS / RETIROS)
+// --------------------------------------------------------------------------
+function cargarMovimientosEfectivoPersistentes() {
+  const hoy = new Date().toISOString().split('T')[0];
+  const guardado = localStorage.getItem("movimientos_efectivo_" + hoy);
+  if (guardado) {
+    try {
+      listaMovimientosEfectivo = JSON.parse(guardado) || [];
+    } catch (e) {
+      listaMovimientosEfectivo = [];
+    }
+  } else {
+    listaMovimientosEfectivo = [];
+  }
+}
+
+function abrirModalMovimientosEfectivo() {
+  document.getElementById('movMontoInput').value = "";
+  document.getElementById('movConceptoInput').value = "";
+  document.getElementById('movTipoSelect').value = "INGRESO";
+  document.getElementById('movMonedaSelect').value = "USD";
+  document.getElementById('errorModalMovEfectivo').classList.add('hidden');
+  document.getElementById('contenedorTablaMovimientosDia').classList.add('hidden');
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalMovimientosEfectivo')).show();
+}
+
+function registrarMovimientoEfectivo() {
+  const tipo = document.getElementById('movTipoSelect').value;
+  const moneda = document.getElementById('movMonedaSelect').value;
+  const monto = parseFloat(document.getElementById('movMontoInput').value);
+  const concepto = document.getElementById('movConceptoInput').value.trim().toUpperCase();
+  const errorDiv = document.getElementById('errorModalMovEfectivo');
+
+  if (isNaN(monto) || monto <= 0) {
+    errorDiv.textContent = "Por favor, indique un monto válido superior a 0.";
+    errorDiv.classList.remove('hidden');
+    return;
+  }
+
+  if (!concepto) {
+    errorDiv.textContent = "Por favor, especifique el concepto o motivo del movimiento.";
+    errorDiv.classList.remove('hidden');
+    return;
+  }
+
+  errorDiv.classList.add('hidden');
+
+  const nuevoMov = {
+    hora: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }),
+    tipo: tipo,
+    moneda: moneda,
+    monto: monto,
+    concepto: concepto
+  };
+
+  listaMovimientosEfectivo.push(nuevoMov);
+
+  const hoy = new Date().toISOString().split('T')[0];
+  localStorage.setItem("movimientos_efectivo_" + hoy, JSON.stringify(listaMovimientosEfectivo));
+
+  document.getElementById('movMontoInput').value = "";
+  document.getElementById('movConceptoInput').value = "";
+
+  mostrarAvisoFactura(`💸 Movimiento de ${tipo} (${moneda}) registrado exitosamente.`);
+  renderizarTablaMovimientosDia();
+}
+
+function alternarTablaMovimientosDia() {
+  const cont = document.getElementById('contenedorTablaMovimientosDia');
+  if (cont.classList.contains('hidden')) {
+    renderizarTablaMovimientosDia();
+    cont.classList.remove('hidden');
+  } else {
+    cont.classList.add('hidden');
+  }
+}
+
+function renderizarTablaMovimientosDia() {
+  const tbody = document.getElementById('tablaMovimientosDiaCaja');
+  if (!tbody) return;
+
+  if (listaMovimientosEfectivo.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">No hay movimientos registrados hoy.</td></tr>`;
+    return;
+  }
+
+  let html = "";
+  listaMovimientosEfectivo.forEach(m => {
+    let esIngreso = (m.tipo === "INGRESO");
+    let badgeTipo = esIngreso ? `<span class="badge bg-success">INGRESO (+)</span>` : `<span class="badge bg-danger">RETIRO (-)</span>`;
+    let simbolo = (m.moneda === "USD") ? "$" : "Bs.";
+    let montoTxt = (m.moneda === "BS") 
+      ? `Bs. ${m.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : `$${m.monto.toFixed(2)}`;
+
+    html += `
+      <tr>
+        <td class="text-center small">${m.hora}</td>
+        <td class="text-center">${badgeTipo}</td>
+        <td class="text-center fw-bold">${m.moneda}</td>
+        <td class="text-end fw-bold ${esIngreso ? 'text-success' : 'text-danger'}">${montoTxt}</td>
+        <td class="small text-wrap">${m.concepto}</td>
+      </tr>`;
+  });
+
+  tbody.innerHTML = html;
+}
+
+// --------------------------------------------------------------------------
+// LÓGICA CIERRE DE CAJA (REPORTE Z) + HISTORIAL DE CIERRES
+// --------------------------------------------------------------------------
 function abrirModalCierreCaja() {
   const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
   document.getElementById('cierreUsuarioNombre').textContent = `👤 Cajero: ${usuario.toUpperCase()}`;
@@ -2161,6 +2269,93 @@ function abrirModalCierreCaja() {
   document.getElementById('errorModalCierrePaso1').classList.add('hidden');
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso1')).show();
+}
+
+function abrirModalHistorialCierres() {
+  cargarHistorialCierresCaja();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalHistorialCierres')).show();
+}
+
+async function cargarHistorialCierresCaja() {
+  const tbody = document.getElementById('tablaHistorialCierresCaja');
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">⏳ Cargando cierres de caja...</td></tr>`;
+
+  try {
+    const response = await fetch(API_URL_GAS, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "obtenerHistorialCierres" })
+    });
+
+    const res = await response.json();
+
+    if (res.status === "success") {
+      cacheHistorialCierres = res.cierres || [];
+      renderizarTablaHistorialCierres();
+    } else {
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">${res.message || "Error al obtener cierres."}</td></tr>`;
+    }
+
+  } catch (err) {
+    console.error("Error historial cierres:", err);
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">Error de conexión al consultar cierres.</td></tr>`;
+  }
+}
+
+function renderizarTablaHistorialCierres() {
+  const tbody = document.getElementById('tablaHistorialCierresCaja');
+  if (!tbody) return;
+
+  if (cacheHistorialCierres.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No hay cierres de caja registrados.</td></tr>`;
+    return;
+  }
+
+  let html = "";
+  cacheHistorialCierres.forEach((c, idx) => {
+    html += `
+      <tr>
+        <td class="fw-bold text-center small">${c.fechaStr}</td>
+        <td class="fw-bold text-center">${c.usuario}</td>
+        <td class="text-center small">$${c.inicialUSD.toFixed(2)} / Bs.${c.inicialBS.toLocaleString('es-VE', {minimumFractionDigits:2})}</td>
+        <td class="text-center small">$${c.totalVentasUSD.toFixed(2)} / Bs.${c.totalVentasBS.toLocaleString('es-VE', {minimumFractionDigits:2})}</td>
+        <td class="text-center fw-bold text-success">$${c.cajaFinalUSD.toFixed(2)} / Bs.${c.cajaFinalBS.toLocaleString('es-VE', {minimumFractionDigits:2})}</td>
+        <td class="text-center">
+          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold" onclick="reimprimirCierreCajaHistorial(${idx})" title="Reimprimir Reporte Z">
+            🖨️ Reimprimir
+          </button>
+        </td>
+      </tr>`;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function reimprimirCierreCajaHistorial(idx) {
+  const c = cacheHistorialCierres[idx];
+  if (!c) return mostrarAvisoFactura("No se localizó la información del cierre.");
+
+  datosCierreCajaPendiente = {
+    fechaStr: c.fechaStr,
+    usuario: c.usuario,
+    tasaBCV: c.tasaBCV || obtenerTasaBCV(),
+    inicialUSD: c.inicialUSD,
+    inicialBS: c.inicialBS,
+    resumen: c.resumen,
+    ingresosUSD: c.ingresosUSD || 0,
+    retirosUSD: c.retirosUSD || 0,
+    ingresosBS: c.ingresosBS || 0,
+    retirosBS: c.retirosBS || 0,
+    totalCajaUSD: c.cajaFinalUSD,
+    totalCajaBS: c.cajaFinalBS
+  };
+
+  renderizarTicketCierreCajaHTML(datosCierreCajaPendiente);
+  window.print();
+  mostrarAvisoFactura(`🖨️ Reimprimiendo Reporte Z del ${c.fechaStr}...`);
 }
 
 async function procesarSiguienteCierreCaja() {
@@ -2188,11 +2383,24 @@ async function procesarSiguienteCierreCaja() {
       const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
       const tasa = obtenerTasaBCV();
 
+      // Sumatoria estricta de ingresos y retiros de efectivo
+      let ingresosUSD = 0, retirosUSD = 0, ingresosBS = 0, retirosBS = 0;
+      listaMovimientosEfectivo.forEach(m => {
+        if (m.moneda === "USD") {
+          if (m.tipo === "INGRESO") ingresosUSD += m.monto;
+          else if (m.tipo === "RETIRO") retirosUSD += m.monto;
+        } else if (m.moneda === "BS") {
+          if (m.tipo === "INGRESO") ingresosBS += m.monto;
+          else if (m.tipo === "RETIRO") retirosBS += m.monto;
+        }
+      });
+
       resumen.totalGeneralVentasUSD = resumen.ventasEfectivoUSD + resumen.ventasZelle + resumen.ventasPayPal + resumen.ventasCashea;
       resumen.totalGeneralVentasBS = resumen.ventasEfectivoBS + resumen.ventasPagoMovil + resumen.ventasPuntoVenta + resumen.ventasBiopago + resumen.ventasTransferencia;
 
-      const totalCajaUSD = inicialUSD + resumen.ventasEfectivoUSD;
-      const totalCajaBS = inicialBS + resumen.ventasEfectivoBS;
+      // Efectivo Final en Caja = Inicial + Ventas Efectivo + Ingresos Movimientos - Retiros Movimientos
+      const totalCajaUSD = inicialUSD + resumen.ventasEfectivoUSD + ingresosUSD - retirosUSD;
+      const totalCajaBS = inicialBS + resumen.ventasEfectivoBS + ingresosBS - retirosBS;
 
       datosCierreCajaPendiente = {
         fechaStr: new Date().toLocaleString('es-VE'),
@@ -2200,6 +2408,10 @@ async function procesarSiguienteCierreCaja() {
         tasaBCV: tasa,
         inicialUSD: inicialUSD,
         inicialBS: inicialBS,
+        ingresosUSD: ingresosUSD,
+        retirosUSD: retirosUSD,
+        ingresosBS: ingresosBS,
+        retirosBS: retirosBS,
         resumen: resumen,
         totalCajaUSD: totalCajaUSD,
         totalCajaBS: totalCajaBS
@@ -2224,7 +2436,36 @@ async function procesarSiguienteCierreCaja() {
 
 // RENDERIZAR TICKET TÉRMICO DE CIERRE DE CAJA (REPORTE Z)
 function renderizarTicketCierreCajaHTML(d) {
-  const r = d.resumen;
+  const r = d.resumen || {};
+
+  let seccionMovimientosHtml = "";
+  if (d.ingresosUSD > 0 || d.retirosUSD > 0 || d.ingresosBS > 0 || d.retirosBS > 0) {
+    seccionMovimientosHtml = `
+      <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
+        3. MOVIMIENTOS DE EFECTIVO (AJUSTES)
+      </div>
+      <table class="ticket-table mb-2">
+        <tbody>
+          <tr>
+            <td>INGRESOS DE EFECTIVO DIVISAS (+):</td>
+            <td class="text-end fw-bold text-success">+$${d.ingresosUSD.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>RETIROS DE EFECTIVO DIVISAS (-):</td>
+            <td class="text-end fw-bold text-danger">-$${d.retirosUSD.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>INGRESOS DE EFECTIVO BOLÍVARES (+):</td>
+            <td class="text-end fw-bold text-success">+Bs. ${d.ingresosBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+          </tr>
+          <tr>
+            <td>RETIROS DE EFECTIVO BOLÍVARES (-):</td>
+            <td class="text-end fw-bold text-danger">-Bs. ${d.retirosBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+  }
 
   const ticketHtml = `
     <div class="ticket-container shadow-sm border text-start">
@@ -2264,54 +2505,56 @@ function renderizarTicketCierreCajaHTML(d) {
         <tbody>
           <tr>
             <td>EFECTIVO DIVISAS:</td>
-            <td class="text-end fw-bold">$${r.ventasEfectivoUSD.toFixed(2)}</td>
+            <td class="text-end fw-bold">$${r.ventasEfectivoUSD ? r.ventasEfectivoUSD.toFixed(2) : '0.00'}</td>
           </tr>
           <tr>
             <td>EFECTIVO BOLÍVARES:</td>
-            <td class="text-end fw-bold">Bs. ${r.ventasEfectivoBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold">Bs. ${r.ventasEfectivoBS ? r.ventasEfectivoBS.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '0.00'}</td>
           </tr>
           <tr>
             <td>PAGO MÓVIL:</td>
-            <td class="text-end fw-bold">Bs. ${r.ventasPagoMovil.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold">Bs. ${r.ventasPagoMovil ? r.ventasPagoMovil.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '0.00'}</td>
           </tr>
           <tr>
             <td>ZELLE:</td>
-            <td class="text-end fw-bold">$${r.ventasZelle.toFixed(2)}</td>
+            <td class="text-end fw-bold">$${r.ventasZelle ? r.ventasZelle.toFixed(2) : '0.00'}</td>
           </tr>
           <tr>
             <td>PAYPAL:</td>
-            <td class="text-end fw-bold">$${r.ventasPayPal.toFixed(2)}</td>
+            <td class="text-end fw-bold">$${r.ventasPayPal ? r.ventasPayPal.toFixed(2) : '0.00'}</td>
           </tr>
           <tr>
             <td>PUNTO DE VENTA:</td>
-            <td class="text-end fw-bold">Bs. ${r.ventasPuntoVenta.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold">Bs. ${r.ventasPuntoVenta ? r.ventasPuntoVenta.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '0.00'}</td>
           </tr>
           <tr>
             <td>BIOPAGO:</td>
-            <td class="text-end fw-bold">Bs. ${r.ventasBiopago.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold">Bs. ${r.ventasBiopago ? r.ventasBiopago.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '0.00'}</td>
           </tr>
           <tr>
             <td>CASHEA:</td>
-            <td class="text-end fw-bold">$${r.ventasCashea.toFixed(2)}</td>
+            <td class="text-end fw-bold">$${r.ventasCashea ? r.ventasCashea.toFixed(2) : '0.00'}</td>
           </tr>
           <tr>
             <td>TRANSFERENCIA BANCARIA:</td>
-            <td class="text-end fw-bold">Bs. ${r.ventasTransferencia.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold">Bs. ${r.ventasTransferencia ? r.ventasTransferencia.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '0.00'}</td>
           </tr>
         </tbody>
       </table>
 
+      ${seccionMovimientosHtml}
+
       <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
-        3. TOTALES GENERALES Y BALANCE CAJA
+        4. TOTALES GENERALES Y BALANCE CAJA
       </div>
       <div class="ticket-totals border-top pt-1">
         <div class="d-flex justify-content-between">
           <span>TOTAL VENTAS INGRESOS ($):</span>
-          <strong class="fs-6">$${r.totalGeneralVentasUSD.toFixed(2)}</strong>
+          <strong class="fs-6">$${r.totalGeneralVentasUSD ? r.totalGeneralVentasUSD.toFixed(2) : '0.00'}</strong>
         </div>
         <div class="d-flex justify-content-between">
           <span>TOTAL VENTAS INGRESOS (Bs):</span>
-          <strong class="fs-6">Bs. ${r.totalGeneralVentasBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong>
+          <strong class="fs-6">Bs. ${r.totalGeneralVentasBS ? r.totalGeneralVentasBS.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '0.00'}</strong>
         </div>
         <div class="ticket-divider"></div>
         <div class="d-flex justify-content-between text-success fw-bold">
@@ -2369,6 +2612,11 @@ async function confirmarEImprimirCierreCaja() {
 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso2')).hide();
       datosCierreCajaPendiente = null;
+
+      // Limpiar movimientos de efectivo del día al cerrar la caja
+      const hoy = new Date().toISOString().split('T')[0];
+      localStorage.removeItem("movimientos_efectivo_" + hoy);
+      listaMovimientosEfectivo = [];
 
       mostrarAvisoFactura("🔒 Cierre de caja registrado e impreso exitosamente. 🎉");
 
