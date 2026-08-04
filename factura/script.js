@@ -2149,7 +2149,7 @@ async function ejecutarDescargaExcelFacturas() {
 }
 
 // --------------------------------------------------------------------------
-// LÓGICA DE REGISTRO DE MOVIMIENTOS DE EFECTIVO (INGRESOS / RETIROS)
+// LÓGICA DE REGISTRO DE MOVIMIENTOS DE EFECTIVO (INGRESOS / RETIROS / ELIMINAR)
 // --------------------------------------------------------------------------
 function cargarMovimientosEfectivoPersistentes() {
   const hoy = new Date().toISOString().split('T')[0];
@@ -2232,15 +2232,14 @@ function renderizarTablaMovimientosDia() {
   if (!tbody) return;
 
   if (listaMovimientosEfectivo.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">No hay movimientos registrados hoy.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">No hay movimientos registrados hoy.</td></tr>`;
     return;
   }
 
   let html = "";
-  listaMovimientosEfectivo.forEach(m => {
+  listaMovimientosEfectivo.forEach((m, idx) => {
     let esIngreso = (m.tipo === "INGRESO");
     let badgeTipo = esIngreso ? `<span class="badge bg-success">INGRESO (+)</span>` : `<span class="badge bg-danger">RETIRO (-)</span>`;
-    let simbolo = (m.moneda === "USD") ? "$" : "Bs.";
     let montoTxt = (m.moneda === "BS") 
       ? `Bs. ${m.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       : `$${m.monto.toFixed(2)}`;
@@ -2252,10 +2251,28 @@ function renderizarTablaMovimientosDia() {
         <td class="text-center fw-bold">${m.moneda}</td>
         <td class="text-end fw-bold ${esIngreso ? 'text-success' : 'text-danger'}">${montoTxt}</td>
         <td class="small text-wrap">${m.concepto}</td>
+        <td class="text-center">
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold" onclick="eliminarMovimientoEfectivo(${idx})" title="Eliminar movimiento">
+            🗑️
+          </button>
+        </td>
       </tr>`;
   });
 
   tbody.innerHTML = html;
+}
+
+function eliminarMovimientoEfectivo(index) {
+  if (confirm("¿Está seguro de que desea eliminar este movimiento de efectivo?")) {
+    const mov = listaMovimientosEfectivo[index];
+    listaMovimientosEfectivo.splice(index, 1);
+
+    const hoy = new Date().toISOString().split('T')[0];
+    localStorage.setItem("movimientos_efectivo_" + hoy, JSON.stringify(listaMovimientosEfectivo));
+
+    renderizarTablaMovimientosDia();
+    mostrarAvisoFactura(`🗑️ Movimiento de ${mov.tipo} (${mov.moneda}) eliminado.`);
+  }
 }
 
 // --------------------------------------------------------------------------
@@ -2383,7 +2400,6 @@ async function procesarSiguienteCierreCaja() {
       const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
       const tasa = obtenerTasaBCV();
 
-      // Sumatoria estricta de ingresos y retiros de efectivo
       let ingresosUSD = 0, retirosUSD = 0, ingresosBS = 0, retirosBS = 0;
       listaMovimientosEfectivo.forEach(m => {
         if (m.moneda === "USD") {
@@ -2398,7 +2414,6 @@ async function procesarSiguienteCierreCaja() {
       resumen.totalGeneralVentasUSD = resumen.ventasEfectivoUSD + resumen.ventasZelle + resumen.ventasPayPal + resumen.ventasCashea;
       resumen.totalGeneralVentasBS = resumen.ventasEfectivoBS + resumen.ventasPagoMovil + resumen.ventasPuntoVenta + resumen.ventasBiopago + resumen.ventasTransferencia;
 
-      // Efectivo Final en Caja = Inicial + Ventas Efectivo + Ingresos Movimientos - Retiros Movimientos
       const totalCajaUSD = inicialUSD + resumen.ventasEfectivoUSD + ingresosUSD - retirosUSD;
       const totalCajaBS = inicialBS + resumen.ventasEfectivoBS + ingresosBS - retirosBS;
 
@@ -2613,7 +2628,6 @@ async function confirmarEImprimirCierreCaja() {
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso2')).hide();
       datosCierreCajaPendiente = null;
 
-      // Limpiar movimientos de efectivo del día al cerrar la caja
       const hoy = new Date().toISOString().split('T')[0];
       localStorage.removeItem("movimientos_efectivo_" + hoy);
       listaMovimientosEfectivo = [];
