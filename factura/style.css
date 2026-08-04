@@ -109,6 +109,11 @@ body {
   opacity: 1;
 }
 
+/* Inputs de edición rápida en tablas */
+.input-precio-item, .input-codigo-plu-item {
+  font-family: inherit;
+}
+
 /* ==========================================================================
    ESTILOS TICKET TÉRMICO XP-80C (ANCHO 72mm EN PAPEL DE 80mm)
    ========================================================================== */
