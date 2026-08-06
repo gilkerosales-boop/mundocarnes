@@ -606,8 +606,9 @@ function ejecutarFacturar() {
     btnConmutar.className = "btn btn-sm btn-outline-dark fw-bold";
   }
 
-  const selectPago = document.getElementById('facFormaPagoSelect');
-  if (selectPago) selectPago.value = "";
+  // Limpiar selección de método de pago
+  document.querySelectorAll('.btn-metodo-pago').forEach(b => b.classList.remove('active'));
+  document.getElementById('facFormaPagoSelect').value = "";
 
   const contMixto = document.getElementById('contenedorPagoMixto');
   if (contMixto) contMixto.classList.add('hidden');
@@ -751,11 +752,23 @@ async function registrarClienteFactura() {
   }
 }
 
-// EVALUAR SI SE SELECCIONA PAGO MIXTO O COMBINACIÓN CASHEA
+// --------------------------------------------------------------------------
+// LÓGICA DE SELECCIÓN DE BOTONES CUADRADOS Y DESGLOSE PAGO (CASHEA Y MIXTOS)
+// --------------------------------------------------------------------------
+function seleccionarMetodoPagoBoton(metodo, btnElem) {
+  // Desmarcar todos los botones y resaltar en rojo el seleccionado
+  document.querySelectorAll('.btn-metodo-pago').forEach(b => b.classList.remove('active'));
+  if (btnElem) btnElem.classList.add('active');
+
+  document.getElementById('facFormaPagoSelect').value = metodo;
+  evaluarFormaPagoFactura(metodo);
+}
+
 function evaluarFormaPagoFactura(valor) {
   const contMixto = document.getElementById('contenedorPagoMixto');
   const btnAgregar = document.getElementById('btnAgregarLineaMixto');
   const lista = document.getElementById('listaFilasPagoMixto');
+  const titulo = document.getElementById('tituloDesglosePago');
 
   if (!contMixto) return;
 
@@ -764,24 +777,30 @@ function evaluarFormaPagoFactura(valor) {
     return;
   }
 
-  const esCasheaCombinado = valor.startsWith("Cashea + ");
-
-  if (valor === 'Pago Mixto' || esCasheaCombinado) {
+  if (valor === 'Cashea') {
     contMixto.classList.remove('hidden');
+    if (titulo) titulo.textContent = "🔀 Desglose de Pago Cashea:";
+    if (btnAgregar) btnAgregar.classList.add('hidden');
     if (lista) lista.innerHTML = "";
 
-    if (esCasheaCombinado) {
-      if (btnAgregar) btnAgregar.classList.add('hidden');
-      let segundoMetodo = valor.replace("Cashea + ", "").trim();
-      agregarLineaPagoMixtoFija("Cashea", false);
-      agregarLineaPagoMixtoFija(segundoMetodo, false);
-    } else {
-      if (btnAgregar) btnAgregar.classList.remove('hidden');
-      agregarLineaPagoMixto();
-      agregarLineaPagoMixto();
-    }
+    // Primera fila fija en "Cashea", segunda fila editable para el complemento
+    agregarLineaPagoMixtoFija("Cashea", false);
+    agregarLineaPagoMixto();
 
     calcularTotalPagoMixto();
+
+  } else if (valor === 'Pago Mixto') {
+    contMixto.classList.remove('hidden');
+    if (titulo) titulo.textContent = "🔀 Desglose de Pago Mixto:";
+    if (btnAgregar) btnAgregar.classList.remove('hidden');
+    if (lista) lista.innerHTML = "";
+
+    // Dos filas editables por defecto
+    agregarLineaPagoMixto();
+    agregarLineaPagoMixto();
+
+    calcularTotalPagoMixto();
+
   } else {
     contMixto.classList.add('hidden');
   }
@@ -893,7 +912,7 @@ function agregarLineaPagoMixto() {
 function eliminarLineaPagoMixto(btn) {
   const lista = document.getElementById('listaFilasPagoMixto');
   if (lista && lista.children.length <= 1) {
-    return mostrarAvisoFactura("El Pago Mixto requiere al menos una forma de pago.");
+    return mostrarAvisoFactura("El Desglose de Pago requiere al menos una forma de pago.");
   }
   btn.closest('.fila-pago-mixto').remove();
   calcularTotalPagoMixto();
@@ -1002,9 +1021,7 @@ function obtenerDetalleFormaPagoFinal() {
   const formaSelect = document.getElementById('facFormaPagoSelect').value;
   if (!formaSelect) return null;
 
-  const esCasheaCombinado = formaSelect.startsWith("Cashea + ");
-
-  if (formaSelect === 'Pago Mixto' || esCasheaCombinado) {
+  if (formaSelect === 'Pago Mixto' || formaSelect === 'Cashea') {
     const tasa = obtenerTasaBCV();
     if (tasa <= 0) {
       mostrarAvisoFactura("Indique una Tasa BCV válida antes de procesar un pago en Bolívares o Mixto.");
@@ -1246,9 +1263,7 @@ function obtenerObjetoDesgloseMetodos() {
   }
   let totalBs = totalUSD * tasa;
 
-  const esCasheaCombinado = formaSelect.startsWith("Cashea + ");
-
-  if (formaSelect === 'Pago Mixto' || esCasheaCombinado) {
+  if (formaSelect === 'Pago Mixto' || formaSelect === 'Cashea') {
     const filas = document.querySelectorAll('.fila-pago-mixto');
 
     filas.forEach(f => {
