@@ -37,6 +37,40 @@ let cacheHistorialCierres = [];
 let sincronizandoEnProceso = false;
 
 // ==========================================================================
+// CLIENTE CENTRALIZADO DE PAGO / PETICIONES A GOOGLE APPS SCRIPT (GAS)
+// ==========================================================================
+async function callGasAPI(payload) {
+  if (!navigator.onLine) {
+    return { status: "offline", message: "Dispositivo sin conexión a Internet." };
+  }
+
+  try {
+    const response = await fetch(API_URL_GAS, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      console.warn(`Aviso API GAS: HTTP ${response.status} en acción '${payload.action || 'desconocida'}'.`);
+      return { status: "error", code: response.status, message: `Servidor no disponible (HTTP ${response.status})` };
+    }
+
+    const rawText = await response.text();
+    try {
+      return JSON.parse(rawText);
+    } catch (parseErr) {
+      console.warn("Aviso API GAS: La respuesta no es un JSON válido.", rawText.substring(0, 100));
+      return { status: "error", message: "Respuesta no estructurada del servidor." };
+    }
+  } catch (err) {
+    console.warn("Aviso API GAS: Fallo de red/conexión al comunicarse con el servidor:", err);
+    return { status: "error", message: err.message };
+  }
+}
+
+// ==========================================================================
 // MOTOR DE BASE DE DATOS LOCAL INDEXEDDB (OFFLINE-FIRST)
 // ==========================================================================
 function abrirDB() {
@@ -167,22 +201,16 @@ async function procesarColaSincronizacion() {
 
   for (let item of queue) {
     try {
-      const response = await fetch(API_URL_GAS, {
-        method: "POST",
-        mode: "cors",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify(item.payload)
-      });
-
-      if (response.ok) {
-        const res = await response.json();
-        if (res && (res.status === "success" || res.exito)) {
-          await dbDelete("syncQueue", item.id);
-        }
+      const res = await callGasAPI(item.payload);
+      if (res && (res.status === "success" || res.exito)) {
+        await dbDelete("syncQueue", item.id);
+      } else if (res && res.status === "error") {
+        console.warn("Aviso Sync: Detenido temporalmente por error en servidor.");
+        break;
       }
     } catch (err) {
       console.warn("Aviso Sync: Detenido por falta de respuesta del servidor:", err);
-      break; // Interrumpir reintentos hasta el próximo evento de red
+      break;
     }
   }
 
@@ -216,16 +244,11 @@ async function forzarSincronizacionManual() {
       let pct = Math.round(((i + 1) / queue.length) * 100);
       mostrarAvisoFactura(`🔄 Paso 1/4: Subiendo pendientes (${i + 1}/${queue.length} - ${pct}%)`, false);
       try {
-        const response = await fetch(API_URL_GAS, {
-          method: "POST", mode: "cors",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify(item.payload)
-        });
-        if (response.ok) {
-          const res = await response.json();
-          if (res && (res.status === "success" || res.exito)) {
-            await dbDelete("syncQueue", item.id);
-          }
+        const res = await callGasAPI(item.payload);
+        if (res && (res.status === "success" || res.exito)) {
+          await dbDelete("syncQueue", item.id);
+        } else {
+          break;
         }
       } catch (e) {
         break;
@@ -239,24 +262,16 @@ async function forzarSincronizacionManual() {
   mostrarAvisoFactura("🔄 Paso 2/4: Consultando Clientes en Google Sheets (0%)...", false);
   let cantClientes = 0;
   try {
-    const resClientes = await fetch(API_URL_GAS, {
-      method: "POST", mode: "cors",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "obtenerTodosLosClientes" })
-    });
-
-    if (resClientes.ok) {
-      const dataCli = await resClientes.json();
-      if (dataCli && dataCli.status === "success" && dataCli.clientes) {
-        const totalCli = dataCli.clientes.length;
-        cantClientes = totalCli;
-        for (let i = 0; i < totalCli; i++) {
-          let cli = dataCli.clientes[i];
-          await dbPut("clientes", cli);
-          if (i % 25 === 0 || i === totalCli - 1) {
-            let pct = Math.round(((i + 1) / totalCli) * 100);
-            mostrarAvisoFactura(`🔄 Paso 2/4: Guardando Clientes (${i + 1}/${totalCli} - ${pct}%)`, false);
-          }
+    const dataCli = await callGasAPI({ action: "obtenerTodosLosClientes" });
+    if (dataCli && dataCli.status === "success" && dataCli.clientes) {
+      const totalCli = dataCli.clientes.length;
+      cantClientes = totalCli;
+      for (let i = 0; i < totalCli; i++) {
+        let cli = dataCli.clientes[i];
+        await dbPut("clientes", cli);
+        if (i % 25 === 0 || i === totalCli - 1) {
+          let pct = Math.round(((i + 1) / totalCli) * 100);
+          mostrarAvisoFactura(`🔄 Paso 2/4: Guardando Clientes (${i + 1}/${totalCli} - ${pct}%)`, false);
         }
       }
     }
@@ -268,23 +283,15 @@ async function forzarSincronizacionManual() {
   mostrarAvisoFactura("🔄 Paso 3/4: Consultando Historial de Ventas (0%)...", false);
   let cantVentas = 0;
   try {
-    const resVentas = await fetch(API_URL_GAS, {
-      method: "POST", mode: "cors",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "buscarFacturasHistorial", modo: "ultimas10", busqueda: "" })
-    });
-
-    if (resVentas.ok) {
-      const dataVen = await resVentas.json();
-      if (dataVen && dataVen.status === "success" && dataVen.facturas) {
-        const totalVen = dataVen.facturas.length;
-        cantVentas = totalVen;
-        for (let i = 0; i < totalVen; i++) {
-          let fac = dataVen.facturas[i];
-          await dbPut("ventas", fac);
-          let pct = Math.round(((i + 1) / totalVen) * 100);
-          mostrarAvisoFactura(`🔄 Paso 3/4: Guardando Ventas (${i + 1}/${totalVen} - ${pct}%)`, false);
-        }
+    const dataVen = await callGasAPI({ action: "buscarFacturasHistorial", modo: "ultimas10", busqueda: "" });
+    if (dataVen && dataVen.status === "success" && dataVen.facturas) {
+      const totalVen = dataVen.facturas.length;
+      cantVentas = totalVen;
+      for (let i = 0; i < totalVen; i++) {
+        let fac = dataVen.facturas[i];
+        await dbPut("ventas", fac);
+        let pct = Math.round(((i + 1) / totalVen) * 100);
+        mostrarAvisoFactura(`🔄 Paso 3/4: Guardando Ventas (${i + 1}/${totalVen} - ${pct}%)`, false);
       }
     }
   } catch (e) {}
@@ -295,23 +302,15 @@ async function forzarSincronizacionManual() {
   mostrarAvisoFactura("🔄 Paso 4/4: Consultando Cierres de Caja (0%)...", false);
   let cantCierres = 0;
   try {
-    const resCierres = await fetch(API_URL_GAS, {
-      method: "POST", mode: "cors",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "obtenerHistorialCierres" })
-    });
-
-    if (resCierres.ok) {
-      const dataCie = await resCierres.json();
-      if (dataCie && dataCie.status === "success" && dataCie.cierres) {
-        const totalCie = dataCie.cierres.length;
-        cantCierres = totalCie;
-        for (let i = 0; i < totalCie; i++) {
-          let cie = dataCie.cierres[i];
-          await dbPut("cierres", cie);
-          let pct = Math.round(((i + 1) / totalCie) * 100);
-          mostrarAvisoFactura(`🔄 Paso 4/4: Guardando Cierres (${i + 1}/${totalCie} - ${pct}%)`, false);
-        }
+    const dataCie = await callGasAPI({ action: "obtenerHistorialCierres" });
+    if (dataCie && dataCie.status === "success" && dataCie.cierres) {
+      const totalCie = dataCie.cierres.length;
+      cantCierres = totalCie;
+      for (let i = 0; i < totalCie; i++) {
+        let cie = dataCie.cierres[i];
+        await dbPut("cierres", cie);
+        let pct = Math.round(((i + 1) / totalCie) * 100);
+        mostrarAvisoFactura(`🔄 Paso 4/4: Guardando Cierres (${i + 1}/${totalCie} - ${pct}%)`, false);
       }
     }
   } catch (e) {}
@@ -320,26 +319,17 @@ async function forzarSincronizacionManual() {
 
   await actualizarEstadoSyncBadge();
 
-  // MENSAJE FINAL DE ÉXITO 100% COMPLETO (Permanece 10 segundos antes de ocultarse)
+  // MENSAJE FINAL DE ÉXITO 100% COMPLETO
   mostrarAvisoFactura(`🎉 ¡Sincronización completada al 100%! Todos los archivos fueron sincronizados correctamente (${cantClientes} clientes, ${cantVentas} ventas, ${cantCierres} cierres).`, true, 10000);
 }
 
 async function sincronizarClientesDesdeServidor() {
   if (!navigator.onLine) return;
   try {
-    const response = await fetch(API_URL_GAS, {
-      method: "POST",
-      mode: "cors",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "obtenerTodosLosClientes" })
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      if (data && data.status === "success" && data.clientes) {
-        for (let cli of data.clientes) {
-          await dbPut("clientes", cli);
-        }
+    const data = await callGasAPI({ action: "obtenerTodosLosClientes" });
+    if (data && data.status === "success" && data.clientes) {
+      for (let cli of data.clientes) {
+        await dbPut("clientes", cli);
       }
     }
   } catch (e) {}
@@ -760,18 +750,12 @@ async function procesarLoginFacturacion(event) {
   btn.textContent = "Verificando...";
 
   try {
-    const response = await fetch(API_URL_GAS, {
-      method: "POST",
-      mode: "cors",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({
-        action: "loginFacturacion",
-        usuario: usuario,
-        password: password
-      })
+    const res = await callGasAPI({
+      action: "loginFacturacion",
+      usuario: usuario,
+      password: password
     });
 
-    const res = await response.json();
     btn.disabled = false;
     btn.textContent = "Ingresar al Sistema 🔐";
 
@@ -797,8 +781,12 @@ function iniciarModuloFacturacion(usuario) {
   
   cargarCatalogoFacturacion();
   cargarMovimientosEfectivoPersistentes();
-  sincronizarClientesDesdeServidor();
-  procesarColaSincronizacion();
+  
+  // Ejecución segura de sincronización remota inicial
+  if (navigator.onLine) {
+    sincronizarClientesDesdeServidor();
+    procesarColaSincronizacion();
+  }
 }
 
 function cerrarSesionFacturacion() {
@@ -1219,24 +1207,15 @@ async function buscarClienteFactura() {
   // 2. Si no está localmente y hay conexión a Internet, consultar servidor
   if (navigator.onLine) {
     try {
-      const response = await fetch(API_URL_GAS, {
-        method: "POST",
-        mode: "cors",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ action: "buscarCliente", cedula: cedula })
-      });
+      const res = await callGasAPI({ action: "buscarCliente", cedula: cedula });
+      if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
 
-      if (response.ok) {
-        const res = await response.json();
-        if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
-
-        if (res && res.status === "success" && res.cliente) {
-          clienteFacturaActual = res.cliente;
-          await dbPut("clientes", res.cliente); // Guardar copia local para futuras consultas offline
-          poblarClienteEnVista(res.cliente);
-          mostrarAvisoFactura("Cliente localizado con éxito.");
-          return;
-        }
+      if (res && res.status === "success" && res.cliente) {
+        clienteFacturaActual = res.cliente;
+        await dbPut("clientes", res.cliente); // Guardar copia local para futuras consultas offline
+        poblarClienteEnVista(res.cliente);
+        mostrarAvisoFactura("Cliente localizado con éxito.");
+        return;
       }
     } catch (err) {
       console.warn("Aviso: Consulta remota no disponible, pasando a formulario nuevo cliente:", err);
@@ -2451,39 +2430,30 @@ async function buscarFacturasHistorial(modo) {
   // 2. Consulta remota en segundo plano (si hay Internet) para unificar e importar hasta 200
   if (navigator.onLine) {
     try {
-      const response = await fetch(API_URL_GAS, {
-        method: "POST",
-        mode: "cors",
-        credentials: "omit",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({
-          action: "buscarFacturasHistorial",
-          busqueda: inputVal,
-          modo: modo
-        })
+      const res = await callGasAPI({
+        action: "buscarFacturasHistorial",
+        busqueda: inputVal,
+        modo: modo
       });
 
-      if (response.ok) {
-        const res = await response.json();
-        if (res && res.status === "success" && res.facturas) {
-          // Unificar ventas locales y remotas evitando duplicados por numFactura
-          const mapFacturas = {};
-          res.facturas.forEach(f => { mapFacturas[f.numFactura] = f; });
-          resultadosLocales.forEach(f => { mapFacturas[f.numFactura] = f; });
+      if (res && res.status === "success" && res.facturas) {
+        // Unificar ventas locales y remotas evitando duplicados por numFactura
+        const mapFacturas = {};
+        res.facturas.forEach(f => { mapFacturas[f.numFactura] = f; });
+        resultadosLocales.forEach(f => { mapFacturas[f.numFactura] = f; });
 
-          // Ordenar por número/fecha más reciente primero y limitar a los últimos 200 registros
-          cacheHistorialFacturas = Object.values(mapFacturas).sort((a, b) => {
-            let numA = a.numFactura ? parseInt(String(a.numFactura).replace(/\D/g, ''), 10) : 0;
-            let numB = b.numFactura ? parseInt(String(b.numFactura).replace(/\D/g, ''), 10) : 0;
-            return numB - numA;
-          }).slice(0, 200);
+        // Ordenar por número/fecha más reciente primero y limitar a los últimos 200 registros
+        cacheHistorialFacturas = Object.values(mapFacturas).sort((a, b) => {
+          let numA = a.numFactura ? parseInt(String(a.numFactura).replace(/\D/g, ''), 10) : 0;
+          let numB = b.numFactura ? parseInt(String(b.numFactura).replace(/\D/g, ''), 10) : 0;
+          return numB - numA;
+        }).slice(0, 200);
 
-          // Guardar copias locales en IndexedDB
-          for (let f of res.facturas) {
-            await dbPut("ventas", f);
-          }
-          renderizarTablaHistorialFacturas();
+        // Guardar copias locales en IndexedDB
+        for (let f of res.facturas) {
+          await dbPut("ventas", f);
         }
+        renderizarTablaHistorialFacturas();
       }
     } catch (err) {
       console.warn("Aviso: Consulta remota de historial omitida por error o red:", err);
@@ -2699,19 +2669,12 @@ async function ejecutarDescargaExcelFacturas() {
   btn.textContent = "Generando Excel...";
 
   try {
-    const response = await fetch(API_URL_GAS, {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({
-        action: "obtenerFacturasParaDescargaExcel",
-        fecha: fechaVal,
-        formaPago: formaPagoVal
-      })
+    const res = await callGasAPI({
+      action: "obtenerFacturasParaDescargaExcel",
+      fecha: fechaVal,
+      formaPago: formaPagoVal
     });
 
-    const res = await response.json();
     btn.disabled = false;
     btn.textContent = "📊 Descargar Excel (.xlsx)";
 
@@ -3063,23 +3026,13 @@ async function cargarHistorialCierresCaja() {
   // 2. Consulta remota en segundo plano para importar
   if (navigator.onLine) {
     try {
-      const response = await fetch(API_URL_GAS, {
-        method: "POST",
-        mode: "cors",
-        credentials: "omit",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ action: "obtenerHistorialCierres" })
-      });
-
-      if (response.ok) {
-        const res = await response.json();
-        if (res && res.status === "success" && res.cierres) {
-          cacheHistorialCierres = res.cierres || [];
-          for (let c of res.cierres) {
-            await dbPut("cierres", c);
-          }
-          renderizarTablaHistorialCierres();
+      const res = await callGasAPI({ action: "obtenerHistorialCierres" });
+      if (res && res.status === "success" && res.cierres) {
+        cacheHistorialCierres = res.cierres || [];
+        for (let c of res.cierres) {
+          await dbPut("cierres", c);
         }
+        renderizarTablaHistorialCierres();
       }
     } catch (e) {}
   }
@@ -3164,16 +3117,9 @@ async function procesarSiguienteCierreCaja() {
 
     if (navigator.onLine) {
       try {
-        const response = await fetch(API_URL_GAS, {
-          method: "POST", mode: "cors", credentials: "omit",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({ action: "obtenerResumenCierreCaja" })
-        });
-        if (response.ok) {
-          const res = await response.json();
-          if (res && res.status === "success" && res.resumen) {
-            resumen = res.resumen;
-          }
+        const res = await callGasAPI({ action: "obtenerResumenCierreCaja" });
+        if (res && res.status === "success" && res.resumen) {
+          resumen = res.resumen;
         }
       } catch (e) {}
     }
@@ -3447,12 +3393,11 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   }
 
-  // Inicialización Secuencial de la Base de Datos Local y Sync
+  // Inicialización Secuencial de la Base de Datos Local
   abrirDB().then(async () => {
     actualizarEstadoSyncBadge();
-    if (navigator.onLine) {
+    if (navigator.onLine && token) {
       await procesarColaSincronizacion();
-      await sincronizarClientesDesdeServidor();
     }
   });
 
