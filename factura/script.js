@@ -129,7 +129,7 @@ async function dbDelete(storeName, key) {
 }
 
 // ==========================================================================
-// MOTOR DE SINCRONIZACIÓN EN SEGUNDO PLANO Y BADGE DE ESTADO
+// MOTOR DE SINCRONIZACIÓN Y BADGE DE ESTADO (BIDIRECCIONAL)
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
   const badge = document.getElementById('badgeEstadoSync');
@@ -191,14 +191,81 @@ async function procesarColaSincronizacion() {
   actualizarEstadoSyncBadge();
 }
 
-function forzarSincronizacionManual() {
+// SINCRONIZACIÓN MANUAL BIDIRECCIONAL COMPLETA (SUBIDA + DESCARGA)
+async function forzarSincronizacionManual() {
   if (!navigator.onLine) {
     mostrarAvisoFactura("Dispositivo en Modo Offline. Conéctese a Internet para sincronizar.");
     return;
   }
-  mostrarAvisoFactura("Iniciando sincronización manual en segundo plano...");
-  sincronizarClientesDesdeServidor();
-  procesarColaSincronizacion();
+
+  const badge = document.getElementById('badgeEstadoSync');
+  if (badge) {
+    badge.className = "badge bg-warning text-dark fw-bold me-2 px-2 py-1";
+    badge.textContent = "🔄 Sincronizando Todo...";
+  }
+
+  mostrarAvisoFactura("🔄 Iniciando sincronización bidireccional con Google Sheets...");
+
+  try {
+    // 1. Subida: Enviar transacciones pendientes locales hacia Google Sheets
+    await procesarColaSincronizacion();
+
+    // 2. Descarga A: Traer todos los Clientes e insertarlos/actualizarlos en IndexedDB
+    const resClientes = await fetch(API_URL_GAS, {
+      method: "POST", mode: "cors", credentials: "omit",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "obtenerTodosLosClientes" })
+    });
+
+    if (resClientes.ok) {
+      const dataCli = await resClientes.json();
+      if (dataCli && dataCli.status === "success" && dataCli.clientes) {
+        for (let cli of dataCli.clientes) {
+          await dbPut("clientes", cli);
+        }
+      }
+    }
+
+    // 3. Descarga B: Traer Historial de Ventas desde Google Sheets
+    const resVentas = await fetch(API_URL_GAS, {
+      method: "POST", mode: "cors", credentials: "omit",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "buscarFacturasHistorial", modo: "ultimas10", busqueda: "" })
+    });
+
+    if (resVentas.ok) {
+      const dataVen = await resVentas.json();
+      if (dataVen && dataVen.status === "success" && dataVen.facturas) {
+        for (let fac of dataVen.facturas) {
+          await dbPut("ventas", fac);
+        }
+      }
+    }
+
+    // 4. Descarga C: Traer Historial de Cierres de Caja desde Google Sheets
+    const resCierres = await fetch(API_URL_GAS, {
+      method: "POST", mode: "cors", credentials: "omit",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "obtenerHistorialCierres" })
+    });
+
+    if (resCierres.ok) {
+      const dataCie = await resCierres.json();
+      if (dataCie && dataCie.status === "success" && dataCie.cierres) {
+        for (let cie of dataCie.cierres) {
+          await dbPut("cierres", cie);
+        }
+      }
+    }
+
+    await actualizarEstadoSyncBadge();
+    mostrarAvisoFactura("🎉 Sincronización bidireccional completada con éxito.");
+
+  } catch (err) {
+    console.error("Error en sincronización manual:", err);
+    await actualizarEstadoSyncBadge();
+    mostrarAvisoFactura("Aviso: Sincronización parcial completada.");
+  }
 }
 
 async function sincronizarClientesDesdeServidor() {
@@ -209,9 +276,17 @@ async function sincronizarClientesDesdeServidor() {
       mode: "cors",
       credentials: "omit",
       headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "buscarFacturasHistorial", modo: "ultimas10" })
+      body: JSON.stringify({ action: "obtenerTodosLosClientes" })
     });
-    // Sincronización pasiva silenciosa
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.status === "success" && data.clientes) {
+        for (let cli of data.clientes) {
+          await dbPut("clientes", cli);
+        }
+      }
+    }
   } catch (e) {}
 }
 
@@ -1019,18 +1094,7 @@ function reanudarFacturaEnEspera(idx) {
 
   // Restaurar datos de cliente en la vista si existen
   if (clienteFacturaActual) {
-    const elemCedula = document.getElementById('facClienteCedulaRead');
-    const elemNombre = document.getElementById('facClienteNombreRead');
-    const elemTel = document.getElementById('facClienteTelefonoRead');
-    const elemDir = document.getElementById('facClienteDireccionRead');
-
-    if (elemCedula) elemCedula.value = clienteFacturaActual.cedula || '';
-    if (elemNombre) elemNombre.value = clienteFacturaActual.nombre || '';
-    if (elemTel) elemTel.value = clienteFacturaActual.telefono || 'N/D';
-    if (elemDir) elemDir.value = clienteFacturaActual.direccion || 'N/D';
-
-    document.getElementById('boxClienteEncontrado').classList.remove('hidden');
-    document.getElementById('boxClienteNuevo').classList.add('hidden');
+    poblarClienteEnVista(clienteFacturaActual);
   } else {
     document.getElementById('boxClienteEncontrado').classList.add('hidden');
     document.getElementById('boxClienteNuevo').classList.add('hidden');
@@ -1076,9 +1140,6 @@ async function buscarClienteFactura() {
 
   const btn = document.getElementById('btnBuscarClienteFac');
   if (btn) { btn.disabled = true; btn.textContent = "Buscando..."; }
-
-  const boxEncontrado = document.getElementById('boxClienteEncontrado');
-  const boxNuevo = document.getElementById('boxClienteNuevo');
 
   // 1. Consulta ultrarrápida a IndexedDB local (1ms - Funciona Offline)
   let clienteLocal = await dbGet("clientes", cedula);
@@ -1506,7 +1567,7 @@ function obtenerDetalleFormaPagoFinal() {
   return formaSelect;
 }
 
-// EMITIR FACTURA FINAL (OFFLINE-FIRST CON LATENCIA CERO)
+// EMITIR FACTURA FINAL (OFFLINE-FIRST CON LATENCIA CERO 0ms)
 async function emitirFacturaFinal() {
   if (!clienteFacturaActual) {
     return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
@@ -1781,7 +1842,7 @@ async function confirmarEImprimirFactura() {
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = "🖨️ Confirmar y Facturar"; }
     console.error("Error al registrar venta local:", err);
-    mostrarAvisoFactura("Error de guardado en la base de datos local.");
+    mostrarAvisoFactura("Error al guardar la venta localmente.");
   }
 }
 
@@ -3021,8 +3082,6 @@ async function procesarSiguienteCierreCaja() {
 
     // Calcular primero desde las ventas locales acumuladas hoy
     const ventasLocales = await dbGetAll("ventas");
-    const hoyStr = new Date().toLocaleDateString('es-VE');
-
     ventasLocales.forEach(v => {
       let vMontoUSD = parseFloat(v.montoTotalUSD) || 0;
       resumen.ventasEfectivoUSD += vMontoUSD;
@@ -3290,6 +3349,7 @@ async function confirmarEImprimirCierreCaja() {
 // OYENTES DE EVENTOS DE RED Y INICIALIZACIÓN PWA
 window.addEventListener('online', () => {
   actualizarEstadoSyncBadge();
+  sincronizarClientesDesdeServidor();
   procesarColaSincronizacion();
 });
 
