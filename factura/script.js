@@ -204,7 +204,7 @@ async function forzarSincronizacionManual() {
     badge.textContent = "🔄 Sincronizando...";
   }
 
-  // --- PASO 1: SUBIDA DE TRANSACCIONES PENDIENTES (0% -> 100%) ---
+  // PASO 1: Subida de transacciones pendientes locales
   mostrarAvisoFactura("🔄 Paso 1/4: Subiendo transacciones pendientes (0%)...", false);
   const queue = await dbGetAll("syncQueue");
 
@@ -236,7 +236,7 @@ async function forzarSincronizacionManual() {
     await new Promise(r => setTimeout(r, 600));
   }
 
-  // --- PASO 2: DESCARGA E IMPORTACIÓN DE CLIENTES (0% -> 100%) ---
+  // PASO 2: Descarga e importación de la base de datos de Clientes
   mostrarAvisoFactura("🔄 Paso 2/4: Consultando Clientes en Google Sheets (0%)...", false);
   let cantClientes = 0;
   try {
@@ -254,7 +254,7 @@ async function forzarSincronizacionManual() {
         for (let i = 0; i < totalCli; i++) {
           let cli = dataCli.clientes[i];
           await dbPut("clientes", cli);
-          if (i % 5 === 0 || i === totalCli - 1) {
+          if (i % 25 === 0 || i === totalCli - 1) {
             let pct = Math.round(((i + 1) / totalCli) * 100);
             mostrarAvisoFactura(`🔄 Paso 2/4: Guardando Clientes (${i + 1}/${totalCli} - ${pct}%)`, false);
           }
@@ -265,7 +265,7 @@ async function forzarSincronizacionManual() {
   mostrarAvisoFactura(`🔄 Paso 2/4: Clientes sincronizados al 100% (${cantClientes} registros)`, false);
   await new Promise(r => setTimeout(r, 600));
 
-  // --- PASO 3: DESCARGA E IMPORTACIÓN DE HISTORIAL DE VENTAS (0% -> 100%) ---
+  // PASO 3: Descarga e importación del Historial de Ventas
   mostrarAvisoFactura("🔄 Paso 3/4: Consultando Historial de Ventas (0%)...", false);
   let cantVentas = 0;
   try {
@@ -292,7 +292,7 @@ async function forzarSincronizacionManual() {
   mostrarAvisoFactura(`🔄 Paso 3/4: Ventas sincronizadas al 100% (${cantVentas} registros)`, false);
   await new Promise(r => setTimeout(r, 600));
 
-  // --- PASO 4: DESCARGA E IMPORTACIÓN DE HISTORIAL DE CIERRES (0% -> 100%) ---
+  // PASO 4: Descarga e importación del Historial de Cierres de Caja
   mostrarAvisoFactura("🔄 Paso 4/4: Consultando Cierres de Caja (0%)...", false);
   let cantCierres = 0;
   try {
@@ -321,7 +321,7 @@ async function forzarSincronizacionManual() {
 
   await actualizarEstadoSyncBadge();
 
-  // MENSAJE FINAL CONFIRMATIVO 100% COMPLETADO (Permanece 10s antes de ocultarse)
+  // MENSAJE FINAL DE ÉXITO 100% COMPLETO (Permanece 10 segundos antes de ocultarse)
   mostrarAvisoFactura(`🎉 ¡Sincronización completada al 100%! Todos los archivos fueron sincronizados correctamente (${cantClientes} clientes, ${cantVentas} ventas, ${cantCierres} cierres).`, true, 10000);
 }
 
@@ -420,20 +420,24 @@ document.addEventListener('hidden.bs.modal', function () {
   }
 });
 
-// Notificaciones Toast con configuración de persistencia y duración
+// Notificaciones Toast con reutilización segura de instancia
 function mostrarAvisoFactura(mensaje, autohide = true, delay = 6000) {
   try {
     const elemMsg = document.getElementById('toastMensajeFactura');
     if (elemMsg) elemMsg.textContent = mensaje;
     const toastElem = document.getElementById('toastFactura');
     if (toastElem) {
-      const oldInstance = bootstrap.Toast.getInstance(toastElem);
-      if (oldInstance) oldInstance.dispose();
-      const toastObj = new bootstrap.Toast(toastElem, { autohide: autohide, delay: delay });
+      let toastObj = bootstrap.Toast.getInstance(toastElem);
+      if (!toastObj) {
+        toastObj = new bootstrap.Toast(toastElem, { autohide: autohide, delay: delay });
+      } else {
+        toastObj._config.autohide = autohide;
+        toastObj._config.delay = delay;
+      }
       toastObj.show();
     }
   } catch (e) {
-    alert(mensaje);
+    console.warn("Aviso Toast:", mensaje);
   }
 }
 
@@ -3416,11 +3420,11 @@ async function confirmarEImprimirCierreCaja() {
   }
 }
 
-// OYENTES DE EVENTOS DE RED Y INICIALIZACIÓN PWA
-window.addEventListener('online', () => {
+// OYENTES DE EVENTOS DE RED Y INICIALIZACIÓN PWA (SECUENCIAL)
+window.addEventListener('online', async () => {
   actualizarEstadoSyncBadge();
-  sincronizarClientesDesdeServidor();
-  procesarColaSincronizacion();
+  await procesarColaSincronizacion();
+  await sincronizarClientesDesdeServidor();
 });
 
 window.addEventListener('offline', () => {
@@ -3442,12 +3446,12 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   }
 
-  // Inicialización de la Base de Datos Local y Estado de Sync
-  abrirDB().then(() => {
+  // Inicialización Secuencial de la Base de Datos Local y Sync
+  abrirDB().then(async () => {
     actualizarEstadoSyncBadge();
     if (navigator.onLine) {
-      sincronizarClientesDesdeServidor();
-      procesarColaSincronizacion();
+      await procesarColaSincronizacion();
+      await sincronizarClientesDesdeServidor();
     }
   });
 
