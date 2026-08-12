@@ -233,21 +233,6 @@ body {
 }
 
 /* ==========================================================================
-   AJUSTE DE Z-INDEX PARA MODALES SECUNDARIOS ANIDADOS EN FACTURACIÓN
-   ========================================================================== */
-#modalProductoManual,
-#modalLectorCodigos,
-#modalFacturaCantidad,
-#modalEscanearTokenGitHub {
-  z-index: 1070 !important;
-}
-
-/* Elevar el fondo oscuro (backdrop) cuando se abre un modal secundario */
-.modal-backdrop + .modal-backdrop {
-  z-index: 1065 !important;
-}
-
-/* ==========================================================================
    ESTILOS TICKET TÉRMICO XP-80C (ANCHO 72mm EN PAPEL DE 80mm)
    ========================================================================== */
 
