@@ -2223,7 +2223,7 @@ function renderizarTicketTermicoHistorialHTML(d) {
 
       <div class="ticket-totals border-top pt-1">
         <div class="d-flex justify-content-between">
-          <span>TOTAL FACTURA ($):</span>
+          <span>TOTAL FACTURA (Bs):</span>
           <strong class="fs-6">$${d.totalUSD.toFixed(2)}</strong>
         </div>
         <div class="d-flex justify-content-between text-muted">
@@ -2843,7 +2843,7 @@ function renderizarTicketCierreCajaHTML(d) {
 async function confirmarEImprimirCierreCaja() {
   if (!datosCierreCajaPendiente) return;
 
-  const btn = document.getElementById('btnConfirmarCierreFinal');
+  const btn = document.getElementById('btnConfirmarEmisionFinal');
   btn.disabled = true;
   btn.textContent = "Guardando e Imprimiendo...";
 
