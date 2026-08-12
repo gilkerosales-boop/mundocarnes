@@ -218,7 +218,7 @@ async function procesarColaSincronizacion() {
   actualizarEstadoSyncBadge();
 }
 
-// SINCRONIZACIÓN MANUAL BIDIRECCIONAL COMPLETA CON PROGRESO DE 0% A 100%
+// SINCRONIZACIÓN MANUAL BIDIRECCIONAL COMPLETA CON PROGRESO DE 0% A 100% (CON PAUSAS DE RENDERIZADO)
 async function forzarSincronizacionManual() {
   if (!navigator.onLine) {
     mostrarAvisoFactura("Dispositivo en Modo Offline. Conéctese a Internet para sincronizar.");
@@ -243,6 +243,8 @@ async function forzarSincronizacionManual() {
       let item = queue[i];
       let pct = Math.round(((i + 1) / queue.length) * 100);
       mostrarAvisoFactura(`🔄 Paso 1/4: Subiendo pendientes (${i + 1}/${queue.length} - ${pct}%)`, false);
+      await new Promise(r => setTimeout(r, 60)); // Permitir refresco del DOM
+
       try {
         const res = await callGasAPI(item.payload);
         if (res && (res.status === "success" || res.exito)) {
@@ -259,7 +261,7 @@ async function forzarSincronizacionManual() {
   }
 
   // PASO 2: Descarga e importación de la base de datos de Clientes
-  mostrarAvisoFactura("🔄 Paso 2/4: Consultando Clientes en Google Sheets (0%)...", false);
+  mostrarAvisoFactura("🔄 Paso 2/4: Consultando Clientes en Google Sheets...", false);
   let cantClientes = 0;
   try {
     const dataCli = await callGasAPI({ action: "obtenerTodosLosClientes" });
@@ -269,10 +271,10 @@ async function forzarSincronizacionManual() {
       for (let i = 0; i < totalCli; i++) {
         let cli = dataCli.clientes[i];
         await dbPut("clientes", cli);
-        if (i % 25 === 0 || i === totalCli - 1) {
-          let pct = Math.round(((i + 1) / totalCli) * 100);
-          mostrarAvisoFactura(`🔄 Paso 2/4: Guardando Clientes (${i + 1}/${totalCli} - ${pct}%)`, false);
-        }
+        let pct = Math.round(((i + 1) / totalCli) * 100);
+        mostrarAvisoFactura(`🔄 Paso 2/4: Guardando Clientes (${i + 1}/${totalCli} - ${pct}%)`, false);
+        // Micro-delay para refresco visible de la UI
+        await new Promise(r => setTimeout(r, totalCli > 50 ? 20 : 50));
       }
     }
   } catch (e) {}
@@ -280,7 +282,7 @@ async function forzarSincronizacionManual() {
   await new Promise(r => setTimeout(r, 600));
 
   // PASO 3: Descarga e importación del Historial de Ventas
-  mostrarAvisoFactura("🔄 Paso 3/4: Consultando Historial de Ventas (0%)...", false);
+  mostrarAvisoFactura("🔄 Paso 3/4: Consultando Historial de Ventas...", false);
   let cantVentas = 0;
   try {
     const dataVen = await callGasAPI({ action: "buscarFacturasHistorial", modo: "ultimas10", busqueda: "" });
@@ -292,6 +294,8 @@ async function forzarSincronizacionManual() {
         await dbPut("ventas", fac);
         let pct = Math.round(((i + 1) / totalVen) * 100);
         mostrarAvisoFactura(`🔄 Paso 3/4: Guardando Ventas (${i + 1}/${totalVen} - ${pct}%)`, false);
+        // Micro-delay para refresco visible de la UI
+        await new Promise(r => setTimeout(r, totalVen > 50 ? 20 : 60));
       }
     }
   } catch (e) {}
@@ -299,7 +303,7 @@ async function forzarSincronizacionManual() {
   await new Promise(r => setTimeout(r, 600));
 
   // PASO 4: Descarga e importación del Historial de Cierres de Caja
-  mostrarAvisoFactura("🔄 Paso 4/4: Consultando Cierres de Caja (0%)...", false);
+  mostrarAvisoFactura("🔄 Paso 4/4: Consultando Cierres de Caja...", false);
   let cantCierres = 0;
   try {
     const dataCie = await callGasAPI({ action: "obtenerHistorialCierres" });
@@ -311,6 +315,8 @@ async function forzarSincronizacionManual() {
         await dbPut("cierres", cie);
         let pct = Math.round(((i + 1) / totalCie) * 100);
         mostrarAvisoFactura(`🔄 Paso 4/4: Guardando Cierres (${i + 1}/${totalCie} - ${pct}%)`, false);
+        // Micro-delay para refresco visible de la UI
+        await new Promise(r => setTimeout(r, totalCie > 50 ? 20 : 60));
       }
     }
   } catch (e) {}
