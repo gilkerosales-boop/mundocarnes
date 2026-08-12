@@ -3365,6 +3365,13 @@ document.addEventListener("DOMContentLoaded", function() {
     iniciarModuloFacturacion(usuario);
   }
 
+  // Solicitud de Almacenamiento Persistente Protegido en Windows/Chrome
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persist().then(granted => {
+      if (granted) console.log("🟢 Almacenamiento local protegido contra borrado automático.");
+    });
+  }
+
   // Inicialización de la Base de Datos Local y Estado de Sync
   abrirDB().then(() => {
     actualizarEstadoSyncBadge();
