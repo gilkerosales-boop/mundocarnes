@@ -17,6 +17,8 @@ const METODOS_USD = ["Efectivo Divisas", "Zelle", "PayPal", "Cashea"];
 const METODOS_BS = ["Pago Móvil", "Efectivo Bolívares", "Punto de Venta", "Transferencia Bancaria", "Biopago"];
 
 let itemsFactura = {};
+let transaccionActiva = null; // Transacción en curso dentro del modal de procesamiento
+let facturasEnEspera = [];   // Arreglo de facturas minimizadas en Standby
 let productoTemporalFactura = {};
 let cacheCategoriasFactura = [];
 let clienteFacturaActual = null;
@@ -77,8 +79,10 @@ function renderizarTablaModalFactura() {
   let htmlTabla = "";
   let totalUSD = 0;
 
-  for (let key in itemsFactura) {
-    let item = itemsFactura[key];
+  const items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
+
+  for (let key in items) {
+    let item = items[key];
     let precioTotalUSD = parseFloat(item.precioTotal) || 0;
     let precioBaseUSD = parseFloat(item.precioBase) || 0;
     totalUSD += precioTotalUSD;
@@ -123,11 +127,16 @@ function renderizarTablaModalFactura() {
         <td class="text-center">${precioBaseTxt}</td>
         <td class="text-center fw-bold">${colCantidadHtml}</td>
         <td class="text-end fw-bold text-success" id="subtotal-modal-${safeIdKey}">${subtotalTxt}</td>
+        <td class="text-center">
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 border-0 fw-bold" onclick="eliminarItemFacturaEnProceso('${key}')" title="Eliminar del detalle">✕</button>
+        </td>
       </tr>`;
   }
 
   const tbody = document.getElementById('tablaModalResumenProductos');
-  if (tbody) tbody.innerHTML = htmlTabla;
+  if (tbody) {
+    tbody.innerHTML = htmlTabla || `<tr><td colspan="6" class="text-center text-muted py-3">No hay productos en esta factura.</td></tr>`;
+  }
 
   const elemEtiquetaTotal = document.getElementById('labelModalTotalFactura');
   const elemMontoTotal = document.getElementById('montoModalTotalFactura');
@@ -142,9 +151,23 @@ function renderizarTablaModalFactura() {
   }
 }
 
+// ELIMINAR UN PRODUCTO DIRECTAMENTE DESDE EL MODAL DE PROCESAMIENTO
+function eliminarItemFacturaEnProceso(nombreProducto) {
+  if (transaccionActiva && transaccionActiva.items) {
+    delete transaccionActiva.items[nombreProducto];
+    renderizarTablaModalFactura();
+    actualizarCalculosBCV();
+
+    if (Object.keys(transaccionActiva.items).length === 0) {
+      mostrarAvisoFactura("Se han eliminado todos los productos de la factura.");
+    }
+  }
+}
+
 // RECALCULAR PESO REAL Y SUBTOTALES PARA PRODUCTOS MIXTOS
 function ajustarPesoMixtoFactura(nombreProducto, nuevoPesoGramos) {
-  let item = itemsFactura[nombreProducto];
+  let items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
+  let item = items[nombreProducto];
   if (!item) return;
 
   let g = parseFloat(nuevoPesoGramos) || 0;
@@ -184,8 +207,9 @@ function actualizarCalculosBCV() {
   }
 
   let totalUSD = 0;
-  for (let key in itemsFactura) {
-    totalUSD += parseFloat(itemsFactura[key].precioTotal) || 0;
+  let items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
+  for (let key in items) {
+    totalUSD += parseFloat(items[key].precioTotal) || 0;
   }
   let totalBs = totalUSD * tasa;
 
@@ -249,6 +273,13 @@ function confirmarAgregarProductoManual() {
     return;
   }
 
+  const modalProcesarEl = document.getElementById('modalProcesarFactura');
+  const estaEnProceso = modalProcesarEl && modalProcesarEl.classList.contains('show');
+
+  let destinoItems = estaEnProceso 
+    ? (transaccionActiva ? transaccionActiva.items : itemsFactura)
+    : itemsFactura;
+
   if (modo === "unidades") {
     let precioUd = parseFloat(document.getElementById('manualPrecioUd').value);
     let cant = parseInt(document.getElementById('manualCantUd').value);
@@ -261,7 +292,7 @@ function confirmarAgregarProductoManual() {
 
     let calc = precioUd * cant;
 
-    itemsFactura[nombre] = {
+    destinoItems[nombre] = {
       cantidadTxt: `${cant} uds`,
       cantNumerica: cant,
       pesoTotalGramos: 0,
@@ -289,7 +320,7 @@ function confirmarAgregarProductoManual() {
     let calc = (precioKg / 1000) * totalGramos;
     let cantTxt = kg > 0 ? (g > 0 ? `${kg} Kg ${g} g` : `${kg} Kg`) : `${g} g`;
 
-    itemsFactura[nombre] = {
+    destinoItems[nombre] = {
       cantidadTxt: cantTxt,
       cantNumerica: totalGramos,
       pesoTotalGramos: totalGramos,
@@ -304,12 +335,12 @@ function confirmarAgregarProductoManual() {
   }
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProductoManual')).hide();
-  renderizarResumenFactura();
 
-  const modalProcesar = document.getElementById('modalProcesarFactura');
-  if (modalProcesar && modalProcesar.classList.contains('show')) {
+  if (estaEnProceso) {
     renderizarTablaModalFactura();
     actualizarCalculosBCV();
+  } else {
+    renderizarResumenFactura();
   }
 
   mostrarAvisoFactura(`Producto manual agregado: ${nombre}`);
@@ -374,7 +405,10 @@ function cerrarSesionFacturacion() {
   sessionStorage.removeItem("factura_token");
   sessionStorage.removeItem("factura_usuario");
   itemsFactura = {};
+  transaccionActiva = null;
+  facturasEnEspera = [];
   clienteFacturaActual = null;
+  actualizarContadorStandby();
   document.getElementById('vistaFacturacion').classList.add('hidden');
   document.getElementById('vistaLogin').classList.remove('hidden');
   document.getElementById('facUsuario').value = "";
@@ -593,11 +627,25 @@ function eliminarItemFactura(nombre) {
   renderizarResumenFactura();
 }
 
-// Acción del Botón 'Facturar'
+// ACCIÓN DEL BOTÓN 'FACTURAR' (INICIA TRANSACCIÓN Y LIMPIA EL PANEL LATERAL AUTOMÁTICAMENTE)
 function ejecutarFacturar() {
   if (Object.keys(itemsFactura).length === 0) {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
   }
+
+  // Crear Objeto de Transacción Activa
+  transaccionActiva = {
+    id: "tx_" + Date.now(),
+    horaPausa: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }),
+    items: { ...itemsFactura },
+    cliente: null,
+    formaPago: "",
+    tasaBCV: obtenerTasaBCV()
+  };
+
+  // Limpieza automática del panel flotante lateral de la pantalla principal
+  itemsFactura = {};
+  renderizarResumenFactura();
 
   monedaVistaModal = "USD";
   const btnConmutar = document.getElementById('btnConmutarMoneda');
@@ -628,6 +676,127 @@ function ejecutarFacturar() {
   renderizarTablaModalFactura();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
   actualizarCalculosBCV();
+}
+
+// --------------------------------------------------------------------------
+// LÓGICA DE STANDBY / FACTURAS EN ESPERA (MINIMIZAR Y REANUDAR)
+// --------------------------------------------------------------------------
+function ponerFacturaEnEspera() {
+  if (!transaccionActiva || !transaccionActiva.items || Object.keys(transaccionActiva.items).length === 0) {
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
+    return;
+  }
+
+  // Preservar estado actual en la transacción
+  transaccionActiva.cliente = clienteFacturaActual;
+  transaccionActiva.formaPago = document.getElementById('facFormaPagoSelect') ? document.getElementById('facFormaPagoSelect').value : '';
+  transaccionActiva.horaPausa = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
+
+  facturasEnEspera.push({ ...transaccionActiva });
+  transaccionActiva = null;
+  clienteFacturaActual = null;
+
+  actualizarContadorStandby();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
+  mostrarAvisoFactura("⏸️ Factura puesta en espera correctamente.");
+}
+
+function actualizarContadorStandby() {
+  const elem = document.getElementById('cntFacturasEnEspera');
+  if (elem) elem.textContent = facturasEnEspera.length;
+}
+
+function abrirModalFacturasEnEspera() {
+  renderizarTablaFacturasEnEspera();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFacturasEnEspera')).show();
+}
+
+function renderizarTablaFacturasEnEspera() {
+  const tbody = document.getElementById('tablaFacturasEnEspera');
+  if (!tbody) return;
+
+  if (facturasEnEspera.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No hay facturas en espera.</td></tr>`;
+    return;
+  }
+
+  let html = "";
+  facturasEnEspera.forEach((tx, idx) => {
+    let cantProds = Object.keys(tx.items).length;
+    let total = 0;
+    for (let k in tx.items) total += parseFloat(tx.items[k].precioTotal) || 0;
+    let clienteNom = tx.cliente ? tx.cliente.nombre : "Consumidor Final";
+
+    html += `
+      <tr>
+        <td class="text-center fw-bold">${idx + 1}</td>
+        <td class="text-center">${tx.horaPausa || 'N/D'}</td>
+        <td class="fw-bold">${clienteNom}</td>
+        <td class="text-center">${cantProds} producto(s)</td>
+        <td class="text-end fw-bold text-success">$${total.toFixed(2)}</td>
+        <td class="text-center">
+          <button type="button" class="btn btn-sm btn-success py-0 px-2 fw-bold me-1" onclick="reanudarFacturaEnEspera(${idx})">
+            ▶️ Reanudar
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold" onclick="eliminarFacturaEnEspera(${idx})">
+            🗑️
+          </button>
+        </td>
+      </tr>`;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function reanudarFacturaEnEspera(idx) {
+  if (idx < 0 || idx >= facturasEnEspera.length) return;
+
+  // Restaurar transacción
+  transaccionActiva = facturasEnEspera.splice(idx, 1)[0];
+  actualizarContadorStandby();
+
+  clienteFacturaActual = transaccionActiva.cliente || null;
+
+  // Restaurar datos de cliente en la vista si existen
+  if (clienteFacturaActual) {
+    document.getElementById('facClienteCedulaRead').value = clienteFacturaActual.cedula || '';
+    document.getElementById('facClienteNombreRead').value = clienteFacturaActual.nombre || '';
+    document.getElementById('facClienteTelefonoRead').value = clienteFacturaActual.telefono || 'N/D';
+    document.getElementById('facClienteDireccionRead').value = clienteFacturaActual.direccion || 'N/D';
+    document.getElementById('boxClienteEncontrado').classList.remove('hidden');
+    document.getElementById('boxClienteNuevo').classList.add('hidden');
+  } else {
+    document.getElementById('boxClienteEncontrado').classList.add('hidden');
+    document.getElementById('boxClienteNuevo').classList.add('hidden');
+  }
+
+  // Restaurar método de pago si estaba seleccionado
+  document.querySelectorAll('.btn-metodo-pago').forEach(b => b.classList.remove('active'));
+  if (transaccionActiva.formaPago) {
+    document.getElementById('facFormaPagoSelect').value = transaccionActiva.formaPago;
+    const btnMetodo = document.querySelector(`.btn-metodo-pago[data-metodo="${transaccionActiva.formaPago}"]`);
+    if (btnMetodo) btnMetodo.classList.add('active');
+    evaluarFormaPagoFactura(transaccionActiva.formaPago);
+  } else {
+    document.getElementById('facFormaPagoSelect').value = "";
+    document.getElementById('contenedorPagoMixto').classList.add('hidden');
+  }
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFacturasEnEspera')).hide();
+  renderizarTablaModalFactura();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
+  actualizarCalculosBCV();
+
+  mostrarAvisoFactura("▶️ Factura reanudada.");
+}
+
+function eliminarFacturaEnEspera(idx) {
+  if (confirm("¿Está seguro de descartar esta factura en espera?")) {
+    facturasEnEspera.splice(idx, 1);
+    actualizarContadorStandby();
+    renderizarTablaFacturasEnEspera();
+    mostrarAvisoFactura("🗑️ Factura descartada.");
+  }
 }
 
 // Búsqueda de Cliente vía POST a Google Apps Script
@@ -756,7 +925,6 @@ async function registrarClienteFactura() {
 // LÓGICA DE SELECCIÓN DE BOTONES CUADRADOS Y DESGLOSE PAGO (CASHEA Y MIXTOS)
 // --------------------------------------------------------------------------
 function seleccionarMetodoPagoBoton(metodo, btnElem) {
-  // Desmarcar todos los botones y resaltar en rojo el seleccionado
   document.querySelectorAll('.btn-metodo-pago').forEach(b => b.classList.remove('active'));
   if (btnElem) btnElem.classList.add('active');
 
@@ -783,7 +951,6 @@ function evaluarFormaPagoFactura(valor) {
     if (btnAgregar) btnAgregar.classList.add('hidden');
     if (lista) lista.innerHTML = "";
 
-    // Primera fila fija en "Cashea", segunda fila editable para el complemento
     agregarLineaPagoMixtoFija("Cashea", false);
     agregarLineaPagoMixto();
 
@@ -795,7 +962,6 @@ function evaluarFormaPagoFactura(valor) {
     if (btnAgregar) btnAgregar.classList.remove('hidden');
     if (lista) lista.innerHTML = "";
 
-    // Dos filas editables por defecto
     agregarLineaPagoMixto();
     agregarLineaPagoMixto();
 
@@ -944,8 +1110,10 @@ function calcularTotalPagoMixto() {
   });
 
   let totalFacturaUSD = 0;
-  for (let key in itemsFactura) {
-    totalFacturaUSD += parseFloat(itemsFactura[key].precioTotal) || 0;
+  let items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
+
+  for (let key in items) {
+    totalFacturaUSD += parseFloat(items[key].precioTotal) || 0;
   }
   let totalFacturaBs = totalFacturaUSD * tasa;
 
@@ -1097,8 +1265,10 @@ async function emitirFacturaFinal() {
     let totalUSD = 0;
     let productosSummaryList = [];
 
-    for (let key in itemsFactura) {
-      let item = itemsFactura[key];
+    let items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
+
+    for (let key in items) {
+      let item = items[key];
       totalUSD += parseFloat(item.precioTotal) || 0;
       productosSummaryList.push(`${key} (${item.cantidadTxt}) - $${item.precioTotal}`);
     }
@@ -1136,8 +1306,10 @@ function renderizarTicketTermicoHTML(d) {
   let esModoBs = (d.monedaVistaModal === "BS");
   let tasa = d.tasaBCV || 1;
 
-  for (let key in itemsFactura) {
-    let item = itemsFactura[key];
+  let items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
+
+  for (let key in items) {
+    let item = items[key];
     let precUnit = "";
     let itemTotalTxt = "";
 
@@ -1258,8 +1430,10 @@ function obtenerObjetoDesgloseMetodos() {
   };
 
   let totalUSD = 0;
-  for (let key in itemsFactura) {
-    totalUSD += parseFloat(itemsFactura[key].precioTotal) || 0;
+  let items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
+
+  for (let key in items) {
+    totalUSD += parseFloat(items[key].precioTotal) || 0;
   }
   let totalBs = totalUSD * tasa;
 
@@ -1320,6 +1494,7 @@ async function confirmarEImprimirFactura() {
       window.print();
 
       itemsFactura = {};
+      transaccionActiva = null;
       clienteFacturaActual = null;
       datosFacturaPendiente = null;
       renderizarResumenFactura();
@@ -1343,6 +1518,11 @@ async function confirmarEImprimirFactura() {
 
 // Control Navegación: Retroceder
 function retrocederProcesoFactura() {
+  if (transaccionActiva && transaccionActiva.items) {
+    itemsFactura = { ...transaccionActiva.items };
+    transaccionActiva = null;
+    renderizarResumenFactura();
+  }
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
 }
 
@@ -1350,6 +1530,7 @@ function retrocederProcesoFactura() {
 function cancelarProcesoFactura() {
   if (confirm("¿Está seguro de cancelar el proceso? Se limpiará toda la selección actual.")) {
     itemsFactura = {};
+    transaccionActiva = null;
     clienteFacturaActual = null;
     renderizarResumenFactura();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
@@ -1538,10 +1719,16 @@ function renderizarTablaEscaneados() {
 
 function confirmarAgregarCodigosAFactura() {
   let agregados = 0;
+  const modalProcesarEl = document.getElementById('modalProcesarFactura');
+  const estaEnProceso = modalProcesarEl && modalProcesarEl.classList.contains('show');
+
+  let destinoItems = estaEnProceso 
+    ? (transaccionActiva ? transaccionActiva.items : itemsFactura)
+    : itemsFactura;
 
   itemsEscaneadosTemporales.forEach(it => {
     if (it.encontrado) {
-      itemsFactura[it.nombre] = {
+      destinoItems[it.nombre] = {
         cantidadTxt: it.cantidadTxt,
         cantNumerica: it.cantNumerica,
         pesoTotalGramos: it.pesoTotalGramos,
@@ -1557,12 +1744,12 @@ function confirmarAgregarCodigosAFactura() {
   });
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalLectorCodigos')).hide();
-  renderizarResumenFactura();
 
-  const modalProcesar = document.getElementById('modalProcesarFactura');
-  if (modalProcesar && modalProcesar.classList.contains('show')) {
+  if (estaEnProceso) {
     renderizarTablaModalFactura();
     actualizarCalculosBCV();
+  } else {
+    renderizarResumenFactura();
   }
 
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
