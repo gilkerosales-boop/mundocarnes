@@ -759,10 +759,16 @@ function reanudarFacturaEnEspera(idx) {
 
   // Restaurar datos de cliente en la vista si existen
   if (clienteFacturaActual) {
-    document.getElementById('facClienteCedulaRead').value = clienteFacturaActual.cedula || '';
-    document.getElementById('facClienteNombreRead').value = clienteFacturaActual.nombre || '';
-    document.getElementById('facClienteTelefonoRead').value = clienteFacturaActual.telefono || 'N/D';
-    document.getElementById('facClienteDireccionRead').value = clienteFacturaActual.direccion || 'N/D';
+    const elemCedula = document.getElementById('facClienteCedulaRead');
+    const elemNombre = document.getElementById('facClienteNombreRead');
+    const elemTel = document.getElementById('facClienteTelefonoRead');
+    const elemDir = document.getElementById('facClienteDireccionRead');
+
+    if (elemCedula) elemCedula.value = clienteFacturaActual.cedula || '';
+    if (elemNombre) elemNombre.value = clienteFacturaActual.nombre || '';
+    if (elemTel) elemTel.value = clienteFacturaActual.telefono || 'N/D';
+    if (elemDir) elemDir.value = clienteFacturaActual.direccion || 'N/D';
+
     document.getElementById('boxClienteEncontrado').classList.remove('hidden');
     document.getElementById('boxClienteNuevo').classList.add('hidden');
   } else {
@@ -799,16 +805,20 @@ function eliminarFacturaEnEspera(idx) {
   }
 }
 
-// Búsqueda de Cliente vía POST a Google Apps Script
+// Búsqueda de Cliente vía POST a Google Apps Script (Robusto)
 async function buscarClienteFactura() {
-  const cedula = document.getElementById('facCedulaBuscar').value.trim();
+  const inputCedula = document.getElementById('facCedulaBuscar');
+  const cedula = inputCedula ? inputCedula.value.trim() : "";
+  
   if (!cedula) {
     return mostrarAvisoFactura("Ingrese la Cédula o RIF.");
   }
 
   const btn = document.getElementById('btnBuscarClienteFac');
-  btn.disabled = true;
-  btn.textContent = "Buscando...";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Buscando...";
+  }
 
   try {
     const response = await fetch(API_URL_GAS, {
@@ -821,46 +831,64 @@ async function buscarClienteFactura() {
       })
     });
 
+    if (!response.ok) {
+      throw new Error(`Servidor respondió con código HTTP ${response.status}`);
+    }
+
     const res = await response.json();
-    btn.disabled = false;
-    btn.textContent = "🔍 Buscar";
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "🔍 Buscar";
+    }
 
     const boxEncontrado = document.getElementById('boxClienteEncontrado');
     const boxNuevo = document.getElementById('boxClienteNuevo');
 
-    if (res.status === "success") {
+    if (res && res.status === "success" && res.cliente) {
       clienteFacturaActual = res.cliente;
 
-      document.getElementById('facClienteCedulaRead').value = res.cliente.cedula;
-      document.getElementById('facClienteNombreRead').value = res.cliente.nombre;
-      document.getElementById('facClienteTelefonoRead').value = res.cliente.telefono || "N/D";
-      document.getElementById('facClienteDireccionRead').value = res.cliente.direccion || "N/D";
+      const elemCedula = document.getElementById('facClienteCedulaRead');
+      const elemNombre = document.getElementById('facClienteNombreRead');
+      const elemTel = document.getElementById('facClienteTelefonoRead');
+      const elemDir = document.getElementById('facClienteDireccionRead');
 
-      boxEncontrado.classList.remove('hidden');
-      boxNuevo.classList.add('hidden');
+      if (elemCedula) elemCedula.value = res.cliente.cedula || cedula;
+      if (elemNombre) elemNombre.value = res.cliente.nombre || "N/D";
+      if (elemTel) elemTel.value = res.cliente.telefono || "N/D";
+      if (elemDir) elemDir.value = res.cliente.direccion || "N/D";
+
+      if (boxEncontrado) boxEncontrado.classList.remove('hidden');
+      if (boxNuevo) boxNuevo.classList.add('hidden');
       mostrarAvisoFactura("Cliente localizado con éxito.");
 
-    } else if (res.status === "not_found") {
+    } else if (res && res.status === "not_found") {
       clienteFacturaActual = null;
 
-      document.getElementById('facRegCedula').value = cedula.toUpperCase();
-      document.getElementById('facRegNombre').value = "";
-      document.getElementById('facRegTelefono').value = "";
-      document.getElementById('facRegDireccion').value = "";
+      const elemRegCedula = document.getElementById('facRegCedula');
+      const elemRegNombre = document.getElementById('facRegNombre');
+      const elemRegTel = document.getElementById('facRegTelefono');
+      const elemRegDir = document.getElementById('facRegDireccion');
 
-      boxEncontrado.classList.add('hidden');
-      boxNuevo.classList.remove('hidden');
+      if (elemRegCedula) elemRegCedula.value = cedula.toUpperCase();
+      if (elemRegNombre) elemRegNombre.value = "";
+      if (elemRegTel) elemRegTel.value = "";
+      if (elemRegDir) elemRegDir.value = "";
+
+      if (boxEncontrado) boxEncontrado.classList.add('hidden');
+      if (boxNuevo) boxNuevo.classList.remove('hidden');
       mostrarAvisoFactura("Cliente no registrado. Complete los datos para crearlo.");
 
     } else {
-      mostrarAvisoFactura(res.message || "Error al consultar cliente.");
+      mostrarAvisoFactura((res && res.message) ? res.message : "Error al consultar cliente.");
     }
 
   } catch (err) {
-    btn.disabled = false;
-    btn.textContent = "🔍 Buscar";
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "🔍 Buscar";
+    }
     console.error("Error buscar cliente:", err);
-    mostrarAvisoFactura("Error de conexión al consultar cliente.");
+    mostrarAvisoFactura(`Error al consultar cliente: ${err.message || err}`);
   }
 }
 
