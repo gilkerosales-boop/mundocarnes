@@ -225,11 +225,11 @@
           <div class="modal-header bg-dark text-white rounded-0 d-flex justify-content-between align-items-center">
             <h5 class="modal-title fw-bold" id="labelProcesarFactura">🧾 Procesar Recibo de Pago</h5>
             <div class="d-flex align-items-center gap-2">
-              <!-- Botón Retroceder en la parte superior -->
+              <!-- Botón Retroceder subido al Header -->
               <button type="button" class="btn btn-sm btn-secondary fw-bold" onclick="retrocederProcesoFactura()">
                 ⬅️ Retroceder
               </button>
-              <!-- Botón Poner en Espera en la parte superior -->
+              <!-- Unico Botón Poner en Espera en el Header -->
               <button type="button" class="btn btn-sm btn-warning fw-bold text-dark" onclick="ponerFacturaEnEspera()" title="Pausar y dejar en segundo plano">
                 ⏸️ Poner en Espera
               </button>
@@ -592,7 +592,7 @@
       </div>
     </div>
 
-    <!-- MODAL REGISTRO DE MOVIMIENTOS DE EFECTIVO (INGRESOS / RETIROS) -->
+    <!-- MODAL REGISTRO DE MOVIMIENTOS DE EFECTIVO (INGRESOS / EGRESOS / VALE DE CAJA) -->
     <div class="modal fade" id="modalMovimientosEfectivo" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-dark border-2">
@@ -605,9 +605,9 @@
             <div class="row g-2 mb-3">
               <div class="col-md-6">
                 <label for="movTipoSelect" class="form-label fw-bold small">Tipo de Movimiento *:</label>
-                <select id="movTipoSelect" class="form-select border-dark fw-bold">
+                <select id="movTipoSelect" class="form-select border-dark fw-bold" onchange="evaluarTipoMovimiento(this.value)">
                   <option value="INGRESO" selected>🟢 INGRESO (+)</option>
-                  <option value="RETIRO">🔴 RETIRO (-)</option>
+                  <option value="RETIRO">🔴 EGRESO (-)</option>
                 </select>
               </div>
               <div class="col-md-6">
@@ -619,14 +619,61 @@
               </div>
             </div>
 
-            <div class="mb-3">
+            <!-- Campo Condicional de Subtipo (Solo cuando Tipo == RETIRO / EGRESO) -->
+            <div id="contMovSubtipo" class="mb-3 hidden">
+              <label for="movSubtipoSelect" class="form-label fw-bold small">Modo de Egreso *:</label>
+              <select id="movSubtipoSelect" class="form-select border-dark fw-bold" onchange="evaluarSubtipoMovimiento(this.value)">
+                <option value="MANUAL" selected>📝 Registro Manual</option>
+                <option value="VALE">🎟️ Vale de Caja (Adelanto de Sueldo)</option>
+              </select>
+            </div>
+
+            <!-- Campo Monto del Movimiento -->
+            <div class="mb-3" id="contMovMonto">
               <label for="movMontoInput" class="form-label fw-bold small">Monto del Movimiento *:</label>
               <input type="number" id="movMontoInput" class="form-control border-dark fw-bold fs-5 text-center" step="0.01" min="0.01" placeholder="0.00">
             </div>
 
-            <div class="mb-3">
+            <!-- Campo Concepto Tradicional (Manual) -->
+            <div class="mb-3" id="contMovConceptoManual">
               <label for="movConceptoInput" class="form-label fw-bold small">Concepto / Motivo de Movimiento *:</label>
               <input type="text" id="movConceptoInput" class="form-control border-dark text-uppercase fw-bold" placeholder="Ej: CAMBIO SENCILLO, GASTO OPERATIVO...">
+            </div>
+
+            <!-- Formulario Extendido VALE DE CAJA (Se muestra únicamente cuando Subtipo == VALE) -->
+            <div id="contMovValeCaja" class="p-3 bg-white border border-danger rounded mb-3 hidden">
+              <h6 class="fw-bold text-danger border-bottom pb-2 mb-3">🎟️ Formulario de Vale de Caja / Adelanto de Sueldo</h6>
+              
+              <div class="row g-2 mb-2">
+                <div class="col-md-7">
+                  <label for="valeEmpleadoNombre" class="form-label fw-bold small mb-1">Nombre y Apellido del Empleado *:</label>
+                  <input type="text" id="valeEmpleadoNombre" class="form-control form-control-sm border-dark text-uppercase fw-bold" placeholder="Ej: JUAN PÉREZ">
+                </div>
+                <div class="col-md-5">
+                  <label for="valeEmpleadoCedula" class="form-label fw-bold small mb-1">Número de Cédula *:</label>
+                  <input type="text" id="valeEmpleadoCedula" class="form-control form-control-sm border-dark text-uppercase fw-bold" placeholder="Ej: V12345678">
+                </div>
+              </div>
+
+              <div class="mb-2">
+                <label for="valeMotivo" class="form-label fw-bold small mb-1">Motivo del Vale *:</label>
+                <input type="text" id="valeMotivo" class="form-control form-control-sm border-dark text-uppercase fw-bold" placeholder="Ej: ADELANTO DE SUELDO QUINCENAL / EMERGENCIA">
+              </div>
+
+              <div class="row g-2 mb-2">
+                <div class="col-md-6">
+                  <label for="valeCuotas" class="form-label fw-bold small mb-1">Cantidad de Cuotas a Descontar *:</label>
+                  <select id="valeCuotas" class="form-select form-select-sm border-dark fw-bold">
+                    <option value="1" selected>1 Cuota (Descuento Único)</option>
+                    <option value="2">2 Cuotas</option>
+                    <option value="3">3 Cuotas</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label for="valeAutorizadoPor" class="form-label fw-bold small mb-1">Autorizado por *:</label>
+                  <input type="text" id="valeAutorizadoPor" class="form-control form-control-sm border-dark text-uppercase fw-bold" placeholder="Ej: GERENCIA / ADMINISTRACIÓN">
+                </div>
+              </div>
             </div>
 
             <div id="errorModalMovEfectivo" class="text-danger small fw-bold mb-3 hidden"></div>
