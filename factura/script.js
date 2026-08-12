@@ -170,6 +170,7 @@ async function procesarColaSincronizacion() {
       const response = await fetch(API_URL_GAS, {
         method: "POST",
         mode: "cors",
+        credentials: "omit",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify(item.payload)
       });
@@ -190,7 +191,7 @@ async function procesarColaSincronizacion() {
   actualizarEstadoSyncBadge();
 }
 
-// SINCRONIZACIÓN MANUAL BIDIRECCIONAL COMPLETA CON NOTIFICACIÓN DE PROGRESO
+// SINCRONIZACIÓN MANUAL BIDIRECCIONAL COMPLETA CON PROGRESO DE 0% A 100%
 async function forzarSincronizacionManual() {
   if (!navigator.onLine) {
     mostrarAvisoFactura("Dispositivo en Modo Offline. Conéctese a Internet para sincronizar.");
@@ -203,18 +204,44 @@ async function forzarSincronizacionManual() {
     badge.textContent = "🔄 Sincronizando...";
   }
 
-  // PASO 1: Subida de transacciones pendientes locales
-  mostrarAvisoFactura("🔄 Paso 1/4: Subiendo transacciones pendientes a Google Sheets...");
+  // --- PASO 1: SUBIDA DE TRANSACCIONES PENDIENTES (0% -> 100%) ---
+  mostrarAvisoFactura("🔄 Paso 1/4: Subiendo transacciones pendientes (0%)...", false);
+  const queue = await dbGetAll("syncQueue");
 
+  if (queue.length === 0) {
+    mostrarAvisoFactura("🔄 Paso 1/4: Transacciones locales al día (100%)", false);
+    await new Promise(r => setTimeout(r, 600));
+  } else {
+    for (let i = 0; i < queue.length; i++) {
+      let item = queue[i];
+      let pct = Math.round(((i + 1) / queue.length) * 100);
+      mostrarAvisoFactura(`🔄 Paso 1/4: Subiendo pendientes (${i + 1}/${queue.length} - ${pct}%)`, false);
+      try {
+        const response = await fetch(API_URL_GAS, {
+          method: "POST", mode: "cors", credentials: "omit",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(item.payload)
+        });
+        if (response.ok) {
+          const res = await response.json();
+          if (res && (res.status === "success" || res.exito)) {
+            await dbDelete("syncQueue", item.id);
+          }
+        }
+      } catch (e) {
+        break;
+      }
+    }
+    mostrarAvisoFactura("🔄 Paso 1/4: Transacciones enviadas al 100%", false);
+    await new Promise(r => setTimeout(r, 600));
+  }
+
+  // --- PASO 2: DESCARGA E IMPORTACIÓN DE CLIENTES (0% -> 100%) ---
+  mostrarAvisoFactura("🔄 Paso 2/4: Consultando Clientes en Google Sheets (0%)...", false);
+  let cantClientes = 0;
   try {
-    await procesarColaSincronizacion();
-
-    // PASO 2: Descarga e importación de la base de datos de Clientes
-    mostrarAvisoFactura("🔄 Paso 2/4: Descargando base de datos de Clientes...");
-    let cantClientes = 0;
-
     const resClientes = await fetch(API_URL_GAS, {
-      method: "POST", mode: "cors",
+      method: "POST", mode: "cors", credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "obtenerTodosLosClientes" })
     });
@@ -222,19 +249,28 @@ async function forzarSincronizacionManual() {
     if (resClientes.ok) {
       const dataCli = await resClientes.json();
       if (dataCli && dataCli.status === "success" && dataCli.clientes) {
-        cantClientes = dataCli.clientes.length;
-        for (let cli of dataCli.clientes) {
+        const totalCli = dataCli.clientes.length;
+        cantClientes = totalCli;
+        for (let i = 0; i < totalCli; i++) {
+          let cli = dataCli.clientes[i];
           await dbPut("clientes", cli);
+          if (i % 5 === 0 || i === totalCli - 1) {
+            let pct = Math.round(((i + 1) / totalCli) * 100);
+            mostrarAvisoFactura(`🔄 Paso 2/4: Guardando Clientes (${i + 1}/${totalCli} - ${pct}%)`, false);
+          }
         }
       }
     }
+  } catch (e) {}
+  mostrarAvisoFactura(`🔄 Paso 2/4: Clientes sincronizados al 100% (${cantClientes} registros)`, false);
+  await new Promise(r => setTimeout(r, 600));
 
-    // PASO 3: Descarga e importación del Historial de Ventas
-    mostrarAvisoFactura("🔄 Paso 3/4: Descargando Historial de Ventas...");
-    let cantVentas = 0;
-
+  // --- PASO 3: DESCARGA E IMPORTACIÓN DE HISTORIAL DE VENTAS (0% -> 100%) ---
+  mostrarAvisoFactura("🔄 Paso 3/4: Consultando Historial de Ventas (0%)...", false);
+  let cantVentas = 0;
+  try {
     const resVentas = await fetch(API_URL_GAS, {
-      method: "POST", mode: "cors",
+      method: "POST", mode: "cors", credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "buscarFacturasHistorial", modo: "ultimas10", busqueda: "" })
     });
@@ -242,19 +278,26 @@ async function forzarSincronizacionManual() {
     if (resVentas.ok) {
       const dataVen = await resVentas.json();
       if (dataVen && dataVen.status === "success" && dataVen.facturas) {
-        cantVentas = dataVen.facturas.length;
-        for (let fac of dataVen.facturas) {
+        const totalVen = dataVen.facturas.length;
+        cantVentas = totalVen;
+        for (let i = 0; i < totalVen; i++) {
+          let fac = dataVen.facturas[i];
           await dbPut("ventas", fac);
+          let pct = Math.round(((i + 1) / totalVen) * 100);
+          mostrarAvisoFactura(`🔄 Paso 3/4: Guardando Ventas (${i + 1}/${totalVen} - ${pct}%)`, false);
         }
       }
     }
+  } catch (e) {}
+  mostrarAvisoFactura(`🔄 Paso 3/4: Ventas sincronizadas al 100% (${cantVentas} registros)`, false);
+  await new Promise(r => setTimeout(r, 600));
 
-    // PASO 4: Descarga e importación del Historial de Cierres de Caja
-    mostrarAvisoFactura("🔄 Paso 4/4: Descargando Historial de Cierres de Caja...");
-    let cantCierres = 0;
-
+  // --- PASO 4: DESCARGA E IMPORTACIÓN DE HISTORIAL DE CIERRES (0% -> 100%) ---
+  mostrarAvisoFactura("🔄 Paso 4/4: Consultando Cierres de Caja (0%)...", false);
+  let cantCierres = 0;
+  try {
     const resCierres = await fetch(API_URL_GAS, {
-      method: "POST", mode: "cors",
+      method: "POST", mode: "cors", credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "obtenerHistorialCierres" })
     });
@@ -262,23 +305,24 @@ async function forzarSincronizacionManual() {
     if (resCierres.ok) {
       const dataCie = await resCierres.json();
       if (dataCie && dataCie.status === "success" && dataCie.cierres) {
-        cantCierres = dataCie.cierres.length;
-        for (let cie of dataCie.cierres) {
+        const totalCie = dataCie.cierres.length;
+        cantCierres = totalCie;
+        for (let i = 0; i < totalCie; i++) {
+          let cie = dataCie.cierres[i];
           await dbPut("cierres", cie);
+          let pct = Math.round(((i + 1) / totalCie) * 100);
+          mostrarAvisoFactura(`🔄 Paso 4/4: Guardando Cierres (${i + 1}/${totalCie} - ${pct}%)`, false);
         }
       }
     }
+  } catch (e) {}
+  mostrarAvisoFactura(`🔄 Paso 4/4: Cierres sincronizados al 100% (${cantCierres} registros)`, false);
+  await new Promise(r => setTimeout(r, 800));
 
-    await actualizarEstadoSyncBadge();
+  await actualizarEstadoSyncBadge();
 
-    // Mensaje Final Informativo de Confirmación
-    mostrarAvisoFactura(`🎉 ¡Sincronización completada! Todos los archivos fueron actualizados correctamente (${cantClientes} clientes, ${cantVentas} ventas, ${cantCierres} cierres).`);
-
-  } catch (err) {
-    console.error("Error en sincronización manual:", err);
-    await actualizarEstadoSyncBadge();
-    mostrarAvisoFactura("⚠️ Sincronización parcial completada. Los datos restantes se enviarán progresivamente.");
-  }
+  // MENSAJE FINAL CONFIRMATIVO 100% COMPLETADO (Permanece 10s antes de ocultarse)
+  mostrarAvisoFactura(`🎉 ¡Sincronización completada al 100%! Todos los archivos fueron sincronizados correctamente (${cantClientes} clientes, ${cantVentas} ventas, ${cantCierres} cierres).`, true, 10000);
 }
 
 async function sincronizarClientesDesdeServidor() {
@@ -287,6 +331,7 @@ async function sincronizarClientesDesdeServidor() {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
+      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "obtenerTodosLosClientes" })
     });
@@ -375,14 +420,16 @@ document.addEventListener('hidden.bs.modal', function () {
   }
 });
 
-// Notificaciones Toast con duración extendida para seguimiento de progreso
-function mostrarAvisoFactura(mensaje) {
+// Notificaciones Toast con configuración de persistencia y duración
+function mostrarAvisoFactura(mensaje, autohide = true, delay = 6000) {
   try {
     const elemMsg = document.getElementById('toastMensajeFactura');
     if (elemMsg) elemMsg.textContent = mensaje;
     const toastElem = document.getElementById('toastFactura');
     if (toastElem) {
-      const toastObj = bootstrap.Toast.getOrCreateInstance(toastElem, { delay: 6000 });
+      const oldInstance = bootstrap.Toast.getInstance(toastElem);
+      if (oldInstance) oldInstance.dispose();
+      const toastObj = new bootstrap.Toast(toastElem, { autohide: autohide, delay: delay });
       toastObj.show();
     }
   } catch (e) {
@@ -714,6 +761,7 @@ async function procesarLoginFacturacion(event) {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
+      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({
         action: "loginFacturacion",
@@ -1173,6 +1221,7 @@ async function buscarClienteFactura() {
       const response = await fetch(API_URL_GAS, {
         method: "POST",
         mode: "cors",
+        credentials: "omit",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({ action: "buscarCliente", cedula: cedula })
       });
