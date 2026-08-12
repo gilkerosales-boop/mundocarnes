@@ -47,8 +47,7 @@ async function callGasAPI(payload) {
   try {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
-      mode: "cors",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      headers: { "Content-Type": "text/plain" },
       body: JSON.stringify(payload)
     });
 
