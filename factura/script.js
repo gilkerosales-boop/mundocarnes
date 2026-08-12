@@ -365,6 +365,7 @@ async function procesarLoginFacturacion(event) {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
+      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({
         action: "loginFacturacion",
@@ -805,7 +806,7 @@ function eliminarFacturaEnEspera(idx) {
   }
 }
 
-// Búsqueda de Cliente vía POST a Google Apps Script (Robusto)
+// Búsqueda de Cliente vía POST a Google Apps Script (Robusto con credentials: "omit")
 async function buscarClienteFactura() {
   const inputCedula = document.getElementById('facCedulaBuscar');
   const cedula = inputCedula ? inputCedula.value.trim() : "";
@@ -824,6 +825,7 @@ async function buscarClienteFactura() {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
+      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({
         action: "buscarCliente",
@@ -911,6 +913,7 @@ async function registrarClienteFactura() {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
+      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({
         action: "registrarClienteFactura",
@@ -1279,6 +1282,7 @@ async function emitirFacturaFinal() {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
+      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "obtenerCorrelativoFactura" })
     });
@@ -1499,6 +1503,7 @@ async function confirmarEImprimirFactura() {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
+      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({
         action: "guardarFacturaFinal",
@@ -2065,6 +2070,7 @@ async function buscarFacturasHistorial(modo) {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
+      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({
         action: "buscarFacturasHistorial",
@@ -2248,6 +2254,7 @@ async function eliminarFacturaHistorial(numFactura) {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
+      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({
         action: "eliminarFactura",
@@ -2310,6 +2317,7 @@ async function ejecutarDescargaExcelFacturas() {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
+      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({
         action: "obtenerFacturasParaDescargaExcel",
@@ -2533,6 +2541,7 @@ async function cargarHistorialCierresCaja() {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
+      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "obtenerHistorialCierres" })
     });
@@ -2617,6 +2626,7 @@ async function procesarSiguienteCierreCaja() {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
+      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "obtenerResumenCierreCaja" })
     });
@@ -2841,6 +2851,7 @@ async function confirmarEImprimirCierreCaja() {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
+      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({
         action: "guardarCierreCaja",
