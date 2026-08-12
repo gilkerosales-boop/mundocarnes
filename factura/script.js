@@ -12,6 +12,10 @@ const GITHUB_CONFIG_FAC = {
   branch: "main"
 };
 
+// Pre-carga inmediata del logotipo oficial para comprobantes impresos en memoria
+const logoComprobantePreload = new Image();
+logoComprobantePreload.src = "../img/LOGO-MUNDO123.webp";
+
 // Clasificación de Métodos por Naturaleza de Moneda (Incluye Biopago)
 const METODOS_USD = ["Efectivo Divisas", "Zelle", "PayPal", "Cashea"];
 const METODOS_BS = ["Pago Móvil", "Efectivo Bolívares", "Punto de Venta", "Transferencia Bancaria", "Biopago"];
@@ -30,6 +34,28 @@ let datosCierreCajaPendiente = null;
 let listaFlatProductosCodigos = [];
 let listaMovimientosEfectivo = [];
 let cacheHistorialCierres = [];
+
+// ==========================================================================
+// FUNCIÓN UNIFICADA DE IMPRESIÓN CON ESPERA DE CARGA DE LOGOTIPO
+// ==========================================================================
+function ejecutarImpresionTicket(ticketHtml) {
+  const elemImpresion = document.getElementById('contenidoTicketImprimible');
+  if (!elemImpresion) return;
+
+  elemImpresion.innerHTML = ticketHtml;
+
+  const img = elemImpresion.querySelector('img.ticket-logo-centrado');
+  if (img && !img.complete) {
+    img.onload = function () {
+      window.print();
+    };
+    img.onerror = function () {
+      window.print();
+    };
+  } else {
+    window.print();
+  }
+}
 
 // ==========================================================================
 // MANEJADOR INTELIGENTE DE CAPAS (Z-INDEX) PARA MODALES ANIDADOS
@@ -1465,10 +1491,7 @@ function renderizarTicketTermicoHTML(d) {
     </div>
   `;
 
-  const elemImpresion = document.getElementById('contenidoTicketImprimible');
   const elemModal = document.getElementById('vistaPreviaTicketModal');
-
-  if (elemImpresion) elemImpresion.innerHTML = ticketHtml;
   if (elemModal) elemModal.innerHTML = ticketHtml;
 }
 
@@ -1552,7 +1575,8 @@ async function confirmarEImprimirFactura() {
     btn.textContent = "🖨️ Confirmar y Facturar";
 
     if (res.status === "success") {
-      window.print();
+      const ticketHtml = document.getElementById('vistaPreviaTicketModal').innerHTML;
+      ejecutarImpresionTicket(ticketHtml);
 
       itemsFactura = {};
       transaccionActiva = null;
@@ -2181,7 +2205,8 @@ function reimprimirFacturaHistorial(numFactura) {
   };
 
   renderizarTicketTermicoHistorialHTML(datosFacturaPendiente);
-  window.print();
+  const ticketHtml = document.getElementById('contenidoTicketImprimible').innerHTML;
+  ejecutarImpresionTicket(ticketHtml);
   mostrarAvisoFactura(`🖨️ Reimprimiendo Factura N° ${numFactura}...`);
 }
 
@@ -2556,7 +2581,8 @@ function registrarMovimientoEfectivo() {
 
   if (esEgresoVale && datosVale) {
     renderizarTicketValeCajaHTML(datosVale);
-    window.print();
+    const ticketHtml = document.getElementById('contenidoTicketImprimible').innerHTML;
+    ejecutarImpresionTicket(ticketHtml);
     mostrarAvisoFactura(`🎟️ Vale de Caja para ${datosVale.empleadoNombre} registrado e impreso exitosamente.`);
   } else {
     mostrarAvisoFactura(`💸 Movimiento de ${tipo} (${moneda}) registrado exitosamente.`);
@@ -2767,7 +2793,8 @@ function reimprimirCierreCajaHistorial(idx) {
   };
 
   renderizarTicketCierreCajaHTML(datosCierreCajaPendiente);
-  window.print();
+  const ticketHtml = document.getElementById('contenidoTicketImprimible').innerHTML;
+  ejecutarImpresionTicket(ticketHtml);
   mostrarAvisoFactura(`🖨️ Reimprimiendo Reporte Z del ${c.fechaStr}...`);
 }
 
@@ -3021,7 +3048,8 @@ async function confirmarEImprimirCierreCaja() {
     btn.textContent = "🔒 Realizar Cierre";
 
     if (res.status === "success") {
-      window.print();
+      const ticketHtml = document.getElementById('vistaPreviaCierreCajaModal').innerHTML;
+      ejecutarImpresionTicket(ticketHtml);
 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso2')).hide();
       datosCierreCajaPendiente = null;
