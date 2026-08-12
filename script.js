@@ -20,7 +20,7 @@ let iti;
 let itiCheckout;
 let isZoomStatePushed = false;
 
-// Comunicación REST con Apps Script de Clientes (Robusta y sin Preflight CORS)
+// Comunicación REST con Apps Script de Clientes (Robusta, Anónima y sin Preflight CORS)
 async function callClientesAPI(action, data = {}) {
   if (!navigator.onLine) {
     return { error: "Dispositivo sin conexión a Internet." };
@@ -29,6 +29,9 @@ async function callClientesAPI(action, data = {}) {
   try {
     const response = await fetch(API_URL_CLIENTES, {
       method: "POST",
+      mode: "cors",
+      credentials: "omit",
+      redirect: "follow",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action, ...data })
     });
