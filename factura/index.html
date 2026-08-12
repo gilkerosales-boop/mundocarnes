@@ -41,25 +41,29 @@
     <!-- VISTA 2: Módulo de Facturación (Oculto hasta autenticarse) -->
     <div id="vistaFacturacion" class="hidden">
       <!-- Navbar de Encabezado -->
-      <nav class="admin-navbar d-flex justify-content-between align-items-center">
+      <nav class="admin-navbar d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div class="d-flex align-items-center">
           <img src="../img/LOGO-MUNDO123.webp" alt="Logo" class="logo-nav me-3">
           <span class="fw-bold fs-5 text-white">Módulo de Facturación No Fiscal</span>
         </div>
-        <div class="d-flex align-items-center">
-          <!-- Botón 1: Buscar / Historial (Amarillo) -->
-          <button type="button" class="btn btn-nav-custom btn-nav-yellow me-2" onclick="abrirModalBuscarFacturas()">
+        <div class="d-flex align-items-center flex-wrap gap-2">
+          <!-- Botón 1: Facturas en Espera / Standby (Naranja) -->
+          <button type="button" class="btn btn-nav-custom btn-nav-orange" onclick="abrirModalFacturasEnEspera()">
+            ⏳ En Espera (<span id="cntFacturasEnEspera">0</span>)
+          </button>
+          <!-- Botón 2: Buscar / Historial (Amarillo) -->
+          <button type="button" class="btn btn-nav-custom btn-nav-yellow" onclick="abrirModalBuscarFacturas()">
             🔍 Buscar / Historial
           </button>
-          <!-- Botón 2: Cierre de Caja (Rojo) -->
-          <button type="button" class="btn btn-nav-custom btn-nav-red me-2" onclick="abrirModalCierreCaja()">
+          <!-- Botón 3: Cierre de Caja (Rojo) -->
+          <button type="button" class="btn btn-nav-custom btn-nav-red" onclick="abrirModalCierreCaja()">
             🔒 Cierre de Caja
           </button>
-          <!-- Botón 3: Configuración de Productos (Azul) -->
-          <button type="button" class="btn btn-nav-custom btn-nav-blue me-3" onclick="abrirModalGestionCodigos()">
+          <!-- Botón 4: Configuración de Productos (Azul) -->
+          <button type="button" class="btn btn-nav-custom btn-nav-blue me-2" onclick="abrirModalGestionCodigos()">
             ⚙️ Configuración de Productos
           </button>
-          <span id="usuarioActivo" class="me-3 small fw-bold text-light"></span>
+          <span id="usuarioActivo" class="me-2 small fw-bold text-light"></span>
           <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="cerrarSesionFacturacion()">Cerrar Sesión 🚪</button>
         </div>
       </nav>
@@ -217,19 +221,28 @@
     <div class="modal fade" id="modalProcesarFactura" data-bs-backdrop="static" tabindex="-1" aria-labelledby="labelProcesarFactura" aria-hidden="true">
       <div class="modal-dialog modal-fullscreen">
         <div class="modal-content rounded-0">
-          <div class="modal-header bg-dark text-white rounded-0">
+          <div class="modal-header bg-dark text-white rounded-0 d-flex justify-content-between align-items-center">
             <h5 class="modal-title fw-bold" id="labelProcesarFactura">🧾 Procesar Facturación No Fiscal</h5>
-            <button type="button" class="btn-close btn-close-white" onclick="retrocederProcesoFactura()"></button>
+            <div>
+              <!-- Botón Minimizar / En Espera -->
+              <button type="button" class="btn btn-sm btn-warning fw-bold text-dark me-2" onclick="ponerFacturaEnEspera()" title="Pausar y dejar en segundo plano">
+                ⏸️ Poner en Espera
+              </button>
+              <button type="button" class="btn-close btn-close-white" onclick="retrocederProcesoFactura()"></button>
+            </div>
           </div>
           
           <div class="modal-body p-4 bg-light">
             
-            <!-- SECCIÓN 1: Tabla Resumen de Productos + Tasa BCV + Conmutador Moneda + Botón Manual -->
+            <!-- SECCIÓN 1: Tabla Resumen de Productos + Tasa BCV + Conmutador Moneda + Botones Manual/Códigos -->
             <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2 flex-wrap gap-2">
               <div class="d-flex align-items-center gap-2">
                 <h6 class="fw-bold text-danger mb-0">1. Detalle de Productos Seleccionados</h6>
                 <button type="button" class="btn btn-sm btn-outline-danger fw-bold ms-2" onclick="abrirModalProductoManual()">
                   + Producto Manual
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="abrirModalCodigos()">
+                  📟 + Códigos
                 </button>
               </div>
               
@@ -259,6 +272,7 @@
                     <th style="width: 160px;">Precio Base</th>
                     <th style="width: 220px;">Cantidad / Peso</th>
                     <th style="width: 160px;">Subtotal</th>
+                    <th style="width: 60px;">Acción</th>
                   </tr>
                 </thead>
                 <tbody id="tablaModalResumenProductos">
@@ -267,7 +281,7 @@
                 <tfoot class="table-light">
                   <tr>
                     <td colspan="4" class="text-end fw-bold fs-5 align-middle" id="labelModalTotalFactura">TOTAL FACTURA ($):</td>
-                    <td class="text-end align-middle">
+                    <td colspan="2" class="text-end align-middle">
                       <div class="fw-bold fs-5 text-danger" id="montoModalTotalFactura">$0.00</div>
                     </td>
                   </tr>
@@ -435,6 +449,9 @@
               🚫 Cancelar Selección
             </button>
             <div>
+              <button type="button" class="btn btn-warning fw-bold text-dark me-2" onclick="ponerFacturaEnEspera()">
+                ⏸️ Poner en Espera
+              </button>
               <button type="button" class="btn btn-secondary fw-bold me-2" onclick="retrocederProcesoFactura()">
                 ⬅️ Retroceder
               </button>
@@ -444,6 +461,46 @@
             </div>
           </div>
 
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL FACTURAS EN ESPERA (STANDBY / MINIMIZADAS) -->
+    <div class="modal fade" id="modalFacturasEnEspera" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-dark border-2">
+          <div class="modal-header bg-warning text-dark">
+            <h5 class="modal-title fw-bold">⏳ Facturas en Espera (Standby)</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            <div class="alert alert-dark border-secondary mb-3 small">
+              <strong>ℹ️ Transacciones Pausadas:</strong> Seleccione <strong>"Reanudar"</strong> para retomar la factura minimizada o <strong>"Eliminar"</strong> para descartarla.
+            </div>
+
+            <div class="table-responsive bg-white rounded border mb-2" style="max-height: 350px; overflow-y: auto;">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark small text-center">
+                  <tr>
+                    <th style="width: 50px;">#</th>
+                    <th style="width: 110px;">Hora Pausa</th>
+                    <th>Cliente</th>
+                    <th>Cant. Productos</th>
+                    <th style="width: 130px;">Total ($)</th>
+                    <th style="width: 180px;">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaFacturasEnEspera" class="small">
+                  <tr>
+                    <td colspan="6" class="text-center text-muted py-4">No hay facturas en espera.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer bg-white">
+            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cerrar</button>
+          </div>
         </div>
       </div>
     </div>
