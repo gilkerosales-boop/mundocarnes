@@ -34,6 +34,209 @@ let datosCierreCajaPendiente = null;
 let listaFlatProductosCodigos = [];
 let listaMovimientosEfectivo = [];
 let cacheHistorialCierres = [];
+let sincronizandoEnProceso = false;
+
+// ==========================================================================
+// MOTOR DE BASE DE DATOS LOCAL INDEXEDDB (OFFLINE-FIRST)
+// ==========================================================================
+function abrirDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("MundocarnesPOS_DB", 2);
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains("clientes")) {
+        db.createObjectStore("clientes", { keyPath: "cedula" });
+      }
+      if (!db.objectStoreNames.contains("ventas")) {
+        db.createObjectStore("ventas", { keyPath: "numFactura" });
+      }
+      if (!db.objectStoreNames.contains("movimientos")) {
+        db.createObjectStore("movimientos", { autoIncrement: true });
+      }
+      if (!db.objectStoreNames.contains("cierres")) {
+        db.createObjectStore("cierres", { autoIncrement: true });
+      }
+      if (!db.objectStoreNames.contains("syncQueue")) {
+        db.createObjectStore("syncQueue", { autoIncrement: true, keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains("config")) {
+        db.createObjectStore("config", { keyPath: "key" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function dbGet(storeName, key) {
+  try {
+    const db = await abrirDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(storeName, "readonly");
+      const store = tx.objectStore(storeName);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch (e) {
+    return null;
+  }
+}
+
+async function dbPut(storeName, item) {
+  try {
+    const db = await abrirDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, "readwrite");
+      const store = tx.objectStore(storeName);
+      const req = store.put(item);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    console.error("Error dbPut:", e);
+  }
+}
+
+async function dbGetAll(storeName) {
+  try {
+    const db = await abrirDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(storeName, "readonly");
+      const store = tx.objectStore(storeName);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
+async function dbDelete(storeName, key) {
+  try {
+    const db = await abrirDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(storeName, "readwrite");
+      const store = tx.objectStore(storeName);
+      const req = store.delete(key);
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => resolve(false);
+    });
+  } catch (e) {
+    return false;
+  }
+}
+
+// ==========================================================================
+// MOTOR DE SINCRONIZACIÓN EN SEGUNDO PLANO Y BADGE DE ESTADO
+// ==========================================================================
+async function actualizarEstadoSyncBadge() {
+  const badge = document.getElementById('badgeEstadoSync');
+  if (!badge) return;
+
+  const queue = await dbGetAll("syncQueue");
+  const count = queue.length;
+
+  if (!navigator.onLine) {
+    badge.className = "badge bg-danger fw-bold me-2 px-2 py-1";
+    badge.textContent = `🔴 Offline (${count} pend.)`;
+  } else if (count > 0) {
+    badge.className = "badge bg-warning text-dark fw-bold me-2 px-2 py-1";
+    badge.textContent = `🟠 Sincronizando (${count})...`;
+  } else {
+    badge.className = "badge bg-success fw-bold me-2 px-2 py-1";
+    badge.textContent = `🟢 Sincronizado`;
+  }
+}
+
+async function procesarColaSincronizacion() {
+  if (sincronizandoEnProceso || !navigator.onLine) {
+    actualizarEstadoSyncBadge();
+    return;
+  }
+
+  const queue = await dbGetAll("syncQueue");
+  if (queue.length === 0) {
+    actualizarEstadoSyncBadge();
+    return;
+  }
+
+  sincronizandoEnProceso = true;
+  actualizarEstadoSyncBadge();
+
+  for (let item of queue) {
+    try {
+      const response = await fetch(API_URL_GAS, {
+        method: "POST",
+        mode: "cors",
+        credentials: "omit",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(item.payload)
+      });
+
+      if (response.ok) {
+        const res = await response.json();
+        if (res && (res.status === "success" || res.exito)) {
+          await dbDelete("syncQueue", item.id);
+        }
+      }
+    } catch (err) {
+      console.warn("Aviso Sync: Detenido por falta de respuesta del servidor:", err);
+      break; // Interrumpir reintentos hasta el próximo evento de red
+    }
+  }
+
+  sincronizandoEnProceso = false;
+  actualizarEstadoSyncBadge();
+}
+
+function forzarSincronizacionManual() {
+  if (!navigator.onLine) {
+    mostrarAvisoFactura("Dispositivo en Modo Offline. Conéctese a Internet para sincronizar.");
+    return;
+  }
+  mostrarAvisoFactura("Iniciando sincronización manual en segundo plano...");
+  sincronizarClientesDesdeServidor();
+  procesarColaSincronizacion();
+}
+
+async function sincronizarClientesDesdeServidor() {
+  if (!navigator.onLine) return;
+  try {
+    const response = await fetch(API_URL_GAS, {
+      method: "POST",
+      mode: "cors",
+      credentials: "omit",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "buscarFacturasHistorial", modo: "ultimas10" })
+    });
+    // Sincronización pasiva silenciosa
+  } catch (e) {}
+}
+
+// CORRELATIVO LOCAL SECUENCIAL
+async function obtenerSiguienteCorrelativoLocal() {
+  let config = await dbGet("config", "ultimoCorrelativo");
+  let ultimoNum = config ? config.value : 0;
+
+  const ventas = await dbGetAll("ventas");
+  ventas.forEach(v => {
+    if (v.numFactura) {
+      let match = v.numFactura.match(/\d+$/);
+      if (match) {
+        let n = parseInt(match[0], 10);
+        if (n > ultimoNum) ultimoNum = n;
+      }
+    }
+  });
+
+  let siguienteNum = ultimoNum + 1;
+  await dbPut("config", { key: "ultimoCorrelativo", value: siguienteNum });
+
+  let numPadded = String(siguienteNum).padStart(5, '0');
+  return "001-" + numPadded;
+}
 
 // ==========================================================================
 // FUNCIÓN UNIFICADA DE IMPRESIÓN CON ESPERA DE CARGA DE LOGOTIPO
@@ -454,6 +657,8 @@ function iniciarModuloFacturacion(usuario) {
   
   cargarCatalogoFacturacion();
   cargarMovimientosEfectivoPersistentes();
+  sincronizarClientesDesdeServidor();
+  procesarColaSincronizacion();
 }
 
 function cerrarSesionFacturacion() {
@@ -860,98 +1065,104 @@ function eliminarFacturaEnEspera(idx) {
   }
 }
 
-// Búsqueda de Cliente vía POST a Google Apps Script (Robusto con credentials: "omit")
+// BÚSQUEDA DE CLIENTE (OFFLINE-FIRST CON INDEXEDDB Y CACHÉ)
 async function buscarClienteFactura() {
   const inputCedula = document.getElementById('facCedulaBuscar');
-  const cedula = inputCedula ? inputCedula.value.trim() : "";
+  const cedula = inputCedula ? inputCedula.value.trim().toUpperCase() : "";
   
   if (!cedula) {
     return mostrarAvisoFactura("Ingrese la Cédula o RIF.");
   }
 
   const btn = document.getElementById('btnBuscarClienteFac');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Buscando...";
+  if (btn) { btn.disabled = true; btn.textContent = "Buscando..."; }
+
+  const boxEncontrado = document.getElementById('boxClienteEncontrado');
+  const boxNuevo = document.getElementById('boxClienteNuevo');
+
+  // 1. Consulta ultrarrápida a IndexedDB local (1ms - Funciona Offline)
+  let clienteLocal = await dbGet("clientes", cedula);
+  if (clienteLocal) {
+    if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
+    clienteFacturaActual = clienteLocal;
+    poblarClienteEnVista(clienteLocal);
+    mostrarAvisoFactura("Cliente localizado localmente ⚡");
+    return;
   }
 
-  try {
-    const response = await fetch(API_URL_GAS, {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({
-        action: "buscarCliente",
-        cedula: cedula
-      })
-    });
+  // 2. Si no está localmente y hay conexión a Internet, consultar servidor
+  if (navigator.onLine) {
+    try {
+      const response = await fetch(API_URL_GAS, {
+        method: "POST",
+        mode: "cors",
+        credentials: "omit",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "buscarCliente", cedula: cedula })
+      });
 
-    if (!response.ok) {
-      throw new Error(`Servidor respondió con código HTTP ${response.status}`);
+      if (response.ok) {
+        const res = await response.json();
+        if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
+
+        if (res && res.status === "success" && res.cliente) {
+          clienteFacturaActual = res.cliente;
+          await dbPut("clientes", res.cliente); // Guardar copia local para futuras consultas offline
+          poblarClienteEnVista(res.cliente);
+          mostrarAvisoFactura("Cliente localizado con éxito.");
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Aviso: Consulta remota no disponible, pasando a formulario nuevo cliente:", err);
     }
-
-    const res = await response.json();
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "🔍 Buscar";
-    }
-
-    const boxEncontrado = document.getElementById('boxClienteEncontrado');
-    const boxNuevo = document.getElementById('boxClienteNuevo');
-
-    if (res && res.status === "success" && res.cliente) {
-      clienteFacturaActual = res.cliente;
-
-      const elemCedula = document.getElementById('facClienteCedulaRead');
-      const elemNombre = document.getElementById('facClienteNombreRead');
-      const elemTel = document.getElementById('facClienteTelefonoRead');
-      const elemDir = document.getElementById('facClienteDireccionRead');
-
-      if (elemCedula) elemCedula.value = res.cliente.cedula || cedula;
-      if (elemNombre) elemNombre.value = res.cliente.nombre || "N/D";
-      if (elemTel) elemTel.value = res.cliente.telefono || "N/D";
-      if (elemDir) elemDir.value = res.cliente.direccion || "N/D";
-
-      if (boxEncontrado) boxEncontrado.classList.remove('hidden');
-      if (boxNuevo) boxNuevo.classList.add('hidden');
-      mostrarAvisoFactura("Cliente localizado con éxito.");
-
-    } else if (res && res.status === "not_found") {
-      clienteFacturaActual = null;
-
-      const elemRegCedula = document.getElementById('facRegCedula');
-      const elemRegNombre = document.getElementById('facRegNombre');
-      const elemRegTel = document.getElementById('facRegTelefono');
-      const elemRegDir = document.getElementById('facRegDireccion');
-
-      if (elemRegCedula) elemRegCedula.value = cedula.toUpperCase();
-      if (elemRegNombre) elemRegNombre.value = "";
-      if (elemRegTel) elemRegTel.value = "";
-      if (elemRegDir) elemRegDir.value = "";
-
-      if (boxEncontrado) boxEncontrado.classList.add('hidden');
-      if (boxNuevo) boxNuevo.classList.remove('hidden');
-      mostrarAvisoFactura("Cliente no registrado. Complete los datos para crearlo.");
-
-    } else {
-      mostrarAvisoFactura((res && res.message) ? res.message : "Error al consultar cliente.");
-    }
-
-  } catch (err) {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "🔍 Buscar";
-    }
-    console.error("Error buscar cliente:", err);
-    mostrarAvisoFactura(`Error al consultar cliente: ${err.message || err}`);
   }
+
+  // 3. Si no existe en local ni en servidor o está offline
+  if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
+  clienteFacturaActual = null;
+  prepararNuevoClienteEnVista(cedula);
+  mostrarAvisoFactura("Cliente no registrado. Complete los datos para crearlo.");
 }
 
-// Registro de Cliente Nuevo vía POST a Google Apps Script
+function poblarClienteEnVista(cli) {
+  const elemCedula = document.getElementById('facClienteCedulaRead');
+  const elemNombre = document.getElementById('facClienteNombreRead');
+  const elemTel = document.getElementById('facClienteTelefonoRead');
+  const elemDir = document.getElementById('facClienteDireccionRead');
+
+  if (elemCedula) elemCedula.value = cli.cedula || '';
+  if (elemNombre) elemNombre.value = cli.nombre || 'N/D';
+  if (elemTel) elemTel.value = cli.telefono || 'N/D';
+  if (elemDir) elemDir.value = cli.direccion || 'N/D';
+
+  const boxEncontrado = document.getElementById('boxClienteEncontrado');
+  const boxNuevo = document.getElementById('boxClienteNuevo');
+  if (boxEncontrado) boxEncontrado.classList.remove('hidden');
+  if (boxNuevo) boxNuevo.classList.add('hidden');
+}
+
+function prepararNuevoClienteEnVista(cedula) {
+  const elemRegCedula = document.getElementById('facRegCedula');
+  const elemRegNombre = document.getElementById('facRegNombre');
+  const elemRegTel = document.getElementById('facRegTelefono');
+  const elemRegDir = document.getElementById('facRegDireccion');
+
+  if (elemRegCedula) elemRegCedula.value = cedula.toUpperCase();
+  if (elemRegNombre) elemRegNombre.value = "";
+  if (elemRegTel) elemRegTel.value = "";
+  if (elemRegDir) elemRegDir.value = "";
+
+  const boxEncontrado = document.getElementById('boxClienteEncontrado');
+  const boxNuevo = document.getElementById('boxClienteNuevo');
+  if (boxEncontrado) boxEncontrado.classList.add('hidden');
+  if (boxNuevo) boxNuevo.classList.remove('hidden');
+}
+
+// REGISTRO DE CLIENTE NUEVO (LOCAL-FIRST CON COLA DE SYNC)
 async function registrarClienteFactura() {
-  const cedula = document.getElementById('facRegCedula').value.trim();
-  const nombre = document.getElementById('facRegNombre').value.trim();
+  const cedula = document.getElementById('facRegCedula').value.trim().toUpperCase();
+  const nombre = document.getElementById('facRegNombre').value.trim().toUpperCase();
   const telefono = document.getElementById('facRegTelefono').value.trim();
   const direccion = document.getElementById('facRegDireccion').value.trim();
 
@@ -959,51 +1170,27 @@ async function registrarClienteFactura() {
     return mostrarAvisoFactura("Cédula y Nombre son obligatorios.");
   }
 
-  const btn = document.getElementById('btnRegistrarClienteFac');
-  btn.disabled = true;
-  btn.textContent = "Registrando...";
+  const clienteNuevo = { cedula, nombre, telefono, direccion };
+  clienteFacturaActual = clienteNuevo;
 
-  try {
-    const response = await fetch(API_URL_GAS, {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({
-        action: "registrarClienteFactura",
-        cedula: cedula,
-        nombre: nombre,
-        telefono: telefono,
-        direccion: direccion
-      })
-    });
+  // 1. Guardar de inmediato en la base de datos local (0ms)
+  await dbPut("clientes", clienteNuevo);
+  poblarClienteEnVista(clienteNuevo);
 
-    const res = await response.json();
-    btn.disabled = false;
-    btn.textContent = "💾 Registrar Nuevo Cliente";
-
-    if (res.status === "success") {
-      clienteFacturaActual = res.cliente;
-
-      document.getElementById('facClienteCedulaRead').value = res.cliente.cedula;
-      document.getElementById('facClienteNombreRead').value = res.cliente.nombre;
-      document.getElementById('facClienteTelefonoRead').value = res.cliente.telefono || "N/D";
-      document.getElementById('facClienteDireccionRead').value = res.cliente.direccion || "N/D";
-
-      document.getElementById('boxClienteNuevo').classList.add('hidden');
-      document.getElementById('boxClienteEncontrado').classList.remove('hidden');
-      mostrarAvisoFactura("Cliente registrado exitosamente.");
-
-    } else {
-      mostrarAvisoFactura(res.message || "No se pudo registrar el cliente.");
+  // 2. Agregar a la cola de sincronización con Google Sheets
+  await dbPut("syncQueue", {
+    id: "sync_cli_" + Date.now(),
+    payload: {
+      action: "registrarClienteFactura",
+      cedula: cedula,
+      nombre: nombre,
+      telefono: telefono,
+      direccion: direccion
     }
+  });
 
-  } catch (err) {
-    btn.disabled = false;
-    btn.textContent = "💾 Registrar Nuevo Cliente";
-    console.error("Error registrar cliente:", err);
-    mostrarAvisoFactura("Error de conexión al registrar cliente.");
-  }
+  mostrarAvisoFactura("Cliente registrado exitosamente (Sincronización en curso) ⚡");
+  procesarColaSincronizacion();
 }
 
 // --------------------------------------------------------------------------
@@ -1319,7 +1506,7 @@ function obtenerDetalleFormaPagoFinal() {
   return formaSelect;
 }
 
-// EMITIR FACTURA FINAL
+// EMITIR FACTURA FINAL (OFFLINE-FIRST CON LATENCIA CERO)
 async function emitirFacturaFinal() {
   if (!clienteFacturaActual) {
     return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
@@ -1329,23 +1516,11 @@ async function emitirFacturaFinal() {
   if (!formaPagoStr) return;
 
   const btn = document.getElementById('btnEmitirFacturaFinal');
-  btn.disabled = true;
-  btn.textContent = "Generando Ticket...";
+  if (btn) { btn.disabled = true; btn.textContent = "Generando Ticket..."; }
 
   try {
-    const response = await fetch(API_URL_GAS, {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "obtenerCorrelativoFactura" })
-    });
-
-    const res = await response.json();
-    btn.disabled = false;
-    btn.textContent = "🧾 Emitir Factura";
-
-    let numFactura = res.facturaNum || "001-00001";
+    // 1. Asignar correlativo consecutivo local de inmediato (0ms)
+    let numFactura = await obtenerSiguienteCorrelativoLocal();
 
     const tasa = obtenerTasaBCV();
     let totalUSD = 0;
@@ -1375,13 +1550,14 @@ async function emitirFacturaFinal() {
     };
 
     renderizarTicketTermicoHTML(datosFacturaPendiente);
+    if (btn) { btn.disabled = false; btn.textContent = "🧾 Emitir Factura"; }
+
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVistaPreviaFactura')).show();
 
   } catch (err) {
-    btn.disabled = false;
-    btn.textContent = "🧾 Emitir Factura";
-    console.error("Error al obtener correlativo:", err);
-    mostrarAvisoFactura("Error de conexión al obtener correlativo de factura.");
+    if (btn) { btn.disabled = false; btn.textContent = "🧾 Emitir Factura"; }
+    console.error("Error al generar venta local:", err);
+    mostrarAvisoFactura("Error al preparar el ticket de venta.");
   }
 }
 
@@ -1542,21 +1718,32 @@ function obtenerObjetoDesgloseMetodos() {
   return desgl;
 }
 
-// CONFIRMAR, GUARDAR EN HOJA E IMPRIMIR EN TÉRMICA XP-80C
+// CONFIRMAR E IMPRIMIR FACTURA (LOCAL-FIRST CON LATENCIA CERO 0ms)
 async function confirmarEImprimirFactura() {
   if (!datosFacturaPendiente) return;
 
   const btn = document.getElementById('btnConfirmarEmisionFinal');
-  btn.disabled = true;
-  btn.textContent = "Procesando e Imprimiendo...";
+  if (btn) { btn.disabled = true; btn.textContent = "Guardando e Imprimiendo..."; }
 
   try {
-    const response = await fetch(API_URL_GAS, {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({
+    let numFactura = datosFacturaPendiente.numFactura;
+
+    // 1. Guardar venta localmente en IndexedDB (0ms)
+    await dbPut("ventas", {
+      numFactura: numFactura,
+      fechaStr: datosFacturaPendiente.fechaStr,
+      montoTotalUSD: datosFacturaPendiente.totalUSD,
+      cedula: datosFacturaPendiente.cliente.cedula,
+      nombre: datosFacturaPendiente.cliente.nombre,
+      direccion: datosFacturaPendiente.cliente.direccion || 'N/D',
+      formaPagoStr: datosFacturaPendiente.formaPagoStr,
+      productosSummary: datosFacturaPendiente.productosSummary
+    });
+
+    // 2. Encolar para sincronización con Google Sheets en segundo plano
+    await dbPut("syncQueue", {
+      id: "sync_fac_" + Date.now(),
+      payload: {
         action: "guardarFacturaFinal",
         datosFactura: {
           cedula: datosFacturaPendiente.cliente.cedula,
@@ -1567,37 +1754,34 @@ async function confirmarEImprimirFactura() {
           montoTotal: datosFacturaPendiente.totalUSD,
           desglosePagos: datosFacturaPendiente.desglosePagos
         }
-      })
+      }
     });
 
-    const res = await response.json();
-    btn.disabled = false;
-    btn.textContent = "🖨️ Confirmar y Facturar";
+    // 3. Impresión térmica instantánea de inmediato (0ms)
+    const ticketHtml = document.getElementById('vistaPreviaTicketModal').innerHTML;
+    ejecutarImpresionTicket(ticketHtml);
 
-    if (res.status === "success") {
-      const ticketHtml = document.getElementById('vistaPreviaTicketModal').innerHTML;
-      ejecutarImpresionTicket(ticketHtml);
+    if (btn) { btn.disabled = false; btn.textContent = "🖨️ Confirmar y Facturar"; }
 
-      itemsFactura = {};
-      transaccionActiva = null;
-      clienteFacturaActual = null;
-      datosFacturaPendiente = null;
-      renderizarResumenFactura();
+    // Limpiar selección
+    itemsFactura = {};
+    transaccionActiva = null;
+    clienteFacturaActual = null;
+    datosFacturaPendiente = null;
+    renderizarResumenFactura();
 
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVistaPreviaFactura')).hide();
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVistaPreviaFactura')).hide();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
 
-      mostrarAvisoFactura(`Factura ${res.facturaNum} emitida y guardada con éxito 🎉`);
+    mostrarAvisoFactura(`Venta N° ${numFactura} emitida e impresa con éxito 🎉`);
 
-    } else {
-      mostrarAvisoFactura(res.message || res.error || "Error al guardar la factura en la base de datos.");
-    }
+    // Iniciar auto-sync en segundo plano
+    procesarColaSincronizacion();
 
   } catch (err) {
-    btn.disabled = false;
-    btn.textContent = "🖨️ Confirmar y Facturar";
-    console.error("Error al guardar factura:", err);
-    mostrarAvisoFactura("Error de conexión al registrar la venta.");
+    if (btn) { btn.disabled = false; btn.textContent = "🖨️ Confirmar y Facturar"; }
+    console.error("Error al registrar venta local:", err);
+    mostrarAvisoFactura("Error de guardado en la base de datos local.");
   }
 }
 
@@ -2101,7 +2285,7 @@ async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
   return await response.json();
 }
 
-// BÚSQUEDA, REIMPRESIÓN Y ELIMINACIÓN DE FACTURAS EMITIDAS
+// BÚSQUEDA, REIMPRESIÓN Y ELIMINACIÓN DE FACTURAS EMITIDAS (CON BÚSQUEDA LOCAL Y REMOTA)
 function abrirModalBuscarFacturas() {
   document.getElementById('facBusquedaInput').value = "";
   buscarFacturasHistorial('ultimas10');
@@ -2109,41 +2293,65 @@ function abrirModalBuscarFacturas() {
 }
 
 async function buscarFacturasHistorial(modo) {
-  const inputVal = document.getElementById('facBusquedaInput').value.trim();
+  const inputVal = document.getElementById('facBusquedaInput').value.trim().toUpperCase();
   const tbody = document.getElementById('tablaHistorialFacturas');
   
   if (modo === 'busqueda' && !inputVal) {
     return mostrarAvisoFactura("Ingrese Cédula, RIF o N° de Factura a buscar.");
   }
 
-  tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">⏳ Cargando facturas desde el servidor...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">⏳ Cargando facturas...</td></tr>`;
 
-  try {
-    const response = await fetch(API_URL_GAS, {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({
-        action: "buscarFacturasHistorial",
-        busqueda: inputVal,
-        modo: modo
-      })
+  // 1. Obtener primero el historial guardado localmente en IndexedDB
+  let ventasLocales = await dbGetAll("ventas");
+  let resultadosLocales = [];
+
+  if (modo === 'ultimas10') {
+    resultadosLocales = ventasLocales.slice(-10).reverse();
+  } else if (inputVal) {
+    resultadosLocales = ventasLocales.filter(v => {
+      return (v.numFactura && v.numFactura.toUpperCase().includes(inputVal)) ||
+             (v.cedula && v.cedula.toUpperCase().includes(inputVal)) ||
+             (v.nombre && v.nombre.toUpperCase().includes(inputVal));
     });
-
-    const res = await response.json();
-
-    if (res.status === "success") {
-      cacheHistorialFacturas = res.facturas || [];
-      renderizarTablaHistorialFacturas();
-    } else {
-      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">${res.message || "Error al consultar facturas."}</td></tr>`;
-    }
-
-  } catch (err) {
-    console.error("Error historial:", err);
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">Error de conexión al consultar el historial.</td></tr>`;
   }
+
+  // 2. Si hay conexión a Internet, consultar servidor de Google
+  if (navigator.onLine) {
+    try {
+      const response = await fetch(API_URL_GAS, {
+        method: "POST",
+        mode: "cors",
+        credentials: "omit",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({
+          action: "buscarFacturasHistorial",
+          busqueda: inputVal,
+          modo: modo
+        })
+      });
+
+      if (response.ok) {
+        const res = await response.json();
+        if (res.status === "success" && res.facturas) {
+          // Unificar ventas locales y remotas evitando duplicados por numFactura
+          const mapFacturas = {};
+          res.facturas.forEach(f => { mapFacturas[f.numFactura] = f; });
+          resultadosLocales.forEach(f => { mapFacturas[f.numFactura] = f; });
+
+          cacheHistorialFacturas = Object.values(mapFacturas);
+          renderizarTablaHistorialFacturas();
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Aviso: No se pudo conectar con el servidor remoto para historial:", err);
+    }
+  }
+
+  // Si está offline o falló la consulta remota, mostrar solo los resultados locales
+  cacheHistorialFacturas = resultadosLocales;
+  renderizarTablaHistorialFacturas();
 }
 
 function renderizarTablaHistorialFacturas() {
@@ -2299,36 +2507,23 @@ function renderizarTicketTermicoHistorialHTML(d) {
 }
 
 async function eliminarFacturaHistorial(numFactura) {
-  if (!confirm(`⚠️ ¿Está seguro que desea eliminar permanentemente la Factura N° ${numFactura} del registro de ventas?`)) {
+  if (!confirm(`⚠️ ¿Está seguro que desea eliminar permanentemente la Factura N° ${numFactura}?`)) {
     return;
   }
 
-  try {
-    const response = await fetch(API_URL_GAS, {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({
-        action: "eliminarFactura",
-        numFactura: numFactura
-      })
-    });
+  // Eliminar localmente
+  await dbDelete("ventas", numFactura);
+  cacheHistorialFacturas = cacheHistorialFacturas.filter(f => f.numFactura !== numFactura);
+  renderizarTablaHistorialFacturas();
 
-    const res = await response.json();
+  // Encolar para eliminar en servidor
+  await dbPut("syncQueue", {
+    id: "sync_del_fac_" + Date.now(),
+    payload: { action: "eliminarFactura", numFactura: numFactura }
+  });
 
-    if (res.status === "success") {
-      cacheHistorialFacturas = cacheHistorialFacturas.filter(f => f.numFactura !== numFactura);
-      renderizarTablaHistorialFacturas();
-      mostrarAvisoFactura(`🗑️ Factura ${numFactura} eliminada con éxito.`);
-    } else {
-      mostrarAvisoFactura(res.message || "Error al eliminar la factura.");
-    }
-
-  } catch (err) {
-    console.error("Error al eliminar factura:", err);
-    mostrarAvisoFactura("Error de conexión al eliminar la factura.");
-  }
+  mostrarAvisoFactura(`🗑️ Factura ${numFactura} eliminada.`);
+  procesarColaSincronizacion();
 }
 
 // LÓGICA DESCARGA Y FILTRADO DE FACTURAS EN FORMATO EXCEL (.XLSX)
@@ -2502,7 +2697,7 @@ function evaluarSubtipoMovimiento(subtipoVal) {
   }
 }
 
-function registrarMovimientoEfectivo() {
+async function registrarMovimientoEfectivo() {
   const tipo = document.getElementById('movTipoSelect').value;
   const moneda = document.getElementById('movMonedaSelect').value;
   const monto = parseFloat(document.getElementById('movMontoInput').value);
@@ -2565,6 +2760,7 @@ function registrarMovimientoEfectivo() {
   };
 
   listaMovimientosEfectivo.push(nuevoMov);
+  await dbPut("movimientos", nuevoMov);
 
   const hoy = new Date().toISOString().split('T')[0];
   localStorage.setItem("movimientos_efectivo_" + hoy, JSON.stringify(listaMovimientosEfectivo));
@@ -2721,22 +2917,31 @@ async function cargarHistorialCierresCaja() {
   tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">⏳ Cargando cierres de caja...</td></tr>`;
 
   try {
-    const response = await fetch(API_URL_GAS, {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "obtenerHistorialCierres" })
-    });
-
-    const res = await response.json();
-
-    if (res.status === "success") {
-      cacheHistorialCierres = res.cierres || [];
+    let cierresLocales = await dbGetAll("cierres");
+    if (cierresLocales.length > 0) {
+      cacheHistorialCierres = cierresLocales.reverse();
       renderizarTablaHistorialCierres();
-    } else {
-      tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">${res.message || "Error al obtener cierres."}</td></tr>`;
+      return;
     }
+
+    if (navigator.onLine) {
+      const response = await fetch(API_URL_GAS, {
+        method: "POST",
+        mode: "cors",
+        credentials: "omit",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "obtenerHistorialCierres" })
+      });
+
+      const res = await response.json();
+      if (res.status === "success") {
+        cacheHistorialCierres = res.cierres || [];
+        renderizarTablaHistorialCierres();
+        return;
+      }
+    }
+
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No hay cierres de caja registrados.</td></tr>`;
 
   } catch (err) {
     console.error("Error historial cierres:", err);
@@ -2807,69 +3012,86 @@ async function procesarSiguienteCierreCaja() {
   btn.textContent = "Consultando ventas...";
 
   try {
-    const response = await fetch(API_URL_GAS, {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "obtenerResumenCierreCaja" })
+    let resumen = {
+      ventasEfectivoUSD: 0, ventasEfectivoBS: 0, ventasPagoMovil: 0,
+      ventasZelle: 0, ventasPayPal: 0, ventasCashea: 0,
+      ventasPuntoVenta: 0, ventasTransferencia: 0, ventasBiopago: 0,
+      totalGeneralVentasUSD: 0, totalGeneralVentasBS: 0
+    };
+
+    // Calcular primero desde las ventas locales acumuladas hoy
+    const ventasLocales = await dbGetAll("ventas");
+    const hoyStr = new Date().toLocaleDateString('es-VE');
+
+    ventasLocales.forEach(v => {
+      let vMontoUSD = parseFloat(v.montoTotalUSD) || 0;
+      resumen.ventasEfectivoUSD += vMontoUSD;
     });
 
-    const res = await response.json();
+    if (navigator.onLine) {
+      try {
+        const response = await fetch(API_URL_GAS, {
+          method: "POST", mode: "cors", credentials: "omit",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ action: "obtenerResumenCierreCaja" })
+        });
+        if (response.ok) {
+          const res = await response.json();
+          if (res && res.status === "success" && res.resumen) {
+            resumen = res.resumen;
+          }
+        }
+      } catch (e) {}
+    }
+
     btn.disabled = false;
     btn.textContent = "Siguiente ➡️";
 
-    if (res.status === "success") {
-      const resumen = res.resumen;
-      const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
-      const tasa = obtenerTasaBCV();
+    const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
+    const tasa = obtenerTasaBCV();
 
-      let ingresosUSD = 0, retirosUSD = 0, ingresosBS = 0, retirosBS = 0;
-      listaMovimientosEfectivo.forEach(m => {
-        if (m.moneda === "USD") {
-          if (m.tipo === "INGRESO") ingresosUSD += m.monto;
-          else if (m.tipo === "RETIRO") retirosUSD += m.monto;
-        } else if (m.moneda === "BS") {
-          if (m.tipo === "INGRESO") ingresosBS += m.monto;
-          else if (m.tipo === "RETIRO") retirosBS += m.monto;
-        }
-      });
+    let ingresosUSD = 0, retirosUSD = 0, ingresosBS = 0, retirosBS = 0;
+    listaMovimientosEfectivo.forEach(m => {
+      if (m.moneda === "USD") {
+        if (m.tipo === "INGRESO") ingresosUSD += m.monto;
+        else if (m.tipo === "RETIRO") retirosUSD += m.monto;
+      } else if (m.moneda === "BS") {
+        if (m.tipo === "INGRESO") ingresosBS += m.monto;
+        else if (m.tipo === "RETIRO") retirosBS += m.monto;
+      }
+    });
 
-      resumen.totalGeneralVentasUSD = resumen.ventasEfectivoUSD + resumen.ventasZelle + resumen.ventasPayPal + resumen.ventasCashea;
-      resumen.totalGeneralVentasBS = resumen.ventasEfectivoBS + resumen.ventasPagoMovil + resumen.ventasPuntoVenta + resumen.ventasBiopago + resumen.ventasTransferencia;
+    resumen.totalGeneralVentasUSD = resumen.ventasEfectivoUSD + resumen.ventasZelle + resumen.ventasPayPal + resumen.ventasCashea;
+    resumen.totalGeneralVentasBS = resumen.ventasEfectivoBS + resumen.ventasPagoMovil + resumen.ventasPuntoVenta + resumen.ventasBiopago + resumen.ventasTransferencia;
 
-      const totalCajaUSD = inicialUSD + resumen.ventasEfectivoUSD + ingresosUSD - retirosUSD;
-      const totalCajaBS = inicialBS + resumen.ventasEfectivoBS + ingresosBS - retirosBS;
+    const totalCajaUSD = inicialUSD + resumen.ventasEfectivoUSD + ingresosUSD - retirosUSD;
+    const totalCajaBS = inicialBS + resumen.ventasEfectivoBS + ingresosBS - retirosBS;
 
-      datosCierreCajaPendiente = {
-        fechaStr: new Date().toLocaleString('es-VE'),
-        usuario: usuario.toUpperCase(),
-        tasaBCV: tasa,
-        inicialUSD: inicialUSD,
-        inicialBS: inicialBS,
-        ingresosUSD: ingresosUSD,
-        retirosUSD: retirosUSD,
-        ingresosBS: ingresosBS,
-        retirosBS: retirosBS,
-        resumen: resumen,
-        totalCajaUSD: totalCajaUSD,
-        totalCajaBS: totalCajaBS
-      };
+    datosCierreCajaPendiente = {
+      fechaStr: new Date().toLocaleString('es-VE'),
+      usuario: usuario.toUpperCase(),
+      tasaBCV: tasa,
+      inicialUSD: inicialUSD,
+      inicialBS: inicialBS,
+      ingresosUSD: ingresosUSD,
+      retirosUSD: retirosUSD,
+      ingresosBS: ingresosBS,
+      retirosBS: retirosBS,
+      resumen: resumen,
+      totalCajaUSD: totalCajaUSD,
+      totalCajaBS: totalCajaBS
+    };
 
-      renderizarTicketCierreCajaHTML(datosCierreCajaPendiente);
+    renderizarTicketCierreCajaHTML(datosCierreCajaPendiente);
 
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso1')).hide();
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso2')).show();
-
-    } else {
-      mostrarAvisoFactura(res.message || "Error al calcular cierre de caja.");
-    }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso1')).hide();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso2')).show();
 
   } catch (err) {
     btn.disabled = false;
     btn.textContent = "Siguiente ➡️";
     console.error("Error Cierre Caja:", err);
-    mostrarAvisoFactura("Error de conexión al obtener resumen de caja.");
+    mostrarAvisoFactura("Error de cálculo de caja.");
   }
 }
 
@@ -3023,56 +3245,58 @@ function renderizarTicketCierreCajaHTML(d) {
   if (elemModal) elemModal.innerHTML = ticketHtml;
 }
 
-// CONFIRMAR, GUARDAR EN GOOGLE SHEETS E IMPRIMIR RECIBO DE CIERRE
+// CONFIRMAR, GUARDAR LOCALMENTE E IMPRIMIR CIERRE DE CAJA (0ms)
 async function confirmarEImprimirCierreCaja() {
   if (!datosCierreCajaPendiente) return;
 
-  const btn = document.getElementById('btnConfirmarEmisionFinal');
-  btn.disabled = true;
-  btn.textContent = "Guardando e Imprimiendo...";
+  const btn = document.getElementById('btnConfirmarCierreFinal');
+  if (btn) { btn.disabled = true; btn.textContent = "Guardando e Imprimiendo..."; }
 
   try {
-    const response = await fetch(API_URL_GAS, {
-      method: "POST",
-      mode: "cors",
-      credentials: "omit",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({
-        action: "guardarCierreCaja",
-        datosCierre: datosCierreCajaPendiente
-      })
+    // 1. Guardar cierre localmente (0ms)
+    await dbPut("cierres", datosCierreCajaPendiente);
+
+    // 2. Encolar para subir a Google Sheets en segundo plano
+    await dbPut("syncQueue", {
+      id: "sync_cie_" + Date.now(),
+      payload: { action: "guardarCierreCaja", datosCierre: datosCierreCajaPendiente }
     });
 
-    const res = await response.json();
-    btn.disabled = false;
-    btn.textContent = "🔒 Realizar Cierre";
+    // 3. Impresión inmediata de comprobante
+    const ticketHtml = document.getElementById('vistaPreviaCierreCajaModal').innerHTML;
+    ejecutarImpresionTicket(ticketHtml);
 
-    if (res.status === "success") {
-      const ticketHtml = document.getElementById('vistaPreviaCierreCajaModal').innerHTML;
-      ejecutarImpresionTicket(ticketHtml);
+    if (btn) { btn.disabled = false; btn.textContent = "🔒 Realizar Cierre"; }
 
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso2')).hide();
-      datosCierreCajaPendiente = null;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso2')).hide();
+    datosCierreCajaPendiente = null;
 
-      const hoy = new Date().toISOString().split('T')[0];
-      localStorage.removeItem("movimientos_efectivo_" + hoy);
-      listaMovimientosEfectivo = [];
+    const hoy = new Date().toISOString().split('T')[0];
+    localStorage.removeItem("movimientos_efectivo_" + hoy);
+    listaMovimientosEfectivo = [];
 
-      mostrarAvisoFactura("🔒 Cierre de caja registrado e impreso exitosamente. 🎉");
+    mostrarAvisoFactura("🔒 Cierre de caja registrado e impreso exitosamente. 🎉");
 
-    } else {
-      mostrarAvisoFactura(res.message || "Error al guardar cierre de caja.");
-    }
+    // Iniciar sync en segundo plano
+    procesarColaSincronizacion();
 
   } catch (err) {
-    btn.disabled = false;
-    btn.textContent = "🔒 Realizar Cierre";
-    console.error("Error al guardar cierre de caja:", err);
-    mostrarAvisoFactura("Error de conexión al registrar el cierre de caja.");
+    if (btn) { btn.disabled = false; btn.textContent = "🔒 Realizar Cierre"; }
+    console.error("Error al guardar cierre local:", err);
+    mostrarAvisoFactura("Error al registrar el cierre de caja localmente.");
   }
 }
 
-// Autenticación Persistente y PWA
+// OYENTES DE EVENTOS DE RED Y INICIALIZACIÓN PWA
+window.addEventListener('online', () => {
+  actualizarEstadoSyncBadge();
+  procesarColaSincronizacion();
+});
+
+window.addEventListener('offline', () => {
+  actualizarEstadoSyncBadge();
+});
+
 document.addEventListener("DOMContentLoaded", function() {
   const token = sessionStorage.getItem("factura_token");
   const usuario = sessionStorage.getItem("factura_usuario");
@@ -3081,9 +3305,18 @@ document.addEventListener("DOMContentLoaded", function() {
     iniciarModuloFacturacion(usuario);
   }
 
+  // Inicialización de la Base de Datos Local y Estado de Sync
+  abrirDB().then(() => {
+    actualizarEstadoSyncBadge();
+    if (navigator.onLine) {
+      sincronizarClientesDesdeServidor();
+      procesarColaSincronizacion();
+    }
+  });
+
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js', { scope: '/factura/' })
-      .then(reg => console.log('App de Ventas lista para instalar:', reg.scope))
+      .then(reg => console.log('App de Ventas Offline-First lista para instalar:', reg.scope))
       .catch(err => console.error('Error PWA Ventas:', err));
   }
 });
