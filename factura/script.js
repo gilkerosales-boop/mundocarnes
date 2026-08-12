@@ -191,7 +191,7 @@ async function procesarColaSincronizacion() {
   actualizarEstadoSyncBadge();
 }
 
-// SINCRONIZACIÓN MANUAL BIDIRECCIONAL COMPLETA (SUBIDA + DESCARGA)
+// SINCRONIZACIÓN MANUAL BIDIRECCIONAL COMPLETA CON NOTIFICACIÓN DE PROGRESO
 async function forzarSincronizacionManual() {
   if (!navigator.onLine) {
     mostrarAvisoFactura("Dispositivo en Modo Offline. Conéctese a Internet para sincronizar.");
@@ -201,16 +201,19 @@ async function forzarSincronizacionManual() {
   const badge = document.getElementById('badgeEstadoSync');
   if (badge) {
     badge.className = "badge bg-warning text-dark fw-bold me-2 px-2 py-1";
-    badge.textContent = "🔄 Sincronizando Todo...";
+    badge.textContent = "🔄 Sincronizando...";
   }
 
-  mostrarAvisoFactura("🔄 Iniciando sincronización bidireccional con Google Sheets...");
+  // PASO 1: Subida de transacciones pendientes locales
+  mostrarAvisoFactura("🔄 Paso 1/4: Subiendo transacciones pendientes a Google Sheets...");
 
   try {
-    // 1. Subida: Enviar transacciones pendientes locales hacia Google Sheets
     await procesarColaSincronizacion();
 
-    // 2. Descarga A: Traer todos los Clientes e insertarlos/actualizarlos en IndexedDB
+    // PASO 2: Descarga e importación de la base de datos de Clientes
+    mostrarAvisoFactura("🔄 Paso 2/4: Descargando base de datos de Clientes...");
+    let cantClientes = 0;
+
     const resClientes = await fetch(API_URL_GAS, {
       method: "POST", mode: "cors", credentials: "omit",
       headers: { "Content-Type": "text/plain" },
@@ -220,13 +223,17 @@ async function forzarSincronizacionManual() {
     if (resClientes.ok) {
       const dataCli = await resClientes.json();
       if (dataCli && dataCli.status === "success" && dataCli.clientes) {
+        cantClientes = dataCli.clientes.length;
         for (let cli of dataCli.clientes) {
           await dbPut("clientes", cli);
         }
       }
     }
 
-    // 3. Descarga B: Traer Historial de Ventas desde Google Sheets
+    // PASO 3: Descarga e importación del Historial de Ventas
+    mostrarAvisoFactura("🔄 Paso 3/4: Descargando Historial de Ventas...");
+    let cantVentas = 0;
+
     const resVentas = await fetch(API_URL_GAS, {
       method: "POST", mode: "cors", credentials: "omit",
       headers: { "Content-Type": "text/plain" },
@@ -236,13 +243,17 @@ async function forzarSincronizacionManual() {
     if (resVentas.ok) {
       const dataVen = await resVentas.json();
       if (dataVen && dataVen.status === "success" && dataVen.facturas) {
+        cantVentas = dataVen.facturas.length;
         for (let fac of dataVen.facturas) {
           await dbPut("ventas", fac);
         }
       }
     }
 
-    // 4. Descarga C: Traer Historial de Cierres de Caja desde Google Sheets
+    // PASO 4: Descarga e importación del Historial de Cierres de Caja
+    mostrarAvisoFactura("🔄 Paso 4/4: Descargando Historial de Cierres de Caja...");
+    let cantCierres = 0;
+
     const resCierres = await fetch(API_URL_GAS, {
       method: "POST", mode: "cors", credentials: "omit",
       headers: { "Content-Type": "text/plain" },
@@ -252,6 +263,7 @@ async function forzarSincronizacionManual() {
     if (resCierres.ok) {
       const dataCie = await resCierres.json();
       if (dataCie && dataCie.status === "success" && dataCie.cierres) {
+        cantCierres = dataCie.cierres.length;
         for (let cie of dataCie.cierres) {
           await dbPut("cierres", cie);
         }
@@ -259,12 +271,14 @@ async function forzarSincronizacionManual() {
     }
 
     await actualizarEstadoSyncBadge();
-    mostrarAvisoFactura("🎉 Sincronización bidireccional completada con éxito.");
+
+    // Mensaje Final Informativo de Confirmación
+    mostrarAvisoFactura(`🎉 ¡Sincronización completada! Todos los archivos fueron actualizados correctamente (${cantClientes} clientes, ${cantVentas} ventas, ${cantCierres} cierres).`);
 
   } catch (err) {
     console.error("Error en sincronización manual:", err);
     await actualizarEstadoSyncBadge();
-    mostrarAvisoFactura("Aviso: Sincronización parcial completada.");
+    mostrarAvisoFactura("⚠️ Sincronización parcial completada. Los datos restantes se enviarán progresivamente.");
   }
 }
 
@@ -363,11 +377,16 @@ document.addEventListener('hidden.bs.modal', function () {
   }
 });
 
-// Notificaciones Toast
+// Notificaciones Toast con duración extendida para seguimiento de progreso
 function mostrarAvisoFactura(mensaje) {
   try {
-    document.getElementById('toastMensajeFactura').textContent = mensaje;
-    bootstrap.Toast.getOrCreateInstance(document.getElementById('toastFactura')).show();
+    const elemMsg = document.getElementById('toastMensajeFactura');
+    if (elemMsg) elemMsg.textContent = mensaje;
+    const toastElem = document.getElementById('toastFactura');
+    if (toastElem) {
+      const toastObj = bootstrap.Toast.getOrCreateInstance(toastElem, { delay: 6000 });
+      toastObj.show();
+    }
   } catch (e) {
     alert(mensaje);
   }
