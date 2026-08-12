@@ -2414,7 +2414,7 @@ async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
   return await response.json();
 }
 
-// BÚSQUEDA, REIMPRESIÓN Y ELIMINACIÓN DE FACTURAS EMITIDAS (CON BÚSQUEDA LOCAL Y REMOTA)
+// BÚSQUEDA, REIMPRESIÓN Y ELIMINACIÓN DE FACTURAS EMITIDAS (HASTA 200 REGISTROS)
 function abrirModalBuscarFacturas() {
   document.getElementById('facBusquedaInput').value = "";
   buscarFacturasHistorial('ultimas10');
@@ -2440,7 +2440,7 @@ async function buscarFacturasHistorial(modo) {
       return (v.numFactura && String(v.numFactura).toUpperCase().includes(inputVal)) ||
              (v.cedula && String(v.cedula).toUpperCase().includes(inputVal)) ||
              (v.nombre && String(v.nombre).toUpperCase().includes(inputVal));
-    });
+    }).reverse().slice(0, 200); // ⚡ Hasta 200 coincidencias locales más recientes
   }
 
   // ⚡ Renderizado local instantáneo (0ms)
@@ -2452,7 +2452,7 @@ async function buscarFacturasHistorial(modo) {
     tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">⏳ Consultando facturas en el servidor...</td></tr>`;
   }
 
-  // 2. Consulta remota en segundo plano (si hay Internet) para unificar e importar
+  // 2. Consulta remota en segundo plano (si hay Internet) para unificar e importar hasta 200
   if (navigator.onLine) {
     try {
       const response = await fetch(API_URL_GAS, {
@@ -2475,8 +2475,13 @@ async function buscarFacturasHistorial(modo) {
           res.facturas.forEach(f => { mapFacturas[f.numFactura] = f; });
           resultadosLocales.forEach(f => { mapFacturas[f.numFactura] = f; });
 
-          cacheHistorialFacturas = Object.values(mapFacturas);
-          
+          // Ordenar por número/fecha más reciente primero y limitar a los últimos 200 registros
+          cacheHistorialFacturas = Object.values(mapFacturas).sort((a, b) => {
+            let numA = a.numFactura ? parseInt(String(a.numFactura).replace(/\D/g, ''), 10) : 0;
+            let numB = b.numFactura ? parseInt(String(b.numFactura).replace(/\D/g, ''), 10) : 0;
+            return numB - numA;
+          }).slice(0, 200);
+
           // Guardar copias locales en IndexedDB
           for (let f of res.facturas) {
             await dbPut("ventas", f);
