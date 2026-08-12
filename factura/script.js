@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Lógica del Módulo de Facturación No Fiscal - Mundocarnes
+   Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
    ========================================================================== */
 
 // URL de la API de Google Apps Script
@@ -103,7 +103,7 @@ function renderizarTablaModalFactura() {
       subtotalTxt = `$${precioTotalUSD.toFixed(2)}`;
     }
 
-    let imgRuta = item.imgPath || '../img/LOGO-MUNDO123.webp';
+    let imgRuta = item.imgPath || '../img/LOGOTIPO MUNDOCARNES.jpg';
 
     let colCantidadHtml = item.cantidadTxt;
     if (item.unidad === 'mixto') {
@@ -301,7 +301,7 @@ function confirmarAgregarProductoManual() {
       unidad: "unidades",
       minBase: 1,
       pesoPromedio: 0,
-      imgPath: '../img/LOGO-MUNDO123.webp',
+      imgPath: '../img/LOGOTIPO MUNDOCARNES.jpg',
       esManual: true
     };
 
@@ -329,7 +329,7 @@ function confirmarAgregarProductoManual() {
       unidad: "gramos",
       minBase: 1,
       pesoPromedio: 0,
-      imgPath: '../img/LOGO-MUNDO123.webp',
+      imgPath: '../img/LOGOTIPO MUNDOCARNES.jpg',
       esManual: true
     };
   }
@@ -560,7 +560,7 @@ function confirmarAgregarAFactura() {
       unidad: prod.unidad,
       minBase: prod.minBase,
       pesoPromedio: prod.pesoPromedio || 0,
-      imgPath: prod.imgPath || '../img/LOGO-MUNDO123.webp'
+      imgPath: prod.imgPath || '../img/LOGOTIPO MUNDOCARNES.jpg'
     };
 
   } else {
@@ -586,7 +586,7 @@ function confirmarAgregarAFactura() {
       unidad: prod.unidad,
       minBase: prod.minBase,
       pesoPromedio: 0,
-      imgPath: prod.imgPath || '../img/LOGO-MUNDO123.webp'
+      imgPath: prod.imgPath || '../img/LOGOTIPO MUNDOCARNES.jpg'
     };
   }
 
@@ -1391,7 +1391,7 @@ function renderizarTicketTermicoHTML(d) {
   const ticketHtml = `
     <div class="ticket-container shadow-sm border">
       <div class="ticket-header">
-        <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
+        <img src="../img/LOGOTIPO MUNDOCARNES.jpg" class="ticket-logo-centrado" alt="Logo Mundocarnes">
         <div>RIF: J-505072889 | TELF: 0412-1753275</div>
         <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
         <div>HORARIO: 7:30am - 19:00pm</div>
@@ -1672,7 +1672,7 @@ function procesarEntradaScanner(cadenaTexto) {
         cantNumerica: 0,
         pesoTotalGramos: 0,
         precioTotal: "0.00",
-        imgPath: "../img/LOGO-MUNDO123.webp",
+        imgPath: "../img/LOGOTIPO MUNDOCARNES.jpg",
         encontrado: false
       });
     }
@@ -2186,7 +2186,7 @@ function renderizarTicketTermicoHistorialHTML(d) {
   const ticketHtml = `
     <div class="ticket-container shadow-sm border">
       <div class="ticket-header">
-        <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
+        <img src="../img/LOGOTIPO MUNDOCARNES.jpg" class="ticket-logo-centrado" alt="Logo Mundocarnes">
         <div>RIF: J-505072889 | TELF: 0412-1753275</div>
         <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
         <div>HORARIO: 7:30am - 19:00pm</div>
@@ -2715,7 +2715,7 @@ function renderizarTicketCierreCajaHTML(d) {
   const ticketHtml = `
     <div class="ticket-container shadow-sm border text-start">
       <div class="ticket-header">
-        <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
+        <img src="../img/LOGOTIPO MUNDOCARNES.jpg" class="ticket-logo-centrado" alt="Logo Mundocarnes">
         <div class="ticket-title fs-6">COMPROBANTE DE CIERRE DE CAJA</div>
         <div>RIF: J-505072889 | TELF: 0412-1753275</div>
         <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
@@ -2887,7 +2887,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js', { scope: '/factura/' })
-      .then(reg => console.log('App de Facturación lista para instalar:', reg.scope))
-      .catch(err => console.error('Error PWA Facturación:', err));
+      .then(reg => console.log('App de Ventas lista para instalar:', reg.scope))
+      .catch(err => console.error('Error PWA Ventas:', err));
   }
 });
