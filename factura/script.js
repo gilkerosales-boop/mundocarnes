@@ -2361,9 +2361,7 @@ async function buscarFacturasHistorial(modo) {
     return mostrarAvisoFactura("Ingrese Cédula, RIF o N° de Factura a buscar.");
   }
 
-  tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">⏳ Cargando facturas...</td></tr>`;
-
-  // 1. Obtener primero el historial guardado localmente en IndexedDB
+  // 1. Obtener de inmediato el historial guardado localmente en IndexedDB (0ms)
   let ventasLocales = await dbGetAll("ventas");
   let resultadosLocales = [];
 
@@ -2371,13 +2369,22 @@ async function buscarFacturasHistorial(modo) {
     resultadosLocales = ventasLocales.slice(-10).reverse();
   } else if (inputVal) {
     resultadosLocales = ventasLocales.filter(v => {
-      return (v.numFactura && v.numFactura.toUpperCase().includes(inputVal)) ||
-             (v.cedula && v.cedula.toUpperCase().includes(inputVal)) ||
-             (v.nombre && v.nombre.toUpperCase().includes(inputVal));
+      return (v.numFactura && String(v.numFactura).toUpperCase().includes(inputVal)) ||
+             (v.cedula && String(v.cedula).toUpperCase().includes(inputVal)) ||
+             (v.nombre && String(v.nombre).toUpperCase().includes(inputVal));
     });
   }
 
-  // 2. Si hay conexión a Internet, consultar servidor de Google
+  // ⚡ Renderizado local instantáneo (0ms)
+  cacheHistorialFacturas = resultadosLocales;
+  renderizarTablaHistorialFacturas();
+
+  // Si no hay nada guardado localmente aún, mostrar indicador temporal mientras consulta servidor
+  if (resultadosLocales.length === 0 && tbody) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">⏳ Consultando facturas en el servidor...</td></tr>`;
+  }
+
+  // 2. Consulta remota en segundo plano (si hay Internet) para unificar e importar
   if (navigator.onLine) {
     try {
       const response = await fetch(API_URL_GAS, {
@@ -2394,25 +2401,25 @@ async function buscarFacturasHistorial(modo) {
 
       if (response.ok) {
         const res = await response.json();
-        if (res.status === "success" && res.facturas) {
+        if (res && res.status === "success" && res.facturas) {
           // Unificar ventas locales y remotas evitando duplicados por numFactura
           const mapFacturas = {};
           res.facturas.forEach(f => { mapFacturas[f.numFactura] = f; });
           resultadosLocales.forEach(f => { mapFacturas[f.numFactura] = f; });
 
           cacheHistorialFacturas = Object.values(mapFacturas);
+          
+          // Guardar copias locales en IndexedDB
+          for (let f of res.facturas) {
+            await dbPut("ventas", f);
+          }
           renderizarTablaHistorialFacturas();
-          return;
         }
       }
     } catch (err) {
-      console.warn("Aviso: No se pudo conectar con el servidor remoto para historial:", err);
+      console.warn("Aviso: Consulta remota de historial omitida por error o red:", err);
     }
   }
-
-  // Si está offline o falló la consulta remota, mostrar solo los resultados locales
-  cacheHistorialFacturas = resultadosLocales;
-  renderizarTablaHistorialFacturas();
 }
 
 function renderizarTablaHistorialFacturas() {
@@ -2975,17 +2982,18 @@ async function cargarHistorialCierresCaja() {
   const tbody = document.getElementById('tablaHistorialCierresCaja');
   if (!tbody) return;
 
-  tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">⏳ Cargando cierres de caja...</td></tr>`;
+  // 1. Renderizado local instantáneo (0ms)
+  let cierresLocales = await dbGetAll("cierres");
+  if (cierresLocales.length > 0) {
+    cacheHistorialCierres = cierresLocales.reverse();
+    renderizarTablaHistorialCierres();
+  } else {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">⏳ Consultando cierres de caja...</td></tr>`;
+  }
 
-  try {
-    let cierresLocales = await dbGetAll("cierres");
-    if (cierresLocales.length > 0) {
-      cacheHistorialCierres = cierresLocales.reverse();
-      renderizarTablaHistorialCierres();
-      return;
-    }
-
-    if (navigator.onLine) {
+  // 2. Consulta remota en segundo plano para importar
+  if (navigator.onLine) {
+    try {
       const response = await fetch(API_URL_GAS, {
         method: "POST",
         mode: "cors",
@@ -2994,19 +3002,17 @@ async function cargarHistorialCierresCaja() {
         body: JSON.stringify({ action: "obtenerHistorialCierres" })
       });
 
-      const res = await response.json();
-      if (res.status === "success") {
-        cacheHistorialCierres = res.cierres || [];
-        renderizarTablaHistorialCierres();
-        return;
+      if (response.ok) {
+        const res = await response.json();
+        if (res && res.status === "success" && res.cierres) {
+          cacheHistorialCierres = res.cierres || [];
+          for (let c of res.cierres) {
+            await dbPut("cierres", c);
+          }
+          renderizarTablaHistorialCierres();
+        }
       }
-    }
-
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No hay cierres de caja registrados.</td></tr>`;
-
-  } catch (err) {
-    console.error("Error historial cierres:", err);
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">Error de conexión al consultar cierres.</td></tr>`;
+    } catch (e) {}
   }
 }
 
