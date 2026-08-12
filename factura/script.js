@@ -31,6 +31,34 @@ let listaFlatProductosCodigos = [];
 let listaMovimientosEfectivo = [];
 let cacheHistorialCierres = [];
 
+// ==========================================================================
+// MANEJADOR INTELIGENTE DE CAPAS (Z-INDEX) PARA MODALES ANIDADOS
+// ==========================================================================
+document.addEventListener('show.bs.modal', function (event) {
+  const modal = event.target;
+  const openModals = document.querySelectorAll('.modal.show');
+  const openCount = openModals.length;
+  
+  if (openCount > 0) {
+    const baseZIndex = 1050 + (openCount * 20);
+    modal.style.zIndex = baseZIndex + 10;
+    
+    setTimeout(() => {
+      const backdrops = document.querySelectorAll('.modal-backdrop');
+      if (backdrops.length > 1) {
+        backdrops[backdrops.length - 1].style.zIndex = baseZIndex;
+      }
+    }, 10);
+  }
+});
+
+document.addEventListener('hidden.bs.modal', function () {
+  const openModals = document.querySelectorAll('.modal.show');
+  if (openModals.length > 0) {
+    document.body.classList.add('modal-open');
+  }
+});
+
 // Notificaciones Toast
 function mostrarAvisoFactura(mensaje) {
   try {
