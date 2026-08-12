@@ -2415,7 +2415,7 @@ async function ejecutarDescargaExcelFacturas() {
 }
 
 // --------------------------------------------------------------------------
-// LÓGICA DE REGISTRO DE MOVIMIENTOS DE EFECTIVO (INGRESOS / RETIROS / ELIMINAR)
+// LÓGICA DE REGISTRO DE MOVIMIENTOS DE EFECTIVO (INGRESOS / EGRESOS / VALE)
 // --------------------------------------------------------------------------
 function cargarMovimientosEfectivoPersistentes() {
   const hoy = new Date().toISOString().split('T')[0];
@@ -2436,18 +2436,54 @@ function abrirModalMovimientosEfectivo() {
   document.getElementById('movConceptoInput').value = "";
   document.getElementById('movTipoSelect').value = "INGRESO";
   document.getElementById('movMonedaSelect').value = "USD";
+  if (document.getElementById('movSubtipoSelect')) {
+    document.getElementById('movSubtipoSelect').value = "MANUAL";
+  }
+
+  evaluarTipoMovimiento("INGRESO");
+
   document.getElementById('errorModalMovEfectivo').classList.add('hidden');
   document.getElementById('contenedorTablaMovimientosDia').classList.add('hidden');
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalMovimientosEfectivo')).show();
 }
 
+function evaluarTipoMovimiento(tipoVal) {
+  const contSubtipo = document.getElementById('contMovSubtipo');
+  const contVale = document.getElementById('contMovValeCaja');
+  const contConcepto = document.getElementById('contMovConceptoManual');
+
+  if (tipoVal === 'RETIRO') {
+    if (contSubtipo) contSubtipo.classList.remove('hidden');
+    const subtipoVal = document.getElementById('movSubtipoSelect') ? document.getElementById('movSubtipoSelect').value : 'MANUAL';
+    evaluarSubtipoMovimiento(subtipoVal);
+  } else {
+    if (contSubtipo) contSubtipo.classList.add('hidden');
+    if (contVale) contVale.classList.add('hidden');
+    if (contConcepto) contConcepto.classList.remove('hidden');
+  }
+}
+
+function evaluarSubtipoMovimiento(subtipoVal) {
+  const contVale = document.getElementById('contMovValeCaja');
+  const contConcepto = document.getElementById('contMovConceptoManual');
+
+  if (subtipoVal === 'VALE') {
+    if (contVale) contVale.classList.remove('hidden');
+    if (contConcepto) contConcepto.classList.add('hidden');
+  } else {
+    if (contVale) contVale.classList.add('hidden');
+    if (contConcepto) contConcepto.classList.remove('hidden');
+  }
+}
+
 function registrarMovimientoEfectivo() {
   const tipo = document.getElementById('movTipoSelect').value;
   const moneda = document.getElementById('movMonedaSelect').value;
   const monto = parseFloat(document.getElementById('movMontoInput').value);
-  const concepto = document.getElementById('movConceptoInput').value.trim().toUpperCase();
   const errorDiv = document.getElementById('errorModalMovEfectivo');
+
+  const esEgresoVale = (tipo === 'RETIRO') && (document.getElementById('movSubtipoSelect').value === 'VALE');
 
   if (isNaN(monto) || monto <= 0) {
     errorDiv.textContent = "Por favor, indique un monto válido superior a 0.";
@@ -2455,10 +2491,42 @@ function registrarMovimientoEfectivo() {
     return;
   }
 
-  if (!concepto) {
-    errorDiv.textContent = "Por favor, especifique el concepto o motivo del movimiento.";
-    errorDiv.classList.remove('hidden');
-    return;
+  let conceptoFinal = "";
+  let datosVale = null;
+
+  if (esEgresoVale) {
+    const empNombre = document.getElementById('valeEmpleadoNombre').value.trim().toUpperCase();
+    const empCedula = document.getElementById('valeEmpleadoCedula').value.trim().toUpperCase();
+    const motivoVal = document.getElementById('valeMotivo').value.trim().toUpperCase();
+    const cuotasVal = document.getElementById('valeCuotas').value;
+    const autPor = document.getElementById('valeAutorizadoPor').value.trim().toUpperCase();
+
+    if (!empNombre || !empCedula || !motivoVal || !autPor) {
+      errorDiv.textContent = "Por favor, complete todos los campos requeridos del Formulario de Vale de Caja.";
+      errorDiv.classList.remove('hidden');
+      return;
+    }
+
+    conceptoFinal = `VALE DE CAJA: ${empNombre} (CI: ${empCedula}) - ${motivoVal} [${cuotasVal} CUOTA(S)] - AUT: ${autPor}`;
+
+    datosVale = {
+      fechaHora: new Date().toLocaleString('es-VE'),
+      empleadoNombre: empNombre,
+      empleadoCedula: empCedula,
+      motivo: motivoVal,
+      monto: monto,
+      moneda: moneda,
+      cuotas: cuotasVal,
+      autorizadoPor: autPor
+    };
+
+  } else {
+    conceptoFinal = document.getElementById('movConceptoInput').value.trim().toUpperCase();
+    if (!conceptoFinal) {
+      errorDiv.textContent = "Por favor, especifique el concepto o motivo del movimiento.";
+      errorDiv.classList.remove('hidden');
+      return;
+    }
   }
 
   errorDiv.classList.add('hidden');
@@ -2468,7 +2536,7 @@ function registrarMovimientoEfectivo() {
     tipo: tipo,
     moneda: moneda,
     monto: monto,
-    concepto: concepto
+    concepto: conceptoFinal
   };
 
   listaMovimientosEfectivo.push(nuevoMov);
@@ -2476,11 +2544,72 @@ function registrarMovimientoEfectivo() {
   const hoy = new Date().toISOString().split('T')[0];
   localStorage.setItem("movimientos_efectivo_" + hoy, JSON.stringify(listaMovimientosEfectivo));
 
+  // Limpiar campos
   document.getElementById('movMontoInput').value = "";
   document.getElementById('movConceptoInput').value = "";
+  document.getElementById('valeEmpleadoNombre').value = "";
+  document.getElementById('valeEmpleadoCedula').value = "";
+  document.getElementById('valeMotivo').value = "";
+  document.getElementById('valeAutorizadoPor').value = "";
 
-  mostrarAvisoFactura(`💸 Movimiento de ${tipo} (${moneda}) registrado exitosamente.`);
   renderizarTablaMovimientosDia();
+
+  if (esEgresoVale && datosVale) {
+    renderizarTicketValeCajaHTML(datosVale);
+    window.print();
+    mostrarAvisoFactura(`🎟️ Vale de Caja para ${datosVale.empleadoNombre} registrado e impreso exitosamente.`);
+  } else {
+    mostrarAvisoFactura(`💸 Movimiento de ${tipo} (${moneda}) registrado exitosamente.`);
+  }
+}
+
+// RENDERIZAR TICKET TÉRMICO EXCLUSIVO PARA VALE DE CAJA
+function renderizarTicketValeCajaHTML(d) {
+  let montoTxt = (d.moneda === "BS")
+    ? `Bs. ${d.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : `$${d.monto.toFixed(2)}`;
+
+  const ticketHtml = `
+    <div class="ticket-container shadow-sm border text-start">
+      <div class="ticket-header">
+        <img src="../img/LOGOTIPO MUNDOCARNES.jpg" class="ticket-logo-centrado" alt="Logo Mundocarnes">
+        <div class="ticket-title fs-6">VALE DE CAJA - EGRESO</div>
+        <div>RIF: J-505072889 | TELF: 0412-1753275</div>
+        <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
+      </div>
+
+      <div class="ticket-info">
+        <div><strong>FECHA Y HORA:</strong> ${d.fechaHora}</div>
+        <div><strong>CONCEPTO:</strong> ADELANTO DE SUELDO</div>
+      </div>
+
+      <div class="ticket-box-info">
+        <div><strong>EMPLEADO:</strong> ${d.empleadoNombre}</div>
+        <div><strong>CÉDULA / CI:</strong> ${d.empleadoCedula}</div>
+        <div><strong>MOTIVO:</strong> ${d.motivo}</div>
+        <div><strong>MONTO DEL VALE:</strong> <span class="fs-6 font-weight-bold">${montoTxt}</span></div>
+        <div><strong>CUOTAS A DESCONTAR:</strong> ${d.cuotas} cuota(s)</div>
+        <div><strong>AUTORIZADO POR:</strong> ${d.autorizadoPor}</div>
+      </div>
+
+      <div class="small text-muted text-justify mt-2 mb-3" style="font-size: 8.5px; line-height: 1.2;">
+        Conste por la presente la recepción conforme del dinero arriba indicado y la expresa autorización para descontar dicho monto en la(s) cuota(s) establecida(s).
+      </div>
+
+      <div class="ticket-firma-linea">
+        ____________________________________<br>
+        FIRMA Y CONFORMIDAD EMPLEADO<br>
+        CI: ${d.empleadoCedula}
+      </div>
+
+      <div class="ticket-footer mt-3">
+        <div class="small">COMPROBANTE OPERATIVO DE CAJA</div>
+      </div>
+    </div>
+  `;
+
+  const elemImpresion = document.getElementById('contenidoTicketImprimible');
+  if (elemImpresion) elemImpresion.innerHTML = ticketHtml;
 }
 
 function alternarTablaMovimientosDia() {
@@ -2505,7 +2634,7 @@ function renderizarTablaMovimientosDia() {
   let html = "";
   listaMovimientosEfectivo.forEach((m, idx) => {
     let esIngreso = (m.tipo === "INGRESO");
-    let badgeTipo = esIngreso ? `<span class="badge bg-success">INGRESO (+)</span>` : `<span class="badge bg-danger">RETIRO (-)</span>`;
+    let badgeTipo = esIngreso ? `<span class="badge bg-success">INGRESO (+)</span>` : `<span class="badge bg-danger">EGRESO (-)</span>`;
     let montoTxt = (m.moneda === "BS") 
       ? `Bs. ${m.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       : `$${m.monto.toFixed(2)}`;
