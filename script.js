@@ -20,16 +20,32 @@ let iti;
 let itiCheckout;
 let isZoomStatePushed = false;
 
-// Comunicación REST con Apps Script de Clientes
+// Comunicación REST con Apps Script de Clientes (Robusta)
 async function callClientesAPI(action, data = {}) {
+  if (!navigator.onLine) {
+    return { error: "Dispositivo sin conexión a Internet." };
+  }
+
   try {
     const response = await fetch(API_URL_CLIENTES, {
       method: "POST",
       mode: "cors",
-      headers: { "Content-Type": "text/plain" },
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ action, ...data })
     });
-    return await response.json();
+
+    if (!response.ok) {
+      console.warn(`Aviso API Clientes: HTTP ${response.status} en la acción '${action}'.`);
+      return { error: `Servidor no disponible temporalmente (HTTP ${response.status}).` };
+    }
+
+    const rawText = await response.text();
+    try {
+      return JSON.parse(rawText);
+    } catch (parseErr) {
+      console.warn("Aviso API Clientes: Respuesta no válida del servidor.");
+      return { error: "Respuesta no válida del servidor." };
+    }
   } catch (error) {
     console.error("Error en conexión REST de clientes:", error);
     return { error: "Ocurrió un retardo de conexión. Por favor intente de nuevo." };
