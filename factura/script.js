@@ -170,7 +170,6 @@ async function procesarColaSincronizacion() {
       const response = await fetch(API_URL_GAS, {
         method: "POST",
         mode: "cors",
-        credentials: "omit",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify(item.payload)
       });
@@ -215,7 +214,7 @@ async function forzarSincronizacionManual() {
     let cantClientes = 0;
 
     const resClientes = await fetch(API_URL_GAS, {
-      method: "POST", mode: "cors", credentials: "omit",
+      method: "POST", mode: "cors",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "obtenerTodosLosClientes" })
     });
@@ -235,7 +234,7 @@ async function forzarSincronizacionManual() {
     let cantVentas = 0;
 
     const resVentas = await fetch(API_URL_GAS, {
-      method: "POST", mode: "cors", credentials: "omit",
+      method: "POST", mode: "cors",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "buscarFacturasHistorial", modo: "ultimas10", busqueda: "" })
     });
@@ -255,7 +254,7 @@ async function forzarSincronizacionManual() {
     let cantCierres = 0;
 
     const resCierres = await fetch(API_URL_GAS, {
-      method: "POST", mode: "cors", credentials: "omit",
+      method: "POST", mode: "cors",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "obtenerHistorialCierres" })
     });
@@ -288,7 +287,6 @@ async function sincronizarClientesDesdeServidor() {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
-      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "obtenerTodosLosClientes" })
     });
@@ -716,7 +714,6 @@ async function procesarLoginFacturacion(event) {
     const response = await fetch(API_URL_GAS, {
       method: "POST",
       mode: "cors",
-      credentials: "omit",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({
         action: "loginFacturacion",
@@ -1176,7 +1173,6 @@ async function buscarClienteFactura() {
       const response = await fetch(API_URL_GAS, {
         method: "POST",
         mode: "cors",
-        credentials: "omit",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({ action: "buscarCliente", cedula: cedula })
       });
