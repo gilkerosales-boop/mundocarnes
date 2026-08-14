@@ -1,9 +1,12 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
+   Base de Datos PostgreSQL en Supabase
    ========================================================================== */
 
-// URL de la API de Google Apps Script
-const API_URL_GAS = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
+// Configuración de Supabase
+const SUPABASE_URL = "https://bdhlgiygrozdebhmwyds.supabase.co";
+const SUPABASE_KEY = "sb_publishable_qA5isaOYl_QZzB_WiZsIPA_zjWnTO_6";
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // GitHub API Config para sincronizar catalog.json desde Facturación
 const GITHUB_CONFIG_FAC = {
@@ -37,40 +40,7 @@ let cacheHistorialCierres = [];
 let sincronizandoEnProceso = false;
 
 // ==========================================================================
-// CLIENTE CENTRALIZADO DE PAGO / PETICIONES A GOOGLE APPS SCRIPT (GAS)
-// ==========================================================================
-async function callGasAPI(payload) {
-  if (!navigator.onLine) {
-    return { status: "offline", message: "Dispositivo sin conexión a Internet." };
-  }
-
-  try {
-    const response = await fetch(API_URL_GAS, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: "data=" + encodeURIComponent(JSON.stringify(payload))
-    });
-
-    if (!response.ok) {
-      console.warn(`Aviso API GAS: HTTP ${response.status} en acción '${payload.action || 'desconocida'}'.`);
-      return { status: "error", code: response.status, message: `Servidor no disponible (HTTP ${response.status})` };
-    }
-
-    const rawText = await response.text();
-    try {
-      return JSON.parse(rawText);
-    } catch (parseErr) {
-      console.warn("Aviso API GAS: La respuesta no es un JSON válido.", rawText.substring(0, 100));
-      return { status: "error", message: "Respuesta no estructurada del servidor." };
-    }
-  } catch (err) {
-    console.warn("Aviso API GAS: Fallo de red/conexión al comunicarse con el servidor:", err);
-    return { status: "error", message: err.message };
-  }
-}
-
-// ==========================================================================
-// MOTOR DE BASE DE DATOS LOCAL INDEXEDDB (OFFLINE-FIRST)
+// MOTOR DE BASE DE DATOS LOCAL INDEXEDDB (OFFLINE-FIRST A 0ms)
 // ==========================================================================
 function abrirDB() {
   return new Promise((resolve, reject) => {
@@ -162,7 +132,7 @@ async function dbDelete(storeName, key) {
 }
 
 // ==========================================================================
-// MOTOR DE SINCRONIZACIÓN Y BADGE DE ESTADO (BIDIRECCIONAL)
+// MOTOR DE SINCRONIZACIÓN HACIA SUPABASE Y BADGE DE ESTADO
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
   const badge = document.getElementById('badgeEstadoSync');
@@ -200,15 +170,80 @@ async function procesarColaSincronizacion() {
 
   for (let item of queue) {
     try {
-      const res = await callGasAPI(item.payload);
-      if (res && (res.status === "success" || res.exito)) {
+      const payload = item.payload;
+      let exito = false;
+
+      if (payload.action === "guardarFacturaFinal") {
+        const d = payload.datosFactura;
+        const desgl = d.desglosePagos || {};
+        const { error } = await supabaseClient.from('ventas').insert([{
+          num_factura: d.numFactura || ("001-" + String(Date.now()).slice(-5)),
+          fecha_hora: new Date().toISOString(),
+          cedula: d.cedula,
+          nombre: d.nombre,
+          direccion: d.direccion,
+          productos_summary: d.productosSummary,
+          forma_pago: d.formaPago,
+          monto_total_usd: d.montoTotal || 0,
+          efectivo_usd: desgl["Efectivo Divisas"] || 0,
+          efectivo_bs: desgl["Efectivo Bolívares"] || 0,
+          pago_movil: desgl["Pago Móvil"] || 0,
+          zelle: desgl["Zelle"] || 0,
+          paypal: desgl["PayPal"] || 0,
+          cashea: desgl["Cashea"] || 0,
+          punto_venta: desgl["Punto de Venta"] || 0,
+          transferencia: desgl["Transferencia Bancaria"] || 0,
+          biopago: desgl["Biopago"] || 0
+        }]);
+        if (!error) exito = true;
+
+      } else if (payload.action === "registrarClienteFactura") {
+        const { error } = await supabaseClient.from('clientes').upsert({
+          cedula: payload.cedula,
+          nombre: payload.nombre,
+          telefono: payload.telefono,
+          direccion: payload.direccion
+        });
+        if (!error) exito = true;
+
+      } else if (payload.action === "guardarCierreCaja") {
+        const d = payload.datosCierre;
+        const r = d.resumen || {};
+        const { error } = await supabaseClient.from('cierres').insert([{
+          fecha_hora: new Date().toISOString(),
+          usuario: d.usuario,
+          inicial_usd: d.inicialUSD || 0,
+          inicial_bs: d.inicialBS || 0,
+          ventas_efectivo_usd: r.ventasEfectivoUSD || 0,
+          ventas_efectivo_bs: r.ventasEfectivoBS || 0,
+          ventas_pago_movil: r.ventasPagoMovil || 0,
+          ventas_zelle: r.ventasZelle || 0,
+          ventas_paypal: r.ventasPayPal || 0,
+          ventas_punto_venta: r.ventasPuntoVenta || 0,
+          ventas_biopago: r.ventasBiopago || 0,
+          ventas_cashea: r.ventasCashea || 0,
+          ventas_transferencia: r.ventasTransferencia || 0,
+          total_ventas_usd: r.totalGeneralVentasUSD || 0,
+          total_ventas_bs: r.totalGeneralVentasBS || 0,
+          caja_final_usd: d.totalCajaUSD || 0,
+          caja_final_bs: d.totalCajaBS || 0,
+          resumen: r
+        }]);
+        if (!error) exito = true;
+
+      } else if (payload.action === "eliminarFactura") {
+        const { error } = await supabaseClient.from('ventas').delete().eq('num_factura', payload.numFactura);
+        if (!error) exito = true;
+      }
+
+      if (exito) {
         await dbDelete("syncQueue", item.id);
-      } else if (res && res.status === "error") {
-        console.warn("Aviso Sync: Detenido temporalmente por error en servidor.");
+      } else {
         break;
       }
+
     } catch (err) {
-      console.warn("Aviso Sync: Detenido por falta de respuesta del servidor:", err);
+      console.warn("Aviso Sync Supabase:", err);
       break;
     }
   }
@@ -217,7 +252,7 @@ async function procesarColaSincronizacion() {
   actualizarEstadoSyncBadge();
 }
 
-// SINCRONIZACIÓN MANUAL BIDIRECCIONAL COMPLETA CON PROGRESO DE 0% A 100% (CON PAUSAS DE RENDERIZADO)
+// SINCRONIZACIÓN MANUAL BIDIRECCIONAL COMPLETA CON PROGRESO
 async function forzarSincronizacionManual() {
   if (!navigator.onLine) {
     mostrarAvisoFactura("Dispositivo en Modo Offline. Conéctese a Internet para sincronizar.");
@@ -231,91 +266,107 @@ async function forzarSincronizacionManual() {
   }
 
   // PASO 1: Subida de transacciones pendientes locales
-  mostrarAvisoFactura("🔄 Paso 1/4: Subiendo transacciones pendientes (0%)...", false);
+  mostrarAvisoFactura("🔄 Paso 1/4: Subiendo pendientes a Supabase (0%)...", false);
   const queue = await dbGetAll("syncQueue");
 
   if (queue.length === 0) {
     mostrarAvisoFactura("🔄 Paso 1/4: Transacciones locales al día (100%)", false);
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 500));
   } else {
     for (let i = 0; i < queue.length; i++) {
       let item = queue[i];
       let pct = Math.round(((i + 1) / queue.length) * 100);
       mostrarAvisoFactura(`🔄 Paso 1/4: Subiendo pendientes (${i + 1}/${queue.length} - ${pct}%)`, false);
-      await new Promise(r => setTimeout(r, 60)); // Permitir refresco del DOM
+      await new Promise(r => setTimeout(r, 60));
 
       try {
-        const res = await callGasAPI(item.payload);
-        if (res && (res.status === "success" || res.exito)) {
-          await dbDelete("syncQueue", item.id);
-        } else {
-          break;
-        }
+        await procesarColaSincronizacion();
       } catch (e) {
         break;
       }
     }
-    mostrarAvisoFactura("🔄 Paso 1/4: Transacciones enviadas al 100%", false);
-    await new Promise(r => setTimeout(r, 600));
+    mostrarAvisoFactura("🔄 Paso 1/4: Pendientes enviados al 100%", false);
+    await new Promise(r => setTimeout(r, 500));
   }
 
-  // PASO 2: Descarga e importación de la base de datos de Clientes
-  mostrarAvisoFactura("🔄 Paso 2/4: Consultando Clientes en Google Sheets...", false);
+  // PASO 2: Descarga de Clientes desde Supabase
+  mostrarAvisoFactura("🔄 Paso 2/4: Consultando Clientes en Supabase...", false);
   let cantClientes = 0;
   try {
-    const dataCli = await callGasAPI({ action: "obtenerTodosLosClientes" });
-    if (dataCli && dataCli.status === "success" && dataCli.clientes) {
-      const totalCli = dataCli.clientes.length;
+    const { data: clientesSup, error } = await supabaseClient.from('clientes').select('*');
+    if (!error && clientesSup) {
+      const totalCli = clientesSup.length;
       cantClientes = totalCli;
       for (let i = 0; i < totalCli; i++) {
-        let cli = dataCli.clientes[i];
-        await dbPut("clientes", cli);
+        let c = clientesSup[i];
+        await dbPut("clientes", {
+          cedula: c.cedula,
+          nombre: c.nombre,
+          telefono: c.telefono,
+          direccion: c.direccion
+        });
         let pct = Math.round(((i + 1) / totalCli) * 100);
         mostrarAvisoFactura(`🔄 Paso 2/4: Guardando Clientes (${i + 1}/${totalCli} - ${pct}%)`, false);
-        // Micro-delay para refresco visible de la UI
-        await new Promise(r => setTimeout(r, totalCli > 50 ? 20 : 50));
+        await new Promise(r => setTimeout(r, totalCli > 50 ? 15 : 40));
       }
     }
   } catch (e) {}
   mostrarAvisoFactura(`🔄 Paso 2/4: Clientes sincronizados al 100% (${cantClientes} registros)`, false);
-  await new Promise(r => setTimeout(r, 600));
+  await new Promise(r => setTimeout(r, 500));
 
-  // PASO 3: Descarga e importación del Historial de Ventas
+  // PASO 3: Descarga del Historial de Ventas desde Supabase
   mostrarAvisoFactura("🔄 Paso 3/4: Consultando Historial de Ventas...", false);
   let cantVentas = 0;
   try {
-    const dataVen = await callGasAPI({ action: "buscarFacturasHistorial", modo: "ultimas10", busqueda: "" });
-    if (dataVen && dataVen.status === "success" && dataVen.facturas) {
-      const totalVen = dataVen.facturas.length;
+    const { data: ventasSup, error } = await supabaseClient.from('ventas').select('*').order('fecha_hora', { ascending: false }).limit(200);
+    if (!error && ventasSup) {
+      const totalVen = ventasSup.length;
       cantVentas = totalVen;
       for (let i = 0; i < totalVen; i++) {
-        let fac = dataVen.facturas[i];
-        await dbPut("ventas", fac);
+        let v = ventasSup[i];
+        await dbPut("ventas", {
+          numFactura: v.num_factura,
+          fechaStr: new Date(v.fecha_hora).toLocaleString('es-VE'),
+          cedula: v.cedula,
+          nombre: v.nombre,
+          direccion: v.direccion,
+          productosSummary: v.productos_summary,
+          formaPagoStr: v.forma_pago,
+          montoTotalUSD: v.monto_total_usd
+        });
         let pct = Math.round(((i + 1) / totalVen) * 100);
         mostrarAvisoFactura(`🔄 Paso 3/4: Guardando Ventas (${i + 1}/${totalVen} - ${pct}%)`, false);
-        // Micro-delay para refresco visible de la UI
-        await new Promise(r => setTimeout(r, totalVen > 50 ? 20 : 60));
+        await new Promise(r => setTimeout(r, totalVen > 50 ? 15 : 40));
       }
     }
   } catch (e) {}
   mostrarAvisoFactura(`🔄 Paso 3/4: Ventas sincronizadas al 100% (${cantVentas} registros)`, false);
-  await new Promise(r => setTimeout(r, 600));
+  await new Promise(r => setTimeout(r, 500));
 
-  // PASO 4: Descarga e importación del Historial de Cierres de Caja
+  // PASO 4: Descarga del Historial de Cierres de Caja desde Supabase
   mostrarAvisoFactura("🔄 Paso 4/4: Consultando Cierres de Caja...", false);
   let cantCierres = 0;
   try {
-    const dataCie = await callGasAPI({ action: "obtenerHistorialCierres" });
-    if (dataCie && dataCie.status === "success" && dataCie.cierres) {
-      const totalCie = dataCie.cierres.length;
+    const { data: cierresSup, error } = await supabaseClient.from('cierres').select('*').order('fecha_hora', { ascending: false }).limit(50);
+    if (!error && cierresSup) {
+      const totalCie = cierresSup.length;
       cantCierres = totalCie;
       for (let i = 0; i < totalCie; i++) {
-        let cie = dataCie.cierres[i];
-        await dbPut("cierres", cie);
+        let cie = cierresSup[i];
+        await dbPut("cierres", {
+          fechaStr: new Date(cie.fecha_hora).toLocaleString('es-VE'),
+          usuario: cie.usuario,
+          inicialUSD: cie.inicial_usd,
+          inicialBS: cie.inicial_bs,
+          cajaFinalUSD: cie.caja_final_usd,
+          cajaFinalBS: cie.caja_final_bs,
+          totalVentasUSD: cie.total_ventas_usd,
+          totalVentasBS: cie.total_ventas_bs,
+          resumen: cie.resumen
+        });
         let pct = Math.round(((i + 1) / totalCie) * 100);
         mostrarAvisoFactura(`🔄 Paso 4/4: Guardando Cierres (${i + 1}/${totalCie} - ${pct}%)`, false);
-        // Micro-delay para refresco visible de la UI
-        await new Promise(r => setTimeout(r, totalCie > 50 ? 20 : 60));
+        await new Promise(r => setTimeout(r, totalCie > 50 ? 15 : 40));
       }
     }
   } catch (e) {}
@@ -324,17 +375,22 @@ async function forzarSincronizacionManual() {
 
   await actualizarEstadoSyncBadge();
 
-  // MENSAJE FINAL DE ÉXITO 100% COMPLETO
-  mostrarAvisoFactura(`🎉 ¡Sincronización completada al 100%! Todos los archivos fueron sincronizados correctamente (${cantClientes} clientes, ${cantVentas} ventas, ${cantCierres} cierres).`, true, 10000);
+  // MENSAJE FINAL DE ÉXITO
+  mostrarAvisoFactura(`🎉 ¡Sincronización con Supabase completada al 100%! (${cantClientes} clientes, ${cantVentas} ventas, ${cantCierres} cierres).`, true, 10000);
 }
 
 async function sincronizarClientesDesdeServidor() {
   if (!navigator.onLine) return;
   try {
-    const data = await callGasAPI({ action: "obtenerTodosLosClientes" });
-    if (data && data.status === "success" && data.clientes) {
-      for (let cli of data.clientes) {
-        await dbPut("clientes", cli);
+    const { data, error } = await supabaseClient.from('clientes').select('*');
+    if (!error && data) {
+      for (let cli of data) {
+        await dbPut("clientes", {
+          cedula: cli.cedula,
+          nombre: cli.nombre,
+          telefono: cli.telefono,
+          direccion: cli.direccion
+        });
       }
     }
   } catch (e) {}
@@ -413,7 +469,7 @@ document.addEventListener('hidden.bs.modal', function () {
   }
 });
 
-// Notificaciones Toast con reutilización segura de instancia
+// Notificaciones Toast
 function mostrarAvisoFactura(mensaje, autohide = true, delay = 6000) {
   try {
     const elemMsg = document.getElementById('toastMensajeFactura');
@@ -466,7 +522,7 @@ function alternarMonedaTablaFactura() {
   calcularTotalPagoMixto();
 }
 
-// RENDERIZAR TABLA DE PRODUCTOS EN EL MODAL SEGÚN MONEDA Y PESO REAL
+// RENDERIZAR TABLA DE PRODUCTOS EN EL MODAL
 function renderizarTablaModalFactura() {
   const tasa = obtenerTasaBCV();
   let htmlTabla = "";
@@ -544,7 +600,6 @@ function renderizarTablaModalFactura() {
   }
 }
 
-// ELIMINAR UN PRODUCTO DIRECTAMENTE DESDE EL MODAL DE PROCESAMIENTO
 function eliminarItemFacturaEnProceso(nombreProducto) {
   if (transaccionActiva && transaccionActiva.items) {
     delete transaccionActiva.items[nombreProducto];
@@ -557,7 +612,6 @@ function eliminarItemFacturaEnProceso(nombreProducto) {
   }
 }
 
-// RECALCULAR PESO REAL Y SUBTOTALES PARA PRODUCTOS MIXTOS
 function ajustarPesoMixtoFactura(nombreProducto, nuevoPesoGramos) {
   let items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
   let item = items[nombreProducto];
@@ -591,7 +645,6 @@ function ajustarPesoMixtoFactura(nombreProducto, nuevoPesoGramos) {
   renderizarResumenFactura();
 }
 
-// ACTUALIZAR CÁLCULOS BCV Y RE-RENDERIZAR
 function actualizarCalculosBCV() {
   const tasa = obtenerTasaBCV();
   const usuario = sessionStorage.getItem("factura_usuario") || "global";
@@ -739,11 +792,11 @@ function confirmarAgregarProductoManual() {
   mostrarAvisoFactura(`Producto manual agregado: ${nombre}`);
 }
 
-// Inicio de Sesión
+// INICIO DE SESIÓN CON SUPABASE
 async function procesarLoginFacturacion(event) {
   event.preventDefault();
   
-  const usuario = document.getElementById('facUsuario').value.trim();
+  const usuario = document.getElementById('facUsuario').value.trim().toLowerCase();
   const password = document.getElementById('facPassword').value.trim();
   const btn = document.getElementById('btnIngresarFac');
 
@@ -752,30 +805,32 @@ async function procesarLoginFacturacion(event) {
   }
 
   btn.disabled = true;
-  btn.textContent = "Verificando...";
+  btn.textContent = "Verificando en Supabase...";
 
   try {
-    const res = await callGasAPI({
-      action: "loginFacturacion",
-      usuario: usuario,
-      password: password
-    });
+    const { data, error } = await supabaseClient
+      .from('usuarios_factur')
+      .select('*')
+      .eq('usuario', usuario)
+      .eq('password', password)
+      .maybeSingle();
 
     btn.disabled = false;
     btn.textContent = "Ingresar al Sistema 🔐";
 
-    if (res.status === "success") {
-      sessionStorage.setItem("factura_token", res.token);
-      sessionStorage.setItem("factura_usuario", res.usuario);
-      iniciarModuloFacturacion(res.usuario);
+    if (!error && data) {
+      let token = btoa(usuario + ":" + Date.now());
+      sessionStorage.setItem("factura_token", token);
+      sessionStorage.setItem("factura_usuario", usuario);
+      iniciarModuloFacturacion(usuario);
     } else {
-      mostrarAvisoFactura(res.message || "Credenciales incorrectas.");
+      mostrarAvisoFactura("Usuario o contraseña incorrectos.");
     }
   } catch (err) {
     btn.disabled = false;
     btn.textContent = "Ingresar al Sistema 🔐";
-    mostrarAvisoFactura("Error de conexión al autenticar.");
-    console.error("Error Login:", err);
+    mostrarAvisoFactura("Error de conexión al autenticar con Supabase.");
+    console.error("Error Login Supabase:", err);
   }
 }
 
@@ -787,7 +842,6 @@ function iniciarModuloFacturacion(usuario) {
   cargarCatalogoFacturacion();
   cargarMovimientosEfectivoPersistentes();
   
-  // Ejecución segura de sincronización remota inicial
   if (navigator.onLine) {
     sincronizarClientesDesdeServidor();
     procesarColaSincronizacion();
@@ -1020,13 +1074,12 @@ function eliminarItemFactura(nombre) {
   renderizarResumenFactura();
 }
 
-// ACCIÓN DEL BOTÓN 'FACTURAR' (INICIA TRANSACCIÓN Y LIMPIA EL PANEL LATERAL AUTOMÁTICAMENTE)
+// ACCIÓN DEL BOTÓN 'FACTURAR' (INICIA TRANSACCIÓN)
 function ejecutarFacturar() {
   if (Object.keys(itemsFactura).length === 0) {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
   }
 
-  // Crear Objeto de Transacción Activa
   transaccionActiva = {
     id: "tx_" + Date.now(),
     horaPausa: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }),
@@ -1036,7 +1089,6 @@ function ejecutarFacturar() {
     tasaBCV: obtenerTasaBCV()
   };
 
-  // Limpieza automática del panel flotante lateral de la pantalla principal
   itemsFactura = {};
   renderizarResumenFactura();
 
@@ -1047,7 +1099,6 @@ function ejecutarFacturar() {
     btnConmutar.className = "btn btn-sm btn-outline-dark fw-bold";
   }
 
-  // Limpiar selección de método de pago
   document.querySelectorAll('.btn-metodo-pago').forEach(b => b.classList.remove('active'));
   document.getElementById('facFormaPagoSelect').value = "";
 
@@ -1071,16 +1122,13 @@ function ejecutarFacturar() {
   actualizarCalculosBCV();
 }
 
-// --------------------------------------------------------------------------
-// LÓGICA DE STANDBY / FACTURAS EN ESPERA (MINIMIZAR Y REANUDAR)
-// --------------------------------------------------------------------------
+// LÓGICA DE STANDBY / FACTURAS EN ESPERA
 function ponerFacturaEnEspera() {
   if (!transaccionActiva || !transaccionActiva.items || Object.keys(transaccionActiva.items).length === 0) {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
     return;
   }
 
-  // Preservar estado actual en la transacción
   transaccionActiva.cliente = clienteFacturaActual;
   transaccionActiva.formaPago = document.getElementById('facFormaPagoSelect') ? document.getElementById('facFormaPagoSelect').value : '';
   transaccionActiva.horaPausa = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
@@ -1144,13 +1192,11 @@ function renderizarTablaFacturasEnEspera() {
 function reanudarFacturaEnEspera(idx) {
   if (idx < 0 || idx >= facturasEnEspera.length) return;
 
-  // Restaurar transacción
   transaccionActiva = facturasEnEspera.splice(idx, 1)[0];
   actualizarContadorStandby();
 
   clienteFacturaActual = transaccionActiva.cliente || null;
 
-  // Restaurar datos de cliente en la vista si existen
   if (clienteFacturaActual) {
     poblarClienteEnVista(clienteFacturaActual);
   } else {
@@ -1158,7 +1204,6 @@ function reanudarFacturaEnEspera(idx) {
     document.getElementById('boxClienteNuevo').classList.add('hidden');
   }
 
-  // Restaurar método de pago si estaba seleccionado
   document.querySelectorAll('.btn-metodo-pago').forEach(b => b.classList.remove('active'));
   if (transaccionActiva.formaPago) {
     document.getElementById('facFormaPagoSelect').value = transaccionActiva.formaPago;
@@ -1187,7 +1232,7 @@ function eliminarFacturaEnEspera(idx) {
   }
 }
 
-// BÚSQUEDA DE CLIENTE (OFFLINE-FIRST CON INDEXEDDB Y CACHÉ)
+// BÚSQUEDA DE CLIENTE EN SUPABASE E INDEXEDDB
 async function buscarClienteFactura() {
   const inputCedula = document.getElementById('facCedulaBuscar');
   const cedula = inputCedula ? inputCedula.value.trim().toUpperCase() : "";
@@ -1199,7 +1244,7 @@ async function buscarClienteFactura() {
   const btn = document.getElementById('btnBuscarClienteFac');
   if (btn) { btn.disabled = true; btn.textContent = "Buscando..."; }
 
-  // 1. Consulta ultrarrápida a IndexedDB local (1ms - Funciona Offline)
+  // 1. Consulta ultrarrápida a IndexedDB local (1ms)
   let clienteLocal = await dbGet("clientes", cedula);
   if (clienteLocal) {
     if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
@@ -1209,25 +1254,35 @@ async function buscarClienteFactura() {
     return;
   }
 
-  // 2. Si no está localmente y hay conexión a Internet, consultar servidor
+  // 2. Consulta a Supabase
   if (navigator.onLine) {
     try {
-      const res = await callGasAPI({ action: "buscarCliente", cedula: cedula });
+      const { data: resSup, error } = await supabaseClient
+        .from('clientes')
+        .select('*')
+        .eq('cedula', cedula)
+        .maybeSingle();
+
       if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
 
-      if (res && res.status === "success" && res.cliente) {
-        clienteFacturaActual = res.cliente;
-        await dbPut("clientes", res.cliente); // Guardar copia local para futuras consultas offline
-        poblarClienteEnVista(res.cliente);
-        mostrarAvisoFactura("Cliente localizado con éxito.");
+      if (!error && resSup) {
+        let cliObj = {
+          cedula: resSup.cedula,
+          nombre: resSup.nombre,
+          telefono: resSup.telefono || 'N/D',
+          direccion: resSup.direccion || 'N/D'
+        };
+        clienteFacturaActual = cliObj;
+        await dbPut("clientes", cliObj);
+        poblarClienteEnVista(cliObj);
+        mostrarAvisoFactura("Cliente localizado con éxito en Supabase.");
         return;
       }
     } catch (err) {
-      console.warn("Aviso: Consulta remota no disponible, pasando a formulario nuevo cliente:", err);
+      console.warn("Aviso Supabase Cliente:", err);
     }
   }
 
-  // 3. Si no existe en local ni en servidor o está offline
   if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
   clienteFacturaActual = null;
   prepararNuevoClienteEnVista(cedula);
@@ -1268,7 +1323,7 @@ function prepararNuevoClienteEnVista(cedula) {
   if (boxNuevo) boxNuevo.classList.remove('hidden');
 }
 
-// REGISTRO DE CLIENTE NUEVO (LOCAL-FIRST CON COLA DE SYNC)
+// REGISTRO DE CLIENTE NUEVO
 async function registrarClienteFactura() {
   const cedula = document.getElementById('facRegCedula').value.trim().toUpperCase();
   const nombre = document.getElementById('facRegNombre').value.trim().toUpperCase();
@@ -1282,11 +1337,9 @@ async function registrarClienteFactura() {
   const clienteNuevo = { cedula, nombre, telefono, direccion };
   clienteFacturaActual = clienteNuevo;
 
-  // 1. Guardar de inmediato en la base de datos local (0ms)
   await dbPut("clientes", clienteNuevo);
   poblarClienteEnVista(clienteNuevo);
 
-  // 2. Agregar a la cola de sincronización con Google Sheets
   await dbPut("syncQueue", {
     id: "sync_cli_" + Date.now(),
     payload: {
@@ -1302,9 +1355,7 @@ async function registrarClienteFactura() {
   procesarColaSincronizacion();
 }
 
-// --------------------------------------------------------------------------
-// LÓGICA DE SELECCIÓN DE BOTONES CUADRADOS Y DESGLOSE PAGO (CASHEA Y MIXTOS)
-// --------------------------------------------------------------------------
+// SELECCIÓN DE BOTONES Y DESGLOSE DE PAGO
 function seleccionarMetodoPagoBoton(metodo, btnElem) {
   document.querySelectorAll('.btn-metodo-pago').forEach(b => b.classList.remove('active'));
   if (btnElem) btnElem.classList.add('active');
@@ -1353,7 +1404,6 @@ function evaluarFormaPagoFactura(valor) {
   }
 }
 
-// ACTUALIZAR PREFIJO $ / Bs SEGÚN EL MÉTODO DE PAGO ELEGIDO
 function actualizarPrefijoFilaMixta(selectElem) {
   const fila = selectElem.closest('.fila-pago-mixto');
   if (!fila) return;
@@ -1370,7 +1420,6 @@ function actualizarPrefijoFilaMixta(selectElem) {
   }
 }
 
-// AGREGAR FILA PAGO MIXTO FIJA (PARA CASHEA / COMBINADOS)
 function agregarLineaPagoMixtoFija(metodoPredeterminado, esEliminable = true) {
   const lista = document.getElementById('listaFilasPagoMixto');
   if (!lista) return;
@@ -1417,7 +1466,6 @@ function agregarLineaPagoMixtoFija(metodoPredeterminado, esEliminable = true) {
   lista.appendChild(divFila);
 }
 
-// AGREGAR FILA PAGO MIXTO EDITABLE
 function agregarLineaPagoMixto() {
   const lista = document.getElementById('listaFilasPagoMixto');
   if (!lista) return;
@@ -1455,7 +1503,6 @@ function agregarLineaPagoMixto() {
   calcularTotalPagoMixto();
 }
 
-// ELIMINAR FILA DE PAGO MIXTO
 function eliminarLineaPagoMixto(btn) {
   const lista = document.getElementById('listaFilasPagoMixto');
   if (lista && lista.children.length <= 1) {
@@ -1465,7 +1512,6 @@ function eliminarLineaPagoMixto(btn) {
   calcularTotalPagoMixto();
 }
 
-// CALCULAR Y VALIDAR TOTALES EN PAGO MIXTO
 function calcularTotalPagoMixto() {
   const tasa = obtenerTasaBCV();
   let sumaAsignadaUSD = 0;
@@ -1565,7 +1611,6 @@ function calcularTotalPagoMixto() {
   };
 }
 
-// RESOLVER CADENA FINAL DEL PAGO PARA EMISIÓN
 function obtenerDetalleFormaPagoFinal() {
   const formaSelect = document.getElementById('facFormaPagoSelect').value;
   if (!formaSelect) return null;
@@ -1615,7 +1660,7 @@ function obtenerDetalleFormaPagoFinal() {
   return formaSelect;
 }
 
-// EMITIR FACTURA FINAL (OFFLINE-FIRST CON LATENCIA CERO 0ms)
+// EMITIR FACTURA FINAL (LOCAL-FIRST A 0ms)
 async function emitirFacturaFinal() {
   if (!clienteFacturaActual) {
     return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
@@ -1628,7 +1673,6 @@ async function emitirFacturaFinal() {
   if (btn) { btn.disabled = true; btn.textContent = "Generando Ticket..."; }
 
   try {
-    // 1. Asignar correlativo consecutivo local de inmediato (0ms)
     let numFactura = await obtenerSiguienteCorrelativoLocal();
 
     const tasa = obtenerTasaBCV();
@@ -1670,7 +1714,6 @@ async function emitirFacturaFinal() {
   }
 }
 
-// RENDERIZAR LA ESTRUCTURA DEL TICKET TÉRMICO (XP-80C 72mm)
 function renderizarTicketTermicoHTML(d) {
   let filasProductosHtml = "";
   let i = 1;
@@ -1780,7 +1823,6 @@ function renderizarTicketTermicoHTML(d) {
   if (elemModal) elemModal.innerHTML = ticketHtml;
 }
 
-// OBTENER OBJETO CON MONTO EN SU MONEDA RESPECTIVA ($ O Bs)
 function obtenerObjetoDesgloseMetodos() {
   const formaSelect = document.getElementById('facFormaPagoSelect').value;
   const tasa = obtenerTasaBCV();
@@ -1827,7 +1869,7 @@ function obtenerObjetoDesgloseMetodos() {
   return desgl;
 }
 
-// CONFIRMAR E IMPRIMIR FACTURA (LOCAL-FIRST CON LATENCIA CERO 0ms)
+// CONFIRMAR, IMPRIMIR E INICIAR SINCRONIZACIÓN
 async function confirmarEImprimirFactura() {
   if (!datosFacturaPendiente) return;
 
@@ -1837,7 +1879,7 @@ async function confirmarEImprimirFactura() {
   try {
     let numFactura = datosFacturaPendiente.numFactura;
 
-    // 1. Guardar venta localmente en IndexedDB (0ms)
+    // 1. Guardar localmente a 0ms en IndexedDB
     await dbPut("ventas", {
       numFactura: numFactura,
       fechaStr: datosFacturaPendiente.fechaStr,
@@ -1849,12 +1891,13 @@ async function confirmarEImprimirFactura() {
       productosSummary: datosFacturaPendiente.productosSummary
     });
 
-    // 2. Encolar para sincronización con Google Sheets en segundo plano
+    // 2. Encolar para sincronización con Supabase
     await dbPut("syncQueue", {
       id: "sync_fac_" + Date.now(),
       payload: {
         action: "guardarFacturaFinal",
         datosFactura: {
+          numFactura: numFactura,
           cedula: datosFacturaPendiente.cliente.cedula,
           nombre: datosFacturaPendiente.cliente.nombre,
           direccion: datosFacturaPendiente.cliente.direccion || 'N/D',
@@ -1866,13 +1909,12 @@ async function confirmarEImprimirFactura() {
       }
     });
 
-    // 3. Impresión térmica instantánea de inmediato (0ms)
+    // 3. Impresión térmica instantánea
     const ticketHtml = document.getElementById('vistaPreviaTicketModal').innerHTML;
     ejecutarImpresionTicket(ticketHtml);
 
     if (btn) { btn.disabled = false; btn.textContent = "🖨️ Confirmar y Facturar"; }
 
-    // Limpiar selección
     itemsFactura = {};
     transaccionActiva = null;
     clienteFacturaActual = null;
@@ -1884,7 +1926,7 @@ async function confirmarEImprimirFactura() {
 
     mostrarAvisoFactura(`Venta N° ${numFactura} emitida e impresa con éxito 🎉`);
 
-    // Iniciar auto-sync en segundo plano
+    // Sincronizar en segundo plano
     procesarColaSincronizacion();
 
   } catch (err) {
@@ -1894,7 +1936,6 @@ async function confirmarEImprimirFactura() {
   }
 }
 
-// Control Navegación: Retroceder
 function retrocederProcesoFactura() {
   if (transaccionActiva && transaccionActiva.items) {
     itemsFactura = { ...transaccionActiva.items };
@@ -1904,7 +1945,6 @@ function retrocederProcesoFactura() {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
 }
 
-// Control Navegación: Cancelar
 function cancelarProcesoFactura() {
   if (confirm("¿Está seguro de cancelar el proceso? Se limpiará toda la selección actual.")) {
     itemsFactura = {};
@@ -2133,7 +2173,7 @@ function confirmarAgregarCodigosAFactura() {
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
 }
 
-// LÓGICA GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS (CÓDIGOS, PRECIOS Y DISPONIBILIDAD)
+// LÓGICA GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS (PLU / GITHUB SYNC)
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
   prepararListaProductosCodigos();
@@ -2162,7 +2202,6 @@ function prepararListaProductosCodigos() {
     });
   });
 
-  // Ordenar Numérica de Menor a Mayor por Código PLU
   listaFlatProductosCodigos.sort((a, b) => {
     let numA = a.codigoPLU !== "" ? parseInt(a.codigoPLU, 10) : 999999;
     let numB = b.codigoPLU !== "" ? parseInt(b.codigoPLU, 10) : 999999;
@@ -2242,7 +2281,6 @@ function filtrarTablaCodigos(query) {
   renderizarTablaGestionCodigos(filtrados);
 }
 
-// Abrir modal de escáner de QR de seguridad para guardar cambios
 function guardarTodosLosCodigosPLU() {
   const input = document.getElementById('inputTokenQR');
   if (input) input.value = "";
@@ -2255,7 +2293,6 @@ function guardarTodosLosCodigosPLU() {
   }, 400);
 }
 
-// Ejecutar el guardado leyendo el token del campo password (mascarado)
 async function ejecutarGuardadoConTokenQR() {
   const input = document.getElementById('inputTokenQR');
   const errorDiv = document.getElementById('errorModalTokenQR');
@@ -2276,7 +2313,6 @@ async function ejecutarGuardadoConTokenQR() {
   procesarSincronizacionGitHub();
 }
 
-// Proceso de subida a GitHub
 async function procesarSincronizacionGitHub() {
   const btn = document.getElementById('btnGuardarCodigosPLU');
   if (btn) {
@@ -2394,7 +2430,7 @@ async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
   return await response.json();
 }
 
-// BÚSQUEDA, REIMPRESIÓN Y ELIMINACIÓN DE FACTURAS EMITIDAS (HASTA 200 REGISTROS)
+// BÚSQUEDA Y HISTORIAL DE FACTURAS EN SUPABASE E INDEXEDDB
 function abrirModalBuscarFacturas() {
   document.getElementById('facBusquedaInput').value = "";
   buscarFacturasHistorial('ultimas10');
@@ -2409,7 +2445,6 @@ async function buscarFacturasHistorial(modo) {
     return mostrarAvisoFactura("Ingrese Cédula, RIF o N° de Factura a buscar.");
   }
 
-  // 1. Obtener de inmediato el historial guardado localmente en IndexedDB (0ms)
   let ventasLocales = await dbGetAll("ventas");
   let resultadosLocales = [];
 
@@ -2420,48 +2455,57 @@ async function buscarFacturasHistorial(modo) {
       return (v.numFactura && String(v.numFactura).toUpperCase().includes(inputVal)) ||
              (v.cedula && String(v.cedula).toUpperCase().includes(inputVal)) ||
              (v.nombre && String(v.nombre).toUpperCase().includes(inputVal));
-    }).reverse().slice(0, 200); // ⚡ Hasta 200 coincidencias locales más recientes
+    }).reverse().slice(0, 200);
   }
 
-  // ⚡ Renderizado local instantáneo (0ms)
   cacheHistorialFacturas = resultadosLocales;
   renderizarTablaHistorialFacturas();
 
-  // Si no hay nada guardado localmente aún, mostrar indicador temporal mientras consulta servidor
   if (resultadosLocales.length === 0 && tbody) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">⏳ Consultando facturas en el servidor...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">⏳ Consultando facturas en Supabase...</td></tr>`;
   }
 
-  // 2. Consulta remota en segundo plano (si hay Internet) para unificar e importar hasta 200
   if (navigator.onLine) {
     try {
-      const res = await callGasAPI({
-        action: "buscarFacturasHistorial",
-        busqueda: inputVal,
-        modo: modo
-      });
+      let query = supabaseClient.from('ventas').select('*').order('fecha_hora', { ascending: false });
 
-      if (res && res.status === "success" && res.facturas) {
-        // Unificar ventas locales y remotas evitando duplicados por numFactura
+      if (modo === 'ultimas10') {
+        query = query.limit(10);
+      } else if (inputVal) {
+        query = query.or(`num_factura.ilike.%${inputVal}%,cedula.ilike.%${inputVal}%,nombre.ilike.%${inputVal}%`).limit(200);
+      }
+
+      const { data: ventasSup, error } = await query;
+
+      if (!error && ventasSup) {
         const mapFacturas = {};
-        res.facturas.forEach(f => { mapFacturas[f.numFactura] = f; });
+        ventasSup.forEach(v => {
+          mapFacturas[v.num_factura] = {
+            numFactura: v.num_factura,
+            fechaStr: new Date(v.fecha_hora).toLocaleString('es-VE'),
+            cedula: v.cedula,
+            nombre: v.nombre,
+            direccion: v.direccion,
+            productosSummary: v.productos_summary,
+            formaPagoStr: v.forma_pago,
+            montoTotalUSD: v.monto_total_usd
+          };
+        });
         resultadosLocales.forEach(f => { mapFacturas[f.numFactura] = f; });
 
-        // Ordenar por número/fecha más reciente primero y limitar a los últimos 200 registros
         cacheHistorialFacturas = Object.values(mapFacturas).sort((a, b) => {
           let numA = a.numFactura ? parseInt(String(a.numFactura).replace(/\D/g, ''), 10) : 0;
           let numB = b.numFactura ? parseInt(String(b.numFactura).replace(/\D/g, ''), 10) : 0;
           return numB - numA;
         }).slice(0, 200);
 
-        // Guardar copias locales en IndexedDB
-        for (let f of res.facturas) {
+        for (let f of cacheHistorialFacturas) {
           await dbPut("ventas", f);
         }
         renderizarTablaHistorialFacturas();
       }
     } catch (err) {
-      console.warn("Aviso: Consulta remota de historial omitida por error o red:", err);
+      console.warn("Aviso: Consulta de historial en Supabase omitida:", err);
     }
   }
 }
@@ -2623,12 +2667,10 @@ async function eliminarFacturaHistorial(numFactura) {
     return;
   }
 
-  // Eliminar localmente
   await dbDelete("ventas", numFactura);
   cacheHistorialFacturas = cacheHistorialFacturas.filter(f => f.numFactura !== numFactura);
   renderizarTablaHistorialFacturas();
 
-  // Encolar para eliminar en servidor
   await dbPut("syncQueue", {
     id: "sync_del_fac_" + Date.now(),
     payload: { action: "eliminarFactura", numFactura: numFactura }
@@ -2638,7 +2680,7 @@ async function eliminarFacturaHistorial(numFactura) {
   procesarColaSincronizacion();
 }
 
-// LÓGICA DESCARGA Y FILTRADO DE FACTURAS EN FORMATO EXCEL (.XLSX)
+// DESCARGA DE REGISTRO EN EXCEL (.XLSX) DESDE SUPABASE
 function abrirModalFiltroDescarga() {
   const inputFecha = document.getElementById('descargaFechaInput');
   const selectForma = document.getElementById('descargaFormaPagoSelect');
@@ -2674,32 +2716,43 @@ async function ejecutarDescargaExcelFacturas() {
   btn.textContent = "Generando Excel...";
 
   try {
-    const res = await callGasAPI({
-      action: "obtenerFacturasParaDescargaExcel",
-      fecha: fechaVal,
-      formaPago: formaPagoVal
-    });
+    const startIso = `${fechaVal}T00:00:00.000Z`;
+    const endIso = `${fechaVal}T23:59:59.999Z`;
+
+    let query = supabaseClient.from('ventas').select('*').gte('fecha_hora', startIso).lte('fecha_hora', endIso);
+
+    if (formaPagoVal !== "TODOS" && formaPagoVal !== "") {
+      if (formaPagoVal === "Cashea") {
+        query = query.ilike('forma_pago', '%CASHEA%');
+      } else if (formaPagoVal === "Pago Mixto") {
+        query = query.or('forma_pago.ilike.%MIXTO%,forma_pago.ilike.%+%');
+      } else {
+        query = query.ilike('forma_pago', `%${formaPagoVal}%`);
+      }
+    }
+
+    const { data: registros, error } = await query;
 
     btn.disabled = false;
     btn.textContent = "📊 Descargar Excel (.xlsx)";
 
-    if (res.status === "success" && res.registros && res.registros.length > 0) {
-      const filasExcel = res.registros.map(r => ({
-        "Fecha / Hora": r.fechaStr || "N/D",
-        "Factura N°": r.numFactura || "",
+    if (!error && registros && registros.length > 0) {
+      const filasExcel = registros.map(r => ({
+        "Fecha / Hora": new Date(r.fecha_hora).toLocaleString('es-VE'),
+        "Factura N°": r.num_factura || "",
         "Cédula / RIF": r.cedula || "",
         "Cliente": r.nombre || "",
         "Dirección / Ubicación": r.direccion || "",
-        "Productos": r.productosSummary || "",
-        "Forma de Pago": r.formaPagoStr || "",
-        "Monto Total ($)": parseFloat(r.montoTotalUSD) || 0,
-        "Efectivo Divisas ($)": parseFloat(r.efectivoUSD) || 0,
-        "Efectivo Bolívares (Bs)": parseFloat(r.efectivoBS) || 0,
-        "Pago Móvil (Bs)": parseFloat(r.pagoMovil) || 0,
+        "Productos": r.productos_summary || "",
+        "Forma de Pago": r.forma_pago || "",
+        "Monto Total ($)": parseFloat(r.monto_total_usd) || 0,
+        "Efectivo Divisas ($)": parseFloat(r.efectivo_usd) || 0,
+        "Efectivo Bolívares (Bs)": parseFloat(r.efectivo_bs) || 0,
+        "Pago Móvil (Bs)": parseFloat(r.pago_movil) || 0,
         "Zelle ($)": parseFloat(r.zelle) || 0,
         "PayPal ($)": parseFloat(r.paypal) || 0,
         "Cashea ($)": parseFloat(r.cashea) || 0,
-        "Punto de Venta (Bs)": parseFloat(r.puntoVenta) || 0,
+        "Punto de Venta (Bs)": parseFloat(r.punto_venta) || 0,
         "Transferencia (Bs)": parseFloat(r.transferencia) || 0,
         "Biopago (Bs)": parseFloat(r.biopago) || 0
       }));
@@ -2721,7 +2774,7 @@ async function ejecutarDescargaExcelFacturas() {
 
     } else {
       if (errorDiv) {
-        errorDiv.textContent = res.message || "No se encontraron registros de ventas para la fecha y método seleccionados.";
+        errorDiv.textContent = "No se encontraron registros de ventas para la fecha y método seleccionados.";
         errorDiv.classList.remove('hidden');
       } else {
         mostrarAvisoFactura("No se encontraron registros de ventas para los criterios seleccionados.");
@@ -2739,9 +2792,7 @@ async function ejecutarDescargaExcelFacturas() {
   }
 }
 
-// --------------------------------------------------------------------------
-// LÓGICA DE REGISTRO DE MOVIMIENTOS DE EFECTIVO (INGRESOS / EGRESOS / VALE)
-// --------------------------------------------------------------------------
+// MOVIMIENTOS DE EFECTIVO PERSISTENTES
 function cargarMovimientosEfectivoPersistentes() {
   const hoy = new Date().toISOString().split('T')[0];
   const guardado = localStorage.getItem("movimientos_efectivo_" + hoy);
@@ -2870,7 +2921,6 @@ async function registrarMovimientoEfectivo() {
   const hoy = new Date().toISOString().split('T')[0];
   localStorage.setItem("movimientos_efectivo_" + hoy, JSON.stringify(listaMovimientosEfectivo));
 
-  // Limpiar campos
   document.getElementById('movMontoInput').value = "";
   document.getElementById('movConceptoInput').value = "";
   document.getElementById('valeEmpleadoNombre').value = "";
@@ -2890,7 +2940,6 @@ async function registrarMovimientoEfectivo() {
   }
 }
 
-// RENDERIZAR TICKET TÉRMICO EXCLUSIVO PARA VALE DE CAJA
 function renderizarTicketValeCajaHTML(d) {
   let montoTxt = (d.moneda === "BS")
     ? `Bs. ${d.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -2998,7 +3047,7 @@ function eliminarMovimientoEfectivo(index) {
 }
 
 // --------------------------------------------------------------------------
-// LÓGICA CIERRE DE CAJA (REPORTE Z) + HISTORIAL DE CIERRES
+// CIERRE DE CAJA (REPORTE Z) E HISTORIAL EN SUPABASE
 // --------------------------------------------------------------------------
 function abrirModalCierreCaja() {
   const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
@@ -3019,7 +3068,6 @@ async function cargarHistorialCierresCaja() {
   const tbody = document.getElementById('tablaHistorialCierresCaja');
   if (!tbody) return;
 
-  // 1. Renderizado local instantáneo (0ms)
   let cierresLocales = await dbGetAll("cierres");
   if (cierresLocales.length > 0) {
     cacheHistorialCierres = cierresLocales.reverse();
@@ -3028,13 +3076,22 @@ async function cargarHistorialCierresCaja() {
     tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">⏳ Consultando cierres de caja...</td></tr>`;
   }
 
-  // 2. Consulta remota en segundo plano para importar
   if (navigator.onLine) {
     try {
-      const res = await callGasAPI({ action: "obtenerHistorialCierres" });
-      if (res && res.status === "success" && res.cierres) {
-        cacheHistorialCierres = res.cierres || [];
-        for (let c of res.cierres) {
+      const { data: cierresSup, error } = await supabaseClient.from('cierres').select('*').order('fecha_hora', { ascending: false }).limit(50);
+      if (!error && cierresSup) {
+        cacheHistorialCierres = cierresSup.map(c => ({
+          fechaStr: new Date(c.fecha_hora).toLocaleString('es-VE'),
+          usuario: c.usuario,
+          inicialUSD: c.inicial_usd,
+          inicialBS: c.inicial_bs,
+          cajaFinalUSD: c.caja_final_usd,
+          cajaFinalBS: c.caja_final_bs,
+          totalVentasUSD: c.total_ventas_usd,
+          totalVentasBS: c.total_ventas_bs,
+          resumen: c.resumen
+        }));
+        for (let c of cacheHistorialCierres) {
           await dbPut("cierres", c);
         }
         renderizarTablaHistorialCierres();
@@ -3113,20 +3170,33 @@ async function procesarSiguienteCierreCaja() {
       totalGeneralVentasUSD: 0, totalGeneralVentasBS: 0
     };
 
-    // Calcular primero desde las ventas locales acumuladas hoy
-    const ventasLocales = await dbGetAll("ventas");
-    ventasLocales.forEach(v => {
-      let vMontoUSD = parseFloat(v.montoTotalUSD) || 0;
-      resumen.ventasEfectivoUSD += vMontoUSD;
-    });
-
     if (navigator.onLine) {
       try {
-        const res = await callGasAPI({ action: "obtenerResumenCierreCaja" });
-        if (res && res.status === "success" && res.resumen) {
-          resumen = res.resumen;
+        const hoyIso = new Date().toISOString().split('T')[0];
+        const startIso = `${hoyIso}T00:00:00.000Z`;
+        const endIso = `${hoyIso}T23:59:59.999Z`;
+
+        const { data: ventasHoy, error } = await supabaseClient.from('ventas').select('*').gte('fecha_hora', startIso).lte('fecha_hora', endIso);
+
+        if (!error && ventasHoy) {
+          ventasHoy.forEach(v => {
+            resumen.ventasEfectivoUSD += parseFloat(v.efectivo_usd) || 0;
+            resumen.ventasEfectivoBS += parseFloat(v.efectivo_bs) || 0;
+            resumen.ventasPagoMovil += parseFloat(v.pago_movil) || 0;
+            resumen.ventasZelle += parseFloat(v.zelle) || 0;
+            resumen.ventasPayPal += parseFloat(v.paypal) || 0;
+            resumen.ventasCashea += parseFloat(v.cashea) || 0;
+            resumen.ventasPuntoVenta += parseFloat(v.punto_venta) || 0;
+            resumen.ventasTransferencia += parseFloat(v.transferencia) || 0;
+            resumen.ventasBiopago += parseFloat(v.biopago) || 0;
+          });
         }
       } catch (e) {}
+    } else {
+      const ventasLocales = await dbGetAll("ventas");
+      ventasLocales.forEach(v => {
+        resumen.ventasEfectivoUSD += parseFloat(v.montoTotalUSD) || 0;
+      });
     }
 
     btn.disabled = false;
@@ -3180,7 +3250,6 @@ async function procesarSiguienteCierreCaja() {
   }
 }
 
-// RENDERIZAR TICKET TÉRMICO DE CIERRE DE CAJA (REPORTE Z)
 function renderizarTicketCierreCajaHTML(d) {
   const r = d.resumen || {};
 
@@ -3330,7 +3399,6 @@ function renderizarTicketCierreCajaHTML(d) {
   if (elemModal) elemModal.innerHTML = ticketHtml;
 }
 
-// CONFIRMAR, GUARDAR LOCALMENTE E IMPRIMIR CIERRE DE CAJA (0ms)
 async function confirmarEImprimirCierreCaja() {
   if (!datosCierreCajaPendiente) return;
 
@@ -3338,16 +3406,13 @@ async function confirmarEImprimirCierreCaja() {
   if (btn) { btn.disabled = true; btn.textContent = "Guardando e Imprimiendo..."; }
 
   try {
-    // 1. Guardar cierre localmente (0ms)
     await dbPut("cierres", datosCierreCajaPendiente);
 
-    // 2. Encolar para subir a Google Sheets en segundo plano
     await dbPut("syncQueue", {
       id: "sync_cie_" + Date.now(),
       payload: { action: "guardarCierreCaja", datosCierre: datosCierreCajaPendiente }
     });
 
-    // 3. Impresión inmediata de comprobante
     const ticketHtml = document.getElementById('vistaPreviaCierreCajaModal').innerHTML;
     ejecutarImpresionTicket(ticketHtml);
 
@@ -3362,7 +3427,6 @@ async function confirmarEImprimirCierreCaja() {
 
     mostrarAvisoFactura("🔒 Cierre de caja registrado e impreso exitosamente. 🎉");
 
-    // Iniciar sync en segundo plano
     procesarColaSincronizacion();
 
   } catch (err) {
@@ -3372,7 +3436,7 @@ async function confirmarEImprimirCierreCaja() {
   }
 }
 
-// OYENTES DE EVENTOS DE RED Y INICIALIZACIÓN PWA (SECUENCIAL)
+// OYENTES DE EVENTOS DE RED
 window.addEventListener('online', async () => {
   actualizarEstadoSyncBadge();
   await procesarColaSincronizacion();
@@ -3391,14 +3455,12 @@ document.addEventListener("DOMContentLoaded", function() {
     iniciarModuloFacturacion(usuario);
   }
 
-  // Solicitud de Almacenamiento Persistente Protegido en Windows/Chrome
   if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persist().then(granted => {
       if (granted) console.log("🟢 Almacenamiento local protegido contra borrado automático.");
     });
   }
 
-  // Inicialización Secuencial de la Base de Datos Local
   abrirDB().then(async () => {
     actualizarEstadoSyncBadge();
     if (navigator.onLine && token) {
