@@ -1,111 +1,339 @@
 /* ==========================================================================
    Estilos Módulo de Ventas / Facturación No Fiscal - Mundocarnes
+   Diseño POS Profesional, Ergonomía de Turno y Alto Rendimiento Visual
    ========================================================================== */
 
-body {
-  background-color: #ffffff !important;
-  background-image: none !important;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: #212529;
-  min-height: 100vh;
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+
+:root {
+  --pos-dark: #0f172a;
+  --pos-dark-soft: #1e293b;
+  --pos-dark-surface: #334155;
+  --pos-red: #dc3545;
+  --pos-red-dark: #b02a37;
+  --pos-green: #10b981;
+  --pos-green-dark: #059669;
+  --pos-amber: #f59e0b;
+  --pos-blue: #3b82f6;
+  --pos-bg: #f8fafc;
+  --pos-card-border: #e2e8f0;
+  --pos-radius-sm: 8px;
+  --pos-radius-md: 12px;
+  --pos-radius-lg: 18px;
+  --pos-radius-pill: 50px;
+  --pos-shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.04);
+  --pos-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.07);
+  --pos-shadow-float: 0 12px 30px rgba(15, 23, 42, 0.15);
 }
 
-/* Panel Contenedor de Autenticación */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--pos-bg) !important;
+  background-image: none !important;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #1e293b;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0 0 40px 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+   PANEL DE ACCESO / LOGIN
+   ========================================================================== */
 .login-panel {
-  max-width: 420px;
-  margin: 80px auto;
-  padding: 35px;
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  max-width: 440px;
+  margin: 70px auto;
+  padding: 36px 30px;
+  border: 1px solid var(--pos-card-border);
+  border-radius: var(--pos-radius-lg);
+  box-shadow: var(--pos-shadow-float);
   background-color: #ffffff;
+  animation: posFadeIn 0.3s ease-out;
+}
+
+@keyframes posFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .logo-admin {
-  max-width: 200px;
+  max-width: 190px;
   display: block;
-  margin: 0 auto 20px auto;
-  object-fit: contain;
-}
-
-/* Navbar / Header de Administración (Fija en la parte superior durante el scroll) */
-.admin-navbar {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  background-color: #1a0505;
-  color: #ffffff;
-  padding: 12px 24px;
-  margin-bottom: 25px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
-}
-
-.admin-navbar .logo-nav {
-  max-height: 45px;
+  margin: 0 auto 16px auto;
   object-fit: contain;
 }
 
 /* ==========================================================================
-   BOTONES PERSONALIZADOS Y UNIFICADOS DEL NAVBAR SUPERIOR DE FACTURACIÓN
+   NAVBAR SUPERIOR POS (Barra de Control Unificada)
    ========================================================================== */
+.admin-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+  padding: 10px 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-navbar .logo-nav {
+  max-height: 40px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+/* Botones Unificados del Header */
 .btn-nav-custom {
   height: 38px;
-  min-width: 190px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: 0.82rem;
-  border-width: 2px;
-  border-style: solid;
-  border-radius: 6px;
-  transition: all 0.25s ease-in-out;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--pos-radius-pill);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  padding: 0 16px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
-  padding: 0 10px;
+  backdrop-filter: blur(8px);
 }
 
-/* Botón 1: Buscar / Historial (Amarillo) */
-.btn-nav-yellow {
-  border-color: #ffc107;
-  color: #ffc107;
-  background-color: transparent;
-}
-.btn-nav-yellow:hover, .btn-nav-yellow:focus {
-  background-color: #ffc107;
-  color: #000000;
-  border-color: #ffc107;
+.btn-nav-custom:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
-/* Botón 2: Cierre de Caja (Rojo) */
-.btn-nav-red {
-  border-color: #dc3545;
-  color: #dc3545;
-  background-color: transparent;
-}
-.btn-nav-red:hover, .btn-nav-red:focus {
-  background-color: #dc3545;
+.btn-nav-yellow:hover {
+  background-color: var(--pos-amber);
   color: #000000;
-  border-color: #dc3545;
+  border-color: var(--pos-amber);
 }
 
-/* Botón 3: Configuración de Productos (Azul / Cyan) */
-.btn-nav-blue {
-  border-color: #0dcaf0;
-  color: #0dcaf0;
-  background-color: transparent;
+.btn-nav-red:hover {
+  background-color: var(--pos-red);
+  color: #ffffff;
+  border-color: var(--pos-red);
 }
-.btn-nav-blue:hover, .btn-nav-blue:focus {
-  background-color: #0dcaf0;
-  color: #000000;
-  border-color: #0dcaf0;
+
+.btn-nav-blue:hover {
+  background-color: var(--pos-blue);
+  color: #ffffff;
+  border-color: var(--pos-blue);
+}
+
+/* Badge de Sincronización */
+#badgeEstadoSync {
+  font-size: 0.78rem;
+  border-radius: var(--pos-radius-pill);
+  padding: 6px 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  letter-spacing: 0.2px;
 }
 
 /* ==========================================================================
-   GRID Y BOTONES CUADRADOS DE MÉTODOS DE PAGO
+   PESTAÑAS DE CATEGORÍA (Pills de Navegación Rápida)
+   ========================================================================== */
+.nav-tabs {
+  border-bottom: none;
+  gap: 8px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.nav-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.nav-tabs .nav-link {
+  color: #475569;
+  font-weight: 700;
+  font-size: 0.84rem;
+  border: 1px solid var(--pos-card-border);
+  border-radius: var(--pos-radius-pill);
+  background-color: #ffffff;
+  padding: 8px 18px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.nav-tabs .nav-link:hover {
+  background-color: #f1f5f9;
+  color: var(--pos-dark);
+}
+
+.nav-tabs .nav-link.active {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--pos-red) 0%, var(--pos-red-dark) 100%) !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+/* ==========================================================================
+   TARJETAS DE PRODUCTO EN EL CATÁLOGO POS
+   ========================================================================== */
+.card-producto {
+  border: 1px solid var(--pos-card-border);
+  border-radius: var(--pos-radius-md);
+  background-color: #ffffff;
+  padding: 10px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--pos-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.card-producto:hover {
+  border-color: var(--pos-red);
+  box-shadow: var(--pos-shadow-md);
+  transform: translateY(-2px);
+}
+
+.card-producto img {
+  height: 130px;
+  object-fit: cover;
+  border-radius: var(--pos-radius-sm);
+  background-color: #f8fafc;
+  transition: transform 0.2s ease;
+}
+
+.card-producto:hover img {
+  transform: scale(1.02);
+}
+
+.card-producto h6 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--pos-dark);
+  margin-top: 8px;
+  margin-bottom: 2px;
+}
+
+.card-producto p.text-success {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--pos-red) !important;
+  margin-bottom: 2px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.card-producto .btn-outline-danger {
+  border-radius: var(--pos-radius-pill);
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 5px 8px;
+  border-width: 1.5px;
+}
+
+.card-producto .btn-outline-danger:hover {
+  background-color: var(--pos-red);
+  color: #ffffff;
+}
+
+.img-agotado {
+  opacity: 0.35;
+  filter: grayscale(100%);
+}
+
+/* ==========================================================================
+   PANEL LATERAL: DETALLE DE VENTA (RECIBO DIGITAL EN VIVO)
+   ========================================================================== */
+.panel-factura-resumen {
+  border: 1px solid var(--pos-card-border);
+  border-radius: var(--pos-radius-lg);
+  padding: 20px;
+  background-color: #ffffff;
+  box-shadow: var(--pos-shadow-md);
+  position: sticky;
+  top: 80px;
+}
+
+.panel-factura-resumen h5 {
+  color: var(--pos-dark);
+  letter-spacing: -0.2px;
+}
+
+/* Caja de Totales Duales ($ / Bs) */
+.caja-totales-pos {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid var(--pos-card-border);
+  border-radius: var(--pos-radius-md);
+  padding: 12px 16px;
+  margin-bottom: 14px;
+}
+
+.monto-total-usd {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--pos-red);
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1;
+}
+
+.monto-total-bs-sub {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #475569;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Botón Facturar Hero */
+.btn-facturar-hero {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+  border-radius: var(--pos-radius-md);
+  font-size: 1.15rem;
+  font-weight: 800;
+  padding: 12px;
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35);
+  color: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.btn-facturar-hero:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.45);
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #ffffff;
+}
+
+/* Botón Facturas en Espera */
+.btn-standby-pos {
+  background-color: #fef3c7;
+  border: 1.5px solid #fde68a;
+  color: #92400e;
+  border-radius: var(--pos-radius-md);
+  font-weight: 800;
+  font-size: 0.9rem;
+  padding: 10px;
+  transition: all 0.2s ease;
+}
+
+.btn-standby-pos:hover {
+  background-color: #fde68a;
+  color: #78350f;
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   GRID DE MÉTODOS DE PAGO (PAYMENT TILES ERGONÓMICOS)
    ========================================================================== */
 .grid-metodos-pago {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
   gap: 12px;
 }
 
@@ -115,131 +343,154 @@ body {
   align-items: center;
   justify-content: center;
   background-color: #ffffff;
-  border: 2px solid #ced4da;
-  border-radius: 10px;
-  padding: 10px 6px;
+  border: 2px solid var(--pos-card-border);
+  border-radius: var(--pos-radius-md);
+  padding: 12px 6px;
   cursor: pointer;
-  transition: all 0.2s ease-in-out;
-  min-height: 100px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 105px;
   text-align: center;
+  box-shadow: var(--pos-shadow-sm);
 }
 
 .btn-metodo-pago img {
-  width: 46px;
-  height: 46px;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
-  margin-bottom: 6px;
-  transition: transform 0.2s;
+  margin-bottom: 8px;
+  transition: transform 0.2s ease;
 }
 
 .btn-metodo-pago span {
   font-size: 0.72rem;
-  font-weight: 700;
-  color: #212529;
+  font-weight: 800;
+  color: var(--pos-dark-soft);
   line-height: 1.1;
   text-transform: uppercase;
+  letter-spacing: 0.2px;
 }
 
 .btn-metodo-pago:hover {
-  border-color: #dc3545;
-  box-shadow: 0 4px 10px rgba(220, 53, 69, 0.2);
-  transform: translateY(-2px);
+  border-color: #94a3b8;
+  transform: translateY(-3px);
+  box-shadow: var(--pos-shadow-md);
 }
 
 .btn-metodo-pago:hover img {
   transform: scale(1.08);
 }
 
-/* Estado Activo: Borde y Sombreado Rojo */
+/* Estado Activo: Borde Verde Esmeralda / Sombra Elegante */
 .btn-metodo-pago.active {
-  border-color: #dc3545 !important;
-  background-color: rgba(220, 53, 69, 0.08) !important;
-  box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.3) !important;
+  border-color: var(--pos-green) !important;
+  background-color: #ecfdf5 !important;
+  box-shadow: 0 0 0 3.5px rgba(16, 185, 129, 0.25) !important;
+  transform: translateY(-2px);
 }
 
 .btn-metodo-pago.active span {
-  color: #dc3545 !important;
+  color: var(--pos-green-dark) !important;
 }
 
-/* Pestañas del Catálogo */
-.nav-tabs .nav-link {
-  color: #495057;
-  font-weight: 600;
-  border: 1px solid #dee2e6;
-  margin-right: 4px;
-  background-color: #f8f9fa;
+/* ==========================================================================
+   MODALES UNIFICADOS (TEMA PROFESIONAL GRAFITO / SLATE)
+   ========================================================================== */
+.modal-content {
+  border-radius: var(--pos-radius-lg) !important;
+  border: 1px solid var(--pos-card-border) !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25) !important;
+  overflow: hidden;
 }
 
-.nav-tabs .nav-link.active {
+.modal-header {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
   color: #ffffff !important;
-  background-color: #dc3545 !important;
-  border-color: #dc3545 !important;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Tarjetas de Producto en Facturación */
-.card-producto {
-  border: 1px solid #ced4da;
-  border-radius: 8px;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  background-color: #ffffff;
+.modal-title {
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  font-size: 1.1rem;
 }
 
-.card-producto:hover {
-  border-color: #dc3545;
-  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.12);
+.modal-footer {
+  background-color: #f8fafc;
+  border-top: 1px solid var(--pos-card-border);
+  padding: 14px 24px;
 }
 
-.card-producto img {
-  height: 130px;
+/* Hero Widget de Totales en Modal de Cobro */
+.hero-totales-cobro {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: var(--pos-radius-md);
+  padding: 14px 20px;
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2);
+}
+
+.hero-monto-usd {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #34d399;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.hero-monto-bs {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #60a5fa;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Formularios e Inputs Táctiles */
+.form-control, .form-select {
+  border-radius: var(--pos-radius-sm);
+  border: 1.5px solid #cbd5e1;
+  padding: 9px 12px;
+  font-size: 0.92rem;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.form-control:focus, .form-select:focus {
+  border-color: var(--pos-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+/* Tablas en Modales */
+.table th {
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.3px;
+}
+
+.table td {
+  font-size: 0.88rem;
+  vertical-align: middle;
+}
+
+.img-thumb-factura {
+  width: 44px;
+  height: 44px;
   object-fit: cover;
-  border-top-left-radius: 7px;
-  border-top-right-radius: 7px;
-}
-
-.img-agotado {
-  opacity: 0.4;
-  filter: grayscale(100%);
-}
-
-/* Panel Lateral de Selección de Factura (Detalle de Venta - Alineado bajo el Header fijo) */
-.panel-factura-resumen {
-  border: 1px solid #ced4da;
-  border-radius: 10px;
-  padding: 20px;
-  background-color: #f8f9fa;
-  position: sticky;
-  top: 80px;
+  border-radius: var(--pos-radius-sm);
+  border: 1px solid var(--pos-card-border);
 }
 
 .hidden {
   display: none !important;
 }
 
-/* Miniatura de productos en la tabla resumen */
-.img-thumb-factura {
-  width: 48px;
-  height: 48px;
-  object-fit: cover;
-  border-radius: 6px;
-  border: 1px solid #dee2e6;
-}
-
-/* Modales e inputs de lectura */
-.form-control[readonly] {
-  background-color: #e9ecef !important;
-  opacity: 1;
-}
-
-/* Inputs de edición rápida en tablas */
-.input-precio-item, .input-codigo-plu-item {
-  font-family: inherit;
-}
-
 /* ==========================================================================
-   ESTILOS TICKET TÉRMICO XP-80C (ANCHO 72mm EN PAPEL DE 80mm)
+   ESTILOS DE IMPRESIÓN TÉRMICA XP-80C (72mm EN PAPEL 80mm) - INTACTOS
    ========================================================================== */
-
-/* En pantalla normal, ocultar el contenedor de impresión puro */
 #seccionImpresionTicket {
   display: none;
 }
@@ -349,7 +600,7 @@ body {
 }
 
 /* ==========================================================================
-   REGLAS DE IMPRESIÓN EXCLUSIVAS PARA IMPRESORA TÉRMICA XP-80C
+   REGLAS DE IMPRESIÓN EXCLUSIVAS XP-80C
    ========================================================================== */
 @media print {
   @page {
@@ -366,12 +617,10 @@ body {
     overflow: visible !important;
   }
 
-  /* 1. Ocultar absolutamente TODO en el DOM directo de BODY excepto el ticket */
   body > *:not(#seccionImpresionTicket) {
     display: none !important;
   }
 
-  /* 2. Mostrar únicamente el contenedor de impresión del ticket */
   #seccionImpresionTicket {
     display: block !important;
     position: relative !important;
@@ -386,7 +635,6 @@ body {
     visibility: visible !important;
   }
 
-  /* 3. Centrar simétricamente el ticket de 72mm dentro de los 80mm del papel */
   .ticket-container {
     width: 72mm !important;
     max-width: 72mm !important;
