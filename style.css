@@ -1,6 +1,6 @@
 /* ==========================================================================
    Estilos Generales - Frigorífico Mundocarnes
-   Diseño Limpio, Catálogo Abierto (Todas las Secciones), Grid 3/6 y Carrito Flotante
+   Diseño Web Completo (Sin Ventana Flotante), Grid 3/6 y Notificaciones Top
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -10,15 +10,13 @@
   --mc-red-dark: #b02a37;
   --mc-red-light: #fff5f5;
   --mc-dark: #1a1a1a;
-  --mc-dark-soft: #2d3748;
-  --mc-bg-body: #f4f6f8;
-  --mc-card-border: #e9ecef;
+  --mc-dark-soft: #334155;
+  --mc-border-card: #e2e8f0;
   --mc-radius-sm: 8px;
   --mc-radius-md: 14px;
   --mc-radius-lg: 20px;
   --mc-radius-pill: 50px;
-  --mc-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04);
-  --mc-shadow-float: 0 10px 25px rgba(0, 0, 0, 0.25);
+  --mc-shadow-float: 0 10px 25px rgba(0, 0, 0, 0.22);
 }
 
 * {
@@ -27,38 +25,51 @@
 
 html {
   scroll-behavior: smooth;
+  background-color: #ffffff;
 }
 
 body {
-  background-color: var(--mc-bg-body);
+  background-color: #ffffff !important;
   background-image: none !important;
   min-height: 100vh;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  margin: 0;
+  padding: 0 0 90px 0;
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  padding: 16px 8px 90px 8px;
   color: var(--mc-dark);
   -webkit-font-smoothing: antialiased;
 }
 
 /* ==========================================================================
-   PANEL CONTENEDOR PRINCIPAL
+   ESTRUCTURA INTEGRADA DE LA PÁGINA (Sin marcos ni ventanas)
    ========================================================================== */
 .panel-base {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: var(--mc-radius-lg);
-  padding: 24px 20px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 20px 16px;
   width: 100%;
+}
+
+.combos-container {
+  max-width: 1340px;
+  margin: 0 auto;
+}
+
+.login-container {
+  max-width: 480px;
+  margin: 40px auto 0 auto;
+  background: #ffffff !important;
+  border: 1px solid var(--mc-border-card) !important;
+  border-radius: var(--mc-radius-lg) !important;
+  padding: 32px 24px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06) !important;
 }
 
 .logo-header {
   width: 100%;
-  max-width: 210px;
+  max-width: 220px;
   display: block;
-  margin: 0 auto 12px auto;
+  margin: 10px auto 14px auto;
   transition: transform 0.2s ease;
 }
 
@@ -66,37 +77,28 @@ body {
   transform: scale(1.02);
 }
 
-.login-container {
-  max-width: 460px;
-  margin-top: 40px;
-}
-
-.combos-container {
-  max-width: 1320px;
-}
-
 .hidden {
   display: none !important;
 }
 
 /* ==========================================================================
-   BARRA SUPERIOR DE ACCESOS RÁPIDOS A SECCIONES (STICKY PILLS)
+   BARRA SUPERIOR DE ACCESOS DIRECTOS (STICKY PILLS)
    ========================================================================== */
 .nav-categorias-sticky {
   position: sticky;
-  top: 10px;
+  top: 12px;
   z-index: 1020;
   background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  padding: 8px 4px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 8px 12px;
   border-radius: var(--mc-radius-pill);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
   border: 1px solid #e2e8f0;
   display: flex;
   flex-wrap: nowrap;
   overflow-x: auto;
-  gap: 6px;
+  gap: 8px;
   margin-bottom: 24px;
   scrollbar-width: none;
 }
@@ -109,11 +111,11 @@ body {
   flex: 0 0 auto;
   border: none;
   border-radius: var(--mc-radius-pill);
-  background-color: #f1f3f5;
-  color: #495057;
+  background-color: #f1f5f9;
+  color: #475569;
   font-weight: 700;
-  font-size: 0.8rem;
-  padding: 7px 16px;
+  font-size: 0.82rem;
+  padding: 8px 18px;
   text-decoration: none;
   transition: all 0.2s ease;
   white-space: nowrap;
@@ -126,44 +128,46 @@ body {
 }
 
 /* ==========================================================================
-   TÍTULOS DE CADA SECCIÓN OBLIGATORIA
+   TÍTULOS DE CADA SECCIÓN CONTINUA
    ========================================================================== */
 .seccion-categoria {
-  margin-bottom: 32px;
-  scroll-margin-top: 70px;
+  margin-bottom: 36px;
+  scroll-margin-top: 80px;
 }
 
 .titulo-seccion-categoria {
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   font-weight: 800;
   color: var(--mc-dark);
-  border-bottom: 2px solid #f1f3f5;
+  border-bottom: 2px solid #f1f5f9;
   padding-bottom: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
   display: flex;
   align-items: center;
   gap: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .titulo-seccion-categoria::before {
   content: '';
   display: inline-block;
   width: 6px;
-  height: 18px;
+  height: 20px;
   background-color: var(--mc-red);
   border-radius: 4px;
 }
 
 /* ==========================================================================
-   TARJETAS DE PRODUCTO (GRID 3 COLUMNAS MÓVIL / 6 COLUMNAS PC)
+   TARJETAS DE PRODUCTO (3 COLUMNAS EN MÓVIL / 6 COLUMNAS EN PC)
    ========================================================================== */
 .card {
-  border: 1px solid var(--mc-card-border) !important;
+  border: 1px solid var(--mc-border-card) !important;
   border-radius: var(--mc-radius-md) !important;
   background: #ffffff !important;
   padding: 8px !important;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  box-shadow: var(--mc-shadow-card);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -172,15 +176,15 @@ body {
 .card:hover {
   transform: translateY(-3px);
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
-  border-color: rgba(220, 53, 69, 0.3) !important;
+  border-color: rgba(220, 53, 69, 0.35) !important;
 }
 
 .card-img-top {
-  height: 120px;
+  height: 125px;
   border-radius: var(--mc-radius-sm);
   object-fit: cover;
   cursor: pointer;
-  background-color: #f8f9fa;
+  background-color: #f8fafc;
   transition: transform 0.25s ease;
 }
 
@@ -189,7 +193,7 @@ body {
 }
 
 .card h6 {
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--mc-dark);
   margin-top: 6px;
@@ -198,7 +202,7 @@ body {
 }
 
 .card p.text-success {
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   font-weight: 800 !important;
   color: var(--mc-red) !important;
   margin-bottom: 1px;
@@ -206,7 +210,7 @@ body {
 
 .card small.text-muted {
   font-size: 0.68rem !important;
-  color: #6c757d !important;
+  color: #64748b !important;
   font-weight: 600;
 }
 
@@ -238,17 +242,17 @@ body {
 }
 
 .img-agotado {
-  opacity: 0.4;
+  opacity: 0.35;
   filter: grayscale(100%);
 }
 
 /* ==========================================================================
-   BOTÓN "VER PEDIDO" FLOTANTE Y SIEMPRE VISIBLE
+   BOTÓN "VER PEDIDO" FLOTANTE PERMANENTE
    ========================================================================== */
 .btn-floating-pedido {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
+  bottom: 24px;
+  right: 24px;
   z-index: 1040;
   background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
   color: #1a1a1a !important;
@@ -267,8 +271,8 @@ body {
 }
 
 .btn-floating-pedido:hover {
-  transform: translateY(-4px) scale(1.03);
-  box-shadow: 0 14px 30px rgba(255, 152, 0, 0.45);
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 14px 28px rgba(255, 152, 0, 0.45);
   color: #000000 !important;
 }
 
@@ -276,37 +280,56 @@ body {
   background-color: #dc3545;
   color: #ffffff;
   border-radius: var(--mc-radius-pill);
-  padding: 2px 7px;
+  padding: 2px 8px;
   font-size: 0.75rem;
   font-weight: 800;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+
+/* ==========================================================================
+   TOASTS DE NOTIFICACIÓN ENCABEZADO (ALTO CONTRASTE Y VISIBILIDAD)
+   ========================================================================== */
+.toast-container {
+  z-index: 3000 !important;
+}
+
+.toast {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+  border-radius: var(--mc-radius-pill) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  padding: 4px 14px;
+}
+
+.toast .toast-body {
+  color: #ffffff !important;
+  font-weight: 700;
+  font-size: 0.88rem;
+  letter-spacing: 0.2px;
 }
 
 /* ==========================================================================
    TABLA DE RESUMEN Y VISTA "TU PEDIDO"
    ========================================================================== */
 #vistaPedido {
-  animation: panelFadeIn 0.25s ease-out;
-}
-
-@keyframes panelFadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 .table td {
-  padding: 10px 6px;
+  padding: 10px 8px;
   vertical-align: middle;
-  border-color: #f1f3f5;
+  border-color: #f1f5f9;
 }
 
 /* ==========================================================================
-   MODALES Y FORMULARIOS
+   MODALES Y CONTROLES
    ========================================================================== */
 .modal-content {
   border-radius: var(--mc-radius-md) !important;
-  border: 1px solid #dee2e6 !important;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2) !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18) !important;
   overflow: hidden;
 }
 
@@ -347,7 +370,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(15, 15, 15, 0.92);
+  background-color: rgba(15, 15, 15, 0.94);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   display: none;
@@ -406,20 +429,15 @@ body {
 }
 
 /* ==========================================================================
-   ADAPTACIONES RESPONSIVAS (MÓVIL EN 3 COLUMNAS Y PC EN 6 COLUMNAS)
+   ADAPTACIONES RESPONSIVAS (MÓVIL EN 3 COLUMNAS / PC EN 6 COLUMNAS)
    ========================================================================== */
 @media (max-width: 576px) {
-  body {
-    padding: 8px 4px 85px 4px;
-  }
-
   .panel-base {
-    padding: 16px 8px;
-    border-radius: 14px;
+    padding: 12px 6px;
   }
 
   .logo-header {
-    max-width: 160px;
+    max-width: 170px;
   }
 
   .card {
@@ -427,7 +445,7 @@ body {
   }
 
   .card-img-top {
-    height: 85px;
+    height: 88px;
   }
 
   .card h6 {
@@ -449,8 +467,8 @@ body {
   }
 
   .btn-floating-pedido {
-    bottom: 14px;
-    right: 14px;
+    bottom: 16px;
+    right: 16px;
     padding: 10px 18px;
     font-size: 0.85rem;
   }
