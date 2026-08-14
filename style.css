@@ -1,6 +1,6 @@
 /* ==========================================================================
    Estilos Generales - Frigorífico Mundocarnes
-   Diseño Web Completo (Sin Ventana Flotante), Grid 3/6 y Notificaciones Top
+   Diseño Full Width (Pantalla Completa en PC), Grid 3/6 y Notificaciones Top
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -26,33 +26,45 @@
 html {
   scroll-behavior: smooth;
   background-color: #ffffff;
+  width: 100%;
 }
 
 body {
   background-color: #ffffff !important;
   background-image: none !important;
   min-height: 100vh;
+  width: 100%;
   margin: 0;
   padding: 0 0 90px 0;
+  overflow-x: hidden;
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: var(--mc-dark);
   -webkit-font-smoothing: antialiased;
 }
 
 /* ==========================================================================
-   ESTRUCTURA INTEGRADA DE LA PÁGINA (Sin marcos ni ventanas)
+   ESTRUCTURA INTEGRADA DE ANCHO COMPLETO (FULL WIDTH 100%)
    ========================================================================== */
+.container-fluid {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+}
+
 .panel-base {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
-  padding: 20px 16px;
-  width: 100%;
+  padding: 16px 0;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
 .combos-container {
-  max-width: 1340px;
-  margin: 0 auto;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
 }
 
 .login-container {
@@ -67,7 +79,7 @@ body {
 
 .logo-header {
   width: 100%;
-  max-width: 220px;
+  max-width: 230px;
   display: block;
   margin: 10px auto 14px auto;
   transition: transform 0.2s ease;
@@ -91,15 +103,16 @@ body {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: var(--mc-radius-pill);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
   border: 1px solid #e2e8f0;
   display: flex;
   flex-wrap: nowrap;
   overflow-x: auto;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 24px;
+  width: 100%;
   scrollbar-width: none;
 }
 
@@ -114,8 +127,8 @@ body {
   background-color: #f1f5f9;
   color: #475569;
   font-weight: 700;
-  font-size: 0.82rem;
-  padding: 8px 18px;
+  font-size: 0.85rem;
+  padding: 8px 20px;
   text-decoration: none;
   transition: all 0.2s ease;
   white-space: nowrap;
@@ -133,10 +146,11 @@ body {
 .seccion-categoria {
   margin-bottom: 36px;
   scroll-margin-top: 80px;
+  width: 100%;
 }
 
 .titulo-seccion-categoria {
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: 800;
   color: var(--mc-dark);
   border-bottom: 2px solid #f1f5f9;
@@ -165,12 +179,13 @@ body {
   border: 1px solid var(--mc-border-card) !important;
   border-radius: var(--mc-radius-md) !important;
   background: #ffffff !important;
-  padding: 8px !important;
+  padding: 10px !important;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  height: 100%;
 }
 
 .card:hover {
@@ -180,12 +195,13 @@ body {
 }
 
 .card-img-top {
-  height: 125px;
+  height: 145px;
   border-radius: var(--mc-radius-sm);
   object-fit: cover;
   cursor: pointer;
   background-color: #f8fafc;
   transition: transform 0.25s ease;
+  width: 100%;
 }
 
 .card:hover .card-img-top {
@@ -193,23 +209,23 @@ body {
 }
 
 .card h6 {
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: var(--mc-dark);
-  margin-top: 6px;
+  margin-top: 8px;
   margin-bottom: 2px;
   line-height: 1.2;
 }
 
 .card p.text-success {
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 800 !important;
   color: var(--mc-red) !important;
-  margin-bottom: 1px;
+  margin-bottom: 2px;
 }
 
 .card small.text-muted {
-  font-size: 0.68rem !important;
+  font-size: 0.72rem !important;
   color: #64748b !important;
   font-weight: 600;
 }
@@ -217,8 +233,8 @@ body {
 .card .btn-outline-dark {
   border: 1.5px solid var(--mc-dark);
   border-radius: var(--mc-radius-pill);
-  font-size: 0.72rem;
-  padding: 4px 6px;
+  font-size: 0.76rem;
+  padding: 5px 8px;
   font-weight: 700;
 }
 
@@ -229,15 +245,15 @@ body {
 
 .card .btn-warning, .card .btn-secondary {
   border-radius: var(--mc-radius-pill);
-  font-size: 0.7rem;
-  padding: 4px 6px;
+  font-size: 0.74rem;
+  padding: 5px 8px;
   font-weight: 700;
 }
 
 .card .badge {
   border-radius: 6px;
-  font-size: 0.65rem;
-  padding: 3px 6px;
+  font-size: 0.7rem;
+  padding: 4px 7px;
   font-weight: 700;
 }
 
@@ -258,7 +274,7 @@ body {
   color: #1a1a1a !important;
   border: 2px solid #ffffff;
   border-radius: var(--mc-radius-pill);
-  padding: 12px 22px;
+  padding: 12px 24px;
   font-weight: 800;
   font-size: 0.95rem;
   box-shadow: var(--mc-shadow-float);
@@ -432,8 +448,9 @@ body {
    ADAPTACIONES RESPONSIVAS (MÓVIL EN 3 COLUMNAS / PC EN 6 COLUMNAS)
    ========================================================================== */
 @media (max-width: 576px) {
-  .panel-base {
-    padding: 12px 6px;
+  .container-fluid {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
   }
 
   .logo-header {
@@ -474,8 +491,8 @@ body {
   }
 }
 
-@media (min-width: 992px) {
+@media (min-width: 1200px) {
   .card-img-top {
-    height: 135px;
+    height: 155px;
   }
 }
