@@ -1100,7 +1100,7 @@ function renderizarResumenFactura() {
 
   document.getElementById('montoTotalFactura').textContent = `$${totalAcumulado.toFixed(2)}`;
 
-  // Cálculo en tiempo real en Bolívares para el panel lateral
+  // Cálculo en vivo en Bolívares
   const tasa = obtenerTasaBCV();
   const elemBs = document.getElementById('montoTotalFacturaBs');
   if (elemBs) {
@@ -1149,7 +1149,6 @@ function ejecutarFacturar() {
   const inputTasa = document.getElementById('facTasaBCV');
   if (inputTasa) {
     inputTasa.value = tasaGuardada ? tasaGuardada : "";
-    inputTasa.type = 'password'; // Asegura la máscara por puntos
   }
 
   document.getElementById('facCedulaBuscar').value = "";
@@ -1609,7 +1608,7 @@ function calcularTotalPagoMixto() {
 
     if (elemRestante) {
       elemRestante.textContent = `Bs. ${restanteBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      elemRestante.className = (restanteBs === 0) ? 'text-success fw-bold num-legible' : (restanteBs > 0 ? 'text-warning fw-bold num-legible' : 'text-danger fw-bold num-legible');
+      elemRestante.className = (restanteBs === 0) ? 'text-success fw-bold num-legible' : (restanteBs > 0 ? 'monto-restante-alerta num-legible' : 'text-danger fw-bold num-legible');
     }
 
   } else {
@@ -1618,7 +1617,7 @@ function calcularTotalPagoMixto() {
 
     if (elemRestante) {
       elemRestante.textContent = `$${restanteUSD.toFixed(2)}`;
-      elemRestante.className = (restanteUSD === 0) ? 'text-success fw-bold num-legible' : (restanteUSD > 0 ? 'text-warning fw-bold num-legible' : 'text-danger fw-bold num-legible');
+      elemRestante.className = (restanteUSD === 0) ? 'text-success fw-bold num-legible' : (restanteUSD > 0 ? 'monto-restante-alerta num-legible' : 'text-danger fw-bold num-legible');
     }
   }
 
@@ -1766,9 +1765,9 @@ function renderizarTicketTermicoHTML(d) {
       <tr>
         <td style="width:6%;">${i++}</td>
         <td style="width:38%;" class="fw-bold">${key}</td>
-        <td style="width:24%;" class="text-center">${precUnit}</td>
-        <td style="width:14%;" class="text-center">${item.cantidadTxt}</td>
-        <td style="width:18%;" class="text-end fw-bold">${itemTotalTxt}</td>
+        <td style="width:24%;" class="text-center num-legible">${precUnit}</td>
+        <td style="width:14%;" class="text-center num-legible">${item.cantidadTxt}</td>
+        <td style="width:18%;" class="text-end fw-bold num-legible">${itemTotalTxt}</td>
       </tr>`;
   }
 
@@ -1777,21 +1776,21 @@ function renderizarTicketTermicoHTML(d) {
     bloqueTotalesHtml = `
       <div class="d-flex justify-content-between">
         <span>TOTAL FACTURA (Bs):</span>
-        <strong class="fs-6">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+        <strong class="fs-6 num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
       </div>
       <div class="d-flex justify-content-between text-muted">
         <span>TOTAL FACTURA ($):</span>
-        <span>$${d.totalUSD.toFixed(2)}</span>
+        <span class="num-legible">$${d.totalUSD.toFixed(2)}</span>
       </div>`;
   } else {
     bloqueTotalesHtml = `
       <div class="d-flex justify-content-between">
         <span>TOTAL FACTURA ($):</span>
-        <strong class="fs-6">$${d.totalUSD.toFixed(2)}</strong>
+        <strong class="fs-6 num-legible">$${d.totalUSD.toFixed(2)}</strong>
       </div>
       <div class="d-flex justify-content-between text-muted">
         <span>TOTAL FACTURA (Bs):</span>
-        <span>Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        <span class="num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
       </div>`;
   }
 
@@ -1805,10 +1804,10 @@ function renderizarTicketTermicoHTML(d) {
       </div>
 
       <div class="ticket-info">
-        <div><strong>FACTURA N°:</strong> <span class="fs-6">${d.numFactura}</span></div>
-        <div><strong>FECHA:</strong> ${d.fechaStr}</div>
+        <div><strong>FACTURA N°:</strong> <span class="fs-6 num-legible">${d.numFactura}</span></div>
+        <div><strong>FECHA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
         <div><strong>CLIENTE:</strong> ${d.cliente.nombre}</div>
-        <div><strong>CI/RIF:</strong> ${d.cliente.cedula} | <strong>TELF:</strong> ${d.cliente.telefono || 'N/D'}</div>
+        <div><strong>CI/RIF:</strong> <span class="num-legible">${d.cliente.cedula}</span> | <strong>TELF:</strong> <span class="num-legible">${d.cliente.telefono || 'N/D'}</span></div>
         <div><strong>DIR:</strong> ${d.cliente.direccion || 'N/D'}</div>
       </div>
 
@@ -2609,10 +2608,10 @@ function renderizarTicketTermicoHistorialHTML(d) {
       </div>
 
       <div class="ticket-info">
-        <div><strong>FACTURA N°:</strong> <span class="fs-6">${d.numFactura}</span> (COPIA)</div>
-        <div><strong>FECHA:</strong> ${d.fechaStr}</div>
+        <div><strong>FACTURA N°:</strong> <span class="fs-6 num-legible">${d.numFactura}</span> (COPIA)</div>
+        <div><strong>FECHA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
         <div><strong>CLIENTE:</strong> ${d.cliente.nombre}</div>
-        <div><strong>CI/RIF:</strong> ${d.cliente.cedula}</div>
+        <div><strong>CI/RIF:</strong> <span class="num-legible">${d.cliente.cedula}</span></div>
         <div><strong>DIR:</strong> ${d.cliente.direccion || 'N/D'}</div>
       </div>
 
@@ -2634,11 +2633,11 @@ function renderizarTicketTermicoHistorialHTML(d) {
       <div class="ticket-totals border-top pt-1">
         <div class="d-flex justify-content-between">
           <span>TOTAL FACTURA ($):</span>
-          <strong class="fs-6">$${d.totalUSD.toFixed(2)}</strong>
+          <strong class="fs-6 num-legible">$${d.totalUSD.toFixed(2)}</strong>
         </div>
         <div class="d-flex justify-content-between text-muted">
           <span>TOTAL FACTURA (Bs):</span>
-          <span>Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span class="num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
         <div class="ticket-divider"></div>
         <div><strong>FORMA DE PAGO:</strong></div>
@@ -2961,15 +2960,15 @@ function renderizarTicketValeCajaHTML(d) {
       </div>
 
       <div class="ticket-info">
-        <div><strong>FECHA Y HORA:</strong> ${d.fechaHora}</div>
+        <div><strong>FECHA Y HORA:</strong> <span class="num-legible">${d.fechaHora}</span></div>
         <div><strong>CONCEPTO:</strong> ADELANTO DE SUELDO</div>
       </div>
 
       <div class="ticket-box-info">
         <div><strong>EMPLEADO:</strong> ${d.empleadoNombre}</div>
-        <div><strong>CÉDULA / CI:</strong> ${d.empleadoCedula}</div>
+        <div><strong>CÉDULA / CI:</strong> <span class="num-legible">${d.empleadoCedula}</span></div>
         <div><strong>MOTIVO:</strong> ${d.motivo}</div>
-        <div><strong>MONTO DEL VALE:</strong> <span class="fs-6 font-weight-bold">${montoTxt}</span></div>
+        <div><strong>MONTO DEL VALE:</strong> <span class="fs-6 font-weight-bold num-legible">${montoTxt}</span></div>
         <div><strong>CUOTAS A DESCONTAR:</strong> ${d.cuotas} cuota(s)</div>
         <div><strong>AUTORIZADO POR:</strong> ${d.autorizadoPor}</div>
       </div>
@@ -2981,7 +2980,7 @@ function renderizarTicketValeCajaHTML(d) {
       <div class="ticket-firma-linea">
         ____________________________________<br>
         FIRMA Y CONFORMIDAD EMPLEADO<br>
-        CI: ${d.empleadoCedula}
+        CI: <span class="num-legible">${d.empleadoCedula}</span>
       </div>
 
       <div class="ticket-footer mt-3">
@@ -3334,19 +3333,19 @@ function renderizarTicketCierreCajaHTML(d) {
         <tbody>
           <tr>
             <td>INGRESOS DE EFECTIVO DIVISAS (+):</td>
-            <td class="text-end fw-bold text-success">+$${d.ingresosUSD.toFixed(2)}</td>
+            <td class="text-end fw-bold text-success num-legible">+$${d.ingresosUSD.toFixed(2)}</td>
           </tr>
           <tr>
             <td>RETIROS DE EFECTIVO DIVISAS (-):</td>
-            <td class="text-end fw-bold text-danger">-$${d.retirosUSD.toFixed(2)}</td>
+            <td class="text-end fw-bold text-danger num-legible">-$${d.retirosUSD.toFixed(2)}</td>
           </tr>
           <tr>
             <td>INGRESOS DE EFECTIVO BOLÍVARES (+):</td>
-            <td class="text-end fw-bold text-success">+Bs. ${d.ingresosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold text-success num-legible">+Bs. ${d.ingresosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
           <tr>
             <td>RETIROS DE EFECTIVO BOLÍVARES (-):</td>
-            <td class="text-end fw-bold text-danger">-Bs. ${d.retirosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold text-danger num-legible">-Bs. ${d.retirosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
         </tbody>
       </table>
@@ -3363,9 +3362,9 @@ function renderizarTicketCierreCajaHTML(d) {
       </div>
 
       <div class="ticket-info">
-        <div><strong>FECHA / HORA:</strong> ${d.fechaStr}</div>
+        <div><strong>FECHA / HORA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
         <div><strong>CAJERO(A):</strong> ${d.usuario}</div>
-        <div><strong>TASA BCV:</strong> Bs. ${d.tasaBCV.toFixed(2)}</div>
+        <div><strong>TASA BCV:</strong> <span class="num-legible">Bs. ${d.tasaBCV.toFixed(2)}</span></div>
       </div>
 
       <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
@@ -3375,11 +3374,11 @@ function renderizarTicketCierreCajaHTML(d) {
         <tbody>
           <tr>
             <td>EFECTIVO INICIAL DIVISAS:</td>
-            <td class="text-end fw-bold">$${d.inicialUSD.toFixed(2)}</td>
+            <td class="text-end fw-bold num-legible">$${d.inicialUSD.toFixed(2)}</td>
           </tr>
           <tr>
             <td>EFECTIVO INICIAL BOLÍVARES:</td>
-            <td class="text-end fw-bold">Bs. ${d.inicialBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold num-legible">Bs. ${d.inicialBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
         </tbody>
       </table>
@@ -3391,39 +3390,39 @@ function renderizarTicketCierreCajaHTML(d) {
         <tbody>
           <tr>
             <td>EFECTIVO DIVISAS:</td>
-            <td class="text-end fw-bold">$${(r.ventasEfectivoUSD || 0).toFixed(2)}</td>
+            <td class="text-end fw-bold num-legible">$${(r.ventasEfectivoUSD || 0).toFixed(2)}</td>
           </tr>
           <tr>
             <td>EFECTIVO BOLÍVARES:</td>
-            <td class="text-end fw-bold">Bs. ${(r.ventasEfectivoBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold num-legible">Bs. ${(r.ventasEfectivoBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
           <tr>
             <td>PAGO MÓVIL:</td>
-            <td class="text-end fw-bold">Bs. ${(r.ventasPagoMovil || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold num-legible">Bs. ${(r.ventasPagoMovil || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
           <tr>
             <td>ZELLE:</td>
-            <td class="text-end fw-bold">$${(r.ventasZelle || 0).toFixed(2)}</td>
+            <td class="text-end fw-bold num-legible">$${(r.ventasZelle || 0).toFixed(2)}</td>
           </tr>
           <tr>
             <td>PAYPAL:</td>
-            <td class="text-end fw-bold">$${(r.ventasPayPal || 0).toFixed(2)}</td>
+            <td class="text-end fw-bold num-legible">$${(r.ventasPayPal || 0).toFixed(2)}</td>
           </tr>
           <tr>
             <td>PUNTO DE VENTA:</td>
-            <td class="text-end fw-bold">Bs. ${(r.ventasPuntoVenta || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold num-legible">Bs. ${(r.ventasPuntoVenta || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
           <tr>
             <td>BIOPAGO:</td>
-            <td class="text-end fw-bold">Bs. ${(r.ventasBiopago || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold num-legible">Bs. ${(r.ventasBiopago || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
           <tr>
             <td>CASHEA:</td>
-            <td class="text-end fw-bold">$${(r.ventasCashea || 0).toFixed(2)}</td>
+            <td class="text-end fw-bold num-legible">$${(r.ventasCashea || 0).toFixed(2)}</td>
           </tr>
           <tr>
             <td>TRANSFERENCIA BANCARIA:</td>
-            <td class="text-end fw-bold">Bs. ${(r.ventasTransferencia || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold num-legible">Bs. ${(r.ventasTransferencia || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
         </tbody>
       </table>
@@ -3436,20 +3435,20 @@ function renderizarTicketCierreCajaHTML(d) {
       <div class="ticket-totals border-top pt-1">
         <div class="d-flex justify-content-between">
           <span>TOTAL VENTAS INGRESOS ($):</span>
-          <strong class="fs-6">$${(r.totalGeneralVentasUSD || 0).toFixed(2)}</strong>
+          <strong class="fs-6 num-legible">$${(r.totalGeneralVentasUSD || 0).toFixed(2)}</strong>
         </div>
         <div class="d-flex justify-content-between">
           <span>TOTAL VENTAS INGRESOS (Bs):</span>
-          <strong class="fs-6">Bs. ${(r.totalGeneralVentasBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+          <strong class="fs-6 num-legible">Bs. ${(r.totalGeneralVentasBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
         </div>
         <div class="ticket-divider"></div>
         <div class="d-flex justify-content-between text-success fw-bold">
           <span>EFECTIVO FINAL EN CAJA ($):</span>
-          <span class="fs-6">$${d.totalCajaUSD.toFixed(2)}</span>
+          <span class="fs-6 num-legible">$${d.totalCajaUSD.toFixed(2)}</span>
         </div>
         <div class="d-flex justify-content-between text-primary fw-bold">
           <span>EFECTIVO FINAL EN CAJA (Bs):</span>
-          <span class="fs-6">Bs. ${d.totalCajaBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span class="fs-6 num-legible">Bs. ${d.totalCajaBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
       </div>
 
