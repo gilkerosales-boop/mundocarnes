@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Base de Datos PostgreSQL en Supabase, IndexedDB Offline-First y Cobro Seguro
+   Base de Datos PostgreSQL en Supabase, IndexedDB Offline-First y Números Nítidos
    ========================================================================== */
 
 // Configuración de Supabase
@@ -591,7 +591,7 @@ function renderizarTablaModalFactura() {
       colCantidadHtml = `
         <div class="d-flex align-items-center justify-content-center gap-1">
           <span class="small fw-bold">${item.cantNumerica} uds (</span>
-          <input type="number" class="form-control form-control-sm text-center fw-bold p-1 text-danger" style="width: 80px;" value="${pesoGramosActual}" min="1" step="10" oninput="ajustarPesoMixtoFactura('${key}', this.value)" title="Modificar peso real en gramos">
+          <input type="number" class="form-control form-control-sm text-center fw-bold p-1 text-danger num-legible" style="width: 80px;" value="${pesoGramosActual}" min="1" step="10" oninput="ajustarPesoMixtoFactura('${key}', this.value)" title="Modificar peso real en gramos">
           <span class="small fw-bold">g)</span>
         </div>`;
     }
@@ -604,9 +604,9 @@ function renderizarTablaModalFactura() {
           <img src="${imgRuta}" class="img-thumb-factura" alt="${key}">
         </td>
         <td class="fw-bold">${key}</td>
-        <td class="text-center">${precioBaseTxt}</td>
-        <td class="text-center fw-bold">${colCantidadHtml}</td>
-        <td class="text-end fw-bold text-success" id="subtotal-modal-${safeIdKey}" style="font-family: 'JetBrains Mono', monospace;">${subtotalTxt}</td>
+        <td class="text-center num-legible">${precioBaseTxt}</td>
+        <td class="text-center fw-bold num-legible">${colCantidadHtml}</td>
+        <td class="text-end fw-bold text-success num-legible" id="subtotal-modal-${safeIdKey}">${subtotalTxt}</td>
         <td class="text-center">
           <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 border-0 fw-bold" onclick="eliminarItemFacturaEnProceso('${key}')" title="Eliminar">✕</button>
         </td>
@@ -707,7 +707,7 @@ function actualizarCalculosBCV() {
   }
 }
 
-// FUNCIONES PRODUCTO MANUAL
+// PRODUCTO MANUAL
 function abrirModalProductoManual() {
   document.getElementById('manualNombre').value = "";
   document.getElementById('manualPrecioUd').value = "";
@@ -960,7 +960,7 @@ function cargarListaFacturacion(idElemento, productos, nombreCategoria) {
         <div class="card card-producto h-100 text-center">
           <img src="${imgPath}" loading="lazy" class="${claseImg}">
           <h6 class="fw-bold mt-2 text-truncate mb-1">${nom}</h6>
-          <p class="text-success fw-bold mb-0">$${prec.toFixed(2)}</p>
+          <p class="text-success fw-bold mb-0 num-legible">$${prec.toFixed(2)}</p>
           <small class="text-muted" style="font-size:0.72rem;">Mín: ${cantMin} ${unidadTxt}</small>
           ${boton}
         </div>
@@ -1084,8 +1084,8 @@ function renderizarResumenFactura() {
     html += `
       <tr>
         <td class="fw-bold small text-wrap">${key}</td>
-        <td class="small text-muted">${item.cantidadTxt}</td>
-        <td class="text-danger fw-bold text-end" style="font-family: 'JetBrains Mono', monospace;">$${item.precioTotal}</td>
+        <td class="small text-muted num-legible">${item.cantidadTxt}</td>
+        <td class="text-danger fw-bold text-end num-legible">$${item.precioTotal}</td>
         <td class="text-end" style="width:24px">
           <button class="btn btn-sm btn-outline-danger py-0 px-1 border-0 fw-bold" onclick="eliminarItemFactura('${key}')">✕</button>
         </td>
@@ -1149,7 +1149,7 @@ function ejecutarFacturar() {
   const inputTasa = document.getElementById('facTasaBCV');
   if (inputTasa) {
     inputTasa.value = tasaGuardada ? tasaGuardada : "";
-    inputTasa.type = 'password'; // Asegurar máscara por puntos
+    inputTasa.type = 'password'; // Asegura la máscara por puntos
   }
 
   document.getElementById('facCedulaBuscar').value = "";
@@ -1214,7 +1214,7 @@ function renderizarTablaFacturasEnEspera() {
         <td class="text-center">${tx.horaPausa || 'N/D'}</td>
         <td class="fw-bold">${clienteNom}</td>
         <td class="text-center">${cantProds} producto(s)</td>
-        <td class="text-end fw-bold text-success" style="font-family: 'JetBrains Mono', monospace;">$${total.toFixed(2)}</td>
+        <td class="text-end fw-bold text-success num-legible">$${total.toFixed(2)}</td>
         <td class="text-center">
           <button type="button" class="btn btn-sm btn-success py-0 px-2 fw-bold rounded-pill me-1" onclick="reanudarFacturaEnEspera(${idx})">
             ▶️ Reanudar
@@ -1504,7 +1504,7 @@ function agregarLineaPagoMixtoFija(metodoPredeterminado, esEliminable = true) {
     <div class="col-4">
       <div class="input-group input-group-sm">
         <span class="input-group-text simbolo-moneda-mixto ${prefijoClass}">${prefijoTxt}</span>
-        <input type="number" class="form-control input-monto-mixto text-center fw-bold" step="0.01" min="0" placeholder="0.00" oninput="calcularTotalPagoMixto()">
+        <input type="number" class="form-control input-monto-mixto text-center fw-bold num-legible" step="0.01" min="0" placeholder="0.00" oninput="calcularTotalPagoMixto()">
       </div>
     </div>
     <div class="col-2 text-end">
@@ -1540,7 +1540,7 @@ function agregarLineaPagoMixto() {
     <div class="col-4">
       <div class="input-group input-group-sm">
         <span class="input-group-text simbolo-moneda-mixto bg-light fw-bold">$</span>
-        <input type="number" class="form-control input-monto-mixto text-center fw-bold" step="0.01" min="0" placeholder="0.00" oninput="calcularTotalPagoMixto()">
+        <input type="number" class="form-control input-monto-mixto text-center fw-bold num-legible" step="0.01" min="0" placeholder="0.00" oninput="calcularTotalPagoMixto()">
       </div>
     </div>
     <div class="col-2 text-end">
@@ -1609,7 +1609,7 @@ function calcularTotalPagoMixto() {
 
     if (elemRestante) {
       elemRestante.textContent = `Bs. ${restanteBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      elemRestante.className = (restanteBs === 0) ? 'text-success fw-bold' : (restanteBs > 0 ? 'text-warning fw-bold' : 'text-danger fw-bold');
+      elemRestante.className = (restanteBs === 0) ? 'text-success fw-bold num-legible' : (restanteBs > 0 ? 'text-warning fw-bold num-legible' : 'text-danger fw-bold num-legible');
     }
 
   } else {
@@ -1618,7 +1618,7 @@ function calcularTotalPagoMixto() {
 
     if (elemRestante) {
       elemRestante.textContent = `$${restanteUSD.toFixed(2)}`;
-      elemRestante.className = (restanteUSD === 0) ? 'text-success fw-bold' : (restanteUSD > 0 ? 'text-warning fw-bold' : 'text-danger fw-bold');
+      elemRestante.className = (restanteUSD === 0) ? 'text-success fw-bold num-legible' : (restanteUSD > 0 ? 'text-warning fw-bold num-legible' : 'text-danger fw-bold num-legible');
     }
   }
 
@@ -2127,11 +2127,11 @@ function renderizarTablaEscaneados() {
 
     html += `
       <tr>
-        <td class="fw-bold text-center">${it.codigoLeido}</td>
+        <td class="fw-bold text-center num-legible">${it.codigoLeido}</td>
         <td class="fw-bold ${it.encontrado ? 'text-dark' : 'text-danger'}">${it.nombre}</td>
-        <td class="text-center">${precUnitTxt}</td>
-        <td class="text-center fw-bold text-primary">${it.cantidadTxt}</td>
-        <td class="text-end fw-bold text-success" style="font-family: 'JetBrains Mono', monospace;">$${it.precioTotal}</td>
+        <td class="text-center num-legible">${precUnitTxt}</td>
+        <td class="text-center fw-bold text-primary num-legible">${it.cantidadTxt}</td>
+        <td class="text-end fw-bold text-success num-legible">$${it.precioTotal}</td>
         <td class="text-center">${badgeState}</td>
       </tr>`;
   });
@@ -2243,7 +2243,7 @@ function renderizarTablaGestionCodigos(lista) {
     html += `
       <tr>
         <td class="text-center">
-          <input type="text" class="form-control form-control-sm text-center fw-bold text-primary input-codigo-plu-item" 
+          <input type="text" class="form-control form-control-sm text-center fw-bold text-primary input-codigo-plu-item num-legible" 
                  data-nombre="${safeName}" 
                  data-cat="${item.categoria}" 
                  value="${item.codigoPLU}" 
@@ -2259,10 +2259,10 @@ function renderizarTablaGestionCodigos(lista) {
         </td>
         <td class="text-center"><span class="badge bg-light text-dark border">${unidadTxt}</span></td>
         <td class="text-center">
-          <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-center fw-bold text-success input-precio-item" 
+          <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-center fw-bold text-success input-precio-item num-legible" 
                  data-nombre="${safeName}" 
                  data-cat="${item.categoria}" 
-                 value="${item.precio.toFixed(2)}" style="max-width: 110px; margin: 0 auto; font-family: 'JetBrains Mono', monospace;">
+                 value="${item.precio.toFixed(2)}" style="max-width: 110px; margin: 0 auto;">
         </td>
       </tr>`;
   });
@@ -2516,12 +2516,12 @@ function renderizarTablaHistorialFacturas() {
   cacheHistorialFacturas.forEach(f => {
     html += `
       <tr>
-        <td class="fw-bold text-center text-danger" style="font-family: 'JetBrains Mono', monospace;">${f.numFactura}</td>
-        <td class="text-center small">${f.fechaStr}</td>
-        <td class="fw-bold text-center">${f.cedula}</td>
+        <td class="fw-bold text-center text-danger num-legible">${f.numFactura}</td>
+        <td class="text-center small num-legible">${f.fechaStr}</td>
+        <td class="fw-bold text-center num-legible">${f.cedula}</td>
         <td class="fw-bold text-wrap">${f.nombre}</td>
         <td class="small text-muted">${f.formaPagoStr}</td>
-        <td class="text-end fw-bold text-success" style="font-family: 'JetBrains Mono', monospace;">$${parseFloat(f.montoTotalUSD).toFixed(2)}</td>
+        <td class="text-end fw-bold text-success num-legible">$${parseFloat(f.montoTotalUSD).toFixed(2)}</td>
         <td class="text-center">
           <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill me-1" onclick="reimprimirFacturaHistorial('${f.numFactura}')" title="Reimprimir Ticket">
             🖨️ Imprimir
@@ -3023,10 +3023,10 @@ function renderizarTablaMovimientosDia() {
 
     html += `
       <tr>
-        <td class="text-center small">${m.hora}</td>
+        <td class="text-center small num-legible">${m.hora}</td>
         <td class="text-center">${badgeTipo}</td>
         <td class="text-center fw-bold">${m.moneda}</td>
-        <td class="text-end fw-bold ${esIngreso ? 'text-success' : 'text-danger'}" style="font-family: 'JetBrains Mono', monospace;">${montoTxt}</td>
+        <td class="text-end fw-bold ${esIngreso ? 'text-success' : 'text-danger'} num-legible">${montoTxt}</td>
         <td class="small text-wrap">${m.concepto}</td>
         <td class="text-center">
           <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarMovimientoEfectivo(${idx})" title="Eliminar">
@@ -3140,11 +3140,11 @@ function renderizarTablaHistorialCierres() {
 
     html += `
       <tr>
-        <td class="fw-bold text-center small">${fStr}</td>
+        <td class="fw-bold text-center small num-legible">${fStr}</td>
         <td class="fw-bold text-center">${uStr}</td>
-        <td class="text-center small">$${iniUSD} / Bs.${iniBS}</td>
-        <td class="text-center small">$${venUSD} / Bs.${venBS}</td>
-        <td class="text-center fw-bold text-success" style="font-family: 'JetBrains Mono', monospace;">$${finUSD} / Bs.${finBS}</td>
+        <td class="text-center small num-legible">$${iniUSD} / Bs.${iniBS}</td>
+        <td class="text-center small num-legible">$${venUSD} / Bs.${venBS}</td>
+        <td class="text-center fw-bold text-success num-legible">$${finUSD} / Bs.${finBS}</td>
         <td class="text-center">
           <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill" onclick="reimprimirCierreCajaHistorial(${idx})" title="Reimprimir Reporte Z">
             🖨️ Reimprimir
