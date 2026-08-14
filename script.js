@@ -15,7 +15,7 @@ const GITHUB_BRANCH = 'main';
 const GITHUB_CATALOG_PATH = 'catalog.json';
 const WHATSAPP_NUMERO = '584121753275';
 
-// Inicialización segura de Supabase SDK v2
+// Inicialización de Supabase SDK v2
 let supabaseClient = null;
 if (typeof supabase !== 'undefined') {
   supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -37,7 +37,7 @@ let itiInstance = null;
 let filtroBusquedaActual = '';
 
 // ==========================================================================
-// 2. INICIALIZACIÓN DEL DOM
+// 2. INICIALIZACIÓN DEL DOM Y REGISTRO DE EVENTOS
 // ==========================================================================
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -63,7 +63,7 @@ function inicializarListenersGenerales() {
     btnCerrarZoom.addEventListener('click', cerrarZoomImagen);
   }
 
-  const formIdentificar = document.getElementById('formIdentificarCliente');
+  const formIdentificar = document.getElementById('formIdentificarCliente') || document.getElementById('formIdentificacion');
   if (formIdentificar) {
     formIdentificar.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -71,7 +71,7 @@ function inicializarListenersGenerales() {
     });
   }
 
-  const formRegistro = document.getElementById('formRegistroNuevoCliente');
+  const formRegistro = document.getElementById('formRegistroNuevoCliente') || document.getElementById('formRegistro');
   if (formRegistro) {
     formRegistro.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -85,6 +85,30 @@ function inicializarListenersGenerales() {
       filtroBusquedaActual = e.target.value.trim().toLowerCase();
       renderizarCatalogo();
     });
+  }
+}
+
+// Helper para abrir cualquier modal por lista de posibles IDs
+function abrirModalPorId(posiblesIds) {
+  for (const id of posiblesIds) {
+    const el = document.getElementById(id);
+    if (el) {
+      const modal = bootstrap.Modal.getOrCreateInstance(el);
+      modal.show();
+      return modal;
+    }
+  }
+  return null;
+}
+
+// Helper para cerrar cualquier modal por lista de posibles IDs
+function cerrarModalPorId(posiblesIds) {
+  for (const id of posiblesIds) {
+    const el = document.getElementById(id);
+    if (el) {
+      const modal = bootstrap.Modal.getInstance(el);
+      if (modal) modal.hide();
+    }
   }
 }
 
@@ -267,11 +291,11 @@ function abrirModalSeleccionCantidad(catIndex, prodIndex) {
 
   const [nombre, precio, , , cantMin, tipoUnidad, pesoAprox] = prod;
 
-  const elNombre = document.getElementById('modalSeleccionNombre');
-  const elPrecio = document.getElementById('modalSeleccionPrecio');
-  const contUnidades = document.getElementById('modalContUnidades');
-  const contGramos = document.getElementById('modalContGramos');
-  const errorEl = document.getElementById('errorModalSeleccion');
+  const elNombre = document.getElementById('modalSeleccionNombre') || document.getElementById('modalNombre') || document.getElementById('nombreProductoModal');
+  const elPrecio = document.getElementById('modalSeleccionPrecio') || document.getElementById('modalPrecio') || document.getElementById('precioProductoModal');
+  const contUnidades = document.getElementById('modalContUnidades') || document.getElementById('contUnidades');
+  const contGramos = document.getElementById('modalContGramos') || document.getElementById('contPeso') || document.getElementById('contGramos');
+  const errorEl = document.getElementById('errorModalSeleccion') || document.getElementById('errorModalFac');
 
   if (elNombre) elNombre.innerText = nombre;
   if (elPrecio) {
@@ -289,7 +313,7 @@ function abrirModalSeleccionCantidad(catIndex, prodIndex) {
   if (tipoUnidad === 'gramos') {
     if (contUnidades) contUnidades.classList.add('hidden');
     if (contGramos) contGramos.classList.remove('hidden');
-    const inputGramos = document.getElementById('modalInputGramos');
+    const inputGramos = document.getElementById('modalInputGramos') || document.getElementById('inputFacGramos') || document.getElementById('inputGramos');
     if (inputGramos) {
       inputGramos.value = cantMin || 250;
       inputGramos.min = cantMin || 50;
@@ -299,7 +323,7 @@ function abrirModalSeleccionCantidad(catIndex, prodIndex) {
   } else {
     if (contGramos) contGramos.classList.add('hidden');
     if (contUnidades) contUnidades.classList.remove('hidden');
-    const inputUnidades = document.getElementById('modalInputUnidades');
+    const inputUnidades = document.getElementById('modalInputUnidades') || document.getElementById('inputFacUnidades') || document.getElementById('inputUnidades');
     if (inputUnidades) {
       inputUnidades.value = cantMin || 1;
       inputUnidades.min = cantMin || 1;
@@ -307,15 +331,11 @@ function abrirModalSeleccionCantidad(catIndex, prodIndex) {
     }
   }
 
-  const modalEl = document.getElementById('modalSeleccionProducto');
-  if (modalEl) {
-    const modal = new bootstrap.Modal(modalEl);
-    modal.show();
-  }
+  abrirModalPorId(['modalSeleccionProducto', 'modalFacturaCantidad', 'modalCantidad', 'modalAgregarProducto']);
 }
 
 function fijarGramosRapidos(gramos) {
-  const input = document.getElementById('modalInputGramos');
+  const input = document.getElementById('modalInputGramos') || document.getElementById('inputFacGramos') || document.getElementById('inputGramos');
   if (input) {
     input.value = gramos;
     actualizarCalculoGramosModal();
@@ -323,7 +343,7 @@ function fijarGramosRapidos(gramos) {
 }
 
 function sumarGramosRapidos(gramosExtra) {
-  const input = document.getElementById('modalInputGramos');
+  const input = document.getElementById('modalInputGramos') || document.getElementById('inputFacGramos') || document.getElementById('inputGramos');
   if (input) {
     let actual = parseFloat(input.value) || 0;
     input.value = actual + gramosExtra;
@@ -332,7 +352,7 @@ function sumarGramosRapidos(gramosExtra) {
 }
 
 function fijarUnidadesRapidas(uds) {
-  const input = document.getElementById('modalInputUnidades');
+  const input = document.getElementById('modalInputUnidades') || document.getElementById('inputFacUnidades') || document.getElementById('inputUnidades');
   if (input) {
     input.value = uds;
     actualizarCalculoUnidadesModal();
@@ -340,7 +360,7 @@ function fijarUnidadesRapidas(uds) {
 }
 
 function sumarUnidadesRapidas(udsExtra) {
-  const input = document.getElementById('modalInputUnidades');
+  const input = document.getElementById('modalInputUnidades') || document.getElementById('inputFacUnidades') || document.getElementById('inputUnidades');
   if (input) {
     let actual = parseInt(input.value) || 0;
     input.value = Math.max(1, actual + udsExtra);
@@ -352,31 +372,37 @@ function actualizarCalculoGramosModal() {
   if (!productoSeleccionadoActual) return;
   const { prod } = productoSeleccionadoActual;
   const precio100g = prod[1];
-  const input = document.getElementById('modalInputGramos');
+  const input = document.getElementById('modalInputGramos') || document.getElementById('inputFacGramos') || document.getElementById('inputGramos');
   const labelSubtotal = document.getElementById('modalSubtotalCalculadoGramos');
-  if (!input || !labelSubtotal) return;
+  if (!input) return;
 
   const gramos = parseFloat(input.value) || 0;
   const subtotal = (gramos / 100) * precio100g;
-  labelSubtotal.innerText = `Subtotal: $${subtotal.toFixed(2)} (${(gramos / 1000).toFixed(3)} Kg)`;
+  if (labelSubtotal) {
+    labelSubtotal.innerText = `Subtotal: $${subtotal.toFixed(2)} (${(gramos / 1000).toFixed(3)} Kg)`;
+  }
 }
 
 function actualizarCalculoUnidadesModal() {
   if (!productoSeleccionadoActual) return;
   const { prod } = productoSeleccionadoActual;
   const [, precio, , , , tipoUnidad, pesoAprox] = prod;
-  const input = document.getElementById('modalInputUnidades');
+  const input = document.getElementById('modalInputUnidades') || document.getElementById('inputFacUnidades') || document.getElementById('inputUnidades');
   const labelSubtotal = document.getElementById('modalSubtotalCalculadoUnidades');
-  if (!input || !labelSubtotal) return;
+  if (!input) return;
 
   const uds = parseInt(input.value) || 0;
   if (tipoUnidad === 'mixto') {
     const pesoKg = (uds * (pesoAprox || 1000)) / 1000;
     const subtotal = pesoKg * precio;
-    labelSubtotal.innerText = `Subtotal: $${subtotal.toFixed(2)} (~${pesoKg.toFixed(2)} Kg)`;
+    if (labelSubtotal) {
+      labelSubtotal.innerText = `Subtotal: $${subtotal.toFixed(2)} (~${pesoKg.toFixed(2)} Kg)`;
+    }
   } else {
     const subtotal = uds * precio;
-    labelSubtotal.innerText = `Subtotal: $${subtotal.toFixed(2)}`;
+    if (labelSubtotal) {
+      labelSubtotal.innerText = `Subtotal: $${subtotal.toFixed(2)}`;
+    }
   }
 }
 
@@ -389,8 +415,11 @@ function confirmarAgregarCarrito() {
   let subtotal = 0;
   let detalleCantidad = '';
 
+  const inputGramos = document.getElementById('modalInputGramos') || document.getElementById('inputFacGramos') || document.getElementById('inputGramos');
+  const inputUnidades = document.getElementById('modalInputUnidades') || document.getElementById('inputFacUnidades') || document.getElementById('inputUnidades');
+
   if (tipoUnidad === 'gramos') {
-    const gramos = parseFloat(document.getElementById('modalInputGramos').value) || 0;
+    const gramos = parseFloat(inputGramos ? inputGramos.value : 0) || 0;
     const minGramos = cantMin || 100;
     if (gramos < minGramos) {
       mostrarErrorModalSeleccion(`La cantidad mínima para este producto es de ${minGramos}g`);
@@ -400,7 +429,7 @@ function confirmarAgregarCarrito() {
     subtotal = (gramos / 100) * precio;
     detalleCantidad = `${gramos}g (${(gramos / 1000).toFixed(2)} Kg)`;
   } else if (tipoUnidad === 'mixto') {
-    const uds = parseInt(document.getElementById('modalInputUnidades').value) || 0;
+    const uds = parseInt(inputUnidades ? inputUnidades.value : 0) || 0;
     const minUds = cantMin || 1;
     if (uds < minUds) {
       mostrarErrorModalSeleccion(`La cantidad mínima es de ${minUds} unidades.`);
@@ -412,7 +441,7 @@ function confirmarAgregarCarrito() {
     subtotal = pesoTotalKg * precio;
     detalleCantidad = `${uds} uds (~${pesoTotalKg.toFixed(2)} Kg)`;
   } else {
-    const uds = parseInt(document.getElementById('modalInputUnidades').value) || 0;
+    const uds = parseInt(inputUnidades ? inputUnidades.value : 0) || 0;
     const minUds = cantMin || 1;
     if (uds < minUds) {
       mostrarErrorModalSeleccion(`La cantidad mínima es de ${minUds} unidades.`);
@@ -451,16 +480,12 @@ function confirmarAgregarCarrito() {
   }
 
   guardarCarrito();
-
-  const modalEl = document.getElementById('modalSeleccionProducto');
-  const modalInstance = bootstrap.Modal.getInstance(modalEl);
-  if (modalInstance) modalInstance.hide();
-
+  cerrarModalPorId(['modalSeleccionProducto', 'modalFacturaCantidad', 'modalCantidad', 'modalAgregarProducto']);
   mostrarToast(`¡${nombre} añadido a tu pedido!`);
 }
 
 function mostrarErrorModalSeleccion(msg) {
-  const err = document.getElementById('errorModalSeleccion');
+  const err = document.getElementById('errorModalSeleccion') || document.getElementById('errorModalFac');
   if (err) {
     err.innerText = msg;
     err.classList.remove('hidden');
@@ -524,8 +549,8 @@ function vaciarCarrito() {
 }
 
 function actualizarUI() {
-  const btnFlotante = document.getElementById('btnVerPedidoFlotante') || document.querySelector('.btn-flotante-pedido');
-  const badgeCant = document.getElementById('cantItemsFlotante');
+  const btnFlotante = document.getElementById('btnVerPedidoFlotante') || document.querySelector('.btn-flotante-pedido') || document.getElementById('btnVerPedido');
+  const badgeCant = document.getElementById('cantItemsFlotante') || document.getElementById('cntCarritoBadge');
   const totalFlotante = document.getElementById('totalPedidoFlotante');
 
   const totalItems = carrito.length;
@@ -545,16 +570,12 @@ function actualizarUI() {
 
 function abrirModalPedido() {
   renderizarCarritoModal();
-  const modalEl = document.getElementById('modalPedido');
-  if (modalEl) {
-    const modal = new bootstrap.Modal(modalEl);
-    modal.show();
-  }
+  abrirModalPorId(['modalPedido', 'modalCarrito', 'modalVerPedido']);
 }
 
 function renderizarCarritoModal() {
-  const container = document.getElementById('listaProductosPedido');
-  const totalEl = document.getElementById('montoTotalPedidoModal');
+  const container = document.getElementById('listaProductosPedido') || document.getElementById('contenedorCarritoItems');
+  const totalEl = document.getElementById('montoTotalPedidoModal') || document.getElementById('totalCarritoModal');
   if (!container || !totalEl) return;
 
   if (carrito.length === 0) {
@@ -598,8 +619,7 @@ function renderizarCarritoModal() {
 function iniciarCheckout() {
   if (carrito.length === 0) return;
 
-  const modalPedido = bootstrap.Modal.getInstance(document.getElementById('modalPedido'));
-  if (modalPedido) modalPedido.hide();
+  cerrarModalPorId(['modalPedido', 'modalCarrito', 'modalVerPedido']);
 
   if (clienteActual && clienteActual.CEDULA) {
     solicitarConfirmacionWhatsApp();
@@ -609,12 +629,9 @@ function iniciarCheckout() {
 }
 
 function abrirModalIdentificacionCliente() {
-  const modalEl = document.getElementById('modalIdentificarCliente');
-  if (!modalEl) return;
-
   const boxIngreso = document.getElementById('boxIngresoCedula');
   const boxRegistro = document.getElementById('boxRegistroNuevoCliente');
-  const inputCedula = document.getElementById('inputCedulaIdentificar');
+  const inputCedula = document.getElementById('inputCedulaIdentificar') || document.getElementById('inputCedula');
 
   if (boxIngreso) boxIngreso.classList.remove('hidden');
   if (boxRegistro) boxRegistro.classList.add('hidden');
@@ -623,12 +640,11 @@ function abrirModalIdentificacionCliente() {
     setTimeout(() => inputCedula.focus(), 350);
   }
 
-  const modal = new bootstrap.Modal(modalEl);
-  modal.show();
+  abrirModalPorId(['modalIdentificarCliente', 'modalIdentificacion', 'modalCliente']);
 }
 
 async function verificarCedulaCliente() {
-  const cedulaInput = document.getElementById('inputCedulaIdentificar');
+  const cedulaInput = document.getElementById('inputCedulaIdentificar') || document.getElementById('inputCedula');
   if (!cedulaInput) return;
 
   const cedulaLimpia = cedulaInput.value.trim().toUpperCase();
@@ -637,7 +653,7 @@ async function verificarCedulaCliente() {
     return;
   }
 
-  const btnContinuar = document.getElementById('btnContinuarIdentificacion');
+  const btnContinuar = document.getElementById('btnContinuarIdentificacion') || document.getElementById('btnVerificarCedula');
   if (btnContinuar) {
     btnContinuar.disabled = true;
     btnContinuar.innerText = 'Consultando... ⏳';
@@ -646,7 +662,6 @@ async function verificarCedulaCliente() {
   try {
     if (!supabaseClient) throw new Error('Cliente Supabase no inicializado');
 
-    // Consulta con el nombre de columna en mayúsculas de PostgreSQL
     const { data, error } = await supabaseClient
       .from('clientes')
       .select('*')
@@ -665,9 +680,7 @@ async function verificarCedulaCliente() {
       };
       localStorage.setItem('mundocarnes_cliente', JSON.stringify(clienteActual));
 
-      const modalInstance = bootstrap.Modal.getInstance(document.getElementById('modalIdentificarCliente'));
-      if (modalInstance) modalInstance.hide();
-
+      cerrarModalPorId(['modalIdentificarCliente', 'modalIdentificacion', 'modalCliente']);
       solicitarConfirmacionWhatsApp();
     } else {
       mostrarFormularioRegistroNuevoCliente(cedulaLimpia);
@@ -686,13 +699,13 @@ async function verificarCedulaCliente() {
 function mostrarFormularioRegistroNuevoCliente(cedula) {
   const boxIngreso = document.getElementById('boxIngresoCedula');
   const boxRegistro = document.getElementById('boxRegistroNuevoCliente');
-  const regCedula = document.getElementById('regClienteCedula');
+  const regCedula = document.getElementById('regClienteCedula') || document.getElementById('regCedula');
 
   if (boxIngreso) boxIngreso.classList.add('hidden');
   if (boxRegistro) boxRegistro.classList.remove('hidden');
   if (regCedula) regCedula.value = cedula;
 
-  const telInput = document.getElementById('regClienteTelefono');
+  const telInput = document.getElementById('regClienteTelefono') || document.getElementById('regTelefono');
   if (telInput && typeof window.intlTelInput !== 'undefined' && !itiInstance) {
     itiInstance = window.intlTelInput(telInput, {
       initialCountry: 've',
@@ -706,16 +719,18 @@ function mostrarFormularioRegistroNuevoCliente(cedula) {
 async function registrarClienteWeb(event) {
   if (event) event.preventDefault();
 
-  const cedula = document.getElementById('regClienteCedula').value.trim().toUpperCase();
-  const nombres = document.getElementById('regClienteNombres').value.trim().toUpperCase();
-  const apellidos = document.getElementById('regClienteApellidos').value.trim().toUpperCase();
-  const direccion = (document.getElementById('regClienteDireccion') ? document.getElementById('regClienteDireccion').value.trim().toUpperCase() : '') || 'PARRAL';
+  const cedula = (document.getElementById('regClienteCedula') || document.getElementById('regCedula')).value.trim().toUpperCase();
+  const nombres = (document.getElementById('regClienteNombres') || document.getElementById('regNombres')).value.trim().toUpperCase();
+  const apellidos = (document.getElementById('regClienteApellidos') || document.getElementById('regApellidos')).value.trim().toUpperCase();
+  const dirEl = document.getElementById('regClienteDireccion') || document.getElementById('regDireccion');
+  const direccion = dirEl ? dirEl.value.trim().toUpperCase() : 'PARRAL';
 
+  const telEl = document.getElementById('regClienteTelefono') || document.getElementById('regTelefono');
   let telefono = '';
   if (itiInstance) {
     telefono = itiInstance.getNumber();
-  } else {
-    telefono = document.getElementById('regClienteTelefono').value.trim();
+  } else if (telEl) {
+    telefono = telEl.value.trim();
   }
 
   if (!cedula || !nombres || !apellidos || !telefono) {
@@ -731,7 +746,7 @@ async function registrarClienteWeb(event) {
     "DIRECCION": direccion
   };
 
-  const btnReg = document.getElementById('btnRegistrarClienteWeb');
+  const btnReg = document.getElementById('btnRegistrarClienteWeb') || document.getElementById('btnRegistrar');
   if (btnReg) {
     btnReg.disabled = true;
     btnReg.innerText = 'Registrando... ⏳';
@@ -757,10 +772,7 @@ async function registrarClienteWeb(event) {
   clienteActual = payloadCliente;
   localStorage.setItem('mundocarnes_cliente', JSON.stringify(clienteActual));
 
-  const modalEl = document.getElementById('modalIdentificarCliente');
-  const modalInstance = bootstrap.Modal.getInstance(modalEl);
-  if (modalInstance) modalInstance.hide();
-
+  cerrarModalPorId(['modalIdentificarCliente', 'modalIdentificacion', 'modalCliente']);
   solicitarConfirmacionWhatsApp();
 }
 
@@ -853,10 +865,7 @@ function evaluarModoAdmin() {
 }
 
 function abrirModalLoginAdmin() {
-  const modalEl = document.getElementById('modalLoginAdmin');
-  if (!modalEl) return;
-  const modal = new bootstrap.Modal(modalEl);
-  modal.show();
+  abrirModalPorId(['modalLoginAdmin', 'modalLogin']);
 }
 
 async function procesarLoginAdmin(event) {
@@ -889,9 +898,7 @@ async function procesarLoginAdmin(event) {
         APELLIDO: data.APELLIDO
       }));
 
-      const modalEl = document.getElementById('modalLoginAdmin');
-      const modalInstance = bootstrap.Modal.getInstance(modalEl);
-      if (modalInstance) modalInstance.hide();
+      cerrarModalPorId(['modalLoginAdmin', 'modalLogin']);
 
       mostrarBarraEditor(data.NOMBRE || 'ADMIN');
       renderizarCatalogo();
@@ -930,9 +937,6 @@ function cerrarSesionAdmin() {
 // ==========================================================================
 
 function abrirPanelDeControlAdmin() {
-  const modalEl = document.getElementById('modalPanelControlAdmin');
-  if (!modalEl) return;
-
   const cntCats = document.getElementById('cntTotalCategoriasAdmin');
   const cntProds = document.getElementById('cntTotalProductosAdmin');
   if (cntCats) cntCats.innerText = catalogoData.categorias.length;
@@ -941,8 +945,7 @@ function abrirPanelDeControlAdmin() {
     cntProds.innerText = total;
   }
 
-  const modal = new bootstrap.Modal(modalEl);
-  modal.show();
+  abrirModalPorId(['modalPanelControlAdmin', 'modalPanelControl']);
 }
 
 function abrirModalNuevaCategoria() {
@@ -1021,15 +1024,32 @@ function descargarRespaldoCatalogoJSON() {
 function abrirModalNuevoProducto(catIndex) {
   productoEnEdicion = { catIndex, prodIndex: -1, esNuevo: true };
 
-  document.getElementById('modalTituloEditorProd').innerText = `➕ Nuevo Producto en "${catalogoData.categorias[catIndex].nombre}"`;
-  document.getElementById('editProdNombre').value = '';
-  document.getElementById('editProdPrecio').value = '0.00';
-  document.getElementById('editProdTipoUnidad').value = 'unidades';
-  document.getElementById('editProdMinimo').value = '1';
-  document.getElementById('editProdPesoAprox').value = '0';
-  document.getElementById('editProdPLU').value = '';
-  document.getElementById('editProdDisponible').checked = true;
-  document.getElementById('editProdFileImg').value = '';
+  const titEl = document.getElementById('modalTituloEditorProd');
+  if (titEl) titEl.innerText = `➕ Nuevo Producto en "${catalogoData.categorias[catIndex].nombre}"`;
+
+  const nomEl = document.getElementById('editProdNombre');
+  if (nomEl) nomEl.value = '';
+
+  const precEl = document.getElementById('editProdPrecio');
+  if (precEl) precEl.value = '0.00';
+
+  const tipoEl = document.getElementById('editProdTipoUnidad');
+  if (tipoEl) tipoEl.value = 'unidades';
+
+  const minEl = document.getElementById('editProdMinimo');
+  if (minEl) minEl.value = '1';
+
+  const pesoEl = document.getElementById('editProdPesoAprox');
+  if (pesoEl) pesoEl.value = '0';
+
+  const pluEl = document.getElementById('editProdPLU');
+  if (pluEl) pluEl.value = '';
+
+  const dispEl = document.getElementById('editProdDisponible');
+  if (dispEl) dispEl.checked = true;
+
+  const fileEl = document.getElementById('editProdFileImg');
+  if (fileEl) fileEl.value = '';
 
   llenarSelectorCategoriasDestino(catIndex);
   alternarCamposTipoUnidadAdmin('unidades');
@@ -1040,8 +1060,7 @@ function abrirModalNuevoProducto(catIndex) {
     delete preview.dataset.nuevaImagenWebp;
   }
 
-  const modal = new bootstrap.Modal(document.getElementById('modalEditarProductoAdmin'));
-  modal.show();
+  abrirModalPorId(['modalEditarProductoAdmin', 'modalConfigurarProducto']);
 }
 
 function abrirModalEditor(catIndex, prodIndex) {
@@ -1049,15 +1068,32 @@ function abrirModalEditor(catIndex, prodIndex) {
   const prod = catalogoData.categorias[catIndex].productos[prodIndex];
   const [nombre, precio, img, disponible, cantMin, tipoUnidad, pesoAprox, plu] = prod;
 
-  document.getElementById('modalTituloEditorProd').innerText = `⚙️ Configurar: ${nombre}`;
-  document.getElementById('editProdNombre').value = nombre || '';
-  document.getElementById('editProdPrecio').value = precio || 0;
-  document.getElementById('editProdTipoUnidad').value = tipoUnidad || 'unidades';
-  document.getElementById('editProdMinimo').value = cantMin || 1;
-  document.getElementById('editProdPesoAprox').value = pesoAprox || 0;
-  document.getElementById('editProdPLU').value = plu || '';
-  document.getElementById('editProdDisponible').checked = disponible === true;
-  document.getElementById('editProdFileImg').value = '';
+  const titEl = document.getElementById('modalTituloEditorProd');
+  if (titEl) titEl.innerText = `⚙️ Configurar: ${nombre}`;
+
+  const nomEl = document.getElementById('editProdNombre');
+  if (nomEl) nomEl.value = nombre || '';
+
+  const precEl = document.getElementById('editProdPrecio');
+  if (precEl) precEl.value = precio || 0;
+
+  const tipoEl = document.getElementById('editProdTipoUnidad');
+  if (tipoEl) tipoEl.value = tipoUnidad || 'unidades';
+
+  const minEl = document.getElementById('editProdMinimo');
+  if (minEl) minEl.value = cantMin || 1;
+
+  const pesoEl = document.getElementById('editProdPesoAprox');
+  if (pesoEl) pesoEl.value = pesoAprox || 0;
+
+  const pluEl = document.getElementById('editProdPLU');
+  if (pluEl) pluEl.value = plu || '';
+
+  const dispEl = document.getElementById('editProdDisponible');
+  if (dispEl) dispEl.checked = disponible === true;
+
+  const fileEl = document.getElementById('editProdFileImg');
+  if (fileEl) fileEl.value = '';
 
   llenarSelectorCategoriasDestino(catIndex);
   alternarCamposTipoUnidadAdmin(tipoUnidad || 'unidades');
@@ -1068,8 +1104,7 @@ function abrirModalEditor(catIndex, prodIndex) {
     delete preview.dataset.nuevaImagenWebp;
   }
 
-  const modal = new bootstrap.Modal(document.getElementById('modalEditarProductoAdmin'));
-  modal.show();
+  abrirModalPorId(['modalEditarProductoAdmin', 'modalConfigurarProducto']);
 }
 
 function llenarSelectorCategoriasDestino(catIndexActual) {
@@ -1237,9 +1272,7 @@ async function guardarCambiosProductoAdmin() {
     }
   }
 
-  const modalEl = document.getElementById('modalEditarProductoAdmin');
-  const modalInstance = bootstrap.Modal.getInstance(modalEl);
-  if (modalInstance) modalInstance.hide();
+  cerrarModalPorId(['modalEditarProductoAdmin', 'modalConfigurarProducto']);
 
   categoriaActivaIndex = catDestinoIndex;
   renderizarCatalogo();
@@ -1254,11 +1287,7 @@ function solicitarTokenGitHubSiFalta() {
   if (githubTokenAdmin && (githubTokenAdmin.startsWith('ghp_') || githubTokenAdmin.startsWith('github_pat_'))) {
     return true;
   }
-  const modalEl = document.getElementById('modalEscanearTokenGitHub');
-  if (modalEl) {
-    const modal = new bootstrap.Modal(modalEl);
-    modal.show();
-  }
+  abrirModalPorId(['modalEscanearTokenGitHub', 'modalTokenGitHub']);
   return false;
 }
 
@@ -1272,9 +1301,7 @@ function validarYGuardarTokenQR() {
   githubTokenAdmin = token;
   localStorage.setItem('mundocarnes_gh_token', token);
 
-  const modalEl = document.getElementById('modalEscanearTokenGitHub');
-  const modalInstance = bootstrap.Modal.getInstance(modalEl);
-  if (modalInstance) modalInstance.hide();
+  cerrarModalPorId(['modalEscanearTokenGitHub', 'modalTokenGitHub']);
 
   mostrarToast('Token de GitHub guardado exitosamente.');
   sincronizarCambiosConGitHub('Sincronización autorizada');
@@ -1403,3 +1430,66 @@ function mostrarToast(mensaje) {
     console.log('[Toast]:', mensaje);
   }
 }
+
+// ==========================================================================
+// 15. EXPOSICIÓN GLOBAL DE FUNCIONES Y ALIAS (COMPATIBILIDAD CON INDEX.HTML)
+// ==========================================================================
+
+window.mostrarPedido = abrirModalPedido;
+window.abrirModalPedido = abrirModalPedido;
+window.abrirCarrito = abrirModalPedido;
+window.cerrarPedido = () => cerrarModalPorId(['modalPedido', 'modalCarrito', 'modalVerPedido']);
+window.cerrarModalPedido = () => cerrarModalPorId(['modalPedido', 'modalCarrito', 'modalVerPedido']);
+
+window.iniciarCheckout = iniciarCheckout;
+window.procesarPedido = iniciarCheckout;
+window.enviarPedidoWhatsApp = solicitarConfirmacionWhatsApp;
+window.solicitarConfirmacionWhatsApp = solicitarConfirmacionWhatsApp;
+
+window.verificarCedulaCliente = verificarCedulaCliente;
+window.verificarCedula = verificarCedulaCliente;
+window.registrarClienteWeb = registrarClienteWeb;
+window.registrarCliente = registrarClienteWeb;
+
+window.abrirModalSeleccionCantidad = abrirModalSeleccionCantidad;
+window.seleccionarProducto = abrirModalSeleccionCantidad;
+window.confirmarAgregarCarrito = confirmarAgregarCarrito;
+window.agregarAlCarrito = confirmarAgregarCarrito;
+
+window.modificarCantidadCarrito = modificarCantidadCarrito;
+window.eliminarItemCarrito = eliminarItemCarrito;
+window.vaciarCarrito = vaciarCarrito;
+window.vaciarPedido = vaciarCarrito;
+
+window.fijarGramosRapidos = fijarGramosRapidos;
+window.sumarGramosRapidos = sumarGramosRapidos;
+window.fijarUnidadesRapidas = fijarUnidadesRapidas;
+window.sumarUnidadesRapidas = sumarUnidadesRapidas;
+window.actualizarCalculoGramosModal = actualizarCalculoGramosModal;
+window.actualizarCalculoUnidadesModal = actualizarCalculoUnidadesModal;
+
+window.abrirZoomImagen = abrirZoomImagen;
+window.cerrarZoomImagen = cerrarZoomImagen;
+window.abrirZoom = abrirZoomImagen;
+window.cerrarZoom = cerrarZoomImagen;
+
+window.abrirModalLoginAdmin = abrirModalLoginAdmin;
+window.procesarLoginAdmin = procesarLoginAdmin;
+window.cerrarSesionAdmin = cerrarSesionAdmin;
+
+window.abrirPanelDeControlAdmin = abrirPanelDeControlAdmin;
+window.abrirModalNuevaCategoria = abrirModalNuevaCategoria;
+window.abrirModalRenombrarCategoria = abrirModalRenombrarCategoria;
+window.eliminarCategoriaAdmin = eliminarCategoriaAdmin;
+window.moverCategoriaOrden = moverCategoriaOrden;
+window.descargarRespaldoCatalogoJSON = descargarRespaldoCatalogoJSON;
+
+window.abrirModalNuevoProducto = abrirModalNuevoProducto;
+window.abrirModalEditor = abrirModalEditor;
+window.moverPosicionProducto = moverPosicionProducto;
+window.eliminarProductoAdmin = eliminarProductoAdmin;
+window.procesarImagenSeleccionada = procesarImagenSeleccionada;
+window.guardarCambiosProductoAdmin = guardarCambiosProductoAdmin;
+
+window.validarYGuardarTokenQR = validarYGuardarTokenQR;
+window.ejecutarGuardadoConTokenQR = validarYGuardarTokenQR;
