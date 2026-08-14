@@ -6,13 +6,19 @@
     <title>Mundocarnes - Módulo de Ventas</title>
     <!-- Favicon Oficial -->
     <link rel="icon" type="image/png" href="../img/MUNDOCARNE TRANSPARENTE.png">
+    
+    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Estilo Local Aislado -->
-    <link rel="stylesheet" href="style.css">
-    <!-- Configuración de App Instalable para Facturación -->
-    <link rel="manifest" href="manifest.json?v=1.0.2">
-    <meta name="theme-color" content="#dc3545">
+    <!-- Estilo Local POS Aislado -->
+    <link rel="stylesheet" href="style.css?v=2.5.0">
+    <!-- Configuración de App Instalable PWA -->
+    <link rel="manifest" href="manifest.json?v=1.0.3">
+    <meta name="theme-color" content="#0f172a">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Facturación">
@@ -29,48 +35,49 @@
         <form id="formLogin" onsubmit="procesarLoginFacturacion(event)">
           <div class="mb-3">
             <label for="facUsuario" class="form-label fw-bold small">Usuario:</label>
-            <input type="text" id="facUsuario" class="form-control border-dark" placeholder="Ingrese su usuario" required autocomplete="username">
+            <input type="text" id="facUsuario" class="form-control" placeholder="Ingrese su usuario" required autocomplete="username">
           </div>
           <div class="mb-4">
             <label for="facPassword" class="form-label fw-bold small">Contraseña:</label>
-            <input type="password" id="facPassword" class="form-control border-dark" placeholder="Ingrese su contraseña" required autocomplete="current-password">
+            <input type="password" id="facPassword" class="form-control" placeholder="Ingrese su contraseña" required autocomplete="current-password">
           </div>
-          <button type="submit" id="btnIngresarFac" class="btn btn-danger w-100 fw-bold border-dark">Ingresar al Sistema 🔐</button>
+          <button type="submit" id="btnIngresarFac" class="btn btn-danger w-100 fw-bold py-2 shadow-sm">Ingresar al Sistema 🔐</button>
         </form>
       </div>
     </div>
 
-    <!-- VISTA 2: Módulo de Ventas (Oculto hasta autenticarse) -->
+    <!-- VISTA 2: Módulo de Ventas Principal -->
     <div id="vistaFacturacion" class="hidden">
-      <!-- Navbar de Encabezado -->
+      <!-- Navbar Superior POS Unificada -->
       <nav class="admin-navbar d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div class="d-flex align-items-center">
           <img src="../img/LOGOTIPO MUNDOCARNES.jpg" alt="Logo Mundocarnes" class="logo-nav me-3">
           <span class="fw-bold fs-5 text-white">Módulo de Ventas</span>
         </div>
         <div class="d-flex align-items-center flex-wrap gap-2">
-          <!-- Indicador Dinámico de Estado de Sincronización y Red -->
-          <span id="badgeEstadoSync" class="badge bg-success fw-bold me-2 px-2 py-1" onclick="forzarSincronizacionManual()" style="cursor: pointer;" title="Haga clic para forzar sincronización con Supabase">🟢 Sincronizado</span>
-          <!-- Botón 1: Buscar / Historial (Amarillo) -->
+          <!-- Indicador Dinámico de Estado de Sincronización -->
+          <span id="badgeEstadoSync" class="badge bg-success fw-bold me-1" onclick="forzarSincronizacionManual()" style="cursor: pointer;" title="Haga clic para forzar sincronización con Supabase">🟢 Sincronizado</span>
+          
+          <!-- Botón 1: Buscar / Historial -->
           <button type="button" class="btn btn-nav-custom btn-nav-yellow" onclick="abrirModalBuscarFacturas()">
-            🔍 Buscar / Historial
+            🔍 Historial
           </button>
-          <!-- Botón 2: Cierre de Caja (Rojo) -->
+          <!-- Botón 2: Cierre de Caja -->
           <button type="button" class="btn btn-nav-custom btn-nav-red" onclick="abrirModalCierreCaja()">
-            🔒 Cierre de Caja
+            🔒 Cierre Caja
           </button>
-          <!-- Botón 3: Configuración de Productos (Azul) -->
+          <!-- Botón 3: Configuración de Productos -->
           <button type="button" class="btn btn-nav-custom btn-nav-blue me-2" onclick="abrirModalGestionCodigos()">
-            ⚙️ Configuración de Productos
+            ⚙️ Productos / PLU
           </button>
           <span id="usuarioActivo" class="me-2 small fw-bold text-light"></span>
-          <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="cerrarSesionFacturacion()">Cerrar Sesión 🚪</button>
+          <button type="button" class="btn btn-sm btn-outline-light fw-bold rounded-pill px-3" onclick="cerrarSesionFacturacion()">Salir 🚪</button>
         </div>
       </nav>
 
-      <!-- Panel Principal -->
-      <div class="container-fluid px-4">
-        <div class="row g-4">
+      <!-- Panel Principal de Ventas -->
+      <div class="container-fluid px-3 px-lg-4">
+        <div class="row g-3">
           <!-- Columna Izquierda: Catálogo Organizado por Categorías -->
           <div class="col-lg-8 col-xl-9">
             <ul class="nav nav-tabs mb-3" id="facturaTabs" role="tablist">
@@ -81,7 +88,7 @@
             </div>
           </div>
 
-          <!-- Columna Derecha: Resumen e Imprimir Factura (Detalle de Venta) -->
+          <!-- Columna Derecha: Detalle de Venta (Live Digital Register) -->
           <div class="col-lg-4 col-xl-3">
             <div class="panel-factura-resumen">
               <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
@@ -98,20 +105,22 @@
                 </div>
               </div>
 
-              <div id="contenedorListaFactura" class="table-responsive mb-3" style="max-height: 400px; overflow-y: auto;">
-                <p class="text-muted text-center py-3 small">No hay productos seleccionados.</p>
+              <!-- Lista Dinámica de Productos Seleccionados -->
+              <div id="contenedorListaFactura" class="table-responsive mb-3" style="max-height: 380px; overflow-y: auto;">
+                <p class="text-muted text-center py-4 small">No hay productos seleccionados.</p>
               </div>
               
-              <!-- Total USD -->
-              <div class="d-flex justify-content-between fw-bold fs-5 border-top pt-2 mb-3">
-                <span>TOTAL:</span>
-                <span id="montoTotalFactura" class="text-danger">$0.00</span>
+              <!-- Caja de Totales Duales ($ y Bs) en Vivo -->
+              <div class="caja-totales-pos text-end">
+                <div class="small fw-bold text-muted text-uppercase mb-1">Total a Cobrar:</div>
+                <div id="montoTotalFactura" class="monto-total-usd mb-1">$0.00</div>
+                <div id="montoTotalFacturaBs" class="monto-total-bs-sub">Bs. 0.00</div>
               </div>
 
-              <button type="button" class="btn btn-success btn-lg w-100 fw-bold border-dark mb-2" onclick="ejecutarFacturar()">Facturar 🧾</button>
+              <button type="button" class="btn btn-facturar-hero w-100 mb-2" onclick="ejecutarFacturar()">Facturar 🧾</button>
               
-              <!-- Botón Standby / Facturas en Espera debajo del botón Facturar -->
-              <button type="button" class="btn btn-warning btn-lg w-100 fw-bold border-dark text-dark" onclick="abrirModalFacturasEnEspera()">
+              <!-- Botón Standby / Facturas en Espera -->
+              <button type="button" class="btn btn-standby-pos w-100" onclick="abrirModalFacturasEnEspera()">
                 ⏳ Facturas en Espera (<span id="cntFacturasEnEspera">0</span>)
               </button>
             </div>
@@ -123,19 +132,19 @@
     <!-- Modal para Selección de Cantidad / Peso de Catálogo -->
     <div class="modal fade" id="modalFacturaCantidad" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-dark text-white">
+        <div class="modal-content">
+          <div class="modal-header">
             <h5 class="modal-title fw-bold">Agregar a Factura</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-body">
-            <p id="modalNombreProducto" class="fw-bold fs-5 mb-2"></p>
-            <p id="modalPrecioProducto" class="text-success fw-bold mb-3"></p>
+          <div class="modal-body p-4">
+            <p id="modalNombreProducto" class="fw-bold fs-5 mb-1 text-dark"></p>
+            <p id="modalPrecioProducto" class="text-danger fw-bold fs-5 mb-3"></p>
             
             <!-- Contenedor Unidades -->
             <div id="contFacUnidades" class="mb-3 hidden">
               <label class="form-label fw-bold">Cantidad (unidades):</label>
-              <input type="number" id="inputFacUnidades" class="form-control border-dark fw-bold text-center fs-5" min="1">
+              <input type="number" id="inputFacUnidades" class="form-control fw-bold text-center fs-5" min="1">
             </div>
 
             <!-- Contenedor Peso (Kg / Gramos) -->
@@ -143,11 +152,11 @@
               <div class="row g-2">
                 <div class="col-6">
                   <label class="form-label fw-bold">Kilogramos (Kg):</label>
-                  <input type="number" id="inputFacKg" class="form-control border-dark fw-bold text-center fs-5" min="0" step="1">
+                  <input type="number" id="inputFacKg" class="form-control fw-bold text-center fs-5" min="0" step="1">
                 </div>
                 <div class="col-6">
                   <label class="form-label fw-bold">Gramos (g):</label>
-                  <input type="number" id="inputFacGramos" class="form-control border-dark fw-bold text-center fs-5" min="0" step="50">
+                  <input type="number" id="inputFacGramos" class="form-control fw-bold text-center fs-5" min="0" step="50">
                 </div>
               </div>
             </div>
@@ -156,29 +165,29 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" class="btn btn-danger fw-bold" onclick="confirmarAgregarAFactura()">Agregar ✓</button>
+            <button type="button" class="btn btn-danger fw-bold px-4" onclick="confirmarAgregarAFactura()">Agregar ✓</button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- MODAL AGREGAR PRODUCTO MANUAL (FUERA DE CATÁLOGO) -->
+    <!-- MODAL AGREGAR PRODUCTO MANUAL -->
     <div class="modal fade" id="modalProductoManual" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-danger text-white">
+        <div class="modal-content">
+          <div class="modal-header">
             <h5 class="modal-title fw-bold">➕ Agregar Producto Manual</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-body">
+          <div class="modal-body p-4">
             <div class="mb-3">
               <label for="manualNombre" class="form-label fw-bold small">Nombre / Descripción del Producto *:</label>
-              <input type="text" id="manualNombre" class="form-control border-dark text-uppercase fw-bold" placeholder="Ej: HIELO 5KG / REFRESCO 2L">
+              <input type="text" id="manualNombre" class="form-control text-uppercase fw-bold" placeholder="Ej: HIELO 5KG / REFRESCO 2L">
             </div>
             
             <div class="mb-3">
               <label for="manualModoVenta" class="form-label fw-bold small">Modo de Venta *:</label>
-              <select id="manualModoVenta" class="form-select border-dark fw-bold" onchange="alternarCamposManual(this.value)">
+              <select id="manualModoVenta" class="form-select fw-bold" onchange="alternarCamposManual(this.value)">
                 <option value="unidades" selected>Unidades (uds)</option>
                 <option value="gramos">Peso por Gramos / Kg</option>
               </select>
@@ -188,11 +197,11 @@
             <div id="contManualUnidades" class="row g-2 mb-3">
               <div class="col-6">
                 <label for="manualPrecioUd" class="form-label fw-bold small">Precio por Ud ($) *:</label>
-                <input type="number" id="manualPrecioUd" class="form-control border-dark fw-bold text-center" step="0.01" min="0.01" placeholder="0.00">
+                <input type="number" id="manualPrecioUd" class="form-control fw-bold text-center" step="0.01" min="0.01" placeholder="0.00">
               </div>
               <div class="col-6">
                 <label for="manualCantUd" class="form-label fw-bold small">Cantidad (uds) *:</label>
-                <input type="number" id="manualCantUd" class="form-control border-dark fw-bold text-center" min="1" value="1">
+                <input type="number" id="manualCantUd" class="form-control fw-bold text-center" min="1" value="1">
               </div>
             </div>
 
@@ -200,21 +209,21 @@
             <div id="contManualPeso" class="row g-2 mb-3 hidden">
               <div class="col-12 mb-2">
                 <label for="manualPrecioKg" class="form-label fw-bold small">Precio por Kilo ($/Kg) *:</label>
-                <input type="number" id="manualPrecioKg" class="form-control border-dark fw-bold text-center" step="0.01" min="0.01" placeholder="0.00">
+                <input type="number" id="manualPrecioKg" class="form-control fw-bold text-center" step="0.01" min="0.01" placeholder="0.00">
               </div>
               <div class="col-6">
                 <label for="manualKg" class="form-label fw-bold small">Kilogramos (Kg):</label>
-                <input type="number" id="manualKg" class="form-control border-dark fw-bold text-center" min="0" step="1" placeholder="0">
+                <input type="number" id="manualKg" class="form-control fw-bold text-center" min="0" step="1" placeholder="0">
               </div>
               <div class="col-6">
                 <label for="manualGramos" class="form-label fw-bold small">Gramos (g):</label>
-                <input type="number" id="manualGramos" class="form-control border-dark fw-bold text-center" min="0" step="10" placeholder="0">
+                <input type="number" id="manualGramos" class="form-control fw-bold text-center" min="0" step="10" placeholder="0">
               </div>
             </div>
 
             <div id="errorModalManual" class="text-danger small fw-bold mt-2 hidden"></div>
           </div>
-          <div class="modal-footer bg-light">
+          <div class="modal-footer">
             <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
             <button type="button" class="btn btn-success fw-bold px-4" onclick="confirmarAgregarProductoManual()">Agregar a Factura ✓</button>
           </div>
@@ -222,66 +231,63 @@
       </div>
     </div>
 
-    <!-- MODAL FASE 2: Procesamiento e Impresión de Factura (PANTALLA COMPLETA) -->
+    <!-- MODAL DE COBRO Y PROCESAMIENTO (PANTALLA COMPLETA) -->
     <div class="modal fade" id="modalProcesarFactura" data-bs-backdrop="static" tabindex="-1" aria-labelledby="labelProcesarFactura" aria-hidden="true">
       <div class="modal-dialog modal-fullscreen">
         <div class="modal-content rounded-0">
-          <div class="modal-header bg-dark text-white rounded-0 d-flex justify-content-between align-items-center">
+          <div class="modal-header rounded-0 d-flex justify-content-between align-items-center">
             <h5 class="modal-title fw-bold" id="labelProcesarFactura">🧾 Procesar Recibo de Pago</h5>
             <div class="d-flex align-items-center gap-2">
-              <!-- Botón Retroceder subido al Header -->
-              <button type="button" class="btn btn-sm btn-secondary fw-bold" onclick="retrocederProcesoFactura()">
+              <button type="button" class="btn btn-sm btn-secondary fw-bold rounded-pill px-3" onclick="retrocederProcesoFactura()">
                 ⬅️ Retroceder
               </button>
-              <!-- Unico Botón Poner en Espera en el Header -->
-              <button type="button" class="btn btn-sm btn-warning fw-bold text-dark" onclick="ponerFacturaEnEspera()" title="Pausar y dejar en segundo plano">
+              <button type="button" class="btn btn-sm btn-warning fw-bold text-dark rounded-pill px-3" onclick="ponerFacturaEnEspera()" title="Pausar y dejar en segundo plano">
                 ⏸️ Poner en Espera
               </button>
-              <button type="button" class="btn-close btn-close-white" onclick="retrocederProcesoFactura()"></button>
+              <button type="button" class="btn-close btn-close-white ms-2" onclick="retrocederProcesoFactura()"></button>
             </div>
           </div>
           
           <div class="modal-body p-4 bg-light">
             
-            <!-- SECCIÓN 1: Tabla Resumen de Productos + Tasa BCV + Conmutador Moneda + Botones Manual/Códigos -->
+            <!-- SECCIÓN 1: Detalle de Productos + Tasa BCV + Conmutador Moneda -->
             <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2 flex-wrap gap-2">
               <div class="d-flex align-items-center gap-2">
-                <h6 class="fw-bold text-danger mb-0">1. Detalle de Productos Seleccionados</h6>
-                <button type="button" class="btn btn-sm btn-outline-danger fw-bold ms-2" onclick="abrirModalProductoManual()">
-                  + Producto Manual
+                <h6 class="fw-bold text-dark mb-0">1. Detalle de Productos</h6>
+                <button type="button" class="btn btn-sm btn-outline-danger fw-bold ms-2 rounded-pill" onclick="abrirModalProductoManual()">
+                  + Manual
                 </button>
-                <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="abrirModalCodigos()">
+                <button type="button" class="btn btn-sm btn-outline-primary fw-bold rounded-pill" onclick="abrirModalCodigos()">
                   📟 + Códigos
                 </button>
               </div>
               
               <div class="d-flex align-items-center gap-2">
-                <!-- Botón Conmutar Moneda ($ / Bs) -->
-                <button type="button" id="btnConmutarMoneda" class="btn btn-sm btn-outline-dark fw-bold" onclick="alternarMonedaTablaFactura()">
+                <button type="button" id="btnConmutarMoneda" class="btn btn-sm btn-outline-dark fw-bold rounded-pill" onclick="alternarMonedaTablaFactura()">
                   💱 Ver en Bolívares (Bs)
                 </button>
 
                 <!-- Cuadro Tasa BCV -->
-                <div class="d-flex align-items-center bg-white p-1 px-2 rounded border border-dark">
+                <div class="d-flex align-items-center bg-white p-1 px-3 rounded-pill border border-secondary shadow-sm">
                   <span class="fw-bold small me-2 text-danger">💵 Tasa BCV:</span>
-                  <input type="number" id="facTasaBCV" class="form-control form-control-sm border-dark fw-bold text-center me-2" style="width: 100px;" step="0.01" min="0" placeholder="0.00" oninput="actualizarCalculosBCV()">
+                  <input type="number" id="facTasaBCV" class="form-control form-control-sm fw-bold text-center me-2 border-0 bg-light" style="width: 90px;" step="0.01" min="0" placeholder="0.00" oninput="actualizarCalculosBCV()">
                   <span class="small fw-bold text-muted me-2">Bs/$</span>
                   <span class="small fw-bold text-dark me-1">Total Bs:</span>
-                  <span id="montoModalTotalFacturaBs" class="fw-bold text-primary fs-6">Bs. 0.00</span>
+                  <span id="montoModalTotalFacturaBs" class="fw-bold text-primary fs-6" style="font-family: 'JetBrains Mono', monospace;">Bs. 0.00</span>
                 </div>
               </div>
             </div>
 
-            <div class="table-responsive mb-4 bg-white rounded border">
-              <table class="table table-bordered align-middle mb-0">
+            <div class="table-responsive mb-4 bg-white rounded-3 border shadow-sm">
+              <table class="table table-hover align-middle mb-0">
                 <thead class="table-dark text-center">
                   <tr>
-                    <th style="width: 70px;">Item</th>
+                    <th style="width: 60px;">Item</th>
                     <th>Producto</th>
                     <th style="width: 160px;">Precio Base</th>
                     <th style="width: 220px;">Cantidad / Peso</th>
                     <th style="width: 160px;">Subtotal</th>
-                    <th style="width: 60px;">Acción</th>
+                    <th style="width: 50px;">Acción</th>
                   </tr>
                 </thead>
                 <tbody id="tablaModalResumenProductos">
@@ -291,22 +297,27 @@
                   <tr>
                     <td colspan="4" class="text-end fw-bold fs-5 align-middle" id="labelModalTotalFactura">TOTAL FACTURA ($):</td>
                     <td colspan="2" class="text-end align-middle">
-                      <div class="fw-bold fs-5 text-danger" id="montoModalTotalFactura">$0.00</div>
+                      <div class="fw-bold fs-4 text-danger" id="montoModalTotalFactura" style="font-family: 'JetBrains Mono', monospace;">$0.00</div>
                     </td>
                   </tr>
                 </tfoot>
               </table>
             </div>
 
-            <!-- SECCIÓN 2: Módulo de Cliente -->
-            <h6 class="fw-bold text-danger border-bottom pb-2 mb-3">2. Datos del Cliente</h6>
-            <div class="card p-3 bg-white border-secondary mb-4">
-              
+            <!-- SECCIÓN 2: Módulo de Cliente con Botón Rápido Consumidor Final -->
+            <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+              <h6 class="fw-bold text-dark mb-0">2. Datos del Cliente</h6>
+              <button type="button" class="btn btn-sm btn-outline-success fw-bold rounded-pill" onclick="seleccionarConsumidorFinal()">
+                ⚡ Consumidor Final (V-00000000)
+              </button>
+            </div>
+
+            <div class="card p-3 bg-white border mb-4 shadow-sm">
               <!-- Búsqueda de Cédula/RIF -->
               <div class="row g-2 align-items-end mb-3">
                 <div class="col-md-5 col-lg-4">
                   <label for="facCedulaBuscar" class="form-label fw-bold small mb-1">Cédula / RIF del Cliente:</label>
-                  <input type="text" id="facCedulaBuscar" class="form-control border-dark text-uppercase" placeholder="Ej: V12345678 o J123456789">
+                  <input type="text" id="facCedulaBuscar" class="form-control text-uppercase" placeholder="Ej: V12345678 o J123456789">
                 </div>
                 <div class="col-md-3 col-lg-2">
                   <button type="button" id="btnBuscarClienteFac" class="btn btn-dark w-100 fw-bold" onclick="buscarClienteFactura()">
@@ -350,19 +361,19 @@
                 <div class="row g-2">
                   <div class="col-md-3">
                     <label class="form-label small fw-bold mb-0">Cédula / RIF *:</label>
-                    <input type="text" id="facRegCedula" class="form-control form-control-sm border-dark text-uppercase" required>
+                    <input type="text" id="facRegCedula" class="form-control form-control-sm text-uppercase" required>
                   </div>
                   <div class="col-md-4">
                     <label class="form-label small fw-bold mb-0">Nombre / Razón Social *:</label>
-                    <input type="text" id="facRegNombre" class="form-control form-control-sm border-dark text-uppercase" placeholder="Nombre completo" required>
+                    <input type="text" id="facRegNombre" class="form-control form-control-sm text-uppercase" placeholder="Nombre completo" required>
                   </div>
                   <div class="col-md-2">
                     <label class="form-label small fw-bold mb-0">Teléfono:</label>
-                    <input type="text" id="facRegTelefono" class="form-control form-control-sm border-dark" placeholder="04121234567">
+                    <input type="text" id="facRegTelefono" class="form-control form-control-sm" placeholder="04121234567">
                   </div>
                   <div class="col-md-3">
                     <label class="form-label small fw-bold mb-0">Dirección:</label>
-                    <input type="text" id="facRegDireccion" class="form-control form-control-sm border-dark" placeholder="Ciudad / Sector">
+                    <input type="text" id="facRegDireccion" class="form-control form-control-sm" placeholder="Ciudad / Sector">
                   </div>
                 </div>
                 <div class="text-end mt-3">
@@ -371,15 +382,14 @@
                   </button>
                 </div>
               </div>
-
             </div>
 
-            <!-- SECCIÓN 3: Forma de Pago con Botones Cuadrados e Imágenes -->
-            <h6 class="fw-bold text-danger border-bottom pb-2 mb-3">3. Forma de Pago</h6>
+            <!-- SECCIÓN 3: Mosaico de Formas de Pago -->
+            <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">3. Forma de Pago</h6>
             <div class="mb-4">
               <label class="form-label fw-bold small mb-2">Seleccione Método de Pago *:</label>
 
-              <!-- Grid de Botones Cuadrados de Métodos de Pago -->
+              <!-- Grid de Tiles Cuadrados de Pago -->
               <div class="grid-metodos-pago mb-3">
                 <button type="button" class="btn-metodo-pago" data-metodo="Efectivo Bolívares" onclick="seleccionarMetodoPagoBoton('Efectivo Bolívares', this)">
                   <img src="../img/BOLIVARES.png" alt="Efectivo Bolívares">
@@ -427,14 +437,14 @@
                 </button>
               </div>
 
-              <!-- Campo oculto para almacenar el método seleccionado -->
+              <!-- Campo oculto del método seleccionado -->
               <input type="hidden" id="facFormaPagoSelect" value="">
 
-              <!-- Contenedor Dinámico para Pago Mixto / Cashea -->
-              <div id="contenedorPagoMixto" class="mt-3 p-3 border border-dark rounded bg-white hidden">
+              <!-- Contenedor de Pago Mixto / Cashea -->
+              <div id="contenedorPagoMixto" class="mt-3 p-3 border rounded-3 bg-white shadow-sm hidden">
                 <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
                   <span class="fw-bold text-dark small" id="tituloDesglosePago">🔀 Desglose de Pago:</span>
-                  <button type="button" id="btnAgregarLineaMixto" class="btn btn-sm btn-outline-danger fw-bold" onclick="agregarLineaPagoMixto()">
+                  <button type="button" id="btnAgregarLineaMixto" class="btn btn-sm btn-outline-danger fw-bold rounded-pill" onclick="agregarLineaPagoMixto()">
                     + Agregar Forma de Pago
                   </button>
                 </div>
@@ -442,23 +452,23 @@
                 <div id="listaFilasPagoMixto"></div>
 
                 <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top fw-bold" style="font-size: 0.95rem;">
-                  <span>Total Factura: <span id="montoEsperadoMixto" class="text-danger" style="font-size: 150%;">$0.00</span></span>
-                  <span>Asignado: <span id="montoAsignadoMixto" class="text-primary" style="font-size: 150%;">$0.00</span></span>
-                  <span>Restante: <span id="montoRestanteMixto" class="text-warning" style="font-size: 150%;">$0.00</span></span>
+                  <span>Total Factura: <span id="montoEsperadoMixto" class="text-danger" style="font-size: 140%; font-family: 'JetBrains Mono', monospace;">$0.00</span></span>
+                  <span>Asignado: <span id="montoAsignadoMixto" class="text-primary" style="font-size: 140%; font-family: 'JetBrains Mono', monospace;">$0.00</span></span>
+                  <span>Restante: <span id="montoRestanteMixto" class="text-warning" style="font-size: 140%; font-family: 'JetBrains Mono', monospace;">$0.00</span></span>
                 </div>
               </div>
 
             </div>
 
-          </div><!-- CIERRE DE modal-body -->
+          </div>
 
-          <!-- FOOTER: Controles de Navegación -->
+          <!-- FOOTER DE PROCESAMIENTO -->
           <div class="modal-footer bg-white border-top justify-content-between p-3">
-            <button type="button" class="btn btn-outline-danger fw-bold" onclick="cancelarProcesoFactura()">
+            <button type="button" class="btn btn-outline-danger fw-bold rounded-pill px-4" onclick="cancelarProcesoFactura()">
               🚫 Cancelar Selección
             </button>
             <div>
-              <button type="button" id="btnEmitirFacturaFinal" class="btn btn-success fw-bold px-4 fs-5" onclick="emitirFacturaFinal()">
+              <button type="button" id="btnEmitirFacturaFinal" class="btn btn-success fw-bold px-5 py-2 fs-5 rounded-pill shadow" onclick="emitirFacturaFinal()">
                 🧾 Emitir Factura
               </button>
             </div>
@@ -468,20 +478,20 @@
       </div>
     </div>
 
-    <!-- MODAL FACTURAS EN ESPERA (STANDBY / MINIMIZADAS) -->
+    <!-- MODAL FACTURAS EN ESPERA -->
     <div class="modal fade" id="modalFacturasEnEspera" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-warning text-dark">
+        <div class="modal-content">
+          <div class="modal-header">
             <h5 class="modal-title fw-bold">⏳ Facturas en Espera (Standby)</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4 bg-light">
             <div class="alert alert-dark border-secondary mb-3 small">
               <strong>ℹ️ Transacciones Pausadas:</strong> Seleccione <strong>"Reanudar"</strong> para retomar la factura minimizada o <strong>"Eliminar"</strong> para descartarla.
             </div>
 
-            <div class="table-responsive bg-white rounded border mb-2" style="max-height: 350px; overflow-y: auto;">
+            <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 350px; overflow-y: auto;">
               <table class="table table-hover align-middle mb-0">
                 <thead class="table-dark small text-center">
                   <tr>
@@ -502,7 +512,7 @@
             </div>
           </div>
           <div class="modal-footer bg-white">
-            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cerrar</button>
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cerrar</button>
           </div>
         </div>
       </div>
@@ -511,8 +521,8 @@
     <!-- MODAL VISTA PREVIA E IMPRESIÓN DE TICKET TÉRMICO -->
     <div class="modal fade" id="modalVistaPreviaFactura" data-bs-backdrop="static" tabindex="-1" aria-labelledby="labelVistaPrevia" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-dark text-white">
+        <div class="modal-content">
+          <div class="modal-header">
             <h5 class="modal-title fw-bold" id="labelVistaPrevia">🔍 Vista Previa del Ticket Térmico</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
@@ -522,17 +532,16 @@
               ¿Está seguro de que desea registrar y emitir esta factura?
             </div>
 
-            <!-- Contenedor de Vista Previa en Pantalla -->
             <div id="vistaPreviaTicketModal" class="d-flex justify-content-center">
               <!-- Inyectado Dinámicamente -->
             </div>
           </div>
 
           <div class="modal-footer bg-light justify-content-between">
-            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">
-              ⬅️ Cancelar / Volver
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">
+              ⬅️ Volver
             </button>
-            <button type="button" id="btnConfirmarEmisionFinal" class="btn btn-success fw-bold px-4 fs-5" onclick="confirmarEImprimirFactura()">
+            <button type="button" id="btnConfirmarEmisionFinal" class="btn btn-success fw-bold px-4 fs-5 rounded-pill shadow-sm" onclick="confirmarEImprimirFactura()">
               🖨️ Confirmar y Facturar
             </button>
           </div>
@@ -540,30 +549,30 @@
       </div>
     </div>
 
-    <!-- MODAL CIERRE DE CAJA - PASO 1: REGISTRO DE SALDO INICIAL Y ACCIONES DE CAJA -->
+    <!-- MODAL CIERRE DE CAJA - PASO 1 -->
     <div class="modal fade" id="modalCierreCajaPaso1" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-danger text-white">
+        <div class="modal-content">
+          <div class="modal-header">
             <h5 class="modal-title fw-bold">🔒 Cierre de Caja - Registro Inicial</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4 bg-light">
-            <div class="alert alert-dark border-dark mb-3">
+            <div class="alert alert-dark mb-3 shadow-sm">
               <div class="fw-bold fs-6 text-warning mb-1" id="cierreUsuarioNombre">👤 Cajero: CERRANDO SESIÓN...</div>
               <small class="text-white-50">Ingrese los montos en efectivo presentes en caja al iniciar la jornada / turno.</small>
             </div>
 
-            <!-- DOS BOTONES PRINCIPALES DE GESTIÓN DE CAJA -->
+            <!-- Dos Botones Principales -->
             <div class="row g-2 mb-3">
               <div class="col-12 col-md-6">
-                <button type="button" class="btn btn-dark w-100 fw-bold border-dark py-2 text-wrap" onclick="abrirModalMovimientosEfectivo()">
-                  💸 Reg. Movimiento de Efectivo
+                <button type="button" class="btn btn-dark w-100 fw-bold py-2 rounded-pill shadow-sm" onclick="abrirModalMovimientosEfectivo()">
+                  💸 Reg. Movimiento
                 </button>
               </div>
               <div class="col-12 col-md-6">
-                <button type="button" class="btn btn-warning text-dark w-100 fw-bold border-dark py-2 text-wrap" onclick="abrirModalHistorialCierres()">
-                  📜 Historial Cierres de Caja
+                <button type="button" class="btn btn-warning text-dark w-100 fw-bold py-2 rounded-pill shadow-sm" onclick="abrirModalHistorialCierres()">
+                  📜 Historial Cierres
                 </button>
               </div>
             </div>
@@ -571,24 +580,24 @@
             <div class="mb-3">
               <label for="cierreInicialUSD" class="form-label fw-bold">💵 Efectivo Inicial en Divisas ($):</label>
               <div class="input-group">
-                <span class="input-group-text border-dark bg-white fw-bold">$</span>
-                <input type="number" id="cierreInicialUSD" class="form-control border-dark fw-bold fs-5 text-center text-success" step="0.01" min="0" placeholder="0.00" value="0.00">
+                <span class="input-group-text bg-white fw-bold">$</span>
+                <input type="number" id="cierreInicialUSD" class="form-control fw-bold fs-5 text-center text-success" step="0.01" min="0" placeholder="0.00" value="0.00">
               </div>
             </div>
 
             <div class="mb-3">
               <label for="cierreInicialBS" class="form-label fw-bold">🇻🇪 Efectivo Inicial en Bolívares (Bs):</label>
               <div class="input-group">
-                <span class="input-group-text border-dark bg-warning text-dark fw-bold">Bs</span>
-                <input type="number" id="cierreInicialBS" class="form-control border-dark fw-bold fs-5 text-center text-primary" step="0.01" min="0" placeholder="0.00" value="0.00">
+                <span class="input-group-text bg-warning text-dark fw-bold">Bs</span>
+                <input type="number" id="cierreInicialBS" class="form-control fw-bold fs-5 text-center text-primary" step="0.01" min="0" placeholder="0.00" value="0.00">
               </div>
             </div>
 
             <div id="errorModalCierrePaso1" class="text-danger small fw-bold mt-2 hidden"></div>
           </div>
           <div class="modal-footer bg-white justify-content-between">
-            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" id="btnSiguienteCierreCaja" class="btn btn-danger fw-bold px-4" onclick="procesarSiguienteCierreCaja()">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnSiguienteCierreCaja" class="btn btn-danger fw-bold px-4 rounded-pill shadow-sm" onclick="procesarSiguienteCierreCaja()">
               Siguiente ➡️
             </button>
           </div>
@@ -596,11 +605,11 @@
       </div>
     </div>
 
-    <!-- MODAL REGISTRO DE MOVIMIENTOS DE EFECTIVO (INGRESOS / EGRESOS / VALE DE CAJA) -->
+    <!-- MODAL MOVIMIENTOS DE EFECTIVO -->
     <div class="modal fade" id="modalMovimientosEfectivo" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-dark text-white">
+        <div class="modal-content">
+          <div class="modal-header">
             <h5 class="modal-title fw-bold">💸 Registro de Movimientos de Efectivo</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
@@ -609,73 +618,73 @@
             <div class="row g-2 mb-3">
               <div class="col-md-6">
                 <label for="movTipoSelect" class="form-label fw-bold small">Tipo de Movimiento *:</label>
-                <select id="movTipoSelect" class="form-select border-dark fw-bold" onchange="evaluarTipoMovimiento(this.value)">
+                <select id="movTipoSelect" class="form-select fw-bold" onchange="evaluarTipoMovimiento(this.value)">
                   <option value="INGRESO" selected>🟢 INGRESO (+)</option>
                   <option value="RETIRO">🔴 EGRESO (-)</option>
                 </select>
               </div>
               <div class="col-md-6">
                 <label for="movMonedaSelect" class="form-label fw-bold small">Moneda de Efectivo *:</label>
-                <select id="movMonedaSelect" class="form-select border-dark fw-bold">
+                <select id="movMonedaSelect" class="form-select fw-bold">
                   <option value="USD" selected>💵 Efectivo Divisas ($)</option>
                   <option value="BS">🇻🇪 Efectivo Bolívares (Bs)</option>
                 </select>
               </div>
             </div>
 
-            <!-- Campo Condicional de Subtipo (Solo cuando Tipo == RETIRO / EGRESO) -->
+            <!-- Campo Subtipo -->
             <div id="contMovSubtipo" class="mb-3 hidden">
               <label for="movSubtipoSelect" class="form-label fw-bold small">Modo de Egreso *:</label>
-              <select id="movSubtipoSelect" class="form-select border-dark fw-bold" onchange="evaluarSubtipoMovimiento(this.value)">
+              <select id="movSubtipoSelect" class="form-select fw-bold" onchange="evaluarSubtipoMovimiento(this.value)">
                 <option value="MANUAL" selected>📝 Registro Manual</option>
                 <option value="VALE">🎟️ Vale de Caja (Adelanto de Sueldo)</option>
               </select>
             </div>
 
-            <!-- Campo Monto del Movimiento -->
+            <!-- Monto -->
             <div class="mb-3" id="contMovMonto">
               <label for="movMontoInput" class="form-label fw-bold small">Monto del Movimiento *:</label>
-              <input type="number" id="movMontoInput" class="form-control border-dark fw-bold fs-5 text-center" step="0.01" min="0.01" placeholder="0.00">
+              <input type="number" id="movMontoInput" class="form-control fw-bold fs-5 text-center" step="0.01" min="0.01" placeholder="0.00">
             </div>
 
-            <!-- Campo Concepto Tradicional (Manual) -->
+            <!-- Concepto Manual -->
             <div class="mb-3" id="contMovConceptoManual">
               <label for="movConceptoInput" class="form-label fw-bold small">Concepto / Motivo de Movimiento *:</label>
-              <input type="text" id="movConceptoInput" class="form-control border-dark text-uppercase fw-bold" placeholder="Ej: CAMBIO SENCILLO, GASTO OPERATIVO...">
+              <input type="text" id="movConceptoInput" class="form-control text-uppercase fw-bold" placeholder="Ej: CAMBIO SENCILLO, GASTO OPERATIVO...">
             </div>
 
-            <!-- Formulario Extendido VALE DE CAJA (Se muestra únicamente cuando Subtipo == VALE) -->
-            <div id="contMovValeCaja" class="p-3 bg-white border border-danger rounded mb-3 hidden">
+            <!-- Vale de Caja Extendido -->
+            <div id="contMovValeCaja" class="p-3 bg-white border border-danger rounded-3 mb-3 shadow-sm hidden">
               <h6 class="fw-bold text-danger border-bottom pb-2 mb-3">🎟️ Formulario de Vale de Caja / Adelanto de Sueldo</h6>
               
               <div class="row g-2 mb-2">
                 <div class="col-md-7">
                   <label for="valeEmpleadoNombre" class="form-label fw-bold small mb-1">Nombre y Apellido del Empleado *:</label>
-                  <input type="text" id="valeEmpleadoNombre" class="form-control form-control-sm border-dark text-uppercase fw-bold" placeholder="Ej: JUAN PÉREZ">
+                  <input type="text" id="valeEmpleadoNombre" class="form-control form-control-sm text-uppercase fw-bold" placeholder="Ej: JUAN PÉREZ">
                 </div>
                 <div class="col-md-5">
                   <label for="valeEmpleadoCedula" class="form-label fw-bold small mb-1">Número de Cédula *:</label>
-                  <input type="text" id="valeEmpleadoCedula" class="form-control form-control-sm border-dark text-uppercase fw-bold" placeholder="Ej: V12345678">
+                  <input type="text" id="valeEmpleadoCedula" class="form-control form-control-sm text-uppercase fw-bold" placeholder="Ej: V12345678">
                 </div>
               </div>
 
               <div class="mb-2">
                 <label for="valeMotivo" class="form-label fw-bold small mb-1">Motivo del Vale *:</label>
-                <input type="text" id="valeMotivo" class="form-control form-control-sm border-dark text-uppercase fw-bold" placeholder="Ej: ADELANTO DE SUELDO QUINCENAL / EMERGENCIA">
+                <input type="text" id="valeMotivo" class="form-control form-control-sm text-uppercase fw-bold" placeholder="Ej: ADELANTO DE SUELDO QUINCENAL">
               </div>
 
               <div class="row g-2 mb-2">
                 <div class="col-md-6">
-                  <label for="valeCuotas" class="form-label fw-bold small mb-1">Cantidad de Cuotas a Descontar *:</label>
-                  <select id="valeCuotas" class="form-select form-select-sm border-dark fw-bold">
-                    <option value="1" selected>1 Cuota (Descuento Único)</option>
+                  <label for="valeCuotas" class="form-label fw-bold small mb-1">Cuotas a Descontar *:</label>
+                  <select id="valeCuotas" class="form-select form-select-sm fw-bold">
+                    <option value="1" selected>1 Cuota (Única)</option>
                     <option value="2">2 Cuotas</option>
                     <option value="3">3 Cuotas</option>
                   </select>
                 </div>
                 <div class="col-md-6">
                   <label for="valeAutorizadoPor" class="form-label fw-bold small mb-1">Autorizado por *:</label>
-                  <input type="text" id="valeAutorizadoPor" class="form-control form-control-sm border-dark text-uppercase fw-bold" placeholder="Ej: GERENCIA / ADMINISTRACIÓN">
+                  <input type="text" id="valeAutorizadoPor" class="form-control form-control-sm text-uppercase fw-bold" placeholder="Ej: GERENCIA">
                 </div>
               </div>
             </div>
@@ -683,16 +692,15 @@
             <div id="errorModalMovEfectivo" class="text-danger small fw-bold mb-3 hidden"></div>
 
             <div class="d-flex justify-content-between gap-2 mb-3">
-              <button type="button" id="btnGuardarMovimientoEfectivo" class="btn btn-success fw-bold px-4 border-dark" onclick="registrarMovimientoEfectivo()">
+              <button type="button" id="btnGuardarMovimientoEfectivo" class="btn btn-success fw-bold px-4 rounded-pill shadow-sm" onclick="registrarMovimientoEfectivo()">
                 💾 Registrar Movimiento
               </button>
-              <button type="button" class="btn btn-outline-dark fw-bold px-3" onclick="alternarTablaMovimientosDia()">
+              <button type="button" class="btn btn-outline-dark fw-bold px-3 rounded-pill" onclick="alternarTablaMovimientosDia()">
                 👁️ Ver Movimientos del Día
               </button>
             </div>
 
-            <!-- Tabla de Registros del Día (Con columna de Acción para Eliminar) -->
-            <div id="contenedorTablaMovimientosDia" class="table-responsive bg-white rounded border hidden mb-2" style="max-height: 200px; overflow-y: auto;">
+            <div id="contenedorTablaMovimientosDia" class="table-responsive bg-white rounded-3 border hidden mb-2 shadow-sm" style="max-height: 200px; overflow-y: auto;">
               <table class="table table-sm table-hover align-middle mb-0">
                 <thead class="table-dark small text-center">
                   <tr>
@@ -704,31 +712,28 @@
                     <th style="width: 50px;">Acción</th>
                   </tr>
                 </thead>
-                <tbody id="tablaMovimientosDiaCaja" class="small">
-                  <!-- Inyectado Dinámicamente -->
-                </tbody>
+                <tbody id="tablaMovimientosDiaCaja" class="small"></tbody>
               </table>
             </div>
 
           </div>
           <div class="modal-footer bg-white">
-            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Volver al Cierre</button>
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Volver</button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- MODAL HISTORIAL Y REIMPRESIÓN DE CIERRES DE CAJA -->
+    <!-- MODAL HISTORIAL DE CIERRES -->
     <div class="modal fade" id="modalHistorialCierres" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-dark text-white">
+        <div class="modal-content">
+          <div class="modal-header">
             <h5 class="modal-title fw-bold">📜 Historial de Cierres de Caja (Reportes Z)</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4 bg-light">
-            
-            <div class="table-responsive bg-white rounded border mb-2" style="max-height: 380px; overflow-y: auto;">
+            <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
               <table class="table table-hover align-middle mb-0">
                 <thead class="table-dark small text-center">
                   <tr>
@@ -747,42 +752,33 @@
                 </tbody>
               </table>
             </div>
-
           </div>
           <div class="modal-footer bg-white">
-            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Volver al Cierre</button>
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Volver</button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- MODAL CIERRE DE CAJA - PASO 2: PREVISUALIZACIÓN Y CONFIRMACIÓN -->
+    <!-- MODAL CIERRE PASO 2 -->
     <div class="modal fade" id="modalCierreCajaPaso2" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-dark text-white">
-            <h5 class="modal-title fw-bold">🧾 Previsualización de Recibo de Cierre (Z)</h5>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold">🧾 Previsualización de Reporte Z</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-
           <div class="modal-body p-3 bg-light text-center">
-            
             <div class="alert alert-warning border-dark text-center fw-bold mb-3 fs-5">
               ¿Está seguro de que desea realizar el cierre de caja?
             </div>
-
-            <!-- Previsualización del Recibo en Pantalla -->
-            <div id="vistaPreviaCierreCajaModal" class="d-flex justify-content-center">
-              <!-- Inyectado Dinámicamente -->
-            </div>
-
+            <div id="vistaPreviaCierreCajaModal" class="d-flex justify-content-center"></div>
           </div>
-
           <div class="modal-footer bg-white justify-content-between p-3">
-            <button type="button" class="btn btn-outline-secondary fw-bold px-4" data-bs-dismiss="modal">
+            <button type="button" class="btn btn-outline-secondary fw-bold px-4 rounded-pill" data-bs-dismiss="modal">
               🚫 Cancelar
             </button>
-            <button type="button" id="btnConfirmarCierreFinal" class="btn btn-danger fw-bold px-4 fs-5" onclick="confirmarEImprimirCierreCaja()">
+            <button type="button" id="btnConfirmarCierreFinal" class="btn btn-danger fw-bold px-4 fs-5 rounded-pill shadow-sm" onclick="confirmarEImprimirCierreCaja()">
               🔒 Realizar Cierre
             </button>
           </div>
@@ -790,32 +786,30 @@
       </div>
     </div>
 
-    <!-- MODAL GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS (CÓDIGOS, PRECIOS Y DISPONIBILIDAD) -->
+    <!-- MODAL GESTIÓN DE PRODUCTOS / PLU -->
     <div class="modal fade" id="modalGestionCodigos" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-info text-dark">
-            <h5 class="modal-title fw-bold">⚙️ Configuración de Productos</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold">⚙️ Configuración de Productos y Balanza PLU</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4 bg-light">
-            
-            <div class="alert alert-dark border-secondary mb-3 small">
-              <strong>ℹ️ Instrucciones:</strong> Modifique los códigos PLU, precios o disponibilidad de cada producto. La lista se muestra **ordenada de menor a mayor por código PLU**. Al guardar, los cambios se sincronizarán en tiempo real con el catálogo web (`mundocarnes.com.ve`), el Modo Editor (`/admin`) y el sistema de Facturación.
+            <div class="alert alert-dark mb-3 small shadow-sm">
+              <strong>ℹ️ Instrucciones:</strong> Modifique los códigos PLU, precios o disponibilidad de cada producto. Al guardar, los cambios se sincronizarán en tiempo real con el catálogo web (`mundocarnes.com.ve`), el Modo Editor (`/admin`) y Facturación.
             </div>
 
-            <!-- Filtro de Búsqueda Rápida -->
-            <div class="row g-2 align-items-center mb-3 bg-white p-2 rounded border">
+            <!-- Filtro de Búsqueda -->
+            <div class="row g-2 align-items-center mb-3 bg-white p-2 rounded-3 border shadow-sm">
               <div class="col-md-6 col-lg-8">
-                <input type="text" id="facFiltroCodigosInput" class="form-control border-dark fw-bold" placeholder="🔍 Buscar por nombre de producto o código PLU..." oninput="filtrarTablaCodigos(this.value)">
+                <input type="text" id="facFiltroCodigosInput" class="form-control fw-bold" placeholder="🔍 Buscar por nombre de producto o código PLU..." oninput="filtrarTablaCodigos(this.value)">
               </div>
               <div class="col-md-6 col-lg-4 text-end">
                 <span class="badge bg-dark fs-6" id="cntTotalProductosCodigos">Total: 0 Productos</span>
               </div>
             </div>
 
-            <!-- Tabla Resumen de Productos, Precios y Códigos -->
-            <div class="table-responsive bg-white rounded border mb-2" style="max-height: 420px; overflow-y: auto;">
+            <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 420px; overflow-y: auto;">
               <table class="table table-hover table-striped align-middle mb-0">
                 <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
                   <tr>
@@ -827,18 +821,15 @@
                     <th style="width: 130px;">Precio ($)</th>
                   </tr>
                 </thead>
-                <tbody id="tablaGestionCodigos" class="small">
-                  <!-- Inyectado Dinámicamente -->
-                </tbody>
+                <tbody id="tablaGestionCodigos" class="small"></tbody>
               </table>
             </div>
 
             <div id="errorModalGestionCodigos" class="text-danger small fw-bold mt-2 hidden"></div>
-
           </div>
           <div class="modal-footer bg-white justify-content-between p-3">
-            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" id="btnGuardarCodigosPLU" class="btn btn-success fw-bold px-4 fs-5" onclick="guardarTodosLosCodigosPLU()">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnGuardarCodigosPLU" class="btn btn-success fw-bold px-4 fs-5 rounded-pill shadow-sm" onclick="guardarTodosLosCodigosPLU()">
               💾 Guardar Todos los Cambios
             </button>
           </div>
@@ -846,41 +837,38 @@
       </div>
     </div>
     
-    <!-- MODAL BÚSQUEDA Y HISTORIAL DE FACTURAS -->
+    <!-- MODAL HISTORIAL Y BÚSQUEDA DE FACTURAS -->
     <div class="modal fade" id="modalBuscarFacturas" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-dark text-white">
-            <h5 class="modal-title fw-bold">🔍 Historial y Búsqueda de Facturas Emitidas</h5>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold">🔍 Historial y Búsqueda de Facturas</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4 bg-light">
-            
-            <!-- Búsqueda, Botón Últimas 10 y Botón Descargar Registro -->
-            <div class="row g-2 align-items-end mb-4 bg-white p-3 rounded border">
+            <div class="row g-2 align-items-end mb-4 bg-white p-3 rounded-3 border shadow-sm">
               <div class="col-md-5 col-lg-5">
-                <label for="facBusquedaInput" class="form-label fw-bold small mb-1">Cédula / RIF, Nombre o N° de Factura:</label>
-                <input type="text" id="facBusquedaInput" class="form-control border-dark text-uppercase fw-bold" placeholder="Ej: V19255985 o 001-00008..." onkeyup="if(event.key==='Enter') buscarFacturasHistorial('busqueda')">
+                <label for="facBusquedaInput" class="form-label fw-bold small mb-1">Cédula / RIF, Nombre o N° Factura:</label>
+                <input type="text" id="facBusquedaInput" class="form-control text-uppercase fw-bold" placeholder="Ej: V19255985 o 001-00008..." onkeyup="if(event.key==='Enter') buscarFacturasHistorial('busqueda')">
               </div>
               <div class="col-md-2 col-lg-2">
-                <button type="button" class="btn btn-dark w-100 fw-bold" onclick="buscarFacturasHistorial('busqueda')">
+                <button type="button" class="btn btn-dark w-100 fw-bold rounded-pill" onclick="buscarFacturasHistorial('busqueda')">
                   🔍 Buscar
                 </button>
               </div>
               <div class="col-md-2 col-lg-2">
-                <button type="button" class="btn btn-warning w-100 fw-bold border-dark text-dark" onclick="buscarFacturasHistorial('ultimas10')">
+                <button type="button" class="btn btn-warning w-100 fw-bold text-dark rounded-pill" onclick="buscarFacturasHistorial('ultimas10')">
                   🕒 Últimas 10
                 </button>
               </div>
               <div class="col-md-3 col-lg-3">
-                <button type="button" class="btn btn-success w-100 fw-bold border-dark" onclick="abrirModalFiltroDescarga()">
-                  📥 Descargar Registro
+                <button type="button" class="btn btn-success w-100 fw-bold rounded-pill" onclick="abrirModalFiltroDescarga()">
+                  📥 Descargar Excel
                 </button>
               </div>
             </div>
 
-            <!-- Tabla Resumen de Facturas -->
-            <div class="table-responsive bg-white rounded border mb-2" style="max-height: 380px; overflow-y: auto;">
+            <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
               <table class="table table-hover align-middle mb-0">
                 <thead class="table-dark small text-center">
                   <tr>
@@ -900,36 +888,31 @@
                 </tbody>
               </table>
             </div>
-
           </div>
           <div class="modal-footer bg-white">
-            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cerrar</button>
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cerrar</button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- MODAL DESCARGA Y FILTRO DE REGISTRO EN EXCEL (.XLSX) -->
+    <!-- MODAL DESCARGA EXCEL -->
     <div class="modal fade" id="modalFiltroDescarga" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-success text-white">
-            <h5 class="modal-title fw-bold">📥 Descargar Registro de Facturas (.xlsx)</h5>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold">📥 Descargar Registro en Excel (.xlsx)</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4 bg-light">
-            <div class="alert alert-dark border-dark mb-3 small">
-              <strong>ℹ️ Instrucciones:</strong> Seleccione la fecha requerida. Puede descargar la totalidad de las facturas de ese día o filtrar por un método de pago específico (e.g., Cashea+, Pago Móvil, etc.).
-            </div>
-
             <div class="mb-3">
               <label for="descargaFechaInput" class="form-label fw-bold">📅 Fecha Requerida *:</label>
-              <input type="date" id="descargaFechaInput" class="form-control border-dark fw-bold fs-5 text-center">
+              <input type="date" id="descargaFechaInput" class="form-control fw-bold fs-5 text-center">
             </div>
 
             <div class="mb-3">
               <label for="descargaFormaPagoSelect" class="form-label fw-bold">💳 Método de Pago (Filtro):</label>
-              <select id="descargaFormaPagoSelect" class="form-select border-dark fw-bold">
+              <select id="descargaFormaPagoSelect" class="form-select fw-bold">
                 <option value="TODOS" selected>-- Todos los Métodos de Pago --</option>
                 <option value="Efectivo Divisas">Efectivo Divisas</option>
                 <option value="Efectivo Bolívares">Efectivo Bolívares</option>
@@ -938,14 +921,7 @@
                 <option value="PayPal">PayPal</option>
                 <option value="Punto de Venta">Punto de Venta</option>
                 <option value="Biopago">Biopago</option>
-                <option value="Cashea">Cashea (Cualquiera / Combinados)</option>
-                <option value="Cashea + Efectivo Divisas">Cashea + Efectivo Divisas</option>
-                <option value="Cashea + Efectivo Bolívares">Cashea + Efectivo Bolívares</option>
-                <option value="Cashea + Pago Móvil">Cashea + Pago Móvil</option>
-                <option value="Cashea + Zelle">Cashea + Zelle</option>
-                <option value="Cashea + PayPal">Cashea + PayPal</option>
-                <option value="Cashea + Punto de Venta">Cashea + Punto de Venta</option>
-                <option value="Cashea + Biopago">Cashea + Biopago</option>
+                <option value="Cashea">Cashea</option>
                 <option value="Pago Mixto">Pago Mixto</option>
               </select>
             </div>
@@ -953,8 +929,8 @@
             <div id="errorModalDescarga" class="text-danger small fw-bold mt-2 hidden"></div>
           </div>
           <div class="modal-footer bg-white justify-content-between p-3">
-            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" id="btnProcesarDescargaExcel" class="btn btn-success fw-bold px-4 fs-6" onclick="ejecutarDescargaExcelFacturas()">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnProcesarDescargaExcel" class="btn btn-success fw-bold px-4 rounded-pill shadow-sm" onclick="ejecutarDescargaExcelFacturas()">
               📊 Descargar Excel (.xlsx)
             </button>
           </div>
@@ -962,37 +938,29 @@
       </div>
     </div>
 
-    <!-- MODAL LECTOR DE CÓDIGOS DE BARRA / QR DE BALANZA PS-30 -->
+    <!-- MODAL LECTOR DE CÓDIGOS DE BALANZA -->
     <div class="modal fade" id="modalLectorCodigos" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-primary text-white">
+        <div class="modal-content">
+          <div class="modal-header">
             <h5 class="modal-title fw-bold">📟 Lectura de Códigos / QR Balanza Tecniscale</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4">
-            
-            <div class="alert alert-info border-primary mb-3">
-              <strong>ℹ️ Instrucciones:</strong> Escanee con el lector el código QR del ticket de la balanza PS-30 o pegue la cadena de códigos en el recuadro.
-            </div>
-
-            <!-- Campo de entrada enfocado para la pistola / lector -->
             <div class="mb-3">
               <label for="inputScannerQR" class="form-label fw-bold">Entrada del Lector de Código / QR:</label>
-              <textarea id="inputScannerQR" class="form-control border-dark fw-bold font-monospace" rows="3" placeholder="Escanee el ticket aquí... (Ej: 290062034950003914...)" oninput="procesarEntradaScanner(this.value)"></textarea>
+              <textarea id="inputScannerQR" class="form-control fw-bold font-monospace" rows="3" placeholder="Escanee el ticket aquí... (Ej: 290062034950003914...)" oninput="procesarEntradaScanner(this.value)"></textarea>
             </div>
 
-            <!-- Casilla para usar el precio directo extraído del ticket -->
-            <div class="form-check form-switch mb-3 bg-white p-2 ps-5 rounded border border-dark">
-              <input class="form-check-input border-dark ms-0 me-2" type="checkbox" id="chkUsarPrecioTicket" style="transform: scale(1.2);" onchange="procesarEntradaScanner(document.getElementById('inputScannerQR').value)">
+            <div class="form-check form-switch mb-3 bg-white p-2 ps-5 rounded-3 border">
+              <input class="form-check-input ms-0 me-2" type="checkbox" id="chkUsarPrecioTicket" style="transform: scale(1.2);" onchange="procesarEntradaScanner(document.getElementById('inputScannerQR').value)">
               <label class="form-check-label fw-bold text-dark" for="chkUsarPrecioTicket">
                 🏷️ Usar precio directo del ticket de balanza (Extraer monto del QR)
               </label>
             </div>
 
-            <!-- Tabla Resumen de Productos Detectados del QR -->
             <h6 class="fw-bold text-dark border-bottom pb-2 mb-2">📦 Productos Detectados en Ticket:</h6>
-            <div class="table-responsive bg-light rounded border mb-3" style="max-height: 250px; overflow-y: auto;">
+            <div class="table-responsive bg-light rounded-3 border mb-3 shadow-sm" style="max-height: 250px; overflow-y: auto;">
               <table class="table table-sm table-striped align-middle mb-0">
                 <thead class="table-dark small text-center">
                   <tr>
@@ -1013,11 +981,10 @@
             </div>
 
             <div id="errorModalScanner" class="text-danger small fw-bold mb-2 hidden"></div>
-
           </div>
           <div class="modal-footer bg-light justify-content-between">
-            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" id="btnAgregarEscaneadosFactura" class="btn btn-success fw-bold px-4" onclick="confirmarAgregarCodigosAFactura()" disabled>
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnAgregarEscaneadosFactura" class="btn btn-success fw-bold px-4 rounded-pill shadow-sm" onclick="confirmarAgregarCodigosAFactura()" disabled>
               🛒 Agregar Ítems a Factura
             </button>
           </div>
@@ -1025,31 +992,27 @@
       </div>
     </div>
 
-    <!-- MODAL ESCÁNER QR DE TOKEN DE SEGURIDAD GITHUB (MASCARADO) -->
+    <!-- MODAL ESCÁNER QR DE TOKEN GITHUB -->
     <div class="modal fade" id="modalEscanearTokenGitHub" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-dark border-2">
-          <div class="modal-header bg-dark text-white">
+        <div class="modal-content">
+          <div class="modal-header">
             <h5 class="modal-title fw-bold">🔐 Autorización de Seguridad</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4 bg-light text-center">
-            
-            <div class="alert alert-dark border-dark mb-3">
+            <div class="alert alert-dark mb-3 shadow-sm">
               <div class="fw-bold mb-1">📷 Escanee su QR de Seguridad</div>
-              <small class="text-white-50">Utilice el lector para escanear el código QR de autorización. La clave permanecerá oculta.</small>
+              <small class="text-white-50">Utilice el lector para escanear el código QR de autorización.</small>
             </div>
-
             <div class="mb-3">
-              <input type="password" id="inputTokenQR" class="form-control border-dark text-center fw-bold fs-3 text-danger font-monospace" placeholder="••••••••••••" autocomplete="off" onkeyup="if(event.key==='Enter') ejecutarGuardadoConTokenQR()">
+              <input type="password" id="inputTokenQR" class="form-control text-center fw-bold fs-3 text-danger font-monospace" placeholder="••••••••••••" autocomplete="off" onkeyup="if(event.key==='Enter') ejecutarGuardadoConTokenQR()">
             </div>
-
             <div id="errorModalTokenQR" class="text-danger small fw-bold mb-2 hidden"></div>
-
           </div>
           <div class="modal-footer bg-white justify-content-between">
-            <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" id="btnValidarTokenQR" class="btn btn-danger fw-bold px-4" onclick="ejecutarGuardadoConTokenQR()">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnValidarTokenQR" class="btn btn-danger fw-bold px-4 rounded-pill shadow-sm" onclick="ejecutarGuardadoConTokenQR()">
               🔒 Validar y Sincronizar
             </button>
           </div>
@@ -1058,8 +1021,8 @@
     </div>
 
     <!-- Toast de Notificaciones -->
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
-      <div id="toastFactura" class="toast align-items-center text-white bg-dark border-0" role="alert">
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+      <div id="toastFactura" class="toast align-items-center border-0" role="alert">
         <div class="d-flex">
           <div class="toast-body" id="toastMensajeFactura"></div>
           <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
@@ -1067,17 +1030,16 @@
       </div>
     </div>
 
-    <!-- Contenedor Exclusivo de Impresión Térmica (Hijo directo de BODY) -->
+    <!-- Contenedor de Impresión Térmica XP-80C -->
     <div id="seccionImpresionTicket">
       <div id="contenidoTicketImprimible"></div>
     </div>
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Librería SheetJS para exportación nativa a Excel .xlsx -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- SDK Oficial Supabase v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=2.0.0"></script>
+    <script src="script.js?v=2.5.0"></script>
   </body>
 </html>
