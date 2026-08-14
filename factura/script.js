@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Base de Datos PostgreSQL en Supabase - Filtrado y Ordenamiento Robusto
+   Base de Datos PostgreSQL en Supabase - Paginación Completa y Orden Real
    ========================================================================== */
 
 // Configuración de Supabase
@@ -129,6 +129,41 @@ async function dbDelete(storeName, key) {
   } catch (e) {
     return false;
   }
+}
+
+// ==========================================================================
+// FUNCIÓN DE CONSULTA PAGINADA (SUPERA EL LÍMITE DE 1000 FILAS DE SUPABASE)
+// ==========================================================================
+async function obtenerTodasLasVentasSupabase() {
+  let todas = [];
+  let from = 0;
+  const step = 1000;
+  let continuar = true;
+
+  while (continuar) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('ventas')
+        .select('*')
+        .range(from, from + step - 1);
+
+      if (error || !data || data.length === 0) {
+        continuar = false;
+      } else {
+        todas = todas.concat(data);
+        if (data.length < step) {
+          continuar = false;
+        } else {
+          from += step;
+        }
+      }
+    } catch (e) {
+      console.warn("Aviso paginación ventas:", e);
+      continuar = false;
+    }
+  }
+
+  return todas;
 }
 
 // ==========================================================================
@@ -317,23 +352,24 @@ async function forzarSincronizacionManual() {
   mostrarAvisoFactura(`🔄 Paso 2/4: Clientes sincronizados (${cantClientes} registros)`, false);
   await new Promise(r => setTimeout(r, 400));
 
-  // PASO 3: Descarga de la totalidad de las Ventas desde Supabase
+  // PASO 3: Descarga paginada completa de todas las Ventas desde Supabase
   mostrarAvisoFactura("🔄 Paso 3/4: Consultando Ventas en Supabase...", false);
   let cantVentas = 0;
   try {
-    const { data: ventasSup, error } = await supabaseClient.from('ventas').select('*').range(0, 4999);
-    if (!error && ventasSup && ventasSup.length > 0) {
+    const ventasSup = await obtenerTodasLasVentasSupabase();
+
+    if (ventasSup && ventasSup.length > 0) {
       cantVentas = ventasSup.length;
 
-      // Ordenar de mayor a menor número de factura
+      // Ordenar estrictamente de mayor a menor número de factura
       const ventasOrdenadas = [...ventasSup].sort((a, b) => {
         let numA = parseInt(String(a["FACTURA N°"] || "").replace(/\D/g, ''), 10) || 0;
         let numB = parseInt(String(b["FACTURA N°"] || "").replace(/\D/g, ''), 10) || 0;
         return numB - numA;
       });
 
-      // Guardar las más recientes en IndexedDB
-      const maxAGuardar = Math.min(ventasOrdenadas.length, 300);
+      // Guardar las 500 más recientes en IndexedDB local
+      const maxAGuardar = Math.min(ventasOrdenadas.length, 500);
       for (let i = 0; i < maxAGuardar; i++) {
         let v = ventasOrdenadas[i];
         await dbPut("ventas", {
@@ -348,7 +384,7 @@ async function forzarSincronizacionManual() {
         });
       }
 
-      // Actualizar correlativo con la factura máxima real
+      // Actualizar correlativo con el valor máximo absoluto de Supabase
       let maxNum = parseInt(String(ventasOrdenadas[0]["FACTURA N°"] || "").replace(/\D/g, ''), 10) || 0;
       if (maxNum > 0) {
         await dbPut("config", { key: "ultimoCorrelativo", value: maxNum });
@@ -442,13 +478,10 @@ async function obtenerSiguienteCorrelativoLocal() {
   // 2. Consultar en Supabase para obtener el máximo correlativo global
   if (navigator.onLine) {
     try {
-      const { data: ultimasVentas } = await supabaseClient
-        .from('ventas')
-        .select('"FACTURA N°"')
-        .range(0, 4999);
+      const ventasSup = await obtenerTodasLasVentasSupabase();
 
-      if (ultimasVentas && ultimasVentas.length > 0) {
-        ultimasVentas.forEach(v => {
+      if (ventasSup && ventasSup.length > 0) {
+        ventasSup.forEach(v => {
           let facStr = v["FACTURA N°"];
           if (facStr) {
             let match = String(facStr).match(/\d+$/);
@@ -836,7 +869,7 @@ function confirmarAgregarProductoManual() {
   mostrarAvisoFactura(`Producto manual agregado: ${nombre}`);
 }
 
-// INICIO DE SESIÓN CON SUPABASE (SIN FILTRO URL CONFLICTIVO)
+// INICIO DE SESIÓN CON SUPABASE
 async function procesarLoginFacturacion(event) {
   event.preventDefault();
   
@@ -1278,7 +1311,7 @@ function eliminarFacturaEnEspera(idx) {
   }
 }
 
-// BÚSQUEDA DE CLIENTE EN SUPABASE (SIN ERROR URL)
+// BÚSQUEDA DE CLIENTE EN SUPABASE
 async function buscarClienteFactura() {
   const inputCedula = document.getElementById('facCedulaBuscar');
   const cedula = inputCedula ? inputCedula.value.trim().toUpperCase() : "";
@@ -2486,7 +2519,7 @@ async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
   return await response.json();
 }
 
-// BÚSQUEDA Y HISTORIAL DE FACTURAS EN SUPABASE E INDEXEDDB (SIN ERROR 400)
+// BÚSQUEDA Y HISTORIAL DE FACTURAS EN SUPABASE E INDEXEDDB
 function abrirModalBuscarFacturas() {
   document.getElementById('facBusquedaInput').value = "";
   buscarFacturasHistorial('ultimas10');
@@ -2501,7 +2534,7 @@ async function buscarFacturasHistorial(modo) {
     return mostrarAvisoFactura("Ingrese Cédula, RIF o N° de Factura a buscar.");
   }
 
-  // 1. Cargar datos locales en IndexedDB primero para respuesta inmediata
+  // 1. Cargar datos locales en IndexedDB primero
   let ventasLocales = await dbGetAll("ventas");
   let mapFacturas = {};
 
@@ -2509,12 +2542,12 @@ async function buscarFacturasHistorial(modo) {
     if (f.numFactura) mapFacturas[f.numFactura] = f;
   });
 
-  // 2. Si hay conexión, consultar Supabase sin filtros URL que provoquen 400
+  // 2. Consulta paginada a Supabase para abarcar todas las ventas emitidas
   if (navigator.onLine) {
     try {
-      const { data: ventasSup, error } = await supabaseClient.from('ventas').select('*').range(0, 4999);
+      const ventasSup = await obtenerTodasLasVentasSupabase();
 
-      if (!error && ventasSup && ventasSup.length > 0) {
+      if (ventasSup && ventasSup.length > 0) {
         ventasSup.forEach(v => {
           let numFac = v["FACTURA N°"];
           if (numFac) {
@@ -2536,7 +2569,7 @@ async function buscarFacturasHistorial(modo) {
     }
   }
 
-  // 3. Convertir a arreglo y ordenar estrictamente de mayor a menor número de factura
+  // 3. Convertir y ordenar estrictamente de mayor a menor número de factura (más reciente primero)
   let todasLasFacturas = Object.values(mapFacturas).sort((a, b) => {
     let numA = parseInt(String(a.numFactura || "").replace(/\D/g, ''), 10) || 0;
     let numB = parseInt(String(b.numFactura || "").replace(/\D/g, ''), 10) || 0;
@@ -2774,12 +2807,12 @@ async function ejecutarDescargaExcelFacturas() {
     const patronFecha1 = `${dia}/${mes}/${ano}`;
     const patronFecha2 = `${parseInt(dia, 10)}/${parseInt(mes, 10)}/${ano}`;
 
-    const { data: todosRegistros, error } = await supabaseClient.from('ventas').select('*').range(0, 4999);
+    const todosRegistros = await obtenerTodasLasVentasSupabase();
 
     btn.disabled = false;
     btn.textContent = "📊 Descargar Excel (.xlsx)";
 
-    if (!error && todosRegistros && todosRegistros.length > 0) {
+    if (todosRegistros && todosRegistros.length > 0) {
       const registrosFiltrados = todosRegistros.filter(r => {
         const fStr = String(r["FECHA"] || "");
         const coincideFecha = fStr.includes(patronFecha1) || fStr.includes(patronFecha2) || fStr.startsWith(fechaVal);
@@ -3255,9 +3288,9 @@ async function procesarSiguienteCierreCaja() {
         const patron1 = `${dia}/${mes}/${ano}`;
         const patron2 = `${parseInt(dia, 10)}/${parseInt(mes, 10)}/${ano}`;
 
-        const { data: ventasHoy, error } = await supabaseClient.from('ventas').select('*').range(0, 4999);
+        const ventasHoy = await obtenerTodasLasVentasSupabase();
 
-        if (!error && ventasHoy) {
+        if (ventasHoy && ventasHoy.length > 0) {
           ventasHoy.forEach(v => {
             const fStr = String(v["FECHA"] || "");
             if (fStr.includes(patron1) || fStr.includes(patron2)) {
