@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Base de Datos PostgreSQL en Supabase (Adaptativa)
+   Base de Datos PostgreSQL en Supabase con Mapeo Exacto de Columnas
    ========================================================================== */
 
 // Configuración de Supabase
@@ -19,7 +19,7 @@ const GITHUB_CONFIG_FAC = {
 const logoComprobantePreload = new Image();
 logoComprobantePreload.src = "../img/LOGO-MUNDO123.webp";
 
-// Clasificación de Métodos por Naturaleza de Moneda (Incluye Biopago)
+// Clasificación de Métodos por Naturaleza de Moneda
 const METODOS_USD = ["Efectivo Divisas", "Zelle", "PayPal", "Cashea"];
 const METODOS_BS = ["Pago Móvil", "Efectivo Bolívares", "Punto de Venta", "Transferencia Bancaria", "Biopago"];
 
@@ -132,7 +132,7 @@ async function dbDelete(storeName, key) {
 }
 
 // ==========================================================================
-// MOTOR DE SINCRONIZACIÓN HACIA SUPABASE Y BADGE DE ESTADO
+// MOTOR DE SINCRONIZACIÓN HACIA SUPABASE CON ESQUEMA EXACTO
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
   const badge = document.getElementById('badgeEstadoSync');
@@ -176,75 +176,72 @@ async function procesarColaSincronizacion() {
       if (payload.action === "guardarFacturaFinal") {
         const d = payload.datosFactura;
         const desgl = d.desglosePagos || {};
+
         const { error } = await supabaseClient.from('ventas').insert([{
-          num_factura: d.numFactura || ("001-" + String(Date.now()).slice(-5)),
-          fecha_hora: new Date().toISOString(),
-          cedula: d.cedula,
-          nombre: d.nombre,
-          direccion: d.direccion,
-          productos_summary: d.productosSummary,
-          forma_pago: d.formaPago,
-          monto_total_usd: d.montoTotal || 0,
-          efectivo_usd: desgl["Efectivo Divisas"] || 0,
-          efectivo_bs: desgl["Efectivo Bolívares"] || 0,
-          pago_movil: desgl["Pago Móvil"] || 0,
-          zelle: desgl["Zelle"] || 0,
-          paypal: desgl["PayPal"] || 0,
-          cashea: desgl["Cashea"] || 0,
-          punto_venta: desgl["Punto de Venta"] || 0,
-          transferencia: desgl["Transferencia Bancaria"] || 0,
-          biopago: desgl["Biopago"] || 0
+          "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
+          "FACTURA N°": d.numFactura,
+          "CEDULA O RIF": d.cedula,
+          "NOMBRE / RAZON SOCIAL": d.nombre,
+          "UBICACION": d.direccion || 'paraiso',
+          "PRODUCTOS": d.productosSummary,
+          "FORMA DE PAGO": d.formaPago,
+          "MONTO TOTAL": parseFloat(d.montoTotal) || 0,
+          "EFECTIVO DIVISAS": parseFloat(desgl["Efectivo Divisas"]) || 0,
+          "EFECTIVO BOLIVARES": parseFloat(desgl["Efectivo Bolívares"]) || 0,
+          "PAGO MOVIL": parseFloat(desgl["Pago Móvil"]) || 0,
+          "ZELLE": parseFloat(desgl["Zelle"]) || 0,
+          "PAYPAL": parseFloat(desgl["PayPal"]) || 0,
+          "CASHEA": parseFloat(desgl["Cashea"]) || 0,
+          "PUNTO DE VENTA": parseFloat(desgl["Punto de Venta"]) || 0,
+          "TRANSFERENCIA": parseFloat(desgl["Transferencia Bancaria"]) || 0,
+          "BIOPAGO": parseFloat(desgl["Biopago"]) || 0
         }]);
+
         if (!error) exito = true;
+        else console.error("Error insert venta Supabase:", error);
 
       } else if (payload.action === "registrarClienteFactura") {
-        let { error } = await supabaseClient.from('clientes').upsert({
-          CEDULA: payload.cedula,
-          NOMBRES: payload.nombre,
-          TELEFONO: payload.telefono,
-          DIRECCION: payload.direccion
+        const { error } = await supabaseClient.from('clientes').upsert({
+          "CEDULA": payload.cedula,
+          "NOMBRES": payload.nombre,
+          "TELEFONO": payload.telefono,
+          "DIRECCION": payload.direccion
         });
 
-        if (error) {
-          const res2 = await supabaseClient.from('clientes').upsert({
-            cedula: payload.cedula,
-            nombre: payload.nombre,
-            telefono: payload.telefono,
-            direccion: payload.direccion
-          });
-          error = res2.error;
-        }
-
         if (!error) exito = true;
+        else console.error("Error upsert cliente Supabase:", error);
 
       } else if (payload.action === "guardarCierreCaja") {
         const d = payload.datosCierre;
         const r = d.resumen || {};
+
         const { error } = await supabaseClient.from('cierres').insert([{
-          fecha_hora: new Date().toISOString(),
-          usuario: d.usuario,
-          inicial_usd: d.inicialUSD || 0,
-          inicial_bs: d.inicialBS || 0,
-          ventas_efectivo_usd: r.ventasEfectivoUSD || 0,
-          ventas_efectivo_bs: r.ventasEfectivoBS || 0,
-          ventas_pago_movil: r.ventasPagoMovil || 0,
-          ventas_zelle: r.ventasZelle || 0,
-          ventas_paypal: r.ventasPayPal || 0,
-          ventas_punto_venta: r.ventasPuntoVenta || 0,
-          ventas_biopago: r.ventasBiopago || 0,
-          ventas_cashea: r.ventasCashea || 0,
-          ventas_transferencia: r.ventasTransferencia || 0,
-          total_ventas_usd: r.totalGeneralVentasUSD || 0,
-          total_ventas_bs: r.totalGeneralVentasBS || 0,
-          caja_final_usd: d.totalCajaUSD || 0,
-          caja_final_bs: d.totalCajaBS || 0,
-          resumen: r
+          "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
+          "USUARIO": d.usuario,
+          "INICIAL $": parseFloat(d.inicialUSD) || 0,
+          "INICIAL Bs": parseFloat(d.inicialBS) || 0,
+          "DIVISAS": parseFloat(r.ventasEfectivoUSD) || 0,
+          "BOLIVARES": parseFloat(r.ventasEfectivoBS) || 0,
+          "PAGO MOVIL": parseFloat(r.ventasPagoMovil) || 0,
+          "ZELLE": parseFloat(r.ventasZelle) || 0,
+          "PAYPAL": parseFloat(r.ventasPayPal) || 0,
+          "PUNTO DE VENTA": parseFloat(r.ventasPuntoVenta) || 0,
+          "BIOPAGO": parseFloat(r.ventasBiopago) || 0,
+          "CASHEA": parseFloat(r.ventasCashea) || 0,
+          "TRANSFERECIA": parseFloat(r.ventasTransferencia) || 0,
+          "TOTAL 1": parseFloat(r.totalGeneralVentasUSD) || 0,
+          "TOTAL 2": parseFloat(r.totalGeneralVentasBS) || 0,
+          "TOTAL 3": parseFloat(d.totalCajaUSD) || 0,
+          "TOTAL 4": parseFloat(d.totalCajaBS) || 0
         }]);
+
         if (!error) exito = true;
+        else console.error("Error insert cierre Supabase:", error);
 
       } else if (payload.action === "eliminarFactura") {
-        const { error } = await supabaseClient.from('ventas').delete().eq('num_factura', payload.numFactura);
+        const { error } = await supabaseClient.from('ventas').delete().eq('FACTURA N°', payload.numFactura);
         if (!error) exito = true;
+        else console.error("Error delete venta Supabase:", error);
       }
 
       if (exito) {
@@ -263,7 +260,7 @@ async function procesarColaSincronizacion() {
   actualizarEstadoSyncBadge();
 }
 
-// SINCRONIZACIÓN MANUAL BIDIRECCIONAL COMPLETA CON PROGRESO
+// SINCRONIZACIÓN MANUAL BIDIRECCIONAL COMPLETA
 async function forzarSincronizacionManual() {
   if (!navigator.onLine) {
     mostrarAvisoFactura("Dispositivo en Modo Offline. Conéctese a Internet para sincronizar.");
@@ -282,10 +279,9 @@ async function forzarSincronizacionManual() {
 
   if (queue.length === 0) {
     mostrarAvisoFactura("🔄 Paso 1/4: Transacciones locales al día (100%)", false);
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 400));
   } else {
     for (let i = 0; i < queue.length; i++) {
-      let item = queue[i];
       let pct = Math.round(((i + 1) / queue.length) * 100);
       mostrarAvisoFactura(`🔄 Paso 1/4: Subiendo pendientes (${i + 1}/${queue.length} - ${pct}%)`, false);
       await new Promise(r => setTimeout(r, 60));
@@ -297,131 +293,172 @@ async function forzarSincronizacionManual() {
       }
     }
     mostrarAvisoFactura("🔄 Paso 1/4: Pendientes enviados al 100%", false);
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 400));
   }
 
-  // PASO 2: Descarga de Clientes desde Supabase (Adaptativa)
+  // PASO 2: Descarga de Clientes desde Supabase
   mostrarAvisoFactura("🔄 Paso 2/4: Consultando Clientes en Supabase...", false);
   let cantClientes = 0;
   try {
-    const { data: clientesSup, error } = await supabaseClient.from('clientes').select('*');
+    const { data: clientesSup, error } = await supabaseClient.from('clientes').select('"CEDULA", "NOMBRES", "APELLIDOS", "TELEFONO", "DIRECCION"');
     if (!error && clientesSup) {
       const totalCli = clientesSup.length;
       cantClientes = totalCli;
       for (let i = 0; i < totalCli; i++) {
         let c = clientesSup[i];
         await dbPut("clientes", {
-          cedula: c.CEDULA || c.cedula,
-          nombre: c.NOMBRES || c.nombre || 'N/D',
-          telefono: c.TELEFONO || c.telefono || 'N/D',
-          direccion: c.DIRECCION || c.direccion || 'N/D'
+          cedula: c.CEDULA,
+          nombre: c.NOMBRES || 'N/D',
+          telefono: c.TELEFONO || 'N/D',
+          direccion: c.DIRECCION || 'N/D'
         });
         let pct = Math.round(((i + 1) / totalCli) * 100);
         mostrarAvisoFactura(`🔄 Paso 2/4: Guardando Clientes (${i + 1}/${totalCli} - ${pct}%)`, false);
-        await new Promise(r => setTimeout(r, totalCli > 50 ? 15 : 40));
+        await new Promise(r => setTimeout(r, totalCli > 50 ? 10 : 30));
       }
     }
-  } catch (e) {}
-  mostrarAvisoFactura(`🔄 Paso 2/4: Clientes sincronizados al 100% (${cantClientes} registros)`, false);
-  await new Promise(r => setTimeout(r, 500));
+  } catch (e) {
+    console.error("Error clientes sync:", e);
+  }
+  mostrarAvisoFactura(`🔄 Paso 2/4: Clientes sincronizados (${cantClientes} registros)`, false);
+  await new Promise(r => setTimeout(r, 400));
 
   // PASO 3: Descarga del Historial de Ventas desde Supabase
   mostrarAvisoFactura("🔄 Paso 3/4: Consultando Historial de Ventas...", false);
   let cantVentas = 0;
   try {
-    const { data: ventasSup, error } = await supabaseClient.from('ventas').select('*').order('fecha_hora', { ascending: false }).limit(200);
+    const { data: ventasSup, error } = await supabaseClient.from('ventas').select('*').limit(200);
     if (!error && ventasSup) {
       const totalVen = ventasSup.length;
       cantVentas = totalVen;
       for (let i = 0; i < totalVen; i++) {
         let v = ventasSup[i];
         await dbPut("ventas", {
-          numFactura: v.num_factura,
-          fechaStr: new Date(v.fecha_hora).toLocaleString('es-VE'),
-          cedula: v.cedula,
-          nombre: v.nombre,
-          direccion: v.direccion,
-          productosSummary: v.productos_summary,
-          formaPagoStr: v.forma_pago,
-          montoTotalUSD: v.monto_total_usd
+          numFactura: v["FACTURA N°"],
+          fechaStr: v["FECHA"] || "",
+          cedula: v["CEDULA O RIF"] || "",
+          nombre: v["NOMBRE / RAZON SOCIAL"] || "",
+          direccion: v["UBICACION"] || "",
+          productosSummary: v["PRODUCTOS"] || "",
+          formaPagoStr: v["FORMA DE PAGO"] || "",
+          montoTotalUSD: parseFloat(v["MONTO TOTAL"]) || 0
         });
         let pct = Math.round(((i + 1) / totalVen) * 100);
         mostrarAvisoFactura(`🔄 Paso 3/4: Guardando Ventas (${i + 1}/${totalVen} - ${pct}%)`, false);
-        await new Promise(r => setTimeout(r, totalVen > 50 ? 15 : 40));
+        await new Promise(r => setTimeout(r, totalVen > 50 ? 10 : 30));
       }
     }
-  } catch (e) {}
-  mostrarAvisoFactura(`🔄 Paso 3/4: Ventas sincronizadas al 100% (${cantVentas} registros)`, false);
-  await new Promise(r => setTimeout(r, 500));
+  } catch (e) {
+    console.error("Error ventas sync:", e);
+  }
+  mostrarAvisoFactura(`🔄 Paso 3/4: Ventas sincronizadas (${cantVentas} registros)`, false);
+  await new Promise(r => setTimeout(r, 400));
 
   // PASO 4: Descarga del Historial de Cierres de Caja desde Supabase
   mostrarAvisoFactura("🔄 Paso 4/4: Consultando Cierres de Caja...", false);
   let cantCierres = 0;
   try {
-    const { data: cierresSup, error } = await supabaseClient.from('cierres').select('*').order('fecha_hora', { ascending: false }).limit(50);
+    const { data: cierresSup, error } = await supabaseClient.from('cierres').select('*').order('id', { ascending: false }).limit(50);
     if (!error && cierresSup) {
       const totalCie = cierresSup.length;
       cantCierres = totalCie;
       for (let i = 0; i < totalCie; i++) {
         let cie = cierresSup[i];
         await dbPut("cierres", {
-          fechaStr: new Date(cie.fecha_hora).toLocaleString('es-VE'),
-          usuario: cie.usuario,
-          inicialUSD: cie.inicial_usd,
-          inicialBS: cie.inicial_bs,
-          cajaFinalUSD: cie.caja_final_usd,
-          cajaFinalBS: cie.caja_final_bs,
-          totalVentasUSD: cie.total_ventas_usd,
-          totalVentasBS: cie.total_ventas_bs,
-          resumen: cie.resumen
+          id: cie.id,
+          fechaStr: cie["FECHA"] || "",
+          usuario: cie["USUARIO"] || "",
+          inicialUSD: parseFloat(cie["INICIAL $"]) || 0,
+          inicialBS: parseFloat(cie["INICIAL Bs"]) || 0,
+          cajaFinalUSD: parseFloat(cie["TOTAL 3"]) || 0,
+          cajaFinalBS: parseFloat(cie["TOTAL 4"]) || 0,
+          totalVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
+          totalVentasBS: parseFloat(cie["TOTAL 2"]) || 0,
+          resumen: {
+            ventasEfectivoUSD: parseFloat(cie["DIVISAS"]) || 0,
+            ventasEfectivoBS: parseFloat(cie["BOLIVARES"]) || 0,
+            ventasPagoMovil: parseFloat(cie["PAGO MOVIL"]) || 0,
+            ventasZelle: parseFloat(cie["ZELLE"]) || 0,
+            ventasPayPal: parseFloat(cie["PAYPAL"]) || 0,
+            ventasPuntoVenta: parseFloat(cie["PUNTO DE VENTA"]) || 0,
+            ventasBiopago: parseFloat(cie["BIOPAGO"]) || 0,
+            ventasCashea: parseFloat(cie["CASHEA"]) || 0,
+            ventasTransferencia: parseFloat(cie["TRANSFERECIA"]) || 0,
+            totalGeneralVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
+            totalGeneralVentasBS: parseFloat(cie["TOTAL 2"]) || 0
+          }
         });
         let pct = Math.round(((i + 1) / totalCie) * 100);
         mostrarAvisoFactura(`🔄 Paso 4/4: Guardando Cierres (${i + 1}/${totalCie} - ${pct}%)`, false);
-        await new Promise(r => setTimeout(r, totalCie > 50 ? 15 : 40));
+        await new Promise(r => setTimeout(r, totalCie > 50 ? 10 : 30));
       }
     }
-  } catch (e) {}
-  mostrarAvisoFactura(`🔄 Paso 4/4: Cierres sincronizados al 100% (${cantCierres} registros)`, false);
-  await new Promise(r => setTimeout(r, 800));
+  } catch (e) {
+    console.error("Error cierres sync:", e);
+  }
+  mostrarAvisoFactura(`🔄 Paso 4/4: Cierres sincronizados (${cantCierres} registros)`, false);
+  await new Promise(r => setTimeout(r, 600));
 
   await actualizarEstadoSyncBadge();
-
-  // MENSAJE FINAL DE ÉXITO
-  mostrarAvisoFactura(`🎉 ¡Sincronización con Supabase completada al 100%! (${cantClientes} clientes, ${cantVentas} ventas, ${cantCierres} cierres).`, true, 10000);
+  mostrarAvisoFactura(`🎉 ¡Sincronización completada al 100%! (${cantClientes} clientes, ${cantVentas} ventas, ${cantCierres} cierres).`, true, 10000);
 }
 
 async function sincronizarClientesDesdeServidor() {
   if (!navigator.onLine) return;
   try {
-    const { data, error } = await supabaseClient.from('clientes').select('*');
+    const { data, error } = await supabaseClient.from('clientes').select('"CEDULA", "NOMBRES", "APELLIDOS", "TELEFONO", "DIRECCION"');
     if (!error && data) {
       for (let cli of data) {
         await dbPut("clientes", {
-          cedula: cli.CEDULA || cli.cedula,
-          nombre: cli.NOMBRES || cli.nombre || 'N/D',
-          telefono: cli.TELEFONO || cli.telefono || 'N/D',
-          direccion: cli.DIRECCION || cli.direccion || 'N/D'
+          cedula: cli.CEDULA,
+          nombre: cli.NOMBRES || 'N/D',
+          telefono: cli.TELEFONO || 'N/D',
+          direccion: cli.DIRECCION || 'N/D'
         });
       }
     }
   } catch (e) {}
 }
 
-// CORRELATIVO LOCAL SECUENCIAL
+// CORRELATIVO LOCAL Y EN LA NUBE
 async function obtenerSiguienteCorrelativoLocal() {
-  let config = await dbGet("config", "ultimoCorrelativo");
-  let ultimoNum = config ? config.value : 0;
+  let ultimoNum = 0;
 
-  const ventas = await dbGetAll("ventas");
-  ventas.forEach(v => {
+  // 1. Revisar ventas locales en IndexedDB
+  const ventasLocales = await dbGetAll("ventas");
+  ventasLocales.forEach(v => {
     if (v.numFactura) {
-      let match = v.numFactura.match(/\d+$/);
+      let match = String(v.numFactura).match(/\d+$/);
       if (match) {
         let n = parseInt(match[0], 10);
         if (n > ultimoNum) ultimoNum = n;
       }
     }
   });
+
+  // 2. Si hay conexión, consultar la mayor factura registrada en Supabase
+  if (navigator.onLine) {
+    try {
+      const { data: ultimasVentas } = await supabaseClient
+        .from('ventas')
+        .select('"FACTURA N°"')
+        .order('FACTURA N°', { ascending: false })
+        .limit(100);
+
+      if (ultimasVentas && ultimasVentas.length > 0) {
+        ultimasVentas.forEach(v => {
+          let facStr = v["FACTURA N°"];
+          if (facStr) {
+            let match = String(facStr).match(/\d+$/);
+            if (match) {
+              let n = parseInt(match[0], 10);
+              if (n > ultimoNum) ultimoNum = n;
+            }
+          }
+        });
+      }
+    } catch (e) {}
+  }
 
   let siguienteNum = ultimoNum + 1;
   await dbPut("config", { key: "ultimoCorrelativo", value: siguienteNum });
@@ -795,7 +832,7 @@ function confirmarAgregarProductoManual() {
   mostrarAvisoFactura(`Producto manual agregado: ${nombre}`);
 }
 
-// INICIO DE SESIÓN CON SUPABASE
+// INICIO DE SESIÓN CON SUPABASE (COLUMNAS EXACTAS)
 async function procesarLoginFacturacion(event) {
   event.preventDefault();
   
@@ -814,8 +851,8 @@ async function procesarLoginFacturacion(event) {
     const { data, error } = await supabaseClient
       .from('usuarios_factur')
       .select('*')
-      .eq('usuario', usuario)
-      .eq('password', password)
+      .eq('NOMBRE DE USUARIO', usuario)
+      .eq('CLAVE', password)
       .maybeSingle();
 
     btn.disabled = false;
@@ -1232,7 +1269,7 @@ function eliminarFacturaEnEspera(idx) {
   }
 }
 
-// BÚSQUEDA DE CLIENTE EN SUPABASE (ADAPTATIVA)
+// BÚSQUEDA DE CLIENTE EN SUPABASE (COLUMNA EXACTA "CEDULA")
 async function buscarClienteFactura() {
   const inputCedula = document.getElementById('facCedulaBuscar');
   const cedula = inputCedula ? inputCedula.value.trim().toUpperCase() : "";
@@ -1244,7 +1281,7 @@ async function buscarClienteFactura() {
   const btn = document.getElementById('btnBuscarClienteFac');
   if (btn) { btn.disabled = true; btn.textContent = "Buscando..."; }
 
-  // 1. Consulta ultrarrápida a IndexedDB local (1ms)
+  // 1. Consulta ultrarrápida a IndexedDB local
   let clienteLocal = await dbGet("clientes", cedula);
   if (clienteLocal) {
     if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
@@ -1254,28 +1291,23 @@ async function buscarClienteFactura() {
     return;
   }
 
-  // 2. Consulta a Supabase
+  // 2. Consulta a Supabase con columna "CEDULA"
   if (navigator.onLine) {
     try {
       let { data: resSup, error } = await supabaseClient
         .from('clientes')
-        .select('*')
-        .or(`cedula.eq.${cedula},CEDULA.eq.${cedula}`)
+        .select('"CEDULA", "NOMBRES", "APELLIDOS", "TELEFONO", "DIRECCION"')
+        .eq('CEDULA', cedula)
         .maybeSingle();
-
-      if (!resSup) {
-        const { data: c2 } = await supabaseClient.from('clientes').select('*').eq('CEDULA', cedula).maybeSingle();
-        if (c2) resSup = c2;
-      }
 
       if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
 
       if (!error && resSup) {
         let cliObj = {
-          cedula: resSup.CEDULA || resSup.cedula || cedula,
-          nombre: resSup.NOMBRES || resSup.nombre || 'N/D',
-          telefono: resSup.TELEFONO || resSup.telefono || 'N/D',
-          direccion: resSup.DIRECCION || resSup.direccion || 'N/D'
+          cedula: resSup.CEDULA,
+          nombre: resSup.NOMBRES || 'N/D',
+          telefono: resSup.TELEFONO || 'N/D',
+          direccion: resSup.DIRECCION || 'N/D'
         };
         clienteFacturaActual = cliObj;
         await dbPut("clientes", cliObj);
@@ -1328,7 +1360,7 @@ function prepararNuevoClienteEnVista(cedula) {
   if (boxNuevo) boxNuevo.classList.remove('hidden');
 }
 
-// REGISTRO DE CLIENTE NUEVO (ADAPTATIVO)
+// REGISTRO DE CLIENTE NUEVO EN SUPABASE
 async function registrarClienteFactura() {
   const cedula = document.getElementById('facRegCedula').value.trim().toUpperCase();
   const nombre = document.getElementById('facRegNombre').value.trim().toUpperCase();
@@ -1347,21 +1379,12 @@ async function registrarClienteFactura() {
 
   if (navigator.onLine) {
     try {
-      let { error } = await supabaseClient.from('clientes').upsert({
-        CEDULA: cedula,
-        NOMBRES: nombre,
-        TELEFONO: telefono,
-        DIRECCION: direccion
+      await supabaseClient.from('clientes').upsert({
+        "CEDULA": cedula,
+        "NOMBRES": nombre,
+        "TELEFONO": telefono,
+        "DIRECCION": direccion
       });
-
-      if (error) {
-        await supabaseClient.from('clientes').upsert({
-          cedula: cedula,
-          nombre: nombre,
-          telefono: telefono,
-          direccion: direccion
-        });
-      }
     } catch (e) {}
   }
 
@@ -1380,7 +1403,7 @@ async function registrarClienteFactura() {
   procesarColaSincronizacion();
 }
 
-// SELECCIÓN DE BOTONES Y DESGLOSE DE PAGO
+// SELECCIÓN DE FORMA DE PAGO
 function seleccionarMetodoPagoBoton(metodo, btnElem) {
   document.querySelectorAll('.btn-metodo-pago').forEach(b => b.classList.remove('active'));
   if (btnElem) btnElem.classList.add('active');
@@ -1685,7 +1708,7 @@ function obtenerDetalleFormaPagoFinal() {
   return formaSelect;
 }
 
-// EMITIR FACTURA FINAL (LOCAL-FIRST A 0ms)
+// EMITIR FACTURA FINAL
 async function emitirFacturaFinal() {
   if (!clienteFacturaActual) {
     return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
@@ -1904,7 +1927,7 @@ async function confirmarEImprimirFactura() {
   try {
     let numFactura = datosFacturaPendiente.numFactura;
 
-    // 1. Guardar localmente a 0ms en IndexedDB
+    // 1. Guardar localmente en IndexedDB
     await dbPut("ventas", {
       numFactura: numFactura,
       fechaStr: datosFacturaPendiente.fechaStr,
@@ -1923,9 +1946,10 @@ async function confirmarEImprimirFactura() {
         action: "guardarFacturaFinal",
         datosFactura: {
           numFactura: numFactura,
+          fechaStr: datosFacturaPendiente.fechaStr,
           cedula: datosFacturaPendiente.cliente.cedula,
           nombre: datosFacturaPendiente.cliente.nombre,
-          direccion: datosFacturaPendiente.cliente.direccion || 'N/D',
+          direccion: datosFacturaPendiente.cliente.direccion || 'paraiso',
           productosSummary: datosFacturaPendiente.productosSummary,
           formaPago: datosFacturaPendiente.formaPagoStr,
           montoTotal: datosFacturaPendiente.totalUSD,
@@ -2197,7 +2221,7 @@ function confirmarAgregarCodigosAFactura() {
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
 }
 
-// LÓGICA GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS (PLU / GITHUB SYNC)
+// LÓGICA GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
   prepararListaProductosCodigos();
@@ -2454,7 +2478,7 @@ async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
   return await response.json();
 }
 
-// BÚSQUEDA Y HISTORIAL DE FACTURAS EN SUPABASE E INDEXEDDB
+// BÚSQUEDA Y HISTORIAL DE FACTURAS EN SUPABASE E INDEXEDDB (COLUMNAS EXACTAS)
 function abrirModalBuscarFacturas() {
   document.getElementById('facBusquedaInput').value = "";
   buscarFacturasHistorial('ultimas10');
@@ -2491,12 +2515,12 @@ async function buscarFacturasHistorial(modo) {
 
   if (navigator.onLine) {
     try {
-      let query = supabaseClient.from('ventas').select('*').order('fecha_hora', { ascending: false });
+      let query = supabaseClient.from('ventas').select('*');
 
       if (modo === 'ultimas10') {
-        query = query.limit(10);
+        query = query.order('FACTURA N°', { ascending: false }).limit(10);
       } else if (inputVal) {
-        query = query.or(`num_factura.ilike.%${inputVal}%,cedula.ilike.%${inputVal}%,nombre.ilike.%${inputVal}%`).limit(200);
+        query = query.or(`"FACTURA N°".ilike.%${inputVal}%,"CEDULA O RIF".ilike.%${inputVal}%,"NOMBRE / RAZON SOCIAL".ilike.%${inputVal}%`).limit(200);
       }
 
       const { data: ventasSup, error } = await query;
@@ -2504,15 +2528,15 @@ async function buscarFacturasHistorial(modo) {
       if (!error && ventasSup) {
         const mapFacturas = {};
         ventasSup.forEach(v => {
-          mapFacturas[v.num_factura] = {
-            numFactura: v.num_factura,
-            fechaStr: new Date(v.fecha_hora).toLocaleString('es-VE'),
-            cedula: v.cedula,
-            nombre: v.nombre,
-            direccion: v.direccion,
-            productosSummary: v.productos_summary,
-            formaPagoStr: v.forma_pago,
-            montoTotalUSD: v.monto_total_usd
+          mapFacturas[v["FACTURA N°"]] = {
+            numFactura: v["FACTURA N°"],
+            fechaStr: v["FECHA"] || "",
+            cedula: v["CEDULA O RIF"] || "",
+            nombre: v["NOMBRE / RAZON SOCIAL"] || "",
+            direccion: v["UBICACION"] || "",
+            productosSummary: v["PRODUCTOS"] || "",
+            formaPagoStr: v["FORMA DE PAGO"] || "",
+            montoTotalUSD: parseFloat(v["MONTO TOTAL"]) || 0
           };
         });
         resultadosLocales.forEach(f => { mapFacturas[f.numFactura] = f; });
@@ -2529,7 +2553,7 @@ async function buscarFacturasHistorial(modo) {
         renderizarTablaHistorialFacturas();
       }
     } catch (err) {
-      console.warn("Aviso: Consulta de historial en Supabase omitida:", err);
+      console.warn("Aviso consulta historial Supabase:", err);
     }
   }
 }
@@ -2664,7 +2688,7 @@ function renderizarTicketTermicoHistorialHTML(d) {
 
       <div class="ticket-totals border-top pt-1">
         <div class="d-flex justify-content-between">
-          <span>TOTAL FACTURA (Bs):</span>
+          <span>TOTAL FACTURA ($):</span>
           <strong class="fs-6">$${d.totalUSD.toFixed(2)}</strong>
         </div>
         <div class="d-flex justify-content-between text-muted">
@@ -2740,45 +2764,59 @@ async function ejecutarDescargaExcelFacturas() {
   btn.textContent = "Generando Excel...";
 
   try {
-    const startIso = `${fechaVal}T00:00:00.000Z`;
-    const endIso = `${fechaVal}T23:59:59.999Z`;
+    const [ano, mes, dia] = fechaVal.split('-');
+    const patronFecha1 = `${dia}/${mes}/${ano}`;
+    const patronFecha2 = `${parseInt(dia, 10)}/${parseInt(mes, 10)}/${ano}`;
 
-    let query = supabaseClient.from('ventas').select('*').gte('fecha_hora', startIso).lte('fecha_hora', endIso);
+    let query = supabaseClient.from('ventas').select('*');
 
     if (formaPagoVal !== "TODOS" && formaPagoVal !== "") {
       if (formaPagoVal === "Cashea") {
-        query = query.ilike('forma_pago', '%CASHEA%');
+        query = query.ilike('FORMA DE PAGO', '%CASHEA%');
       } else if (formaPagoVal === "Pago Mixto") {
-        query = query.or('forma_pago.ilike.%MIXTO%,forma_pago.ilike.%+%');
+        query = query.or('"FORMA DE PAGO".ilike.%MIXTO%,"FORMA DE PAGO".ilike.%+%');
       } else {
-        query = query.ilike('forma_pago', `%${formaPagoVal}%`);
+        query = query.ilike('FORMA DE PAGO', `%${formaPagoVal}%`);
       }
     }
 
-    const { data: registros, error } = await query;
+    const { data: todosRegistros, error } = await query;
 
     btn.disabled = false;
     btn.textContent = "📊 Descargar Excel (.xlsx)";
 
-    if (!error && registros && registros.length > 0) {
-      const filasExcel = registros.map(r => ({
-        "Fecha / Hora": new Date(r.fecha_hora).toLocaleString('es-VE'),
-        "Factura N°": r.num_factura || "",
-        "Cédula / RIF": r.cedula || "",
-        "Cliente": r.nombre || "",
-        "Dirección / Ubicación": r.direccion || "",
-        "Productos": r.productos_summary || "",
-        "Forma de Pago": r.forma_pago || "",
-        "Monto Total ($)": parseFloat(r.monto_total_usd) || 0,
-        "Efectivo Divisas ($)": parseFloat(r.efectivo_usd) || 0,
-        "Efectivo Bolívares (Bs)": parseFloat(r.efectivo_bs) || 0,
-        "Pago Móvil (Bs)": parseFloat(r.pago_movil) || 0,
-        "Zelle ($)": parseFloat(r.zelle) || 0,
-        "PayPal ($)": parseFloat(r.paypal) || 0,
-        "Cashea ($)": parseFloat(r.cashea) || 0,
-        "Punto de Venta (Bs)": parseFloat(r.punto_venta) || 0,
-        "Transferencia (Bs)": parseFloat(r.transferencia) || 0,
-        "Biopago (Bs)": parseFloat(r.biopago) || 0
+    if (!error && todosRegistros && todosRegistros.length > 0) {
+      const registrosFiltrados = todosRegistros.filter(r => {
+        const fStr = String(r["FECHA"] || "");
+        return fStr.includes(patronFecha1) || fStr.includes(patronFecha2) || fStr.startsWith(fechaVal);
+      });
+
+      if (registrosFiltrados.length === 0) {
+        if (errorDiv) {
+          errorDiv.textContent = "No se encontraron ventas registradas para la fecha indicada.";
+          errorDiv.classList.remove('hidden');
+        }
+        return;
+      }
+
+      const filasExcel = registrosFiltrados.map(r => ({
+        "Fecha / Hora": r["FECHA"] || "",
+        "Factura N°": r["FACTURA N°"] || "",
+        "Cédula / RIF": r["CEDULA O RIF"] || "",
+        "Cliente": r["NOMBRE / RAZON SOCIAL"] || "",
+        "Dirección / Ubicación": r["UBICACION"] || "",
+        "Productos": r["PRODUCTOS"] || "",
+        "Forma de Pago": r["FORMA DE PAGO"] || "",
+        "Monto Total ($)": parseFloat(r["MONTO TOTAL"]) || 0,
+        "Efectivo Divisas ($)": parseFloat(r["EFECTIVO DIVISAS"]) || 0,
+        "Efectivo Bolívares (Bs)": parseFloat(r["EFECTIVO BOLIVARES"]) || 0,
+        "Pago Móvil (Bs)": parseFloat(r["PAGO MOVIL"]) || 0,
+        "Zelle ($)": parseFloat(r["ZELLE"]) || 0,
+        "PayPal ($)": parseFloat(r["PAYPAL"]) || 0,
+        "Cashea ($)": parseFloat(r["CASHEA"]) || 0,
+        "Punto de Venta (Bs)": parseFloat(r["PUNTO DE VENTA"]) || 0,
+        "Transferencia (Bs)": parseFloat(r["TRANSFERENCIA"]) || 0,
+        "Biopago (Bs)": parseFloat(r["BIOPAGO"]) || 0
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(filasExcel);
@@ -3100,18 +3138,30 @@ async function cargarHistorialCierresCaja() {
 
   if (navigator.onLine) {
     try {
-      const { data: cierresSup, error } = await supabaseClient.from('cierres').select('*').order('fecha_hora', { ascending: false }).limit(50);
+      const { data: cierresSup, error } = await supabaseClient.from('cierres').select('*').order('id', { ascending: false }).limit(50);
       if (!error && cierresSup) {
         cacheHistorialCierres = cierresSup.map(c => ({
-          fechaStr: new Date(c.fecha_hora).toLocaleString('es-VE'),
-          usuario: c.usuario,
-          inicialUSD: c.inicial_usd,
-          inicialBS: c.inicial_bs,
-          cajaFinalUSD: c.caja_final_usd,
-          cajaFinalBS: c.caja_final_bs,
-          totalVentasUSD: c.total_ventas_usd,
-          totalVentasBS: c.total_ventas_bs,
-          resumen: c.resumen
+          fechaStr: c["FECHA"] || "",
+          usuario: c["USUARIO"] || "",
+          inicialUSD: parseFloat(c["INICIAL $"]) || 0,
+          inicialBS: parseFloat(c["INICIAL Bs"]) || 0,
+          cajaFinalUSD: parseFloat(c["TOTAL 3"]) || 0,
+          cajaFinalBS: parseFloat(c["TOTAL 4"]) || 0,
+          totalVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
+          totalVentasBS: parseFloat(c["TOTAL 2"]) || 0,
+          resumen: {
+            ventasEfectivoUSD: parseFloat(c["DIVISAS"]) || 0,
+            ventasEfectivoBS: parseFloat(c["BOLIVARES"]) || 0,
+            ventasPagoMovil: parseFloat(c["PAGO MOVIL"]) || 0,
+            ventasZelle: parseFloat(c["ZELLE"]) || 0,
+            ventasPayPal: parseFloat(c["PAYPAL"]) || 0,
+            ventasPuntoVenta: parseFloat(c["PUNTO DE VENTA"]) || 0,
+            ventasBiopago: parseFloat(c["BIOPAGO"]) || 0,
+            ventasCashea: parseFloat(c["CASHEA"]) || 0,
+            ventasTransferencia: parseFloat(c["TRANSFERECIA"]) || 0,
+            totalGeneralVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
+            totalGeneralVentasBS: parseFloat(c["TOTAL 2"]) || 0
+          }
         }));
         for (let c of cacheHistorialCierres) {
           await dbPut("cierres", c);
@@ -3162,10 +3212,10 @@ function reimprimirCierreCajaHistorial(idx) {
     inicialUSD: c.inicialUSD,
     inicialBS: c.inicialBS,
     resumen: c.resumen,
-    ingresosUSD: c.ingresosUSD || 0,
-    retirosUSD: c.retirosUSD || 0,
-    ingresosBS: c.ingresosBS || 0,
-    retirosBS: c.retirosBS || 0,
+    ingresosUSD: 0,
+    retirosUSD: 0,
+    ingresosBS: 0,
+    retirosBS: 0,
     totalCajaUSD: c.cajaFinalUSD,
     totalCajaBS: c.cajaFinalBS
   };
@@ -3194,23 +3244,26 @@ async function procesarSiguienteCierreCaja() {
 
     if (navigator.onLine) {
       try {
-        const hoyIso = new Date().toISOString().split('T')[0];
-        const startIso = `${hoyIso}T00:00:00.000Z`;
-        const endIso = `${hoyIso}T23:59:59.999Z`;
+        const [ano, mes, dia] = new Date().toISOString().split('T')[0].split('-');
+        const patron1 = `${dia}/${mes}/${ano}`;
+        const patron2 = `${parseInt(dia, 10)}/${parseInt(mes, 10)}/${ano}`;
 
-        const { data: ventasHoy, error } = await supabaseClient.from('ventas').select('*').gte('fecha_hora', startIso).lte('fecha_hora', endIso);
+        const { data: ventasHoy, error } = await supabaseClient.from('ventas').select('*');
 
         if (!error && ventasHoy) {
           ventasHoy.forEach(v => {
-            resumen.ventasEfectivoUSD += parseFloat(v.efectivo_usd) || 0;
-            resumen.ventasEfectivoBS += parseFloat(v.efectivo_bs) || 0;
-            resumen.ventasPagoMovil += parseFloat(v.pago_movil) || 0;
-            resumen.ventasZelle += parseFloat(v.zelle) || 0;
-            resumen.ventasPayPal += parseFloat(v.paypal) || 0;
-            resumen.ventasCashea += parseFloat(v.cashea) || 0;
-            resumen.ventasPuntoVenta += parseFloat(v.punto_venta) || 0;
-            resumen.ventasTransferencia += parseFloat(v.transferencia) || 0;
-            resumen.ventasBiopago += parseFloat(v.biopago) || 0;
+            const fStr = String(v["FECHA"] || "");
+            if (fStr.includes(patron1) || fStr.includes(patron2)) {
+              resumen.ventasEfectivoUSD += parseFloat(v["EFECTIVO DIVISAS"]) || 0;
+              resumen.ventasEfectivoBS += parseFloat(v["EFECTIVO BOLIVARES"]) || 0;
+              resumen.ventasPagoMovil += parseFloat(v["PAGO MOVIL"]) || 0;
+              resumen.ventasZelle += parseFloat(v["ZELLE"]) || 0;
+              resumen.ventasPayPal += parseFloat(v["PAYPAL"]) || 0;
+              resumen.ventasCashea += parseFloat(v["CASHEA"]) || 0;
+              resumen.ventasPuntoVenta += parseFloat(v["PUNTO DE VENTA"]) || 0;
+              resumen.ventasTransferencia += parseFloat(v["TRANSFERENCIA"]) || 0;
+              resumen.ventasBiopago += parseFloat(v["BIOPAGO"]) || 0;
+            }
           });
         }
       } catch (e) {}
