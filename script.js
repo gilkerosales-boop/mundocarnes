@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Frontend e Interacción Optimizada - Mundocarnes
-   Conexión Directa a Supabase PostgreSQL con Esquema de Columnas Exacto
+   Catálogo Abierto (Todas las Secciones Visibles), Grid 3/6 y Carrito Flotante
    ========================================================================== */
 
 const GITHUB_CONFIG = {
@@ -34,6 +34,15 @@ function getSupabase() {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   }
   return supabaseClient;
+}
+
+// Actualizar Contador en el Botón Flotante "Ver Pedido"
+function actualizarContadorCarrito() {
+  const badge = document.getElementById('badgeCantCarrito');
+  if (badge) {
+    const totalItems = Object.keys(carrito).length;
+    badge.textContent = totalItems;
+  }
 }
 
 // Subida directa de archivos a GitHub vía API REST
@@ -148,6 +157,7 @@ function regresarAlInicio() {
   cacheUsuario = { cedula: "", nombre: "", apellido: "", telefono: "", rol: "" }; 
   carrito = {}; 
   cacheCategorias = [];
+  actualizarContadorCarrito();
   
   document.getElementById('cedula').value = ""; 
   document.getElementById('passwordAdmin').value = "";
@@ -189,6 +199,7 @@ function controlarSesionHeader() {
 function irALoginAdministrador() {
   document.getElementById('vistaCombos').classList.add('hidden');
   document.getElementById('vistaIngreso').classList.remove('hidden');
+  document.getElementById('btnVerPedido').classList.add('hidden');
   document.getElementById('cedula').placeholder = "Ingrese Cédula o RIF";
 }
 
@@ -376,61 +387,76 @@ function concederAccesoAlSistema() {
     });
 }
 
+// Renderizado con Todas las Secciones Abiertas y Visibles Continuamente
 function renderizarCatalogo(resp) {
   if (resp.error) return alert(resp.error);
   
   cacheCategorias = resp.categorias || [];
-  let tabsHtml = "";
-  let contentHtml = "";
-  
-  cacheCategorias.forEach((cat, index) => {
-    let activeClass = index === 0 ? "active" : "";
-    let showActiveClass = index === 0 ? "show active" : "";
-    let safeId = "tab-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
-    
-    tabsHtml += `
-      <li class="nav-item">
-        <button class="nav-link ${activeClass}" data-bs-toggle="tab" data-bs-target="#${safeId}" type="button">${cat.nombre}</button>
-      </li>`;
-    
-    contentHtml += `
-      <div class="tab-pane fade ${showActiveClass}" id="${safeId}">
-        <div id="lista-${safeId}" class="row g-3"></div>
-      </div>`;
-  });
-  
-  document.getElementById('catalogoTabs').innerHTML = tabsHtml;
-  document.getElementById('catalogoTabContent').innerHTML = contentHtml;
+  let navPillsHtml = "";
+  let sectionsHtml = "";
   
   cacheCategorias.forEach((cat) => {
-    let safeId = "tab-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
+    let safeId = "cat-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
+    
+    // Botones píldora para salto suave a cada sección
+    navPillsHtml += `
+      <a href="#${safeId}" class="btn-nav-categoria">${cat.nombre}</a>`;
+    
+    // Sección visible completa con su título y grid de productos
+    sectionsHtml += `
+      <section class="seccion-categoria" id="${safeId}">
+        <h4 class="titulo-seccion-categoria">${cat.nombre}</h4>
+        <div id="lista-${safeId}" class="row g-2"></div>
+      </section>`;
+  });
+  
+  document.getElementById('catalogoTabs').innerHTML = navPillsHtml;
+  document.getElementById('catalogoTabContent').innerHTML = sectionsHtml;
+  
+  cacheCategorias.forEach((cat) => {
+    let safeId = "cat-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
     let idElemento = "lista-" + safeId;
     cargarLista(idElemento, cat.productos, cat.nombre);
   });
 }
 
-// Cargar Lista manteniendo las tarjetas públicas limpias (sin mostrar el código PLU al cliente)
+// Cargar Lista con Grid de 3 Columnas en Móviles y 6 Columnas en Escritorio
 function cargarLista(idElemento, datos, nombreCategoria) {
-  document.getElementById(idElemento).innerHTML = datos.map(f => {
+  const contenedor = document.getElementById(idElemento);
+  if (!contenedor) return;
+
+  contenedor.innerHTML = datos.map(f => {
     let esDisp = f[3]; 
     let cantMin = f[4]; 
     let unidad = f[5]; 
     let pesoProm = f[6] || 0;
-    let codigoBalanza = f[7] || ""; // Campo 8: Código PLU privado de balanza
+    let codigoBalanza = f[7] || "";
 
     let claseImg = esDisp ? "" : "img-agotado";
-    let etiquetaDisp = esDisp ? "" : `<span class="badge bg-danger position-absolute top-0 start-0 m-2">Agotado</span>`;
+    let etiquetaDisp = esDisp ? "" : `<span class="badge bg-danger position-absolute top-0 start-0 m-1">Agotado</span>`;
     let boton = "";
     
     if (cacheUsuario.rol === "ADMIN") {
-      boton = `<button class="btn btn-sm btn-warning border-dark fw-bold mt-2 w-100" onclick="abrirModalEdicion('${f[0]}', '${f[1]}', '${nombreCategoria}', ${esDisp}, ${cantMin}, '${unidad}', ${pesoProm}, '${codigoBalanza}')">Configurar ⚙️</button>`;
+      boton = `<button class="btn btn-sm btn-warning fw-bold mt-1 w-100" onclick="abrirModalEdicion('${f[0]}', '${f[1]}', '${nombreCategoria}', ${esDisp}, ${cantMin}, '${unidad}', ${pesoProm}, '${codigoBalanza}')">Editar ⚙️</button>`;
     } else {
-      if (esDisp) boton = `<button class="btn btn-sm btn-outline-dark fw-bold mt-2 w-100" onclick="seleccionarProducto('${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">Seleccionar</button>`;
-      else boton = `<button class="btn btn-sm btn-secondary fw-bold mt-2 w-100 border-dark" disabled>🚫 No Disponible</button>`;
+      if (esDisp) boton = `<button class="btn btn-sm btn-outline-dark fw-bold mt-1 w-100" onclick="seleccionarProducto('${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">+ Pedir</button>`;
+      else boton = `<button class="btn btn-sm btn-secondary fw-bold mt-1 w-100" disabled>Agotado</button>`;
     }
     
     let unidadTxt = (unidad === 'gramos') ? 'g' : 'uds';
-    return `<div class="col-6 col-md-3"><div class="card h-100 p-2 position-relative">${etiquetaDisp}<img src="${f[2]}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${f[2]}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})"><h6 class="fw-bold mt-2 text-truncate">${f[0]}</h6><p class="text-success fw-bold mb-0">${f[1]} $</p><small class="text-muted" style="font-size:0.7rem;">Mín: ${cantMin} ${unidadTxt}</small>${boton}</div></div>`;
+
+    // Grid: col-4 (3 columnas en móvil), col-md-3 (4 en tablet), col-lg-2 (6 en PC)
+    return `
+      <div class="col-4 col-md-3 col-lg-2">
+        <div class="card h-100 position-relative">
+          ${etiquetaDisp}
+          <img src="${f[2]}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${f[2]}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">
+          <h6 class="fw-bold text-truncate">${f[0]}</h6>
+          <p class="text-success fw-bold">$${f[1]}</p>
+          <small class="text-muted">Mín: ${cantMin}${unidadTxt}</small>
+          ${boton}
+        </div>
+      </div>`;
   }).join('');
 }
 
@@ -529,7 +555,7 @@ async function guardarEdicionAdministrador() {
         prod[4] = min;
         prod[5] = unidad;
         prod[6] = pesoProm;
-        prod[7] = nuevoCodigo; // Guardar Código PLU / Balanza privado
+        prod[7] = nuevoCodigo;
 
         if (relativeImgPath) {
           prod[2] = relativeImgPath;
@@ -551,7 +577,7 @@ async function guardarEdicionAdministrador() {
     btn.disabled = false;
     btn.textContent = "Guardar Cambios 💾";
     bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-    mostrarAviso("Producto guardado correctamente con su Código PLU.");
+    mostrarAviso("Producto guardado correctamente.");
     
     renderizarCatalogo({ categorias: cacheCategorias });
 
@@ -679,6 +705,7 @@ function confirmarSeleccion() {
     };
   }
   
+  actualizarContadorCarrito();
   mostrarAviso(`Agregado: ${productoTemporal.nombre}`);
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCantidad')).hide();
 }
@@ -686,16 +713,17 @@ function confirmarSeleccion() {
 function mostrarPedido() {
   document.getElementById('vistaCombos').classList.add('hidden'); 
   document.getElementById('vistaPedido').classList.remove('hidden');
+  document.getElementById('btnVerPedido').classList.add('hidden');
   
   let html = '<table class="table align-middle"><tbody>'; 
   let t = 0;
   for (let p in carrito) {
     let item = carrito[p]; 
     t += parseFloat(item.precio);
-    html += `<tr><td style="max-width: 120px;" class="text-wrap">${p}</td><td><input type="number" class="form-control form-control-sm text-center fw-bold border-dark p-1" value="${item.cantNumerica}" min="${item.minBase}" style="width:70px" onchange="cambiarCantidadInline('${p}', this.value)"></td><td class="text-success text-nowrap">$${item.precio}</td><td><button class="btn btn-sm btn-danger px-2 py-1" onclick="eliminarDelCarrito('${p}')">X</button></td></tr>`;
+    html += `<tr><td style="max-width: 140px;" class="text-wrap fw-bold">${p}</td><td><input type="number" class="form-control form-control-sm text-center fw-bold border-secondary p-1" value="${item.cantNumerica}" min="${item.minBase}" style="width:70px" onchange="cambiarCantidadInline('${p}', this.value)"></td><td class="text-danger fw-bold text-nowrap">$${item.precio}</td><td><button class="btn btn-sm btn-outline-danger px-2 py-1" onclick="eliminarDelCarrito('${p}')">✕</button></td></tr>`;
   }
-  html += `<tr class="table-active fw-bold border-dark border-top"><td colspan="2" class="text-end">TOTAL:</td><td class="text-danger">$${t.toFixed(2)}</td><td></td></tr></tbody></table>`;
-  document.getElementById('listaPedido').innerHTML = Object.keys(carrito).length ? html : '<p class="text-center">Vacío</p>';
+  html += `<tr class="table-light fw-bold border-top"><td colspan="2" class="text-end">TOTAL ESTIMADO:</td><td class="text-danger fs-5">$${t.toFixed(2)}</td><td></td></tr></tbody></table>`;
+  document.getElementById('listaPedido').innerHTML = Object.keys(carrito).length ? html : '<p class="text-center py-4 text-muted">Tu carrito está vacío.</p>';
 }
 
 function cambiarCantidadInline(nombre, nuevaCant) {
@@ -728,10 +756,22 @@ function cambiarCantidadInline(nombre, nuevaCant) {
     item.precio = ((item.precioBase / 1000) * cant).toFixed(2);
   }
   mostrarPedido();
+  actualizarContadorCarrito();
 }
 
-function eliminarDelCarrito(p) { delete carrito[p]; mostrarPedido(); }
-function cerrarPedido() { document.getElementById('vistaPedido').classList.add('hidden'); document.getElementById('vistaCombos').classList.remove('hidden'); }
+function eliminarDelCarrito(p) { 
+  delete carrito[p]; 
+  mostrarPedido(); 
+  actualizarContadorCarrito();
+}
+
+function cerrarPedido() { 
+  document.getElementById('vistaPedido').classList.add('hidden'); 
+  document.getElementById('vistaCombos').classList.remove('hidden'); 
+  if (cacheUsuario.rol !== "ADMIN") {
+    document.getElementById('btnVerPedido').classList.remove('hidden');
+  }
+}
 
 function abrirSolicitudPago() {
   if (!Object.keys(carrito).length) return;
@@ -887,7 +927,7 @@ function procesarEnvioSolicitud() {
   let total = 0;
   let listaHtml = '<ul class="list-unstyled mb-1">';
   for (let p in carrito) {
-    listaHtml += `<li class="small">▫️ <strong>${p}</strong> (${carrito[p].cantidad}) — <span class="text-success">$${carrito[p].precio}</span></li>`;
+    listaHtml += `<li class="small mb-1">▫️ <strong>${p}</strong> (${carrito[p].cantidad}) — <span class="text-danger fw-bold">$${carrito[p].precio}</span></li>`;
     total += parseFloat(carrito[p].precio);
   }
   listaHtml += '</ul>';
@@ -896,16 +936,16 @@ function procesarEnvioSolicitud() {
     <p class="fw-bold mb-2">Por favor, verifique los detalles de su pedido:</p>
     <div class="border p-2 bg-light rounded mb-3" style="max-height: 150px; overflow-y: auto;">
       ${listaHtml}
-      <div class="text-end fw-bold text-danger mt-1">Total Estimado: $${total.toFixed(2)}</div>
+      <div class="text-end fw-bold text-danger mt-1 fs-6">Total Estimado: $${total.toFixed(2)}</div>
     </div>
     <div class="mb-3 small">
       <strong>📍 Destino:</strong> ${datosCheckout.ubicacion}<br>
       <strong>💳 Método de Pago:</strong> ${datosCheckout.formaPago}
     </div>
-    <hr class="my-2 border-secondary">
+    <hr class="my-2 border-secondary opacity-25">
     <div class="mb-2">
       <label class="form-label fw-bold text-success mb-1">📱 Confirme su número de WhatsApp para contacto:</label>
-      <input type="tel" id="confirmarTelefono" class="form-control border-dark">
+      <input type="tel" id="confirmarTelefono" class="form-control">
       <div class="form-text text-muted small mt-1">En caso de estar equivocado, corríjalo aquí para coordinar la entrega.</div>
     </div>
   `;
@@ -985,6 +1025,7 @@ async function ejecutarAccionFinal() {
   document.getElementById('vistaPedido').classList.add('hidden'); 
   document.getElementById('vistaCombos').classList.remove('hidden');
   carrito = {}; 
+  actualizarContadorCarrito();
   
   btn.disabled = false;
   btn.textContent = "Aceptar ✓";
