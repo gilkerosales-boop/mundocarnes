@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Base de Datos PostgreSQL en Supabase - Cierre de Caja y Desglose Blindado
+   Base de Datos PostgreSQL en Supabase - Prevención Estricta de Duplicados
    ========================================================================== */
 
 // Configuración de Supabase
@@ -89,7 +89,7 @@ async function dbGet(storeName, key) {
 async function dbPut(storeName, item) {
   try {
     const db = await abrirDB();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const tx = db.transaction(storeName, "readwrite");
       const store = tx.objectStore(storeName);
       const req = store.put(item);
@@ -167,7 +167,7 @@ async function obtenerTodasLasVentasSupabase() {
 }
 
 // ==========================================================================
-// MOTOR DE SINCRONIZACIÓN HACIA SUPABASE
+// MOTOR DE SINCRONIZACIÓN HACIA SUPABASE (UNIFICADO Y ANTI-DUPLICADOS)
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
   const badge = document.getElementById('badgeEstadoSync');
@@ -1407,27 +1407,19 @@ async function registrarClienteFactura() {
   const nombre = document.getElementById('facRegNombre').value.trim().toUpperCase();
   const telefono = document.getElementById('facRegTelefono').value.trim();
   const direccion = document.getElementById('facRegDireccion').value.trim();
+  const btn = document.getElementById('btnRegistrarClienteFac');
 
   if (!cedula || !nombre) {
     return mostrarAvisoFactura("Cédula y Nombre son obligatorios.");
   }
+
+  if (btn) { btn.disabled = true; btn.textContent = "Registrando..."; }
 
   const clienteNuevo = { cedula, nombre, telefono, direccion };
   clienteFacturaActual = clienteNuevo;
 
   await dbPut("clientes", clienteNuevo);
   poblarClienteEnVista(clienteNuevo);
-
-  if (navigator.onLine) {
-    try {
-      await supabaseClient.from('clientes').upsert({
-        "CEDULA": cedula,
-        "NOMBRES": nombre,
-        "TELEFONO": telefono,
-        "DIRECCION": direccion
-      });
-    } catch (e) {}
-  }
 
   await dbPut("syncQueue", {
     id: "sync_cli_" + Date.now(),
@@ -1439,6 +1431,8 @@ async function registrarClienteFactura() {
       direccion: direccion
     }
   });
+
+  if (btn) { btn.disabled = false; btn.textContent = "💾 Registrar Nuevo Cliente"; }
 
   mostrarAvisoFactura("Cliente registrado exitosamente ⚡");
   procesarColaSincronizacion();
@@ -1980,7 +1974,7 @@ async function confirmarEImprimirFactura() {
       productosSummary: datosFacturaPendiente.productosSummary
     });
 
-    // 2. Encolar para sincronización con Supabase
+    // 2. Encolar una única vez para sincronización con Supabase
     await dbPut("syncQueue", {
       id: "sync_fac_" + Date.now(),
       payload: {
@@ -2542,7 +2536,7 @@ async function buscarFacturasHistorial(modo) {
     if (f.numFactura) mapFacturas[f.numFactura] = f;
   });
 
-  // 2. Consulta paginada a Supabase para abarcar todas las 1800+ ventas emitidas
+  // 2. Consulta paginada a Supabase para abarcar todas las ventas emitidas
   if (navigator.onLine) {
     try {
       const ventasSup = await obtenerTodasLasVentasSupabase();
@@ -3146,7 +3140,7 @@ function eliminarMovimientoEfectivo(index) {
   }
 }
 
-// CIERRE DE CAJA (REPORTE Z) E HISTORIAL EN SUPABASE (BLINDADO)
+// CIERRE DE CAJA (REPORTE Z) E HISTORIAL EN SUPABASE (BLINDADO Y SIN DUPLICACIÓN)
 function abrirModalCierreCaja() {
   const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
   document.getElementById('cierreUsuarioNombre').textContent = `👤 Cajero: ${usuario.toUpperCase()}`;
@@ -3576,41 +3570,17 @@ async function confirmarEImprimirCierreCaja() {
 
   try {
     const d = datosCierreCajaPendiente;
-    const r = d.resumen || {};
 
+    // 1. Guardar localmente en IndexedDB
     await dbPut("cierres", d);
 
-    if (navigator.onLine) {
-      try {
-        await supabaseClient.from('cierres').insert([{
-          "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
-          "USUARIO": d.usuario,
-          "INICIAL $": parseFloat(d.inicialUSD) || 0,
-          "INICIAL Bs": parseFloat(d.inicialBS) || 0,
-          "DIVISAS": parseFloat(r.ventasEfectivoUSD) || 0,
-          "BOLIVARES": parseFloat(r.ventasEfectivoBS) || 0,
-          "PAGO MOVIL": parseFloat(r.ventasPagoMovil) || 0,
-          "ZELLE": parseFloat(r.ventasZelle) || 0,
-          "PAYPAL": parseFloat(r.ventasPayPal) || 0,
-          "PUNTO DE VENTA": parseFloat(r.ventasPuntoVenta) || 0,
-          "BIOPAGO": parseFloat(r.ventasBiopago) || 0,
-          "CASHEA": parseFloat(r.ventasCashea) || 0,
-          "TRANSFERECIA": parseFloat(r.ventasTransferencia) || 0,
-          "TOTAL 1": parseFloat(r.totalGeneralVentasUSD) || 0,
-          "TOTAL 2": parseFloat(r.totalGeneralVentasBS) || 0,
-          "TOTAL 3": parseFloat(d.totalCajaUSD) || 0,
-          "TOTAL 4": parseFloat(d.totalCajaBS) || 0
-        }]);
-      } catch (errSup) {
-        console.warn("Aviso insert cierre Supabase directo:", errSup);
-      }
-    }
-
+    // 2. Encolar una única vez para sincronización con Supabase
     await dbPut("syncQueue", {
       id: "sync_cie_" + Date.now(),
       payload: { action: "guardarCierreCaja", datosCierre: d }
     });
 
+    // 3. Impresión del ticket
     const ticketHtml = document.getElementById('vistaPreviaCierreCajaModal').innerHTML;
     ejecutarImpresionTicket(ticketHtml);
 
