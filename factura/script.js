@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Base de Datos PostgreSQL en Supabase - Prevención Estricta de Duplicados
+   Base de Datos PostgreSQL en Supabase - Ajuste de Ubicación y Anti-Duplicados
    ========================================================================== */
 
 // Configuración de Supabase
@@ -89,7 +89,7 @@ async function dbGet(storeName, key) {
 async function dbPut(storeName, item) {
   try {
     const db = await abrirDB();
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const tx = db.transaction(storeName, "readwrite");
       const store = tx.objectStore(storeName);
       const req = store.put(item);
@@ -237,7 +237,7 @@ async function procesarColaSincronizacion() {
           "FACTURA N°": d.numFactura,
           "CEDULA O RIF": d.cedula,
           "NOMBRE / RAZON SOCIAL": d.nombre,
-          "UBICACION": d.direccion || 'paraiso',
+          "UBICACION": d.direccion || null,
           "PRODUCTOS": d.productosSummary,
           "FORMA DE PAGO": d.formaPago,
           "MONTO TOTAL": parseFloat(d.montoTotal) || 0,
@@ -263,7 +263,7 @@ async function procesarColaSincronizacion() {
           "CEDULA": payload.cedula,
           "NOMBRES": payload.nombre,
           "TELEFONO": payload.telefono,
-          "DIRECCION": payload.direccion
+          "DIRECCION": payload.direccion || null
         });
 
         if (!error) exito = true;
@@ -342,7 +342,7 @@ async function forzarSincronizacionManual() {
           cedula: c.CEDULA,
           nombre: c.NOMBRES || 'N/D',
           telefono: c.TELEFONO || 'N/D',
-          direccion: c.DIRECCION || 'N/D'
+          direccion: c.DIRECCION || null
         });
       }
     }
@@ -377,7 +377,7 @@ async function forzarSincronizacionManual() {
           fechaStr: v["FECHA"] || "",
           cedula: v["CEDULA O RIF"] || "",
           nombre: v["NOMBRE / RAZON SOCIAL"] || "",
-          direccion: v["UBICACION"] || "",
+          direccion: v["UBICACION"] || null,
           productosSummary: v["PRODUCTOS"] || "",
           formaPagoStr: v["FORMA DE PAGO"] || "",
           montoTotalUSD: parseFloat(v["MONTO TOTAL"]) || 0
@@ -452,7 +452,7 @@ async function sincronizarClientesDesdeServidor() {
           cedula: cli.CEDULA,
           nombre: cli.NOMBRES || 'N/D',
           telefono: cli.TELEFONO || 'N/D',
-          direccion: cli.DIRECCION || 'N/D'
+          direccion: cli.DIRECCION || null
         });
       }
     }
@@ -1347,7 +1347,7 @@ async function buscarClienteFactura() {
             cedula: resSup.CEDULA,
             nombre: resSup.NOMBRES || 'N/D',
             telefono: resSup.TELEFONO || 'N/D',
-            direccion: resSup.DIRECCION || 'N/D'
+            direccion: resSup.DIRECCION || null
           };
           clienteFacturaActual = cliObj;
           await dbPut("clientes", cliObj);
@@ -1376,7 +1376,7 @@ function poblarClienteEnVista(cli) {
   if (elemCedula) elemCedula.value = cli.cedula || '';
   if (elemNombre) elemNombre.value = cli.nombre || 'N/D';
   if (elemTel) elemTel.value = cli.telefono || 'N/D';
-  if (elemDir) elemDir.value = cli.direccion || 'N/D';
+  if (elemDir) elemDir.value = cli.direccion || '';
 
   const boxEncontrado = document.getElementById('boxClienteEncontrado');
   const boxNuevo = document.getElementById('boxClienteNuevo');
@@ -1406,7 +1406,7 @@ async function registrarClienteFactura() {
   const cedula = document.getElementById('facRegCedula').value.trim().toUpperCase();
   const nombre = document.getElementById('facRegNombre').value.trim().toUpperCase();
   const telefono = document.getElementById('facRegTelefono').value.trim();
-  const direccion = document.getElementById('facRegDireccion').value.trim();
+  const direccion = document.getElementById('facRegDireccion').value.trim() || null;
   const btn = document.getElementById('btnRegistrarClienteFac');
 
   if (!cedula || !nombre) {
@@ -1969,7 +1969,7 @@ async function confirmarEImprimirFactura() {
       montoTotalUSD: datosFacturaPendiente.totalUSD,
       cedula: datosFacturaPendiente.cliente.cedula,
       nombre: datosFacturaPendiente.cliente.nombre,
-      direccion: datosFacturaPendiente.cliente.direccion || 'N/D',
+      direccion: datosFacturaPendiente.cliente.direccion || null,
       formaPagoStr: datosFacturaPendiente.formaPagoStr,
       productosSummary: datosFacturaPendiente.productosSummary
     });
@@ -1984,7 +1984,7 @@ async function confirmarEImprimirFactura() {
           fechaStr: datosFacturaPendiente.fechaStr,
           cedula: datosFacturaPendiente.cliente.cedula,
           nombre: datosFacturaPendiente.cliente.nombre,
-          direccion: datosFacturaPendiente.cliente.direccion || 'paraiso',
+          direccion: datosFacturaPendiente.cliente.direccion || null,
           productosSummary: datosFacturaPendiente.productosSummary,
           formaPago: datosFacturaPendiente.formaPagoStr,
           montoTotal: datosFacturaPendiente.totalUSD,
@@ -2536,7 +2536,7 @@ async function buscarFacturasHistorial(modo) {
     if (f.numFactura) mapFacturas[f.numFactura] = f;
   });
 
-  // 2. Consulta paginada a Supabase para abarcar todas las ventas emitidas
+  // 2. Consulta paginada a Supabase para abarcar todas las 1800+ ventas emitidas
   if (navigator.onLine) {
     try {
       const ventasSup = await obtenerTodasLasVentasSupabase();
@@ -2550,7 +2550,7 @@ async function buscarFacturasHistorial(modo) {
               fechaStr: v["FECHA"] || "",
               cedula: v["CEDULA O RIF"] || "",
               nombre: v["NOMBRE / RAZON SOCIAL"] || "",
-              direccion: v["UBICACION"] || "",
+              direccion: v["UBICACION"] || null,
               productosSummary: v["PRODUCTOS"] || "",
               formaPagoStr: v["FORMA DE PAGO"] || "",
               montoTotalUSD: parseFloat(v["MONTO TOTAL"]) || 0
