@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Frontend e Interacción Optimizada - Mundocarnes
-   Base de Datos PostgreSQL en Supabase
+   Base de Datos PostgreSQL en Supabase (Adaptativa)
    ========================================================================== */
 
 const GITHUB_CONFIG = {
@@ -180,50 +180,60 @@ function irALoginAdministrador() {
   document.getElementById('cedula').placeholder = "Ingrese Cédula o RIF";
 }
 
-// VERIFICACIÓN DE USUARIOS EN SUPABASE
+// VERIFICACIÓN DE USUARIOS EN SUPABASE (ADAPTATIVA)
 async function procesarPrimerPaso() {
   const cedulaInput = document.getElementById('cedula').value.trim().toUpperCase();
   if (!cedulaInput) { mostrarAviso("Introduzca su Cédula o RIF."); return; }
   
   const btn = document.getElementById('btnSiguiente'); 
   btn.disabled = true; 
-  btn.textContent = "Verificando en Supabase...";
+  btn.textContent = "Verificando...";
   
   try {
     // 1. Verificar si es Administrador
-    const { data: adminData } = await supabaseClient
+    let { data: adminData } = await supabaseClient
       .from('administradores')
       .select('*')
-      .eq('cedula', cedulaInput)
+      .or(`cedula.eq.${cedulaInput},CEDULA.eq.${cedulaInput}`)
       .maybeSingle();
+
+    if (!adminData) {
+      const { data: a2 } = await supabaseClient.from('administradores').select('*').eq('CEDULA', cedulaInput).maybeSingle();
+      if (a2) adminData = a2;
+    }
 
     if (adminData) {
       btn.disabled = false; 
       btn.textContent = "Siguiente";
       cacheUsuario.cedula = cedulaInput;
-      cacheUsuario.nombre = adminData.nombre || "ADMIN";
-      cacheUsuario.apellido = adminData.apellido || "";
-      document.getElementById('saludoAdmin').textContent = `Bienvenido: ${adminData.nombre} ${adminData.apellido}`;
+      cacheUsuario.nombre = adminData.NOMBRE || adminData.nombre || "ADMIN";
+      cacheUsuario.apellido = adminData.APELLIDO || adminData.apellido || "";
+      document.getElementById('saludoAdmin').textContent = `Bienvenido: ${cacheUsuario.nombre} ${cacheUsuario.apellido}`;
       document.getElementById('vistaIngreso').classList.add('hidden'); 
       document.getElementById('vistaAdminPassword').classList.remove('hidden');
       return;
     }
 
-    // 2. Verificar si es Cliente
-    const { data: clienteData } = await supabaseClient
+    // 2. Verificar si es Cliente (Búsqueda adaptativa por CEDULA o cedula)
+    let { data: clienteData } = await supabaseClient
       .from('clientes')
       .select('*')
-      .eq('cedula', cedulaInput)
+      .or(`cedula.eq.${cedulaInput},CEDULA.eq.${cedulaInput}`)
       .maybeSingle();
+
+    if (!clienteData) {
+      const { data: c2 } = await supabaseClient.from('clientes').select('*').eq('CEDULA', cedulaInput).maybeSingle();
+      if (c2) clienteData = c2;
+    }
 
     btn.disabled = false; 
     btn.textContent = "Siguiente";
     cacheUsuario.cedula = cedulaInput;
 
     if (clienteData) {
-      cacheUsuario.nombre = clienteData.nombre;
-      cacheUsuario.apellido = clienteData.apellido || clienteData.apellidos || "";
-      cacheUsuario.telefono = clienteData.telefono || "";
+      cacheUsuario.nombre = clienteData.NOMBRES || clienteData.nombre || "";
+      cacheUsuario.apellido = clienteData.APELLIDOS || clienteData.apellido || clienteData.apellidos || "";
+      cacheUsuario.telefono = clienteData.TELEFONO || clienteData.telefono || "";
       cacheUsuario.rol = "CLIENTE";
       concederAccesoAlSistema();
     } else {
@@ -234,7 +244,7 @@ async function procesarPrimerPaso() {
   } catch (err) {
     btn.disabled = false; 
     btn.textContent = "Siguiente";
-    console.error("Error al verificar usuario en Supabase:", err);
+    console.error("Error al verificar usuario:", err);
     mostrarAviso("Error de conexión al verificar identidad.");
   }
 }
@@ -277,7 +287,7 @@ async function verificarPasswordAdministrador() {
   }
 }
 
-// REGISTRO DE NUEVO CLIENTE EN SUPABASE (CON FALLBACK FLEXIBLE)
+// REGISTRO DE NUEVO CLIENTE EN SUPABASE (ADAPTATIVO 100% COMPATIBLE)
 async function ejecutarRegistroNuevoCliente() {
   const nom = document.getElementById('regNombre').value.trim();
   const ape = document.getElementById('regApellido').value.trim();
@@ -300,33 +310,34 @@ async function ejecutarRegistroNuevoCliente() {
   btn.textContent = "Registrando en Supabase...";
   
   try {
+    // Intento 1: Columnas exactamente como están en tu tabla (CEDULA, NOMBRES, APELLIDOS, TELEFONO)
     let { error } = await supabaseClient
       .from('clientes')
       .upsert({
-        cedula: cacheUsuario.cedula,
-        nombre: nom.toUpperCase(),
-        apellido: ape.toUpperCase(),
-        telefono: tel
+        CEDULA: cacheUsuario.cedula,
+        NOMBRES: nom.toUpperCase(),
+        APELLIDOS: ape.toUpperCase(),
+        TELEFONO: tel
       });
 
-    // Fallback por si la columna en la BD se llama 'apellidos' en plural
-    if (error && error.message && error.message.includes('apellido')) {
-      const resPlural = await supabaseClient
+    // Intento 2: Fallback a columnas en minúsculas por si cambian en el futuro
+    if (error) {
+      const res2 = await supabaseClient
         .from('clientes')
         .upsert({
           cedula: cacheUsuario.cedula,
           nombre: nom.toUpperCase(),
-          apellidos: ape.toUpperCase(),
+          apellido: ape.toUpperCase(),
           telefono: tel
         });
-      error = resPlural.error;
+      error = res2.error;
     }
 
     btn.disabled = false; 
     btn.textContent = "Registrar y Comprar";
 
     if (error) {
-      return mostrarAviso("Error al registrar cliente: " + error.message);
+      return mostrarAviso("Error de registro: " + error.message);
     }
 
     cacheUsuario.nombre = nom.toUpperCase(); 
@@ -732,7 +743,7 @@ function abrirSolicitudPago() {
   }
 }
 
-// CHECKOUT CLIENTE EN SUPABASE
+// CHECKOUT CLIENTE EN SUPABASE (ADAPTATIVO)
 async function verificarClienteCheckout() {
   const cedulaInput = document.getElementById('checkoutCedula').value.trim().toUpperCase();
   if (!cedulaInput) return mostrarAviso("Por favor, ingrese su Cédula o RIF.");
@@ -742,24 +753,29 @@ async function verificarClienteCheckout() {
   btn.textContent = "Verificando...";
   
   try {
-    const { data: clienteData, error } = await supabaseClient
+    let { data: clienteData, error } = await supabaseClient
       .from('clientes')
       .select('*')
-      .eq('cedula', cedulaInput)
+      .or(`cedula.eq.${cedulaInput},CEDULA.eq.${cedulaInput}`)
       .maybeSingle();
+
+    if (!clienteData) {
+      const { data: c2 } = await supabaseClient.from('clientes').select('*').eq('CEDULA', cedulaInput).maybeSingle();
+      if (c2) clienteData = c2;
+    }
 
     btn.disabled = false;
     btn.textContent = "Continuar ➡️";
 
     cacheUsuario.cedula = cedulaInput;
 
-    if (!error && clienteData) {
-      cacheUsuario.nombre = clienteData.nombre;
-      cacheUsuario.apellido = clienteData.apellido || clienteData.apellidos || "";
-      cacheUsuario.telefono = clienteData.telefono || "";
+    if (clienteData) {
+      cacheUsuario.nombre = clienteData.NOMBRES || clienteData.nombre || "";
+      cacheUsuario.apellido = clienteData.APELLIDOS || clienteData.apellido || clienteData.apellidos || "";
+      cacheUsuario.telefono = clienteData.TELEFONO || clienteData.telefono || "";
       cacheUsuario.rol = "CLIENTE";
       
-      mostrarAviso(`Bienvenido de nuevo, ${clienteData.nombre} 👋`);
+      mostrarAviso(`Bienvenido de nuevo, ${cacheUsuario.nombre} 👋`);
       
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAutenticacionCheckout')).hide();
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show();
@@ -778,7 +794,7 @@ async function verificarClienteCheckout() {
   }
 }
 
-// REGISTRO DE CLIENTE EN CHECKOUT CON SUPABASE (CON FALLBACK FLEXIBLE)
+// REGISTRO DE CLIENTE EN CHECKOUT CON SUPABASE (ADAPTATIVO)
 async function ejecutarRegistroCheckout() {
   const nom = document.getElementById('checkoutNombre').value.trim();
   const ape = document.getElementById('checkoutApellido').value.trim();
@@ -804,23 +820,22 @@ async function ejecutarRegistroCheckout() {
     let { error } = await supabaseClient
       .from('clientes')
       .upsert({
-        cedula: cacheUsuario.cedula,
-        nombre: nom.toUpperCase(),
-        apellido: ape.toUpperCase(),
-        telefono: tel
+        CEDULA: cacheUsuario.cedula,
+        NOMBRES: nom.toUpperCase(),
+        APELLIDOS: ape.toUpperCase(),
+        TELEFONO: tel
       });
 
-    // Fallback por si la columna en la BD se llama 'apellidos'
-    if (error && error.message && error.message.includes('apellido')) {
-      const resPlural = await supabaseClient
+    if (error) {
+      const res2 = await supabaseClient
         .from('clientes')
         .upsert({
           cedula: cacheUsuario.cedula,
           nombre: nom.toUpperCase(),
-          apellidos: ape.toUpperCase(),
+          apellido: ape.toUpperCase(),
           telefono: tel
         });
-      error = resPlural.error;
+      error = res2.error;
     }
 
     btn.disabled = false;
@@ -923,6 +938,7 @@ async function ejecutarAccionFinal() {
   if (telConfirmado !== numeroOriginal) {
     cacheUsuario.telefono = telConfirmado;
     try {
+      await supabaseClient.from('clientes').update({ TELEFONO: telConfirmado }).eq('CEDULA', cacheUsuario.cedula);
       await supabaseClient.from('clientes').update({ telefono: telConfirmado }).eq('cedula', cacheUsuario.cedula);
     } catch (e) {}
   }
