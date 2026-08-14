@@ -1,9 +1,9 @@
 /* ==========================================================================
    Estilos Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Diseño POS Profesional, Ergonomía de Turno, Barra BCV Sticky e Input Seguro
+   Diseño Anti-Fatiga Visual (Fondo Gris Mate Suave) y Números de Alta Legibilidad
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@500;700;800&display=swap');
 
 :root {
   --pos-dark: #0f172a;
@@ -15,15 +15,16 @@
   --pos-green-dark: #059669;
   --pos-amber: #f59e0b;
   --pos-blue: #3b82f6;
-  --pos-bg: #f8fafc;
-  --pos-card-border: #e2e8f0;
+  --pos-bg: #e2e8f0;            /* Gris mate suave anti-deslumbramiento */
+  --pos-surface-card: #f8fafc;  /* Superficie suave para tarjetas */
+  --pos-card-border: #cbd5e1;   /* Borde gris definido pero suave */
   --pos-radius-sm: 8px;
   --pos-radius-md: 12px;
   --pos-radius-lg: 18px;
   --pos-radius-pill: 50px;
   --pos-shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.04);
-  --pos-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.07);
-  --pos-shadow-float: 0 12px 30px rgba(15, 23, 42, 0.15);
+  --pos-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.06);
+  --pos-shadow-float: 0 12px 30px rgba(15, 23, 42, 0.12);
 }
 
 * {
@@ -33,12 +34,19 @@
 body {
   background-color: var(--pos-bg) !important;
   background-image: none !important;
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: #1e293b;
   min-height: 100vh;
   margin: 0;
   padding: 0 0 40px 0;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Regla global de números tabulares nítidos */
+.num-legible, .monto-total-usd, .monto-total-bs-sub, .hero-monto-usd, .hero-monto-bs, .card-producto p.text-success {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif !important;
+  font-variant-numeric: tabular-nums lining-nums !important;
+  letter-spacing: 0.3px;
 }
 
 /* ==========================================================================
@@ -78,7 +86,7 @@ body {
   color: #ffffff;
   padding: 10px 24px;
   margin-bottom: 20px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -161,14 +169,14 @@ body {
   font-size: 0.84rem;
   border: 1px solid var(--pos-card-border);
   border-radius: var(--pos-radius-pill);
-  background-color: #ffffff;
+  background-color: #f8fafc;
   padding: 8px 18px;
   transition: all 0.2s ease;
   white-space: nowrap;
 }
 
 .nav-tabs .nav-link:hover {
-  background-color: #f1f5f9;
+  background-color: #ffffff;
   color: var(--pos-dark);
 }
 
@@ -185,7 +193,7 @@ body {
 .card-producto {
   border: 1px solid var(--pos-card-border);
   border-radius: var(--pos-radius-md);
-  background-color: #ffffff;
+  background-color: var(--pos-surface-card);
   padding: 10px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: var(--pos-shadow-sm);
@@ -196,6 +204,7 @@ body {
 
 .card-producto:hover {
   border-color: var(--pos-red);
+  background-color: #ffffff;
   box-shadow: var(--pos-shadow-md);
   transform: translateY(-2px);
 }
@@ -204,7 +213,7 @@ body {
   height: 130px;
   object-fit: cover;
   border-radius: var(--pos-radius-sm);
-  background-color: #f8fafc;
+  background-color: #e2e8f0;
   transition: transform 0.2s ease;
 }
 
@@ -221,11 +230,10 @@ body {
 }
 
 .card-producto p.text-success {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 800;
   color: var(--pos-red) !important;
   margin-bottom: 2px;
-  font-family: 'JetBrains Mono', monospace;
 }
 
 .card-producto .btn-outline-danger {
@@ -234,6 +242,7 @@ body {
   font-weight: 700;
   padding: 5px 8px;
   border-width: 1.5px;
+  background-color: #ffffff;
 }
 
 .card-producto .btn-outline-danger:hover {
@@ -253,7 +262,7 @@ body {
   border: 1px solid var(--pos-card-border);
   border-radius: var(--pos-radius-lg);
   padding: 20px;
-  background-color: #ffffff;
+  background-color: var(--pos-surface-card);
   box-shadow: var(--pos-shadow-md);
   position: sticky;
   top: 80px;
@@ -265,26 +274,24 @@ body {
 }
 
 .caja-totales-pos {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px solid var(--pos-card-border);
+  background: #ffffff;
+  border: 1.5px solid var(--pos-card-border);
   border-radius: var(--pos-radius-md);
   padding: 12px 16px;
   margin-bottom: 14px;
 }
 
 .monto-total-usd {
-  font-size: 1.6rem;
+  font-size: 1.7rem;
   font-weight: 800;
   color: var(--pos-red);
-  font-family: 'JetBrains Mono', monospace;
   line-height: 1;
 }
 
 .monto-total-bs-sub {
-  font-size: 0.88rem;
+  font-size: 0.92rem;
   font-weight: 700;
   color: #475569;
-  font-family: 'JetBrains Mono', monospace;
 }
 
 .btn-facturar-hero {
@@ -330,7 +337,7 @@ body {
   position: sticky;
   top: -1.5rem;
   z-index: 1025;
-  background: rgba(248, 250, 252, 0.98);
+  background: rgba(226, 232, 240, 0.98);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   padding: 10px 1.5rem;
@@ -339,12 +346,12 @@ body {
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
 }
 
-/* Enmascaramiento Seguro con Puntos para la Tasa BCV */
 .input-tasa-masked {
   letter-spacing: 3px;
   font-size: 1.05rem;
   font-family: inherit;
   cursor: pointer;
+  background-color: #ffffff !important;
   transition: all 0.15s ease;
 }
 
@@ -354,7 +361,6 @@ body {
   cursor: text;
 }
 
-/* Modal Footer Sticky */
 #modalProcesarFactura .modal-footer {
   position: sticky;
   bottom: 0;
@@ -449,8 +455,12 @@ body {
   font-size: 1.1rem;
 }
 
+.modal-body {
+  background-color: var(--pos-bg);
+}
+
 .modal-footer {
-  background-color: #f8fafc;
+  background-color: #f1f5f9;
   border-top: 1px solid var(--pos-card-border);
   padding: 14px 24px;
 }
@@ -461,12 +471,14 @@ body {
   padding: 9px 12px;
   font-size: 0.92rem;
   font-family: inherit;
+  background-color: #ffffff;
   transition: all 0.2s ease;
 }
 
 .form-control:focus, .form-select:focus {
   border-color: var(--pos-blue);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+  background-color: #ffffff;
 }
 
 .table th {
