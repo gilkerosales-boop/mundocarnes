@@ -15,15 +15,14 @@ const GITHUB_BRANCH = 'main';
 const GITHUB_CATALOG_PATH = 'catalog.json';
 const WHATSAPP_NUMERO = '584121753275';
 
-// Inicialización de Supabase SDK v2
+// Inicialización segura de Supabase SDK v2
 let supabaseClient = null;
 if (typeof supabase !== 'undefined') {
   supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
 
-// Variables de Estado de la Aplicación
+// Variables de Estado
 let catalogoData = { categorias: [] };
-let catalogoShaGitHub = '';
 let carrito = JSON.parse(localStorage.getItem('mundocarnes_carrito')) || [];
 let clienteActual = JSON.parse(localStorage.getItem('mundocarnes_cliente')) || null;
 let adminAutenticado = false;
@@ -33,12 +32,12 @@ let githubTokenAdmin = localStorage.getItem('mundocarnes_gh_token') || '';
 // Punteros de Navegación y Edición
 let categoriaActivaIndex = 0;
 let productoSeleccionadoActual = null;
-let productoEnEdicion = null; // { catIndex, prodIndex, esNuevo: boolean }
+let productoEnEdicion = null;
 let itiInstance = null;
 let filtroBusquedaActual = '';
 
 // ==========================================================================
-// 2. INICIALIZACIÓN DEL DOM Y REGISTRO DE EVENTOS
+// 2. INICIALIZACIÓN DEL DOM
 // ==========================================================================
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -49,8 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function inicializarListenersGenerales() {
-  // Manejo de la navegación por historial y teclado para el visor de imágenes
-  window.addEventListener('popstate', (e) => {
+  window.addEventListener('popstate', () => {
     cerrarZoomImagen();
   });
 
@@ -65,7 +63,6 @@ function inicializarListenersGenerales() {
     btnCerrarZoom.addEventListener('click', cerrarZoomImagen);
   }
 
-  // Prevenir envíos de formulario nativos
   const formIdentificar = document.getElementById('formIdentificarCliente');
   if (formIdentificar) {
     formIdentificar.addEventListener('submit', (e) => {
@@ -92,7 +89,7 @@ function inicializarListenersGenerales() {
 }
 
 // ==========================================================================
-// 3. CARGA Y SINCRONIZACIÓN LOCAL DE CATALOG.JSON
+// 3. CARGA DE CATALOG.JSON
 // ==========================================================================
 
 async function cargarCatalogo() {
@@ -113,12 +110,12 @@ async function cargarCatalogo() {
 }
 
 // ==========================================================================
-// 4. RENDERIZADO COMPLETO DEL CATÁLOGO (CLIENTE & MODO EDITOR)
+// 4. RENDERIZADO DEL CATÁLOGO
 // ==========================================================================
 
 function renderizarCatalogo() {
-  const tabsContainer = document.getElementById('navTabsCategorias');
-  const contentContainer = document.getElementById('tabContentCategorias');
+  const tabsContainer = document.getElementById('navTabsCategorias') || document.querySelector('.nav-tabs');
+  const contentContainer = document.getElementById('tabContentCategorias') || document.querySelector('.tab-content');
   if (!tabsContainer || !contentContainer) return;
 
   tabsContainer.innerHTML = '';
@@ -129,7 +126,6 @@ function renderizarCatalogo() {
     return;
   }
 
-  // Ajustar índice activo si está fuera de rango
   if (categoriaActivaIndex >= catalogoData.categorias.length) {
     categoriaActivaIndex = 0;
   }
@@ -150,7 +146,7 @@ function renderizarCatalogo() {
     `;
     tabsContainer.appendChild(li);
 
-    // Panel de Contenido
+    // Contenedor
     const pane = document.createElement('div');
     pane.className = `tab-pane fade ${isActive ? 'show active' : ''}`;
     pane.id = contentId;
@@ -158,7 +154,7 @@ function renderizarCatalogo() {
 
     let htmlGrid = '';
 
-    // Barra de acciones de categoría en Modo Administrador
+    // Controles de Administrador
     if (adminAutenticado) {
       htmlGrid += `
         <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-2 rounded border border-dark flex-wrap gap-2">
@@ -167,8 +163,8 @@ function renderizarCatalogo() {
             <small class="text-muted fw-bold">(${cat.productos.length} productos)</small>
           </div>
           <div class="d-flex gap-1">
-            <button type="button" class="btn btn-sm btn-outline-dark fw-bold" onclick="moverCategoriaOrden(${index}, -1)" ${index === 0 ? 'disabled' : ''} title="Mover categoría a la izquierda">⬅️</button>
-            <button type="button" class="btn btn-sm btn-outline-dark fw-bold" onclick="moverCategoriaOrden(${index}, 1)" ${index === catalogoData.categorias.length - 1 ? 'disabled' : ''} title="Mover categoría a la derecha">➡️</button>
+            <button type="button" class="btn btn-sm btn-outline-dark fw-bold" onclick="moverCategoriaOrden(${index}, -1)" ${index === 0 ? 'disabled' : ''} title="Mover a la izquierda">⬅️</button>
+            <button type="button" class="btn btn-sm btn-outline-dark fw-bold" onclick="moverCategoriaOrden(${index}, 1)" ${index === catalogoData.categorias.length - 1 ? 'disabled' : ''} title="Mover a la derecha">➡️</button>
             <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="abrirModalRenombrarCategoria(${index})" title="Renombrar Categoría">✏️ Renombrar</button>
             <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="eliminarCategoriaAdmin(${index})" title="Eliminar Categoría">🗑️</button>
             <button type="button" class="btn btn-sm btn-success fw-bold border-dark ms-2" onclick="abrirModalNuevoProducto(${index})">
@@ -181,7 +177,6 @@ function renderizarCatalogo() {
 
     htmlGrid += '<div class="row g-3 justify-content-start">';
 
-    // Filtrar productos si hay búsqueda activa
     const productosFiltrados = cat.productos.map((p, originalIndex) => ({ prod: p, originalIndex })).filter(item => {
       if (!filtroBusquedaActual) return true;
       const nombreProd = (item.prod[0] || '').toLowerCase();
@@ -263,14 +258,14 @@ function renderizarCatalogo() {
 }
 
 // ==========================================================================
-// 5. MODAL DE SELECCIÓN DE CANTIDAD / PESO CON CHIPS RÁPIDOS
+// 5. MODAL DE SELECCIÓN DE CANTIDAD Y PESO
 // ==========================================================================
 
 function abrirModalSeleccionCantidad(catIndex, prodIndex) {
   const prod = catalogoData.categorias[catIndex].productos[prodIndex];
   productoSeleccionadoActual = { catIndex, prodIndex, prod };
 
-  const [nombre, precio, img, disponible, cantMin, tipoUnidad, pesoAprox] = prod;
+  const [nombre, precio, , , cantMin, tipoUnidad, pesoAprox] = prod;
 
   const elNombre = document.getElementById('modalSeleccionNombre');
   const elPrecio = document.getElementById('modalSeleccionPrecio');
@@ -319,7 +314,6 @@ function abrirModalSeleccionCantidad(catIndex, prodIndex) {
   }
 }
 
-// Botones rápidos de selección de peso (+100g, +250g, +500g, +1kg, etc.)
 function fijarGramosRapidos(gramos) {
   const input = document.getElementById('modalInputGramos');
   if (input) {
@@ -389,7 +383,7 @@ function actualizarCalculoUnidadesModal() {
 function confirmarAgregarCarrito() {
   if (!productoSeleccionadoActual) return;
   const { prod } = productoSeleccionadoActual;
-  const [nombre, precio, img, disponible, cantMin, tipoUnidad, pesoAprox, plu] = prod;
+  const [nombre, precio, img, , cantMin, tipoUnidad, pesoAprox] = prod;
 
   let cantidad = 1;
   let subtotal = 0;
@@ -429,7 +423,6 @@ function confirmarAgregarCarrito() {
     detalleCantidad = `${uds} uds`;
   }
 
-  // Verificar si ya existe en el carrito
   const indexExistente = carrito.findIndex(item => item.nombre === nombre && item.tipoUnidad === tipoUnidad);
   if (indexExistente !== -1) {
     carrito[indexExistente].cantidad += cantidad;
@@ -475,7 +468,7 @@ function mostrarErrorModalSeleccion(msg) {
 }
 
 // ==========================================================================
-// 6. GESTIÓN DEL CARRITO DE COMPRAS Y PEDIDOS
+// 6. GESTIÓN DEL CARRITO
 // ==========================================================================
 
 function guardarCarrito() {
@@ -531,7 +524,7 @@ function vaciarCarrito() {
 }
 
 function actualizarUI() {
-  const btnFlotante = document.getElementById('btnVerPedidoFlotante');
+  const btnFlotante = document.getElementById('btnVerPedidoFlotante') || document.querySelector('.btn-flotante-pedido');
   const badgeCant = document.getElementById('cantItemsFlotante');
   const totalFlotante = document.getElementById('totalPedidoFlotante');
 
@@ -599,7 +592,7 @@ function renderizarCarritoModal() {
 }
 
 // ==========================================================================
-// 7. CONSULTA Y REGISTRO DE CLIENTES (CORRECCIÓN POSTGREST SUPABASE)
+// 7. CONSULTA Y REGISTRO DE CLIENTES EN SUPABASE ("CEDULA")
 // ==========================================================================
 
 function iniciarCheckout() {
@@ -634,7 +627,6 @@ function abrirModalIdentificacionCliente() {
   modal.show();
 }
 
-// Consulta exacta con la columna PostgreSQL "CEDULA" (Evita error 400 Bad Request)
 async function verificarCedulaCliente() {
   const cedulaInput = document.getElementById('inputCedulaIdentificar');
   if (!cedulaInput) return;
@@ -654,6 +646,7 @@ async function verificarCedulaCliente() {
   try {
     if (!supabaseClient) throw new Error('Cliente Supabase no inicializado');
 
+    // Consulta con el nombre de columna en mayúsculas de PostgreSQL
     const { data, error } = await supabaseClient
       .from('clientes')
       .select('*')
@@ -710,7 +703,6 @@ function mostrarFormularioRegistroNuevoCliente(cedula) {
   }
 }
 
-// Inserción exacta con nombres de columna: "CEDULA", "NOMBRES", "APELLIDOS", "TELEFONO", "DIRECCION"
 async function registrarClienteWeb(event) {
   if (event) event.preventDefault();
 
@@ -773,7 +765,7 @@ async function registrarClienteWeb(event) {
 }
 
 // ==========================================================================
-// 8. GENERACIÓN DEL PEDIDO OFICIAL PARA WHATSAPP
+// 8. GENERACIÓN DEL PEDIDO POR WHATSAPP
 // ==========================================================================
 
 function solicitarConfirmacionWhatsApp() {
@@ -791,7 +783,7 @@ function solicitarConfirmacionWhatsApp() {
   msg += `\n-----------------------------------------\n`;
   msg += `📋 *DETALLE DEL PEDIDO:*\n`;
 
-  carrito.forEach((item, index) => {
+  carrito.forEach((item) => {
     msg += `• *${item.nombre}* (${item.detalleCantidad}) - $${item.subtotal.toFixed(2)}\n`;
   });
 
@@ -804,7 +796,7 @@ function solicitarConfirmacionWhatsApp() {
 }
 
 // ==========================================================================
-// 9. VISOR DE ZOOM DE IMÁGENES Y CONTROL POPSTATE
+// 9. VISOR DE ZOOM DE IMÁGENES
 // ==========================================================================
 
 function abrirZoomImagen(imgUrl, nombre, precio, tipoUnidad, catIndex, prodIndex) {
@@ -838,7 +830,7 @@ function cerrarZoomImagen() {
 }
 
 // ==========================================================================
-// 10. MODO EDITOR / ADMINISTRADOR (?admin) Y AUTENTICACIÓN
+// 10. MODO ADMINISTRADOR (?admin)
 // ==========================================================================
 
 function evaluarModoAdmin() {
@@ -867,7 +859,6 @@ function abrirModalLoginAdmin() {
   modal.show();
 }
 
-// Autenticación en tabla "administradores" con columnas exactas: "CEDULA", "CLAVE"
 async function procesarLoginAdmin(event) {
   if (event) event.preventDefault();
 
@@ -935,14 +926,13 @@ function cerrarSesionAdmin() {
 }
 
 // ==========================================================================
-// 11. PANEL DE CONTROL DASHBOARD & GESTIÓN DE CATEGORÍAS
+// 11. PANEL DE CONTROL DASHBOARD
 // ==========================================================================
 
 function abrirPanelDeControlAdmin() {
   const modalEl = document.getElementById('modalPanelControlAdmin');
   if (!modalEl) return;
 
-  // Actualizar métricas del dashboard
   const cntCats = document.getElementById('cntTotalCategoriasAdmin');
   const cntProds = document.getElementById('cntTotalProductosAdmin');
   if (cntCats) cntCats.innerText = catalogoData.categorias.length;
@@ -1013,7 +1003,6 @@ function moverCategoriaOrden(catIndex, direccion) {
   sincronizarCambiosConGitHub(`Reordenar categorías`);
 }
 
-// Descargar Respaldo JSON Local
 function descargarRespaldoCatalogoJSON() {
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(catalogoData, null, 2));
   const downloadAnchor = document.createElement('a');
@@ -1026,7 +1015,7 @@ function descargarRespaldoCatalogoJSON() {
 }
 
 // ==========================================================================
-// 12. CONFIGURACIÓN Y EDICIÓN DE PRODUCTOS (ADMIN)
+// 12. EDICIÓN DE PRODUCTOS (ADMIN)
 // ==========================================================================
 
 function abrirModalNuevoProducto(catIndex) {
@@ -1113,7 +1102,6 @@ function alternarCamposTipoUnidadAdmin(tipo) {
   }
 }
 
-// Reordenar producto
 async function moverPosicionProducto(catIndex, prodIndex, direccion) {
   const nuevoIndex = prodIndex + direccion;
   const lista = catalogoData.categorias[catIndex].productos;
@@ -1128,7 +1116,6 @@ async function moverPosicionProducto(catIndex, prodIndex, direccion) {
   await sincronizarCambiosConGitHub('Reordenar productos en catálogo');
 }
 
-// Eliminar producto
 async function eliminarProductoAdmin(catIndex, prodIndex) {
   const prod = catalogoData.categorias[catIndex].productos[prodIndex];
   const confirmar = confirm(`¿Está seguro de eliminar "${prod[0]}" del catálogo?`);
@@ -1139,7 +1126,6 @@ async function eliminarProductoAdmin(catIndex, prodIndex) {
   await sincronizarCambiosConGitHub(`Eliminar producto ${prod[0]}`);
 }
 
-// Conversor de Imagen a WebP (<120 KB)
 async function procesarImagenSeleccionada(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -1195,7 +1181,6 @@ function convertirArchivoAWebP(file, maxDimension = 800, calidad = 0.85) {
   });
 }
 
-// Guardar y Aplicar Cambios del Producto
 async function guardarCambiosProductoAdmin() {
   if (!productoEnEdicion) return;
 
@@ -1244,7 +1229,6 @@ async function guardarCambiosProductoAdmin() {
   if (esNuevo) {
     catalogoData.categorias[catDestinoIndex].productos.push(nuevoArregloProducto);
   } else {
-    // Si cambió de categoría, moverlo
     if (catDestinoIndex !== catIndex) {
       catalogoData.categorias[catIndex].productos.splice(prodIndex, 1);
       catalogoData.categorias[catDestinoIndex].productos.push(nuevoArregloProducto);
@@ -1263,7 +1247,7 @@ async function guardarCambiosProductoAdmin() {
 }
 
 // ==========================================================================
-// 13. API REST DE GITHUB (COMMITS AUTOMÁTICOS & SUBIDA DE WEBP)
+// 13. API REST DE GITHUB
 // ==========================================================================
 
 function solicitarTokenGitHubSiFalta() {
@@ -1392,7 +1376,6 @@ async function subirImagenAGitHub(rutaRelativa, base64DataUrl) {
   }
 }
 
-// Codificadores Base64 compatibles con UTF-8
 function b64EncodeUnicode(str) {
   return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
     return String.fromCharCode('0x' + p1);
