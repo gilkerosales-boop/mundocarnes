@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Base de Datos PostgreSQL en Supabase - Paginación Completa y Orden Real
+   Base de Datos PostgreSQL en Supabase - Cierre de Caja y Desglose Blindado
    ========================================================================== */
 
 // Configuración de Supabase
@@ -89,7 +89,7 @@ async function dbGet(storeName, key) {
 async function dbPut(storeName, item) {
   try {
     const db = await abrirDB();
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const tx = db.transaction(storeName, "readwrite");
       const store = tx.objectStore(storeName);
       const req = store.put(item);
@@ -1776,7 +1776,7 @@ async function emitirFacturaFinal() {
       productosSummaryList.push(`${key} (${item.cantidadTxt}) - $${item.precioTotal}`);
     }
 
-    let totalBs = totalUSD * tasa;
+    let totalBs = totalUSD * (tasa > 0 ? tasa : 1);
 
     datosFacturaPendiente = {
       numFactura: numFactura,
@@ -1934,7 +1934,7 @@ function obtenerObjetoDesgloseMetodos() {
   for (let key in items) {
     totalUSD += parseFloat(items[key].precioTotal) || 0;
   }
-  let totalBs = totalUSD * tasa;
+  let totalBs = totalUSD * (tasa > 0 ? tasa : 1);
 
   if (formaSelect === 'Pago Mixto' || formaSelect === 'Cashea') {
     const filas = document.querySelectorAll('.fila-pago-mixto');
@@ -2542,7 +2542,7 @@ async function buscarFacturasHistorial(modo) {
     if (f.numFactura) mapFacturas[f.numFactura] = f;
   });
 
-  // 2. Consulta paginada a Supabase para abarcar todas las ventas emitidas
+  // 2. Consulta paginada a Supabase para abarcar todas las 1800+ ventas emitidas
   if (navigator.onLine) {
     try {
       const ventasSup = await obtenerTodasLasVentasSupabase();
@@ -2636,7 +2636,7 @@ function reimprimirFacturaHistorial(numFactura) {
 
   const tasa = obtenerTasaBCV();
   const totalUSD = parseFloat(fac.montoTotalUSD) || 0;
-  const totalBs = totalUSD * tasa;
+  const totalBs = totalUSD * (tasa > 0 ? tasa : 1);
 
   datosFacturaPendiente = {
     numFactura: fac.numFactura,
@@ -3146,7 +3146,7 @@ function eliminarMovimientoEfectivo(index) {
   }
 }
 
-// CIERRE DE CAJA (REPORTE Z) E HISTORIAL EN SUPABASE
+// CIERRE DE CAJA (REPORTE Z) E HISTORIAL EN SUPABASE (BLINDADO)
 function abrirModalCierreCaja() {
   const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
   document.getElementById('cierreUsuarioNombre').textContent = `👤 Cajero: ${usuario.toUpperCase()}`;
@@ -3177,7 +3177,7 @@ async function cargarHistorialCierresCaja() {
   if (navigator.onLine) {
     try {
       const { data: cierresSup, error } = await supabaseClient.from('cierres').select('*');
-      if (!error && cierresSup) {
+      if (!error && cierresSup && cierresSup.length > 0) {
         cacheHistorialCierres = cierresSup.map(c => ({
           id: c.id,
           fechaStr: c["FECHA"] || "",
@@ -3208,7 +3208,9 @@ async function cargarHistorialCierresCaja() {
         }
         renderizarTablaHistorialCierres();
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn("Aviso carga cierres:", e);
+    }
   }
 }
 
@@ -3223,13 +3225,22 @@ function renderizarTablaHistorialCierres() {
 
   let html = "";
   cacheHistorialCierres.forEach((c, idx) => {
+    let fStr = c.fechaStr || 'N/D';
+    let uStr = c.usuario || 'CAJERO';
+    let iniUSD = (parseFloat(c.inicialUSD) || 0).toFixed(2);
+    let iniBS = (parseFloat(c.inicialBS) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    let venUSD = (parseFloat(c.totalVentasUSD) || 0).toFixed(2);
+    let venBS = (parseFloat(c.totalVentasBS) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    let finUSD = (parseFloat(c.cajaFinalUSD) || 0).toFixed(2);
+    let finBS = (parseFloat(c.cajaFinalBS) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
     html += `
       <tr>
-        <td class="fw-bold text-center small">${c.fechaStr}</td>
-        <td class="fw-bold text-center">${c.usuario}</td>
-        <td class="text-center small">$${c.inicialUSD.toFixed(2)} / Bs.${c.inicialBS.toLocaleString('es-VE', {minimumFractionDigits:2})}</td>
-        <td class="text-center small">$${c.totalVentasUSD.toFixed(2)} / Bs.${c.totalVentasBS.toLocaleString('es-VE', {minimumFractionDigits:2})}</td>
-        <td class="text-center fw-bold text-success">$${c.cajaFinalUSD.toFixed(2)} / Bs.${c.cajaFinalBS.toLocaleString('es-VE', {minimumFractionDigits:2})}</td>
+        <td class="fw-bold text-center small">${fStr}</td>
+        <td class="fw-bold text-center">${uStr}</td>
+        <td class="text-center small">$${iniUSD} / Bs.${iniBS}</td>
+        <td class="text-center small">$${venUSD} / Bs.${venBS}</td>
+        <td class="text-center fw-bold text-success">$${finUSD} / Bs.${finBS}</td>
         <td class="text-center">
           <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold" onclick="reimprimirCierreCajaHistorial(${idx})" title="Reimprimir Reporte Z">
             🖨️ Reimprimir
@@ -3246,18 +3257,18 @@ function reimprimirCierreCajaHistorial(idx) {
   if (!c) return mostrarAvisoFactura("No se localizó la información del cierre.");
 
   datosCierreCajaPendiente = {
-    fechaStr: c.fechaStr,
-    usuario: c.usuario,
+    fechaStr: c.fechaStr || new Date().toLocaleString('es-VE'),
+    usuario: c.usuario || "CAJERO",
     tasaBCV: c.tasaBCV || obtenerTasaBCV(),
-    inicialUSD: c.inicialUSD,
-    inicialBS: c.inicialBS,
-    resumen: c.resumen,
+    inicialUSD: parseFloat(c.inicialUSD) || 0,
+    inicialBS: parseFloat(c.inicialBS) || 0,
+    resumen: c.resumen || {},
     ingresosUSD: 0,
     retirosUSD: 0,
     ingresosBS: 0,
     retirosBS: 0,
-    totalCajaUSD: c.cajaFinalUSD,
-    totalCajaBS: c.cajaFinalBS
+    totalCajaUSD: parseFloat(c.cajaFinalUSD) || 0,
+    totalCajaBS: parseFloat(c.cajaFinalBS) || 0
   };
 
   renderizarTicketCierreCajaHTML(datosCierreCajaPendiente);
@@ -3275,6 +3286,7 @@ async function procesarSiguienteCierreCaja() {
   btn.textContent = "Consultando ventas...";
 
   try {
+    const tasa = obtenerTasaBCV();
     let resumen = {
       ventasEfectivoUSD: 0, ventasEfectivoBS: 0, ventasPagoMovil: 0,
       ventasZelle: 0, ventasPayPal: 0, ventasCashea: 0,
@@ -3282,43 +3294,85 @@ async function procesarSiguienteCierreCaja() {
       totalGeneralVentasUSD: 0, totalGeneralVentasBS: 0
     };
 
+    let todasVentas = [];
     if (navigator.onLine) {
-      try {
-        const [ano, mes, dia] = new Date().toISOString().split('T')[0].split('-');
-        const patron1 = `${dia}/${mes}/${ano}`;
-        const patron2 = `${parseInt(dia, 10)}/${parseInt(mes, 10)}/${ano}`;
-
-        const ventasHoy = await obtenerTodasLasVentasSupabase();
-
-        if (ventasHoy && ventasHoy.length > 0) {
-          ventasHoy.forEach(v => {
-            const fStr = String(v["FECHA"] || "");
-            if (fStr.includes(patron1) || fStr.includes(patron2)) {
-              resumen.ventasEfectivoUSD += parseFloat(v["EFECTIVO DIVISAS"]) || 0;
-              resumen.ventasEfectivoBS += parseFloat(v["EFECTIVO BOLIVARES"]) || 0;
-              resumen.ventasPagoMovil += parseFloat(v["PAGO MOVIL"]) || 0;
-              resumen.ventasZelle += parseFloat(v["ZELLE"]) || 0;
-              resumen.ventasPayPal += parseFloat(v["PAYPAL"]) || 0;
-              resumen.ventasCashea += parseFloat(v["CASHEA"]) || 0;
-              resumen.ventasPuntoVenta += parseFloat(v["PUNTO DE VENTA"]) || 0;
-              resumen.ventasTransferencia += parseFloat(v["TRANSFERENCIA"]) || 0;
-              resumen.ventasBiopago += parseFloat(v["BIOPAGO"]) || 0;
-            }
-          });
-        }
-      } catch (e) {}
+      todasVentas = await obtenerTodasLasVentasSupabase();
     } else {
-      const ventasLocales = await dbGetAll("ventas");
-      ventasLocales.forEach(v => {
-        resumen.ventasEfectivoUSD += parseFloat(v.montoTotalUSD) || 0;
-      });
+      todasVentas = await dbGetAll("ventas");
     }
+
+    const hoy = new Date();
+    const d = hoy.getDate();
+    const m = hoy.getMonth() + 1;
+    const y = hoy.getFullYear();
+
+    const patron1 = `${d}/${m}/${y}`;
+    const patron2 = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+    const patron3 = `${d}/${String(m).padStart(2, '0')}/${y}`;
+    const patron4 = `${String(d).padStart(2, '0')}/${m}/${y}`;
+    const patronIso = hoy.toISOString().split('T')[0];
+
+    todasVentas.forEach(v => {
+      const fStr = String(v["FECHA"] || v.fechaStr || "");
+      const coincideHoy = fStr.includes(patron1) || fStr.includes(patron2) || fStr.includes(patron3) || fStr.includes(patron4) || fStr.startsWith(patronIso);
+
+      if (coincideHoy) {
+        let formaStr = String(v["FORMA DE PAGO"] || v.formaPagoStr || "").toUpperCase();
+        let totalUSDVenta = parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0;
+
+        let evUSD = parseFloat(v["EFECTIVO DIVISAS"]) || 0;
+        let evBS = parseFloat(v["EFECTIVO BOLIVARES"]) || 0;
+        let pmBS = parseFloat(v["PAGO MOVIL"]) || 0;
+        let zUSD = parseFloat(v["ZELLE"]) || 0;
+        let ppUSD = parseFloat(v["PAYPAL"]) || 0;
+        let cUSD = parseFloat(v["CASHEA"]) || 0;
+        let pvBS = parseFloat(v["PUNTO DE VENTA"]) || 0;
+        let trBS = parseFloat(v["TRANSFERENCIA"]) || 0;
+        let bioBS = parseFloat(v["BIOPAGO"]) || 0;
+
+        let sumaEspecifica = evUSD + zUSD + ppUSD + cUSD + evBS + pmBS + pvBS + trBS + bioBS;
+
+        if (sumaEspecifica > 0) {
+          resumen.ventasEfectivoUSD += evUSD;
+          resumen.ventasEfectivoBS += evBS;
+          resumen.ventasPagoMovil += pmBS;
+          resumen.ventasZelle += zUSD;
+          resumen.ventasPayPal += ppUSD;
+          resumen.ventasCashea += cUSD;
+          resumen.ventasPuntoVenta += pvBS;
+          resumen.ventasTransferencia += trBS;
+          resumen.ventasBiopago += bioBS;
+        } else {
+          // Lógica de respaldo a partir del nombre del método de pago
+          if (formaStr.includes("PUNTO DE VENTA")) {
+            resumen.ventasPuntoVenta += (totalUSDVenta * (tasa > 0 ? tasa : 1));
+          } else if (formaStr.includes("PAGO MÓVIL") || formaStr.includes("PAGO MOVIL")) {
+            resumen.ventasPagoMovil += (totalUSDVenta * (tasa > 0 ? tasa : 1));
+          } else if (formaStr.includes("EFECTIVO BOLÍVARES") || formaStr.includes("EFECTIVO BOLIVARES")) {
+            resumen.ventasEfectivoBS += (totalUSDVenta * (tasa > 0 ? tasa : 1));
+          } else if (formaStr.includes("EFECTIVO DIVISAS") || formaStr.includes("DOLARES")) {
+            resumen.ventasEfectivoUSD += totalUSDVenta;
+          } else if (formaStr.includes("ZELLE")) {
+            resumen.ventasZelle += totalUSDVenta;
+          } else if (formaStr.includes("PAYPAL")) {
+            resumen.ventasPayPal += totalUSDVenta;
+          } else if (formaStr.includes("CASHEA")) {
+            resumen.ventasCashea += totalUSDVenta;
+          } else if (formaStr.includes("BIOPAGO")) {
+            resumen.ventasBiopago += (totalUSDVenta * (tasa > 0 ? tasa : 1));
+          } else if (formaStr.includes("TRANSFERENCIA")) {
+            resumen.ventasTransferencia += (totalUSDVenta * (tasa > 0 ? tasa : 1));
+          } else {
+            resumen.ventasEfectivoUSD += totalUSDVenta;
+          }
+        }
+      }
+    });
 
     btn.disabled = false;
     btn.textContent = "Siguiente ➡️";
 
     const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
-    const tasa = obtenerTasaBCV();
 
     let ingresosUSD = 0, retirosUSD = 0, ingresosBS = 0, retirosBS = 0;
     listaMovimientosEfectivo.forEach(m => {
@@ -3386,11 +3440,11 @@ function renderizarTicketCierreCajaHTML(d) {
           </tr>
           <tr>
             <td>INGRESOS DE EFECTIVO BOLÍVARES (+):</td>
-            <td class="text-end fw-bold text-success">+Bs. ${d.ingresosBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold text-success">+Bs. ${d.ingresosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
           <tr>
             <td>RETIROS DE EFECTIVO BOLÍVARES (-):</td>
-            <td class="text-end fw-bold text-danger">-Bs. ${d.retirosBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold text-danger">-Bs. ${d.retirosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
         </tbody>
       </table>
@@ -3423,7 +3477,7 @@ function renderizarTicketCierreCajaHTML(d) {
           </tr>
           <tr>
             <td>EFECTIVO INICIAL BOLÍVARES:</td>
-            <td class="text-end fw-bold">Bs. ${d.inicialBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold">Bs. ${d.inicialBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
         </tbody>
       </table>
@@ -3435,39 +3489,39 @@ function renderizarTicketCierreCajaHTML(d) {
         <tbody>
           <tr>
             <td>EFECTIVO DIVISAS:</td>
-            <td class="text-end fw-bold">$${r.ventasEfectivoUSD ? r.ventasEfectivoUSD.toFixed(2) : '0.00'}</td>
+            <td class="text-end fw-bold">$${(r.ventasEfectivoUSD || 0).toFixed(2)}</td>
           </tr>
           <tr>
             <td>EFECTIVO BOLÍVARES:</td>
-            <td class="text-end fw-bold">Bs. ${r.ventasEfectivoBS ? r.ventasEfectivoBS.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '0.00'}</td>
+            <td class="text-end fw-bold">Bs. ${(r.ventasEfectivoBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
           <tr>
             <td>PAGO MÓVIL:</td>
-            <td class="text-end fw-bold">Bs. ${r.ventasPagoMovil ? r.ventasPagoMovil.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '0.00'}</td>
+            <td class="text-end fw-bold">Bs. ${(r.ventasPagoMovil || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
           <tr>
             <td>ZELLE:</td>
-            <td class="text-end fw-bold">$${r.ventasZelle ? r.ventasZelle.toFixed(2) : '0.00'}</td>
+            <td class="text-end fw-bold">$${(r.ventasZelle || 0).toFixed(2)}</td>
           </tr>
           <tr>
             <td>PAYPAL:</td>
-            <td class="text-end fw-bold">$${r.ventasPayPal ? r.ventasPayPal.toFixed(2) : '0.00'}</td>
+            <td class="text-end fw-bold">$${(r.ventasPayPal || 0).toFixed(2)}</td>
           </tr>
           <tr>
             <td>PUNTO DE VENTA:</td>
-            <td class="text-end fw-bold">Bs. ${r.ventasPuntoVenta ? r.ventasPuntoVenta.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '0.00'}</td>
+            <td class="text-end fw-bold">Bs. ${(r.ventasPuntoVenta || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
           <tr>
             <td>BIOPAGO:</td>
-            <td class="text-end fw-bold">Bs. ${r.ventasBiopago ? r.ventasBiopago.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '0.00'}</td>
+            <td class="text-end fw-bold">Bs. ${(r.ventasBiopago || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
           <tr>
             <td>CASHEA:</td>
-            <td class="text-end fw-bold">$${r.ventasCashea ? r.ventasCashea.toFixed(2) : '0.00'}</td>
+            <td class="text-end fw-bold">$${(r.ventasCashea || 0).toFixed(2)}</td>
           </tr>
           <tr>
             <td>TRANSFERENCIA BANCARIA:</td>
-            <td class="text-end fw-bold">Bs. ${r.ventasTransferencia ? r.ventasTransferencia.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '0.00'}</td>
+            <td class="text-end fw-bold">Bs. ${(r.ventasTransferencia || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
         </tbody>
       </table>
@@ -3480,11 +3534,11 @@ function renderizarTicketCierreCajaHTML(d) {
       <div class="ticket-totals border-top pt-1">
         <div class="d-flex justify-content-between">
           <span>TOTAL VENTAS INGRESOS ($):</span>
-          <strong class="fs-6">$${r.totalGeneralVentasUSD ? r.totalGeneralVentasUSD.toFixed(2) : '0.00'}</strong>
+          <strong class="fs-6">$${(r.totalGeneralVentasUSD || 0).toFixed(2)}</strong>
         </div>
         <div class="d-flex justify-content-between">
           <span>TOTAL VENTAS INGRESOS (Bs):</span>
-          <strong class="fs-6">Bs. ${r.totalGeneralVentasBS ? r.totalGeneralVentasBS.toLocaleString('es-VE', { minimumFractionDigits: 2 }) : '0.00'}</strong>
+          <strong class="fs-6">Bs. ${(r.totalGeneralVentasBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
         </div>
         <div class="ticket-divider"></div>
         <div class="d-flex justify-content-between text-success fw-bold">
@@ -3493,7 +3547,7 @@ function renderizarTicketCierreCajaHTML(d) {
         </div>
         <div class="d-flex justify-content-between text-primary fw-bold">
           <span>EFECTIVO FINAL EN CAJA (Bs):</span>
-          <span class="fs-6">Bs. ${d.totalCajaBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</span>
+          <span class="fs-6">Bs. ${d.totalCajaBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
       </div>
 
@@ -3521,11 +3575,40 @@ async function confirmarEImprimirCierreCaja() {
   if (btn) { btn.disabled = true; btn.textContent = "Guardando e Imprimiendo..."; }
 
   try {
-    await dbPut("cierres", datosCierreCajaPendiente);
+    const d = datosCierreCajaPendiente;
+    const r = d.resumen || {};
+
+    await dbPut("cierres", d);
+
+    if (navigator.onLine) {
+      try {
+        await supabaseClient.from('cierres').insert([{
+          "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
+          "USUARIO": d.usuario,
+          "INICIAL $": parseFloat(d.inicialUSD) || 0,
+          "INICIAL Bs": parseFloat(d.inicialBS) || 0,
+          "DIVISAS": parseFloat(r.ventasEfectivoUSD) || 0,
+          "BOLIVARES": parseFloat(r.ventasEfectivoBS) || 0,
+          "PAGO MOVIL": parseFloat(r.ventasPagoMovil) || 0,
+          "ZELLE": parseFloat(r.ventasZelle) || 0,
+          "PAYPAL": parseFloat(r.ventasPayPal) || 0,
+          "PUNTO DE VENTA": parseFloat(r.ventasPuntoVenta) || 0,
+          "BIOPAGO": parseFloat(r.ventasBiopago) || 0,
+          "CASHEA": parseFloat(r.ventasCashea) || 0,
+          "TRANSFERECIA": parseFloat(r.ventasTransferencia) || 0,
+          "TOTAL 1": parseFloat(r.totalGeneralVentasUSD) || 0,
+          "TOTAL 2": parseFloat(r.totalGeneralVentasBS) || 0,
+          "TOTAL 3": parseFloat(d.totalCajaUSD) || 0,
+          "TOTAL 4": parseFloat(d.totalCajaBS) || 0
+        }]);
+      } catch (errSup) {
+        console.warn("Aviso insert cierre Supabase directo:", errSup);
+      }
+    }
 
     await dbPut("syncQueue", {
       id: "sync_cie_" + Date.now(),
-      payload: { action: "guardarCierreCaja", datosCierre: datosCierreCajaPendiente }
+      payload: { action: "guardarCierreCaja", datosCierre: d }
     });
 
     const ticketHtml = document.getElementById('vistaPreviaCierreCajaModal').innerHTML;
