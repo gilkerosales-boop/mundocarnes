@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Base de Datos PostgreSQL en Supabase
+   Base de Datos PostgreSQL en Supabase (Adaptativa)
    ========================================================================== */
 
 // Configuración de Supabase
@@ -198,12 +198,23 @@ async function procesarColaSincronizacion() {
         if (!error) exito = true;
 
       } else if (payload.action === "registrarClienteFactura") {
-        const { error } = await supabaseClient.from('clientes').upsert({
-          cedula: payload.cedula,
-          nombre: payload.nombre,
-          telefono: payload.telefono,
-          direccion: payload.direccion
+        let { error } = await supabaseClient.from('clientes').upsert({
+          CEDULA: payload.cedula,
+          NOMBRES: payload.nombre,
+          TELEFONO: payload.telefono,
+          DIRECCION: payload.direccion
         });
+
+        if (error) {
+          const res2 = await supabaseClient.from('clientes').upsert({
+            cedula: payload.cedula,
+            nombre: payload.nombre,
+            telefono: payload.telefono,
+            direccion: payload.direccion
+          });
+          error = res2.error;
+        }
+
         if (!error) exito = true;
 
       } else if (payload.action === "guardarCierreCaja") {
@@ -289,7 +300,7 @@ async function forzarSincronizacionManual() {
     await new Promise(r => setTimeout(r, 500));
   }
 
-  // PASO 2: Descarga de Clientes desde Supabase
+  // PASO 2: Descarga de Clientes desde Supabase (Adaptativa)
   mostrarAvisoFactura("🔄 Paso 2/4: Consultando Clientes en Supabase...", false);
   let cantClientes = 0;
   try {
@@ -300,10 +311,10 @@ async function forzarSincronizacionManual() {
       for (let i = 0; i < totalCli; i++) {
         let c = clientesSup[i];
         await dbPut("clientes", {
-          cedula: c.cedula,
-          nombre: c.nombre,
-          telefono: c.telefono,
-          direccion: c.direccion
+          cedula: c.CEDULA || c.cedula,
+          nombre: c.NOMBRES || c.nombre || 'N/D',
+          telefono: c.TELEFONO || c.telefono || 'N/D',
+          direccion: c.DIRECCION || c.direccion || 'N/D'
         });
         let pct = Math.round(((i + 1) / totalCli) * 100);
         mostrarAvisoFactura(`🔄 Paso 2/4: Guardando Clientes (${i + 1}/${totalCli} - ${pct}%)`, false);
@@ -386,10 +397,10 @@ async function sincronizarClientesDesdeServidor() {
     if (!error && data) {
       for (let cli of data) {
         await dbPut("clientes", {
-          cedula: cli.cedula,
-          nombre: cli.nombre,
-          telefono: cli.telefono,
-          direccion: cli.direccion
+          cedula: cli.CEDULA || cli.cedula,
+          nombre: cli.NOMBRES || cli.nombre || 'N/D',
+          telefono: cli.TELEFONO || cli.telefono || 'N/D',
+          direccion: cli.DIRECCION || cli.direccion || 'N/D'
         });
       }
     }
@@ -419,9 +430,7 @@ async function obtenerSiguienteCorrelativoLocal() {
   return "001-" + numPadded;
 }
 
-// ==========================================================================
-// FUNCIÓN UNIFICADA DE IMPRESIÓN CON ESPERA DE CARGA DE LOGOTIPO
-// ==========================================================================
+// IMPRESIÓN
 function ejecutarImpresionTicket(ticketHtml) {
   const elemImpresion = document.getElementById('contenidoTicketImprimible');
   if (!elemImpresion) return;
@@ -441,9 +450,7 @@ function ejecutarImpresionTicket(ticketHtml) {
   }
 }
 
-// ==========================================================================
-// MANEJADOR INTELIGENTE DE CAPAS (Z-INDEX) PARA MODALES ANIDADOS
-// ==========================================================================
+// MANEJADOR DE CAPAS (Z-INDEX)
 document.addEventListener('show.bs.modal', function (event) {
   const modal = event.target;
   const openModals = document.querySelectorAll('.modal.show');
@@ -469,7 +476,6 @@ document.addEventListener('hidden.bs.modal', function () {
   }
 });
 
-// Notificaciones Toast
 function mostrarAvisoFactura(mensaje, autohide = true, delay = 6000) {
   try {
     const elemMsg = document.getElementById('toastMensajeFactura');
@@ -490,7 +496,6 @@ function mostrarAvisoFactura(mensaje, autohide = true, delay = 6000) {
   }
 }
 
-// OBTENER LA TASA BCV ACTUAL DE FORMA SEGURA
 function obtenerTasaBCV() {
   const inputTasa = document.getElementById('facTasaBCV');
   let val = inputTasa ? parseFloat(inputTasa.value) : 0;
@@ -503,7 +508,6 @@ function obtenerTasaBCV() {
   return val;
 }
 
-// ALTERNAR ENTRE DIVISAS ($) Y BOLÍVARES (Bs) EN LA TABLA DEL MODAL
 function alternarMonedaTablaFactura() {
   monedaVistaModal = (monedaVistaModal === "USD") ? "BS" : "USD";
   
@@ -522,7 +526,6 @@ function alternarMonedaTablaFactura() {
   calcularTotalPagoMixto();
 }
 
-// RENDERIZAR TABLA DE PRODUCTOS EN EL MODAL
 function renderizarTablaModalFactura() {
   const tasa = obtenerTasaBCV();
   let htmlTabla = "";
@@ -862,7 +865,6 @@ function cerrarSesionFacturacion() {
   document.getElementById('facPassword').value = "";
 }
 
-// Carga del Catálogo desde la carpeta raíz
 function cargarCatalogoFacturacion() {
   fetch("../catalog.json?t=" + new Date().getTime())
     .then(res => res.json())
@@ -935,7 +937,6 @@ function cargarListaFacturacion(idElemento, productos, nombreCategoria) {
   }).join('');
 }
 
-// Modal de Cantidad / Peso
 function abrirModalAgregarFactura(nom, prec, cat, cantMin, unidad, pesoProm, imgPath) {
   productoTemporalFactura = { 
     nombre: nom, 
@@ -1074,7 +1075,6 @@ function eliminarItemFactura(nombre) {
   renderizarResumenFactura();
 }
 
-// ACCIÓN DEL BOTÓN 'FACTURAR' (INICIA TRANSACCIÓN)
 function ejecutarFacturar() {
   if (Object.keys(itemsFactura).length === 0) {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
@@ -1232,7 +1232,7 @@ function eliminarFacturaEnEspera(idx) {
   }
 }
 
-// BÚSQUEDA DE CLIENTE EN SUPABASE E INDEXEDDB
+// BÚSQUEDA DE CLIENTE EN SUPABASE (ADAPTATIVA)
 async function buscarClienteFactura() {
   const inputCedula = document.getElementById('facCedulaBuscar');
   const cedula = inputCedula ? inputCedula.value.trim().toUpperCase() : "";
@@ -1257,20 +1257,25 @@ async function buscarClienteFactura() {
   // 2. Consulta a Supabase
   if (navigator.onLine) {
     try {
-      const { data: resSup, error } = await supabaseClient
+      let { data: resSup, error } = await supabaseClient
         .from('clientes')
         .select('*')
-        .eq('cedula', cedula)
+        .or(`cedula.eq.${cedula},CEDULA.eq.${cedula}`)
         .maybeSingle();
+
+      if (!resSup) {
+        const { data: c2 } = await supabaseClient.from('clientes').select('*').eq('CEDULA', cedula).maybeSingle();
+        if (c2) resSup = c2;
+      }
 
       if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
 
       if (!error && resSup) {
         let cliObj = {
-          cedula: resSup.cedula,
-          nombre: resSup.nombre,
-          telefono: resSup.telefono || 'N/D',
-          direccion: resSup.direccion || 'N/D'
+          cedula: resSup.CEDULA || resSup.cedula || cedula,
+          nombre: resSup.NOMBRES || resSup.nombre || 'N/D',
+          telefono: resSup.TELEFONO || resSup.telefono || 'N/D',
+          direccion: resSup.DIRECCION || resSup.direccion || 'N/D'
         };
         clienteFacturaActual = cliObj;
         await dbPut("clientes", cliObj);
@@ -1323,7 +1328,7 @@ function prepararNuevoClienteEnVista(cedula) {
   if (boxNuevo) boxNuevo.classList.remove('hidden');
 }
 
-// REGISTRO DE CLIENTE NUEVO
+// REGISTRO DE CLIENTE NUEVO (ADAPTATIVO)
 async function registrarClienteFactura() {
   const cedula = document.getElementById('facRegCedula').value.trim().toUpperCase();
   const nombre = document.getElementById('facRegNombre').value.trim().toUpperCase();
@@ -1340,6 +1345,26 @@ async function registrarClienteFactura() {
   await dbPut("clientes", clienteNuevo);
   poblarClienteEnVista(clienteNuevo);
 
+  if (navigator.onLine) {
+    try {
+      let { error } = await supabaseClient.from('clientes').upsert({
+        CEDULA: cedula,
+        NOMBRES: nombre,
+        TELEFONO: telefono,
+        DIRECCION: direccion
+      });
+
+      if (error) {
+        await supabaseClient.from('clientes').upsert({
+          cedula: cedula,
+          nombre: nombre,
+          telefono: telefono,
+          direccion: direccion
+        });
+      }
+    } catch (e) {}
+  }
+
   await dbPut("syncQueue", {
     id: "sync_cli_" + Date.now(),
     payload: {
@@ -1351,7 +1376,7 @@ async function registrarClienteFactura() {
     }
   });
 
-  mostrarAvisoFactura("Cliente registrado exitosamente (Sincronización en curso) ⚡");
+  mostrarAvisoFactura("Cliente registrado exitosamente ⚡");
   procesarColaSincronizacion();
 }
 
@@ -1926,7 +1951,6 @@ async function confirmarEImprimirFactura() {
 
     mostrarAvisoFactura(`Venta N° ${numFactura} emitida e impresa con éxito 🎉`);
 
-    // Sincronizar en segundo plano
     procesarColaSincronizacion();
 
   } catch (err) {
@@ -3046,9 +3070,7 @@ function eliminarMovimientoEfectivo(index) {
   }
 }
 
-// --------------------------------------------------------------------------
 // CIERRE DE CAJA (REPORTE Z) E HISTORIAL EN SUPABASE
-// --------------------------------------------------------------------------
 function abrirModalCierreCaja() {
   const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
   document.getElementById('cierreUsuarioNombre').textContent = `👤 Cajero: ${usuario.toUpperCase()}`;
