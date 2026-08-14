@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Base de Datos PostgreSQL en Supabase - Ajuste de Ubicación y Anti-Duplicados
+   Base de Datos PostgreSQL en Supabase, IndexedDB Offline-First y Cobro Rápido
    ========================================================================== */
 
 // Configuración de Supabase
@@ -15,7 +15,7 @@ const GITHUB_CONFIG_FAC = {
   branch: "main"
 };
 
-// Pre-carga inmediata del logotipo oficial para comprobantes impresos en memoria
+// Pre-carga del logotipo oficial para comprobantes impresos
 const logoComprobantePreload = new Image();
 logoComprobantePreload.src = "../img/LOGO-MUNDO123.webp";
 
@@ -24,12 +24,12 @@ const METODOS_USD = ["Efectivo Divisas", "Zelle", "PayPal", "Cashea"];
 const METODOS_BS = ["Pago Móvil", "Efectivo Bolívares", "Punto de Venta", "Transferencia Bancaria", "Biopago"];
 
 let itemsFactura = {};
-let transaccionActiva = null; // Transacción en curso dentro del modal de procesamiento
-let facturasEnEspera = [];   // Arreglo de facturas minimizadas en Standby
+let transaccionActiva = null;
+let facturasEnEspera = [];
 let productoTemporalFactura = {};
 let cacheCategoriasFactura = [];
 let clienteFacturaActual = null;
-let monedaVistaModal = "USD"; // Estado del conmutador: "USD" o "BS"
+let monedaVistaModal = "USD";
 let datosFacturaPendiente = null;
 let itemsEscaneadosTemporales = [];
 let cacheHistorialFacturas = [];
@@ -89,7 +89,7 @@ async function dbGet(storeName, key) {
 async function dbPut(storeName, item) {
   try {
     const db = await abrirDB();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const tx = db.transaction(storeName, "readwrite");
       const store = tx.objectStore(storeName);
       const req = store.put(item);
@@ -132,7 +132,7 @@ async function dbDelete(storeName, key) {
 }
 
 // ==========================================================================
-// FUNCIÓN DE CONSULTA PAGINADA (SUPERA EL LÍMITE DE 1000 FILAS DE SUPABASE)
+// CONSULTA PAGINADA DE VENTAS SUPABASE (>1000 REGISTROS)
 // ==========================================================================
 async function obtenerTodasLasVentasSupabase() {
   let todas = [];
@@ -167,7 +167,7 @@ async function obtenerTodasLasVentasSupabase() {
 }
 
 // ==========================================================================
-// MOTOR DE SINCRONIZACIÓN HACIA SUPABASE (UNIFICADO Y ANTI-DUPLICADOS)
+// MOTOR DE SINCRONIZACIÓN
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
   const badge = document.getElementById('badgeEstadoSync');
@@ -177,13 +177,13 @@ async function actualizarEstadoSyncBadge() {
   const count = queue.length;
 
   if (!navigator.onLine) {
-    badge.className = "badge bg-danger fw-bold me-2 px-2 py-1";
+    badge.className = "badge bg-danger fw-bold me-1";
     badge.textContent = `🔴 Offline (${count} pend.)`;
   } else if (count > 0) {
-    badge.className = "badge bg-warning text-dark fw-bold me-2 px-2 py-1";
+    badge.className = "badge bg-warning text-dark fw-bold me-1";
     badge.textContent = `🟠 Sincronizando (${count})...`;
   } else {
-    badge.className = "badge bg-success fw-bold me-2 px-2 py-1";
+    badge.className = "badge bg-success fw-bold me-1";
     badge.textContent = `🟢 Sincronizado`;
   }
 }
@@ -226,13 +226,12 @@ async function procesarColaSincronizacion() {
   for (let item of queue) {
     try {
       const payload = item.payload;
-      let exito = false;
 
       if (payload.action === "guardarFacturaFinal") {
         const d = payload.datosFactura;
         const desgl = d.desglosePagos || {};
 
-        const { error } = await supabaseClient.from('ventas').insert([{
+        await supabaseClient.from('ventas').insert([{
           "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
           "FACTURA N°": d.numFactura,
           "CEDULA O RIF": d.cedula,
@@ -252,28 +251,19 @@ async function procesarColaSincronizacion() {
           "BIOPAGO": parseFloat(desgl["Biopago"]) || 0
         }]);
 
-        if (!error || error.code === '23505') {
-          exito = true;
-        } else {
-          console.error("Error insert venta Supabase:", error);
-        }
-
       } else if (payload.action === "registrarClienteFactura") {
-        const { error } = await supabaseClient.from('clientes').upsert({
+        await supabaseClient.from('clientes').upsert({
           "CEDULA": payload.cedula,
           "NOMBRES": payload.nombre,
           "TELEFONO": payload.telefono,
           "DIRECCION": payload.direccion || null
         });
 
-        if (!error) exito = true;
-        else console.error("Error upsert cliente Supabase:", error);
-
       } else if (payload.action === "guardarCierreCaja") {
         const d = payload.datosCierre;
         const r = d.resumen || {};
 
-        const { error } = await supabaseClient.from('cierres').insert([{
+        await supabaseClient.from('cierres').insert([{
           "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
           "USUARIO": d.usuario,
           "INICIAL $": parseFloat(d.inicialUSD) || 0,
@@ -293,11 +283,8 @@ async function procesarColaSincronizacion() {
           "TOTAL 4": parseFloat(d.totalCajaBS) || 0
         }]);
 
-        if (!error) exito = true;
-        else console.error("Error insert cierre Supabase:", error);
-
       } else if (payload.action === "eliminarFactura") {
-        exito = await ejecutarEliminarVentaSupabase(payload.numFactura);
+        await ejecutarEliminarVentaSupabase(payload.numFactura);
       }
 
       await dbDelete("syncQueue", item.id);
@@ -312,26 +299,23 @@ async function procesarColaSincronizacion() {
   actualizarEstadoSyncBadge();
 }
 
-// SINCRONIZACIÓN MANUAL BIDIRECCIONAL COMPLETA
 async function forzarSincronizacionManual() {
   if (!navigator.onLine) {
-    mostrarAvisoFactura("Dispositivo en Modo Offline. Conéctese a Internet para sincronizar.");
+    mostrarAvisoFactura("Dispositivo Offline. Conéctese a Internet para sincronizar.");
     return;
   }
 
   const badge = document.getElementById('badgeEstadoSync');
   if (badge) {
-    badge.className = "badge bg-warning text-dark fw-bold me-2 px-2 py-1";
+    badge.className = "badge bg-warning text-dark fw-bold me-1";
     badge.textContent = "🔄 Sincronizando...";
   }
 
-  // PASO 1: Subida de transacciones pendientes locales
-  mostrarAvisoFactura("🔄 Paso 1/4: Subiendo pendientes a Supabase...", false);
+  mostrarAvisoFactura("🔄 Paso 1/4: Subiendo pendientes...", false);
   await procesarColaSincronizacion();
-  await new Promise(r => setTimeout(r, 400));
+  await new Promise(r => setTimeout(r, 300));
 
-  // PASO 2: Descarga de Clientes desde Supabase
-  mostrarAvisoFactura("🔄 Paso 2/4: Consultando Clientes en Supabase...", false);
+  mostrarAvisoFactura("🔄 Paso 2/4: Sincronizando Clientes...", false);
   let cantClientes = 0;
   try {
     const { data: clientesSup, error } = await supabaseClient.from('clientes').select('*');
@@ -346,29 +330,20 @@ async function forzarSincronizacionManual() {
         });
       }
     }
-  } catch (e) {
-    console.error("Error clientes sync:", e);
-  }
-  mostrarAvisoFactura(`🔄 Paso 2/4: Clientes sincronizados (${cantClientes} registros)`, false);
-  await new Promise(r => setTimeout(r, 400));
+  } catch (e) {}
 
-  // PASO 3: Descarga paginada completa de todas las Ventas desde Supabase
-  mostrarAvisoFactura("🔄 Paso 3/4: Consultando Ventas en Supabase...", false);
+  mostrarAvisoFactura("🔄 Paso 3/4: Sincronizando Ventas...", false);
   let cantVentas = 0;
   try {
     const ventasSup = await obtenerTodasLasVentasSupabase();
-
     if (ventasSup && ventasSup.length > 0) {
       cantVentas = ventasSup.length;
-
-      // Ordenar estrictamente de mayor a menor número de factura
       const ventasOrdenadas = [...ventasSup].sort((a, b) => {
         let numA = parseInt(String(a["FACTURA N°"] || "").replace(/\D/g, ''), 10) || 0;
         let numB = parseInt(String(b["FACTURA N°"] || "").replace(/\D/g, ''), 10) || 0;
         return numB - numA;
       });
 
-      // Guardar las 500 más recientes en IndexedDB local
       const maxAGuardar = Math.min(ventasOrdenadas.length, 500);
       for (let i = 0; i < maxAGuardar; i++) {
         let v = ventasOrdenadas[i];
@@ -384,20 +359,14 @@ async function forzarSincronizacionManual() {
         });
       }
 
-      // Actualizar correlativo con el valor máximo absoluto de Supabase
       let maxNum = parseInt(String(ventasOrdenadas[0]["FACTURA N°"] || "").replace(/\D/g, ''), 10) || 0;
       if (maxNum > 0) {
         await dbPut("config", { key: "ultimoCorrelativo", value: maxNum });
       }
     }
-  } catch (e) {
-    console.error("Error ventas sync:", e);
-  }
-  mostrarAvisoFactura(`🔄 Paso 3/4: Ventas sincronizadas (${cantVentas} registros)`, false);
-  await new Promise(r => setTimeout(r, 400));
+  } catch (e) {}
 
-  // PASO 4: Descarga del Historial de Cierres de Caja desde Supabase
-  mostrarAvisoFactura("🔄 Paso 4/4: Consultando Cierres de Caja...", false);
+  mostrarAvisoFactura("🔄 Paso 4/4: Sincronizando Cierres...", false);
   let cantCierres = 0;
   try {
     const { data: cierresSup, error } = await supabaseClient.from('cierres').select('*');
@@ -432,14 +401,10 @@ async function forzarSincronizacionManual() {
         });
       }
     }
-  } catch (e) {
-    console.error("Error cierres sync:", e);
-  }
-  mostrarAvisoFactura(`🔄 Paso 4/4: Cierres sincronizados (${cantCierres} registros)`, false);
-  await new Promise(r => setTimeout(r, 600));
+  } catch (e) {}
 
   await actualizarEstadoSyncBadge();
-  mostrarAvisoFactura(`🎉 ¡Sincronización completada al 100%! (${cantClientes} clientes, ${cantVentas} ventas, ${cantCierres} cierres).`, true, 10000);
+  mostrarAvisoFactura(`🎉 ¡Sincronizado! (${cantClientes} clientes, ${cantVentas} ventas, ${cantCierres} cierres)`, true, 8000);
 }
 
 async function sincronizarClientesDesdeServidor() {
@@ -459,11 +424,10 @@ async function sincronizarClientesDesdeServidor() {
   } catch (e) {}
 }
 
-// CORRELATIVO LOCAL Y EN LA NUBE BASADO EN EL MÁXIMO REAL
+// CORRELATIVO LOCAL
 async function obtenerSiguienteCorrelativoLocal() {
   let ultimoNum = 0;
 
-  // 1. Revisar ventas locales en IndexedDB
   const ventasLocales = await dbGetAll("ventas");
   ventasLocales.forEach(v => {
     if (v.numFactura) {
@@ -475,11 +439,9 @@ async function obtenerSiguienteCorrelativoLocal() {
     }
   });
 
-  // 2. Consultar en Supabase para obtener el máximo correlativo global
   if (navigator.onLine) {
     try {
       const ventasSup = await obtenerTodasLasVentasSupabase();
-
       if (ventasSup && ventasSup.length > 0) {
         ventasSup.forEach(v => {
           let facStr = v["FACTURA N°"];
@@ -492,9 +454,7 @@ async function obtenerSiguienteCorrelativoLocal() {
           }
         });
       }
-    } catch (e) {
-      console.warn("Aviso correlativo Supabase:", e);
-    }
+    } catch (e) {}
   }
 
   let siguienteNum = ultimoNum + 1;
@@ -504,7 +464,7 @@ async function obtenerSiguienteCorrelativoLocal() {
   return "001-" + numPadded;
 }
 
-// IMPRESIÓN
+// IMPRESIÓN TÉRMICA
 function ejecutarImpresionTicket(ticketHtml) {
   const elemImpresion = document.getElementById('contenidoTicketImprimible');
   if (!elemImpresion) return;
@@ -513,18 +473,14 @@ function ejecutarImpresionTicket(ticketHtml) {
 
   const img = elemImpresion.querySelector('img.ticket-logo-centrado');
   if (img && !img.complete) {
-    img.onload = function () {
-      window.print();
-    };
-    img.onerror = function () {
-      window.print();
-    };
+    img.onload = function () { window.print(); };
+    img.onerror = function () { window.print(); };
   } else {
     window.print();
   }
 }
 
-// MANEJADOR DE CAPAS (Z-INDEX)
+// MANEJADOR DE CAPAS Z-INDEX
 document.addEventListener('show.bs.modal', function (event) {
   const modal = event.target;
   const openModals = document.querySelectorAll('.modal.show');
@@ -550,7 +506,7 @@ document.addEventListener('hidden.bs.modal', function () {
   }
 });
 
-function mostrarAvisoFactura(mensaje, autohide = true, delay = 6000) {
+function mostrarAvisoFactura(mensaje, autohide = true, delay = 5000) {
   try {
     const elemMsg = document.getElementById('toastMensajeFactura');
     if (elemMsg) elemMsg.textContent = mensaje;
@@ -565,9 +521,7 @@ function mostrarAvisoFactura(mensaje, autohide = true, delay = 6000) {
       }
       toastObj.show();
     }
-  } catch (e) {
-    console.warn("Aviso Toast:", mensaje);
-  }
+  } catch (e) {}
 }
 
 function obtenerTasaBCV() {
@@ -589,10 +543,10 @@ function alternarMonedaTablaFactura() {
   if (btn) {
     if (monedaVistaModal === "BS") {
       btn.textContent = "💵 Ver en Divisas ($)";
-      btn.className = "btn btn-sm btn-dark fw-bold";
+      btn.className = "btn btn-sm btn-dark fw-bold rounded-pill";
     } else {
       btn.textContent = "💱 Ver en Bolívares (Bs)";
-      btn.className = "btn btn-sm btn-outline-dark fw-bold";
+      btn.className = "btn btn-sm btn-outline-dark fw-bold rounded-pill";
     }
   }
 
@@ -637,7 +591,7 @@ function renderizarTablaModalFactura() {
       colCantidadHtml = `
         <div class="d-flex align-items-center justify-content-center gap-1">
           <span class="small fw-bold">${item.cantNumerica} uds (</span>
-          <input type="number" class="form-control form-control-sm text-center fw-bold border-dark p-1 text-danger" style="width: 85px;" value="${pesoGramosActual}" min="1" step="10" oninput="ajustarPesoMixtoFactura('${key}', this.value)" title="Modificar peso real de balanza en gramos">
+          <input type="number" class="form-control form-control-sm text-center fw-bold p-1 text-danger" style="width: 80px;" value="${pesoGramosActual}" min="1" step="10" oninput="ajustarPesoMixtoFactura('${key}', this.value)" title="Modificar peso real en gramos">
           <span class="small fw-bold">g)</span>
         </div>`;
     }
@@ -652,9 +606,9 @@ function renderizarTablaModalFactura() {
         <td class="fw-bold">${key}</td>
         <td class="text-center">${precioBaseTxt}</td>
         <td class="text-center fw-bold">${colCantidadHtml}</td>
-        <td class="text-end fw-bold text-success" id="subtotal-modal-${safeIdKey}">${subtotalTxt}</td>
+        <td class="text-end fw-bold text-success" id="subtotal-modal-${safeIdKey}" style="font-family: 'JetBrains Mono', monospace;">${subtotalTxt}</td>
         <td class="text-center">
-          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 border-0 fw-bold" onclick="eliminarItemFacturaEnProceso('${key}')" title="Eliminar del detalle">✕</button>
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 border-0 fw-bold" onclick="eliminarItemFacturaEnProceso('${key}')" title="Eliminar">✕</button>
         </td>
       </tr>`;
   }
@@ -682,10 +636,6 @@ function eliminarItemFacturaEnProceso(nombreProducto) {
     delete transaccionActiva.items[nombreProducto];
     renderizarTablaModalFactura();
     actualizarCalculosBCV();
-
-    if (Object.keys(transaccionActiva.items).length === 0) {
-      mostrarAvisoFactura("Se han eliminado todos los productos de la factura.");
-    }
   }
 }
 
@@ -869,7 +819,7 @@ function confirmarAgregarProductoManual() {
   mostrarAvisoFactura(`Producto manual agregado: ${nombre}`);
 }
 
-// INICIO DE SESIÓN CON SUPABASE
+// INICIO DE SESIÓN
 async function procesarLoginFacturacion(event) {
   event.preventDefault();
   
@@ -882,7 +832,7 @@ async function procesarLoginFacturacion(event) {
   }
 
   btn.disabled = true;
-  btn.textContent = "Verificando en Supabase...";
+  btn.textContent = "Verificando...";
 
   try {
     const { data, error } = await supabaseClient.from('usuarios_factur').select('*');
@@ -912,14 +862,13 @@ async function procesarLoginFacturacion(event) {
     btn.disabled = false;
     btn.textContent = "Ingresar al Sistema 🔐";
     mostrarAvisoFactura("Error de conexión al autenticar con Supabase.");
-    console.error("Error Login Supabase:", err);
   }
 }
 
 function iniciarModuloFacturacion(usuario) {
   document.getElementById('vistaLogin').classList.add('hidden');
   document.getElementById('vistaFacturacion').classList.remove('hidden');
-  document.getElementById('usuarioActivo').textContent = `👤 Usuario: ${usuario.toUpperCase()}`;
+  document.getElementById('usuarioActivo').textContent = `👤 ${usuario.toUpperCase()}`;
   
   cargarCatalogoFacturacion();
   cargarMovimientosEfectivoPersistentes();
@@ -973,7 +922,7 @@ function renderizarCatalogoFacturacion(resp) {
 
     contentHtml += `
       <div class="tab-pane fade ${showActiveClass}" id="${safeId}">
-        <div id="lista-${safeId}" class="row g-3 pt-2"></div>
+        <div id="lista-${safeId}" class="row g-2 pt-1"></div>
       </div>`;
   });
 
@@ -987,7 +936,10 @@ function renderizarCatalogoFacturacion(resp) {
 }
 
 function cargarListaFacturacion(idElemento, productos, nombreCategoria) {
-  document.getElementById(idElemento).innerHTML = productos.map(f => {
+  const contenedor = document.getElementById(idElemento);
+  if (!contenedor) return;
+
+  contenedor.innerHTML = productos.map(f => {
     let nom = f[0];
     let prec = f[1];
     let imgPath = f[2].startsWith('../') ? f[2] : '../' + f[2];
@@ -1005,11 +957,11 @@ function cargarListaFacturacion(idElemento, productos, nombreCategoria) {
 
     return `
       <div class="col-6 col-md-4 col-xl-3">
-        <div class="card card-producto h-100 p-2 text-center">
+        <div class="card card-producto h-100 text-center">
           <img src="${imgPath}" loading="lazy" class="${claseImg}">
           <h6 class="fw-bold mt-2 text-truncate mb-1">${nom}</h6>
           <p class="text-success fw-bold mb-0">$${prec.toFixed(2)}</p>
-          <small class="text-muted" style="font-size:0.75rem;">Mín: ${cantMin} ${unidadTxt}</small>
+          <small class="text-muted" style="font-size:0.72rem;">Mín: ${cantMin} ${unidadTxt}</small>
           ${boton}
         </div>
       </div>`;
@@ -1133,9 +1085,9 @@ function renderizarResumenFactura() {
       <tr>
         <td class="fw-bold small text-wrap">${key}</td>
         <td class="small text-muted">${item.cantidadTxt}</td>
-        <td class="text-success fw-bold text-end">$${item.precioTotal}</td>
-        <td class="text-end" style="width:30px">
-          <button class="btn btn-sm btn-outline-danger py-0 px-1 border-0" onclick="eliminarItemFactura('${key}')">✕</button>
+        <td class="text-danger fw-bold text-end" style="font-family: 'JetBrains Mono', monospace;">$${item.precioTotal}</td>
+        <td class="text-end" style="width:24px">
+          <button class="btn btn-sm btn-outline-danger py-0 px-1 border-0 fw-bold" onclick="eliminarItemFactura('${key}')">✕</button>
         </td>
       </tr>`;
   }
@@ -1144,9 +1096,17 @@ function renderizarResumenFactura() {
 
   document.getElementById('contenedorListaFactura').innerHTML = Object.keys(itemsFactura).length 
     ? html 
-    : '<p class="text-muted text-center py-3 small">No hay productos seleccionados.</p>';
+    : '<p class="text-muted text-center py-4 small">No hay productos seleccionados.</p>';
 
   document.getElementById('montoTotalFactura').textContent = `$${totalAcumulado.toFixed(2)}`;
+
+  // Cálculo en tiempo real en Bolívares para el panel lateral
+  const tasa = obtenerTasaBCV();
+  const elemBs = document.getElementById('montoTotalFacturaBs');
+  if (elemBs) {
+    let totalBs = totalAcumulado * (tasa > 0 ? tasa : 1);
+    elemBs.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
 }
 
 function eliminarItemFactura(nombre) {
@@ -1175,7 +1135,7 @@ function ejecutarFacturar() {
   const btnConmutar = document.getElementById('btnConmutarMoneda');
   if (btnConmutar) {
     btnConmutar.textContent = "💱 Ver en Bolívares (Bs)";
-    btnConmutar.className = "btn btn-sm btn-outline-dark fw-bold";
+    btnConmutar.className = "btn btn-sm btn-outline-dark fw-bold rounded-pill";
   }
 
   document.querySelectorAll('.btn-metodo-pago').forEach(b => b.classList.remove('active'));
@@ -1253,12 +1213,12 @@ function renderizarTablaFacturasEnEspera() {
         <td class="text-center">${tx.horaPausa || 'N/D'}</td>
         <td class="fw-bold">${clienteNom}</td>
         <td class="text-center">${cantProds} producto(s)</td>
-        <td class="text-end fw-bold text-success">$${total.toFixed(2)}</td>
+        <td class="text-end fw-bold text-success" style="font-family: 'JetBrains Mono', monospace;">$${total.toFixed(2)}</td>
         <td class="text-center">
-          <button type="button" class="btn btn-sm btn-success py-0 px-2 fw-bold me-1" onclick="reanudarFacturaEnEspera(${idx})">
+          <button type="button" class="btn btn-sm btn-success py-0 px-2 fw-bold rounded-pill me-1" onclick="reanudarFacturaEnEspera(${idx})">
             ▶️ Reanudar
           </button>
-          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold" onclick="eliminarFacturaEnEspera(${idx})">
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarFacturaEnEspera(${idx})">
             🗑️
           </button>
         </td>
@@ -1311,7 +1271,19 @@ function eliminarFacturaEnEspera(idx) {
   }
 }
 
-// BÚSQUEDA DE CLIENTE EN SUPABASE
+// BÚSQUEDA Y ASIGNACIÓN DE CLIENTE
+function seleccionarConsumidorFinal() {
+  const clienteGenerico = {
+    cedula: "V-00000000",
+    nombre: "CONSUMIDOR FINAL",
+    telefono: "N/D",
+    direccion: "CIUDAD"
+  };
+  clienteFacturaActual = clienteGenerico;
+  poblarClienteEnVista(clienteGenerico);
+  mostrarAvisoFactura("⚡ Asignado: Consumidor Final (V-00000000)");
+}
+
 async function buscarClienteFactura() {
   const inputCedula = document.getElementById('facCedulaBuscar');
   const cedula = inputCedula ? inputCedula.value.trim().toUpperCase() : "";
@@ -1323,7 +1295,6 @@ async function buscarClienteFactura() {
   const btn = document.getElementById('btnBuscarClienteFac');
   if (btn) { btn.disabled = true; btn.textContent = "Buscando..."; }
 
-  // 1. Consulta en IndexedDB local
   let clienteLocal = await dbGet("clientes", cedula);
   if (clienteLocal) {
     if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
@@ -1333,7 +1304,6 @@ async function buscarClienteFactura() {
     return;
   }
 
-  // 2. Consulta a Supabase
   if (navigator.onLine) {
     try {
       const { data: todosClientes, error } = await supabaseClient.from('clientes').select('*');
@@ -1356,9 +1326,7 @@ async function buscarClienteFactura() {
           return;
         }
       }
-    } catch (err) {
-      console.warn("Aviso Supabase Cliente:", err);
-    }
+    } catch (err) {}
   }
 
   if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
@@ -1401,7 +1369,6 @@ function prepararNuevoClienteEnVista(cedula) {
   if (boxNuevo) boxNuevo.classList.remove('hidden');
 }
 
-// REGISTRO DE CLIENTE NUEVO EN SUPABASE
 async function registrarClienteFactura() {
   const cedula = document.getElementById('facRegCedula').value.trim().toUpperCase();
   const nombre = document.getElementById('facRegNombre').value.trim().toUpperCase();
@@ -1468,7 +1435,6 @@ function evaluarFormaPagoFactura(valor) {
 
     agregarLineaPagoMixtoFija("Cashea", false);
     agregarLineaPagoMixto();
-
     calcularTotalPagoMixto();
 
   } else if (valor === 'Pago Mixto') {
@@ -1479,7 +1445,6 @@ function evaluarFormaPagoFactura(valor) {
 
     agregarLineaPagoMixto();
     agregarLineaPagoMixto();
-
     calcularTotalPagoMixto();
 
   } else {
@@ -1496,10 +1461,10 @@ function actualizarPrefijoFilaMixta(selectElem) {
   const metodo = selectElem.value;
   if (METODOS_BS.includes(metodo)) {
     prefijoSpan.textContent = "Bs";
-    prefijoSpan.className = "input-group-text border-dark simbolo-moneda-mixto bg-warning text-dark fw-bold";
+    prefijoSpan.className = "input-group-text simbolo-moneda-mixto bg-warning text-dark fw-bold";
   } else {
     prefijoSpan.textContent = "$";
-    prefijoSpan.className = "input-group-text border-dark simbolo-moneda-mixto bg-light text-dark fw-bold";
+    prefijoSpan.className = "input-group-text simbolo-moneda-mixto bg-light text-dark fw-bold";
   }
 }
 
@@ -1531,14 +1496,14 @@ function agregarLineaPagoMixtoFija(metodoPredeterminado, esEliminable = true) {
 
   divFila.innerHTML = `
     <div class="col-6">
-      <select class="form-select form-select-sm border-dark select-metodo-mixto" onchange="actualizarPrefijoFilaMixta(this); calcularTotalPagoMixto();" ${disabledAttr}>
+      <select class="form-select form-select-sm select-metodo-mixto" onchange="actualizarPrefijoFilaMixta(this); calcularTotalPagoMixto();" ${disabledAttr}>
         ${selectOptions}
       </select>
     </div>
     <div class="col-4">
       <div class="input-group input-group-sm">
-        <span class="input-group-text border-dark simbolo-moneda-mixto ${prefijoClass}">${prefijoTxt}</span>
-        <input type="number" class="form-control border-dark input-monto-mixto" step="0.01" min="0" placeholder="0.00" oninput="calcularTotalPagoMixto()">
+        <span class="input-group-text simbolo-moneda-mixto ${prefijoClass}">${prefijoTxt}</span>
+        <input type="number" class="form-control input-monto-mixto text-center fw-bold" step="0.01" min="0" placeholder="0.00" oninput="calcularTotalPagoMixto()">
       </div>
     </div>
     <div class="col-2 text-end">
@@ -1558,7 +1523,7 @@ function agregarLineaPagoMixto() {
 
   divFila.innerHTML = `
     <div class="col-6">
-      <select class="form-select form-select-sm border-dark select-metodo-mixto" onchange="actualizarPrefijoFilaMixta(this); calcularTotalPagoMixto();">
+      <select class="form-select form-select-sm select-metodo-mixto" onchange="actualizarPrefijoFilaMixta(this); calcularTotalPagoMixto();">
         <option value="" disabled selected>-- Método --</option>
         <option value="Efectivo Divisas">Efectivo Divisas</option>
         <option value="Efectivo Bolívares">Efectivo Bolívares</option>
@@ -1573,8 +1538,8 @@ function agregarLineaPagoMixto() {
     </div>
     <div class="col-4">
       <div class="input-group input-group-sm">
-        <span class="input-group-text border-dark simbolo-moneda-mixto bg-light fw-bold">$</span>
-        <input type="number" class="form-control border-dark input-monto-mixto" step="0.01" min="0" placeholder="0.00" oninput="calcularTotalPagoMixto()">
+        <span class="input-group-text simbolo-moneda-mixto bg-light fw-bold">$</span>
+        <input type="number" class="form-control input-monto-mixto text-center fw-bold" step="0.01" min="0" placeholder="0.00" oninput="calcularTotalPagoMixto()">
       </div>
     </div>
     <div class="col-2 text-end">
@@ -1643,21 +1608,7 @@ function calcularTotalPagoMixto() {
 
     if (elemRestante) {
       elemRestante.textContent = `Bs. ${restanteBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      if (restanteBs === 0) {
-        elemRestante.className = 'text-success fw-bold';
-      } else if (restanteBs > 0) {
-        elemRestante.className = 'text-warning fw-bold';
-      } else {
-        elemRestante.className = 'text-danger fw-bold';
-      }
-    }
-
-    if (elemAsignado) {
-      if (Math.abs(sumaAsignadaBs - totalFacturaBs) < 0.01) {
-        elemAsignado.className = 'text-success fw-bold';
-      } else {
-        elemAsignado.className = 'text-primary fw-bold';
-      }
+      elemRestante.className = (restanteBs === 0) ? 'text-success fw-bold' : (restanteBs > 0 ? 'text-warning fw-bold' : 'text-danger fw-bold');
     }
 
   } else {
@@ -1666,21 +1617,7 @@ function calcularTotalPagoMixto() {
 
     if (elemRestante) {
       elemRestante.textContent = `$${restanteUSD.toFixed(2)}`;
-      if (restanteUSD === 0) {
-        elemRestante.className = 'text-success fw-bold';
-      } else if (restanteUSD > 0) {
-        elemRestante.className = 'text-warning fw-bold';
-      } else {
-        elemRestante.className = 'text-danger fw-bold';
-      }
-    }
-
-    if (elemAsignado) {
-      if (Math.abs(sumaAsignadaUSD - totalFacturaUSD) < 0.01) {
-        elemAsignado.className = 'text-success fw-bold';
-      } else {
-        elemAsignado.className = 'text-primary fw-bold';
-      }
+      elemRestante.className = (restanteUSD === 0) ? 'text-success fw-bold' : (restanteUSD > 0 ? 'text-warning fw-bold' : 'text-danger fw-bold');
     }
   }
 
@@ -1911,15 +1848,9 @@ function obtenerObjetoDesgloseMetodos() {
   const tasa = obtenerTasaBCV();
 
   let desgl = {
-    "Efectivo Divisas": 0,
-    "Efectivo Bolívares": 0,
-    "Pago Móvil": 0,
-    "Zelle": 0,
-    "PayPal": 0,
-    "Cashea": 0,
-    "Punto de Venta": 0,
-    "Transferencia Bancaria": 0,
-    "Biopago": 0
+    "Efectivo Divisas": 0, "Efectivo Bolívares": 0, "Pago Móvil": 0,
+    "Zelle": 0, "PayPal": 0, "Cashea": 0, "Punto de Venta": 0,
+    "Transferencia Bancaria": 0, "Biopago": 0
   };
 
   let totalUSD = 0;
@@ -1932,11 +1863,9 @@ function obtenerObjetoDesgloseMetodos() {
 
   if (formaSelect === 'Pago Mixto' || formaSelect === 'Cashea') {
     const filas = document.querySelectorAll('.fila-pago-mixto');
-
     filas.forEach(f => {
       let metodo = f.querySelector('.select-metodo-mixto').value;
       let montoTipado = parseFloat(f.querySelector('.input-monto-mixto').value) || 0;
-
       if (metodo && montoTipado > 0) {
         desgl[metodo] = (desgl[metodo] || 0) + montoTipado;
       }
@@ -1952,7 +1881,6 @@ function obtenerObjetoDesgloseMetodos() {
   return desgl;
 }
 
-// CONFIRMAR, IMPRIMIR E INICIAR SINCRONIZACIÓN
 async function confirmarEImprimirFactura() {
   if (!datosFacturaPendiente) return;
 
@@ -1962,7 +1890,6 @@ async function confirmarEImprimirFactura() {
   try {
     let numFactura = datosFacturaPendiente.numFactura;
 
-    // 1. Guardar localmente en IndexedDB
     await dbPut("ventas", {
       numFactura: numFactura,
       fechaStr: datosFacturaPendiente.fechaStr,
@@ -1974,7 +1901,6 @@ async function confirmarEImprimirFactura() {
       productosSummary: datosFacturaPendiente.productosSummary
     });
 
-    // 2. Encolar una única vez para sincronización con Supabase
     await dbPut("syncQueue", {
       id: "sync_fac_" + Date.now(),
       payload: {
@@ -1993,7 +1919,6 @@ async function confirmarEImprimirFactura() {
       }
     });
 
-    // 3. Impresión térmica instantánea
     const ticketHtml = document.getElementById('vistaPreviaTicketModal').innerHTML;
     ejecutarImpresionTicket(ticketHtml);
 
@@ -2009,7 +1934,6 @@ async function confirmarEImprimirFactura() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
 
     mostrarAvisoFactura(`Venta N° ${numFactura} emitida e impresa con éxito 🎉`);
-
     procesarColaSincronizacion();
 
   } catch (err) {
@@ -2039,16 +1963,14 @@ function cancelarProcesoFactura() {
   }
 }
 
-// LÓGICA LECTOR CÓDIGOS DE BALANZA TECNISCALE PS-30
+// LECTOR DE BALANZA PS-30
 function abrirModalCodigos() {
   itemsEscaneadosTemporales = [];
   const input = document.getElementById('inputScannerQR');
   if (input) input.value = "";
   
   renderizarTablaEscaneados();
-  
-  const modalObj = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalLectorCodigos'));
-  modalObj.show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalLectorCodigos')).show();
 
   setTimeout(() => {
     if (input) input.focus();
@@ -2114,7 +2036,6 @@ function procesarEntradaScanner(cadenaTexto) {
           let parteEntera = parseInt(valPrecioStr.substring(0, valPrecioStr.length - 2), 10) || 0;
           let parteDecimal = valPrecioStr.substring(valPrecioStr.length - 2);
           calcSubtotal = parseFloat(`${parteEntera}.${parteDecimal}`) || 0;
-
           calcPrecioBase = calcSubtotal / cantidadUds;
         } else {
           calcPrecioBase = productoEncontrado.precio;
@@ -2195,7 +2116,7 @@ function renderizarTablaEscaneados() {
   let html = "";
   let hayValidos = false;
 
-  itemsEscaneadosTemporales.forEach((it, idx) => {
+  itemsEscaneadosTemporales.forEach((it) => {
     if (it.encontrado) hayValidos = true;
     let badgeState = it.encontrado 
       ? `<span class="badge bg-success">✔ Encontrado</span>` 
@@ -2209,7 +2130,7 @@ function renderizarTablaEscaneados() {
         <td class="fw-bold ${it.encontrado ? 'text-dark' : 'text-danger'}">${it.nombre}</td>
         <td class="text-center">${precUnitTxt}</td>
         <td class="text-center fw-bold text-primary">${it.cantidadTxt}</td>
-        <td class="text-end fw-bold text-success">$${it.precioTotal}</td>
+        <td class="text-end fw-bold text-success" style="font-family: 'JetBrains Mono', monospace;">$${it.precioTotal}</td>
         <td class="text-center">${badgeState}</td>
       </tr>`;
   });
@@ -2256,7 +2177,7 @@ function confirmarAgregarCodigosAFactura() {
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
 }
 
-// LÓGICA GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS
+// GESTIÓN DE PRODUCTOS Y PLU
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
   prepararListaProductosCodigos();
@@ -2314,14 +2235,14 @@ function renderizarTablaGestionCodigos(lista) {
   }
 
   let html = "";
-  lista.forEach((item, idx) => {
+  lista.forEach((item) => {
     let safeName = item.nombre.replace(/["']/g, '');
     let unidadTxt = (item.unidad === 'gramos') ? 'g' : (item.unidad === 'mixto' ? 'mixto' : 'uds');
 
     html += `
       <tr>
         <td class="text-center">
-          <input type="text" class="form-control form-control-sm text-center fw-bold border-dark text-primary input-codigo-plu-item" 
+          <input type="text" class="form-control form-control-sm text-center fw-bold text-primary input-codigo-plu-item" 
                  data-nombre="${safeName}" 
                  data-cat="${item.categoria}" 
                  value="${item.codigoPLU}" 
@@ -2330,17 +2251,17 @@ function renderizarTablaGestionCodigos(lista) {
         <td class="fw-bold text-dark">${item.nombre}</td>
         <td class="small text-muted">${item.categoria}</td>
         <td class="text-center">
-          <select class="form-select form-select-sm border-dark fw-bold select-disp-item" data-nombre="${safeName}" style="max-width: 140px; margin: 0 auto;">
+          <select class="form-select form-select-sm fw-bold select-disp-item" data-nombre="${safeName}" style="max-width: 140px; margin: 0 auto;">
             <option value="true" ${item.disponible ? 'selected' : ''}>✅ Disponible</option>
             <option value="false" ${!item.disponible ? 'selected' : ''}>🚫 Agotado</option>
           </select>
         </td>
         <td class="text-center"><span class="badge bg-light text-dark border">${unidadTxt}</span></td>
         <td class="text-center">
-          <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-center fw-bold border-dark text-success input-precio-item" 
+          <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-center fw-bold text-success input-precio-item" 
                  data-nombre="${safeName}" 
                  data-cat="${item.categoria}" 
-                 value="${item.precio.toFixed(2)}" style="max-width: 110px; margin: 0 auto;">
+                 value="${item.precio.toFixed(2)}" style="max-width: 110px; margin: 0 auto; font-family: 'JetBrains Mono', monospace;">
         </td>
       </tr>`;
   });
@@ -2458,7 +2379,6 @@ async function procesarSincronizacionGitHub() {
     }
 
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
-
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
     mostrarAvisoFactura("🎉 Configuración de productos, precios y disponibilidad guardada con éxito.");
 
@@ -2469,7 +2389,7 @@ async function procesarSincronizacionGitHub() {
       btn.textContent = "💾 Guardar Todos los Cambios";
     }
     console.error("Error al guardar en GitHub:", err);
-    mostrarAvisoFactura("❌ Error de clave/sincronización con GitHub: " + err.message + ". Escanee nuevamente.");
+    mostrarAvisoFactura("❌ Error de clave/sincronización con GitHub: " + err.message);
   }
 }
 
@@ -2513,7 +2433,7 @@ async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
   return await response.json();
 }
 
-// BÚSQUEDA Y HISTORIAL DE FACTURAS EN SUPABASE E INDEXEDDB
+// HISTORIAL Y BÚSQUEDA DE FACTURAS
 function abrirModalBuscarFacturas() {
   document.getElementById('facBusquedaInput').value = "";
   buscarFacturasHistorial('ultimas10');
@@ -2522,13 +2442,11 @@ function abrirModalBuscarFacturas() {
 
 async function buscarFacturasHistorial(modo) {
   const inputVal = document.getElementById('facBusquedaInput').value.trim().toUpperCase();
-  const tbody = document.getElementById('tablaHistorialFacturas');
   
   if (modo === 'busqueda' && !inputVal) {
     return mostrarAvisoFactura("Ingrese Cédula, RIF o N° de Factura a buscar.");
   }
 
-  // 1. Cargar datos locales en IndexedDB primero
   let ventasLocales = await dbGetAll("ventas");
   let mapFacturas = {};
 
@@ -2536,11 +2454,9 @@ async function buscarFacturasHistorial(modo) {
     if (f.numFactura) mapFacturas[f.numFactura] = f;
   });
 
-  // 2. Consulta paginada a Supabase para abarcar todas las 1800+ ventas emitidas
   if (navigator.onLine) {
     try {
       const ventasSup = await obtenerTodasLasVentasSupabase();
-
       if (ventasSup && ventasSup.length > 0) {
         ventasSup.forEach(v => {
           let numFac = v["FACTURA N°"];
@@ -2558,19 +2474,15 @@ async function buscarFacturasHistorial(modo) {
           }
         });
       }
-    } catch (err) {
-      console.warn("Aviso consulta Supabase:", err);
-    }
+    } catch (err) {}
   }
 
-  // 3. Convertir y ordenar estrictamente de mayor a menor número de factura (más reciente primero)
   let todasLasFacturas = Object.values(mapFacturas).sort((a, b) => {
     let numA = parseInt(String(a.numFactura || "").replace(/\D/g, ''), 10) || 0;
     let numB = parseInt(String(b.numFactura || "").replace(/\D/g, ''), 10) || 0;
     return numB - numA;
   });
 
-  // 4. Aplicar el filtro requerido
   if (modo === 'ultimas10') {
     cacheHistorialFacturas = todasLasFacturas.slice(0, 10);
   } else if (inputVal) {
@@ -2583,7 +2495,6 @@ async function buscarFacturasHistorial(modo) {
     cacheHistorialFacturas = todasLasFacturas.slice(0, 200);
   }
 
-  // Guardar en local para modo offline
   for (let f of cacheHistorialFacturas) {
     await dbPut("ventas", f);
   }
@@ -2604,17 +2515,17 @@ function renderizarTablaHistorialFacturas() {
   cacheHistorialFacturas.forEach(f => {
     html += `
       <tr>
-        <td class="fw-bold text-center text-danger">${f.numFactura}</td>
+        <td class="fw-bold text-center text-danger" style="font-family: 'JetBrains Mono', monospace;">${f.numFactura}</td>
         <td class="text-center small">${f.fechaStr}</td>
         <td class="fw-bold text-center">${f.cedula}</td>
         <td class="fw-bold text-wrap">${f.nombre}</td>
         <td class="small text-muted">${f.formaPagoStr}</td>
-        <td class="text-end fw-bold text-success">$${parseFloat(f.montoTotalUSD).toFixed(2)}</td>
+        <td class="text-end fw-bold text-success" style="font-family: 'JetBrains Mono', monospace;">$${parseFloat(f.montoTotalUSD).toFixed(2)}</td>
         <td class="text-center">
-          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold me-1" onclick="reimprimirFacturaHistorial('${f.numFactura}')" title="Reimprimir Ticket">
+          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill me-1" onclick="reimprimirFacturaHistorial('${f.numFactura}')" title="Reimprimir Ticket">
             🖨️ Imprimir
           </button>
-          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold" onclick="eliminarFacturaHistorial('${f.numFactura}')" title="Eliminar Factura">
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarFacturaHistorial('${f.numFactura}')" title="Eliminar Factura">
             🗑️
           </button>
         </td>
@@ -2761,7 +2672,7 @@ async function eliminarFacturaHistorial(numFactura) {
   procesarColaSincronizacion();
 }
 
-// DESCARGA DE REGISTRO EN EXCEL (.XLSX) DESDE SUPABASE
+// DESCARGA DE EXCEL
 function abrirModalFiltroDescarga() {
   const inputFecha = document.getElementById('descargaFechaInput');
   const selectForma = document.getElementById('descargaFormaPagoSelect');
@@ -2972,7 +2883,7 @@ async function registrarMovimientoEfectivo() {
     const autPor = document.getElementById('valeAutorizadoPor').value.trim().toUpperCase();
 
     if (!empNombre || !empCedula || !motivoVal || !autPor) {
-      errorDiv.textContent = "Por favor, complete todos los campos requeridos del Formulario de Vale de Caja.";
+      errorDiv.textContent = "Complete todos los campos requeridos del Vale de Caja.";
       errorDiv.classList.remove('hidden');
       return;
     }
@@ -2993,7 +2904,7 @@ async function registrarMovimientoEfectivo() {
   } else {
     conceptoFinal = document.getElementById('movConceptoInput').value.trim().toUpperCase();
     if (!conceptoFinal) {
-      errorDiv.textContent = "Por favor, especifique el concepto o motivo del movimiento.";
+      errorDiv.textContent = "Especifique el concepto o motivo del movimiento.";
       errorDiv.classList.remove('hidden');
       return;
     }
@@ -3028,7 +2939,7 @@ async function registrarMovimientoEfectivo() {
     renderizarTicketValeCajaHTML(datosVale);
     const ticketHtml = document.getElementById('contenidoTicketImprimible').innerHTML;
     ejecutarImpresionTicket(ticketHtml);
-    mostrarAvisoFactura(`🎟️ Vale de Caja para ${datosVale.empleadoNombre} registrado e impreso exitosamente.`);
+    mostrarAvisoFactura(`🎟️ Vale de Caja para ${datosVale.empleadoNombre} registrado e impreso.`);
   } else {
     mostrarAvisoFactura(`💸 Movimiento de ${tipo} (${moneda}) registrado exitosamente.`);
   }
@@ -3114,10 +3025,10 @@ function renderizarTablaMovimientosDia() {
         <td class="text-center small">${m.hora}</td>
         <td class="text-center">${badgeTipo}</td>
         <td class="text-center fw-bold">${m.moneda}</td>
-        <td class="text-end fw-bold ${esIngreso ? 'text-success' : 'text-danger'}">${montoTxt}</td>
+        <td class="text-end fw-bold ${esIngreso ? 'text-success' : 'text-danger'}" style="font-family: 'JetBrains Mono', monospace;">${montoTxt}</td>
         <td class="small text-wrap">${m.concepto}</td>
         <td class="text-center">
-          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold" onclick="eliminarMovimientoEfectivo(${idx})" title="Eliminar movimiento">
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarMovimientoEfectivo(${idx})" title="Eliminar">
             🗑️
           </button>
         </td>
@@ -3140,7 +3051,7 @@ function eliminarMovimientoEfectivo(index) {
   }
 }
 
-// CIERRE DE CAJA (REPORTE Z) E HISTORIAL EN SUPABASE (BLINDADO Y SIN DUPLICACIÓN)
+// CIERRE DE CAJA
 function abrirModalCierreCaja() {
   const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
   document.getElementById('cierreUsuarioNombre').textContent = `👤 Cajero: ${usuario.toUpperCase()}`;
@@ -3202,9 +3113,7 @@ async function cargarHistorialCierresCaja() {
         }
         renderizarTablaHistorialCierres();
       }
-    } catch (e) {
-      console.warn("Aviso carga cierres:", e);
-    }
+    } catch (e) {}
   }
 }
 
@@ -3234,9 +3143,9 @@ function renderizarTablaHistorialCierres() {
         <td class="fw-bold text-center">${uStr}</td>
         <td class="text-center small">$${iniUSD} / Bs.${iniBS}</td>
         <td class="text-center small">$${venUSD} / Bs.${venBS}</td>
-        <td class="text-center fw-bold text-success">$${finUSD} / Bs.${finBS}</td>
+        <td class="text-center fw-bold text-success" style="font-family: 'JetBrains Mono', monospace;">$${finUSD} / Bs.${finBS}</td>
         <td class="text-center">
-          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold" onclick="reimprimirCierreCajaHistorial(${idx})" title="Reimprimir Reporte Z">
+          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill" onclick="reimprimirCierreCajaHistorial(${idx})" title="Reimprimir Reporte Z">
             🖨️ Reimprimir
           </button>
         </td>
@@ -3337,7 +3246,6 @@ async function procesarSiguienteCierreCaja() {
           resumen.ventasTransferencia += trBS;
           resumen.ventasBiopago += bioBS;
         } else {
-          // Lógica de respaldo a partir del nombre del método de pago
           if (formaStr.includes("PUNTO DE VENTA")) {
             resumen.ventasPuntoVenta += (totalUSDVenta * (tasa > 0 ? tasa : 1));
           } else if (formaStr.includes("PAGO MÓVIL") || formaStr.includes("PAGO MOVIL")) {
@@ -3401,7 +3309,6 @@ async function procesarSiguienteCierreCaja() {
     };
 
     renderizarTicketCierreCajaHTML(datosCierreCajaPendiente);
-
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso1')).hide();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso2')).show();
 
@@ -3571,16 +3478,13 @@ async function confirmarEImprimirCierreCaja() {
   try {
     const d = datosCierreCajaPendiente;
 
-    // 1. Guardar localmente en IndexedDB
     await dbPut("cierres", d);
 
-    // 2. Encolar una única vez para sincronización con Supabase
     await dbPut("syncQueue", {
       id: "sync_cie_" + Date.now(),
       payload: { action: "guardarCierreCaja", datosCierre: d }
     });
 
-    // 3. Impresión del ticket
     const ticketHtml = document.getElementById('vistaPreviaCierreCajaModal').innerHTML;
     ejecutarImpresionTicket(ticketHtml);
 
@@ -3594,7 +3498,6 @@ async function confirmarEImprimirCierreCaja() {
     listaMovimientosEfectivo = [];
 
     mostrarAvisoFactura("🔒 Cierre de caja registrado e impreso exitosamente. 🎉");
-
     procesarColaSincronizacion();
 
   } catch (err) {
@@ -3604,7 +3507,7 @@ async function confirmarEImprimirCierreCaja() {
   }
 }
 
-// OYENTES DE EVENTOS DE RED
+// OYENTES DE EVENTOS
 window.addEventListener('online', async () => {
   actualizarEstadoSyncBadge();
   await procesarColaSincronizacion();
