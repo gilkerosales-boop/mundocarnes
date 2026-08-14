@@ -156,7 +156,6 @@ async function actualizarEstadoSyncBadge() {
 // Ejecutar eliminación directa en Supabase sorteando limitaciones de URL de PostgREST
 async function ejecutarEliminarVentaSupabase(numFactura) {
   try {
-    // Intento 1: Direct Fetch con identificador exacto escapado
     const url = `${SUPABASE_URL}/rest/v1/ventas?%22FACTURA%20N%C2%B0%22=eq.${encodeURIComponent(numFactura)}`;
     const res = await fetch(url, {
       method: "DELETE",
@@ -173,12 +172,11 @@ async function ejecutarEliminarVentaSupabase(numFactura) {
   } catch (e) {}
 
   try {
-    // Intento 2: Supabase SDK
     const { error } = await supabaseClient.from('ventas').delete().eq('"FACTURA N°"', numFactura);
     if (!error) return true;
   } catch (e) {}
 
-  return true; // Se marca como resuelto para desatascar la cola local
+  return true;
 }
 
 async function procesarColaSincronizacion() {
@@ -225,10 +223,10 @@ async function procesarColaSincronizacion() {
           "BIOPAGO": parseFloat(desgl["Biopago"]) || 0
         }]);
 
-        if (!error) exito = true;
-        else {
+        if (!error || error.code === '23505') {
+          exito = true;
+        } else {
           console.error("Error insert venta Supabase:", error);
-          if (error.code === '23505') exito = true; // Ya existe en la base de datos
         }
 
       } else if (payload.action === "registrarClienteFactura") {
@@ -276,7 +274,6 @@ async function procesarColaSincronizacion() {
       if (exito) {
         await dbDelete("syncQueue", item.id);
       } else {
-        // En caso de error irrecuperable de esquema, retirar de cola para no bloquear el sistema
         await dbDelete("syncQueue", item.id);
       }
 
@@ -332,15 +329,24 @@ async function forzarSincronizacionManual() {
   mostrarAvisoFactura(`🔄 Paso 2/4: Clientes sincronizados (${cantClientes} registros)`, false);
   await new Promise(r => setTimeout(r, 400));
 
-  // PASO 3: Descarga del Historial de Ventas desde Supabase
-  mostrarAvisoFactura("🔄 Paso 3/4: Consultando Historial de Ventas...", false);
+  // PASO 3: Descarga de las Ventas Más Recientes desde Supabase (Orden Descendente)
+  mostrarAvisoFactura("🔄 Paso 3/4: Consultando Historial de Ventas Recientes...", false);
   let cantVentas = 0;
   try {
-    const { data: ventasSup, error } = await supabaseClient.from('ventas').select('*').limit(200);
-    if (!error && ventasSup) {
-      const totalVen = ventasSup.length;
-      cantVentas = totalVen;
-      for (let i = 0; i < totalVen; i++) {
+    let { data: ventasSup, error } = await supabaseClient
+      .from('ventas')
+      .select('*')
+      .order('FACTURA N°', { ascending: false })
+      .limit(300);
+
+    if (error || !ventasSup) {
+      const res = await supabaseClient.from('ventas').select('*').limit(300);
+      ventasSup = res.data || [];
+    }
+
+    if (ventasSup && ventasSup.length > 0) {
+      cantVentas = ventasSup.length;
+      for (let i = 0; i < ventasSup.length; i++) {
         let v = ventasSup[i];
         await dbPut("ventas", {
           numFactura: v["FACTURA N°"],
@@ -423,7 +429,7 @@ async function sincronizarClientesDesdeServidor() {
   } catch (e) {}
 }
 
-// CORRELATIVO LOCAL Y EN LA NUBE
+// CORRELATIVO LOCAL Y EN LA NUBE BASADO EN EL MÁXIMO REAL
 async function obtenerSiguienteCorrelativoLocal() {
   let ultimoNum = 0;
 
@@ -439,13 +445,19 @@ async function obtenerSiguienteCorrelativoLocal() {
     }
   });
 
-  // 2. Si hay conexión, consultar la mayor factura registrada en Supabase
+  // 2. Consultar en Supabase las facturas más altas ordenadas descendentemente
   if (navigator.onLine) {
     try {
-      const { data: ultimasVentas } = await supabaseClient
+      let { data: ultimasVentas, error } = await supabaseClient
         .from('ventas')
         .select('"FACTURA N°"')
+        .order('FACTURA N°', { ascending: false })
         .limit(100);
+
+      if (error || !ultimasVentas || ultimasVentas.length === 0) {
+        const res = await supabaseClient.from('ventas').select('"FACTURA N°"');
+        ultimasVentas = res.data || [];
+      }
 
       if (ultimasVentas && ultimasVentas.length > 0) {
         ultimasVentas.forEach(v => {
@@ -459,7 +471,9 @@ async function obtenerSiguienteCorrelativoLocal() {
           }
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn("Aviso correlativo Supabase:", e);
+    }
   }
 
   let siguienteNum = ultimoNum + 1;
@@ -2495,17 +2509,26 @@ async function buscarFacturasHistorial(modo) {
     return mostrarAvisoFactura("Ingrese Cédula, RIF o N° de Factura a buscar.");
   }
 
+  // 1. Obtener registros locales en IndexedDB
   let ventasLocales = await dbGetAll("ventas");
   let resultadosLocales = [];
 
   if (modo === 'ultimas10') {
-    resultadosLocales = ventasLocales.slice(-10).reverse();
+    resultadosLocales = [...ventasLocales].sort((a, b) => {
+      let numA = a.numFactura ? parseInt(String(a.numFactura).replace(/\D/g, ''), 10) : 0;
+      let numB = b.numFactura ? parseInt(String(b.numFactura).replace(/\D/g, ''), 10) : 0;
+      return numB - numA;
+    }).slice(0, 10);
   } else if (inputVal) {
     resultadosLocales = ventasLocales.filter(v => {
       return (v.numFactura && String(v.numFactura).toUpperCase().includes(inputVal)) ||
              (v.cedula && String(v.cedula).toUpperCase().includes(inputVal)) ||
              (v.nombre && String(v.nombre).toUpperCase().includes(inputVal));
-    }).reverse().slice(0, 200);
+    }).sort((a, b) => {
+      let numA = a.numFactura ? parseInt(String(a.numFactura).replace(/\D/g, ''), 10) : 0;
+      let numB = b.numFactura ? parseInt(String(b.numFactura).replace(/\D/g, ''), 10) : 0;
+      return numB - numA;
+    }).slice(0, 200);
   }
 
   cacheHistorialFacturas = resultadosLocales;
@@ -2515,12 +2538,23 @@ async function buscarFacturasHistorial(modo) {
     tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">⏳ Consultando facturas en Supabase...</td></tr>`;
   }
 
+  // 2. Consulta en Supabase con orden descendente real
   if (navigator.onLine) {
     try {
-      const { data: ventasSup, error } = await supabaseClient.from('ventas').select('*').limit(200);
+      let { data: ventasSup, error } = await supabaseClient
+        .from('ventas')
+        .select('*')
+        .order('FACTURA N°', { ascending: false })
+        .limit(300);
 
-      if (!error && ventasSup) {
+      if (error || !ventasSup) {
+        const res = await supabaseClient.from('ventas').select('*').limit(300);
+        ventasSup = res.data || [];
+      }
+
+      if (ventasSup && ventasSup.length > 0) {
         let filtradasSup = ventasSup;
+
         if (modo === 'busqueda' && inputVal) {
           filtradasSup = ventasSup.filter(v => {
             return (v["FACTURA N°"] && String(v["FACTURA N°"]).toUpperCase().includes(inputVal)) ||
@@ -2543,8 +2577,14 @@ async function buscarFacturasHistorial(modo) {
           };
         });
 
-        resultadosLocales.forEach(f => { mapFacturas[f.numFactura] = f; });
+        // Combinar con locales
+        resultadosLocales.forEach(f => { 
+          if (!mapFacturas[f.numFactura]) {
+            mapFacturas[f.numFactura] = f; 
+          }
+        });
 
+        // Ordenar estrictamente de mayor a menor número de factura (más reciente primero)
         cacheHistorialFacturas = Object.values(mapFacturas).sort((a, b) => {
           let numA = a.numFactura ? parseInt(String(a.numFactura).replace(/\D/g, ''), 10) : 0;
           let numB = b.numFactura ? parseInt(String(b.numFactura).replace(/\D/g, ''), 10) : 0;
@@ -2560,6 +2600,7 @@ async function buscarFacturasHistorial(modo) {
         for (let f of cacheHistorialFacturas) {
           await dbPut("ventas", f);
         }
+
         renderizarTablaHistorialFacturas();
       }
     } catch (err) {
