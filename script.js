@@ -324,7 +324,7 @@ async function ejecutarRegistroNuevoCliente() {
         "NOMBRES": nom,
         "APELLIDOS": ape,
         "TELEFONO": tel,
-        "DIRECCION": "paraiso"
+        "DIRECCION": null
       });
 
     btn.disabled = false; 
@@ -845,7 +845,7 @@ async function ejecutarRegistroCheckout() {
         "NOMBRES": nom,
         "APELLIDOS": ape,
         "TELEFONO": tel,
-        "DIRECCION": "paraiso"
+        "DIRECCION": null
       });
 
     btn.disabled = false;
@@ -946,15 +946,23 @@ async function ejecutarAccionFinal() {
   }
 
   const numeroOriginal = cacheUsuario.telefono;
-  if (telConfirmado !== numeroOriginal) {
-    cacheUsuario.telefono = telConfirmado;
-    const sb = getSupabase();
-    if (sb) {
+  const sb = getSupabase();
+
+  if (sb && cacheUsuario.cedula) {
+    let updateFields = {};
+    if (telConfirmado !== numeroOriginal) {
+      cacheUsuario.telefono = telConfirmado;
+      updateFields["TELEFONO"] = telConfirmado;
+    }
+    if (datosCheckout.ubicacion && datosCheckout.ubicacion !== 'Retiro Local') {
+      updateFields["DIRECCION"] = datosCheckout.ubicacion;
+    }
+    if (Object.keys(updateFields).length > 0) {
       sb.from('clientes')
-        .update({ "TELEFONO": telConfirmado })
+        .update(updateFields)
         .eq('CEDULA', cacheUsuario.cedula)
         .then(() => {})
-        .catch(err => console.error("Error al actualizar teléfono:", err));
+        .catch(err => console.error("Error al actualizar cliente:", err));
     }
   }
 
