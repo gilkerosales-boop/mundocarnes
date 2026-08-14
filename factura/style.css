@@ -1,6 +1,6 @@
 /* ==========================================================================
    Estilos Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Diseño Anti-Fatiga Visual (Fondo Gris Mate Suave) y Números de Alta Legibilidad
+   Diseño Anti-Fatiga Visual, Barra BCV Sticky Top, Enmascaramiento Seguro y Alto Contraste
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@500;700;800&display=swap');
@@ -14,6 +14,7 @@
   --pos-green: #10b981;
   --pos-green-dark: #059669;
   --pos-amber: #f59e0b;
+  --pos-amber-contrast: #c2410c; /* Ámbar oscuro de alto contraste */
   --pos-blue: #3b82f6;
   --pos-bg: #e2e8f0;            /* Gris mate suave anti-deslumbramiento */
   --pos-surface-card: #f8fafc;  /* Superficie suave para tarjetas */
@@ -346,9 +347,12 @@ body {
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
 }
 
+/* Enmascaramiento Seguro por CSS Puro (Evita errores de autofill) */
 .input-tasa-masked {
-  letter-spacing: 3px;
-  font-size: 1.05rem;
+  -webkit-text-security: disc !important;
+  text-security: disc !important;
+  letter-spacing: 2px;
+  font-size: 1rem;
   font-family: inherit;
   cursor: pointer;
   background-color: #ffffff !important;
@@ -356,9 +360,17 @@ body {
 }
 
 .input-tasa-masked:focus {
+  -webkit-text-security: none !important;
+  text-security: none !important;
   letter-spacing: normal;
   font-size: 0.92rem;
   cursor: text;
+}
+
+/* Monto Restante con Alto Contraste */
+.monto-restante-alerta {
+  color: var(--pos-amber-contrast) !important;
+  font-weight: 800;
 }
 
 #modalProcesarFactura .modal-footer {
