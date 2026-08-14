@@ -755,7 +755,7 @@
       "productos": [
         [
           "HUEVOS 1/2 CARTON",
-          3,
+          3.5,
           "img/huevos.webp",
           true,
           1,
@@ -1031,7 +1031,7 @@
           1,
           "unidades",
           0,
-          "0125"
+          "0132"
         ],
         [
           "CORN FAKES KELLOGG´S 230G",
