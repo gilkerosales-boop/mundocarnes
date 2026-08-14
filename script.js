@@ -222,7 +222,7 @@ async function procesarPrimerPaso() {
 
     if (clienteData) {
       cacheUsuario.nombre = clienteData.nombre;
-      cacheUsuario.apellido = clienteData.apellido || "";
+      cacheUsuario.apellido = clienteData.apellido || clienteData.apellidos || "";
       cacheUsuario.telefono = clienteData.telefono || "";
       cacheUsuario.rol = "CLIENTE";
       concederAccesoAlSistema();
@@ -277,7 +277,7 @@ async function verificarPasswordAdministrador() {
   }
 }
 
-// REGISTRO DE NUEVO CLIENTE EN SUPABASE
+// REGISTRO DE NUEVO CLIENTE EN SUPABASE (CON FALLBACK FLEXIBLE)
 async function ejecutarRegistroNuevoCliente() {
   const nom = document.getElementById('regNombre').value.trim();
   const ape = document.getElementById('regApellido').value.trim();
@@ -300,7 +300,7 @@ async function ejecutarRegistroNuevoCliente() {
   btn.textContent = "Registrando en Supabase...";
   
   try {
-    const { error } = await supabaseClient
+    let { error } = await supabaseClient
       .from('clientes')
       .upsert({
         cedula: cacheUsuario.cedula,
@@ -308,6 +308,19 @@ async function ejecutarRegistroNuevoCliente() {
         apellido: ape.toUpperCase(),
         telefono: tel
       });
+
+    // Fallback por si la columna en la BD se llama 'apellidos' en plural
+    if (error && error.message && error.message.includes('apellido')) {
+      const resPlural = await supabaseClient
+        .from('clientes')
+        .upsert({
+          cedula: cacheUsuario.cedula,
+          nombre: nom.toUpperCase(),
+          apellidos: ape.toUpperCase(),
+          telefono: tel
+        });
+      error = resPlural.error;
+    }
 
     btn.disabled = false; 
     btn.textContent = "Registrar y Comprar";
@@ -349,11 +362,7 @@ function concederAccesoAlSistema() {
   
   fetch("catalog.json?t=" + new Date().getTime())
     .then(res => res.json())
-    .then(renderizarCatalogo)
-    .catch(err => {
-      console.error(err);
-      mostrarAviso("Error al obtener catalog.json desde el servidor.");
-    });
+    .then(renderizarCatalogo);
 }
 
 function renderizarCatalogo(resp) {
@@ -746,7 +755,7 @@ async function verificarClienteCheckout() {
 
     if (!error && clienteData) {
       cacheUsuario.nombre = clienteData.nombre;
-      cacheUsuario.apellido = clienteData.apellido || "";
+      cacheUsuario.apellido = clienteData.apellido || clienteData.apellidos || "";
       cacheUsuario.telefono = clienteData.telefono || "";
       cacheUsuario.rol = "CLIENTE";
       
@@ -769,7 +778,7 @@ async function verificarClienteCheckout() {
   }
 }
 
-// REGISTRO DE CLIENTE EN CHECKOUT CON SUPABASE
+// REGISTRO DE CLIENTE EN CHECKOUT CON SUPABASE (CON FALLBACK FLEXIBLE)
 async function ejecutarRegistroCheckout() {
   const nom = document.getElementById('checkoutNombre').value.trim();
   const ape = document.getElementById('checkoutApellido').value.trim();
@@ -792,7 +801,7 @@ async function ejecutarRegistroCheckout() {
   btn.textContent = "Procesando en Supabase...";
   
   try {
-    const { error } = await supabaseClient
+    let { error } = await supabaseClient
       .from('clientes')
       .upsert({
         cedula: cacheUsuario.cedula,
@@ -800,6 +809,19 @@ async function ejecutarRegistroCheckout() {
         apellido: ape.toUpperCase(),
         telefono: tel
       });
+
+    // Fallback por si la columna en la BD se llama 'apellidos'
+    if (error && error.message && error.message.includes('apellido')) {
+      const resPlural = await supabaseClient
+        .from('clientes')
+        .upsert({
+          cedula: cacheUsuario.cedula,
+          nombre: nom.toUpperCase(),
+          apellidos: ape.toUpperCase(),
+          telefono: tel
+        });
+      error = resPlural.error;
+    }
 
     btn.disabled = false;
     btn.textContent = "Registrarse y Comprar 🚀";
@@ -916,7 +938,7 @@ async function ejecutarAccionFinal() {
     total += parseFloat(carrito[p].precio);
   }
 
-  // Registrar pedido web en la tabla ventas de Supabase en segundo plano
+  // Registrar pedido web en la tabla ventas de Supabase
   try {
     await supabaseClient.from('ventas').insert([{
       num_factura: "WEB-" + String(Date.now()).slice(-6),
