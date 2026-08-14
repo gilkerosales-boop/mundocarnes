@@ -1,6 +1,6 @@
 /* ==========================================================================
    Estilos Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Diseño POS Profesional, Ergonomía de Turno y Alto Rendimiento Visual
+   Diseño POS Profesional, Ergonomía de Turno y Barra BCV Sticky Permanente
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
@@ -68,7 +68,7 @@ body {
 }
 
 /* ==========================================================================
-   NAVBAR SUPERIOR POS (Barra de Control Unificada)
+   NAVBAR SUPERIOR POS
    ========================================================================== */
 .admin-navbar {
   position: sticky;
@@ -88,7 +88,6 @@ body {
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
 }
 
-/* Botones Unificados del Header */
 .btn-nav-custom {
   height: 38px;
   display: inline-flex;
@@ -131,7 +130,6 @@ body {
   border-color: var(--pos-blue);
 }
 
-/* Badge de Sincronización */
 #badgeEstadoSync {
   font-size: 0.78rem;
   border-radius: var(--pos-radius-pill);
@@ -141,7 +139,7 @@ body {
 }
 
 /* ==========================================================================
-   PESTAÑAS DE CATEGORÍA (Pills de Navegación Rápida)
+   PESTAÑAS DE CATEGORÍA
    ========================================================================== */
 .nav-tabs {
   border-bottom: none;
@@ -249,7 +247,7 @@ body {
 }
 
 /* ==========================================================================
-   PANEL LATERAL: DETALLE DE VENTA (RECIBO DIGITAL EN VIVO)
+   PANEL LATERAL: DETALLE DE VENTA
    ========================================================================== */
 .panel-factura-resumen {
   border: 1px solid var(--pos-card-border);
@@ -266,7 +264,6 @@ body {
   letter-spacing: -0.2px;
 }
 
-/* Caja de Totales Duales ($ / Bs) */
 .caja-totales-pos {
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border: 1px solid var(--pos-card-border);
@@ -290,7 +287,6 @@ body {
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* Botón Facturar Hero */
 .btn-facturar-hero {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   border: none;
@@ -310,7 +306,6 @@ body {
   color: #ffffff;
 }
 
-/* Botón Facturas en Espera */
 .btn-standby-pos {
   background-color: #fef3c7;
   border: 1.5px solid #fde68a;
@@ -329,7 +324,32 @@ body {
 }
 
 /* ==========================================================================
-   GRID DE MÉTODOS DE PAGO (PAYMENT TILES ERGONÓMICOS)
+   BARRA STICKY DE TASA BCV Y MONEDA EN MODAL DE COBRO
+   ========================================================================== */
+.barra-sticky-bcv {
+  position: sticky;
+  top: -1.5rem;
+  z-index: 1025;
+  background: rgba(248, 250, 252, 0.98);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 12px 1.5rem;
+  margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+  border-bottom: 1px solid var(--pos-card-border);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+/* Modal Footer Sticky */
+#modalProcesarFactura .modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1025;
+  background-color: #ffffff;
+  box-shadow: 0 -4px 14px rgba(15, 23, 42, 0.05);
+}
+
+/* ==========================================================================
+   GRID DE MÉTODOS DE PAGO (PAYMENT TILES)
    ========================================================================== */
 .grid-metodos-pago {
   display: grid;
@@ -380,7 +400,6 @@ body {
   transform: scale(1.08);
 }
 
-/* Estado Activo: Borde Verde Esmeralda / Sombra Elegante */
 .btn-metodo-pago.active {
   border-color: var(--pos-green) !important;
   background-color: #ecfdf5 !important;
@@ -421,35 +440,6 @@ body {
   padding: 14px 24px;
 }
 
-/* Hero Widget de Totales en Modal de Cobro */
-.hero-totales-cobro {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  border-radius: var(--pos-radius-md);
-  padding: 14px 20px;
-  color: #ffffff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2);
-}
-
-.hero-monto-usd {
-  font-size: 1.7rem;
-  font-weight: 800;
-  color: #34d399;
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.hero-monto-bs {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: #60a5fa;
-  font-family: 'JetBrains Mono', monospace;
-}
-
-/* Formularios e Inputs Táctiles */
 .form-control, .form-select {
   border-radius: var(--pos-radius-sm);
   border: 1.5px solid #cbd5e1;
@@ -464,7 +454,6 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
 }
 
-/* Tablas en Modales */
 .table th {
   font-weight: 700;
   font-size: 0.82rem;
