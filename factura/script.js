@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Base de Datos PostgreSQL en Supabase, IndexedDB Offline-First y Cobro Rápido
+   Base de Datos PostgreSQL en Supabase, IndexedDB Offline-First y Cobro Seguro
    ========================================================================== */
 
 // Configuración de Supabase
@@ -89,7 +89,7 @@ async function dbGet(storeName, key) {
 async function dbPut(storeName, item) {
   try {
     const db = await abrirDB();
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const tx = db.transaction(storeName, "readwrite");
       const store = tx.objectStore(storeName);
       const req = store.put(item);
@@ -1149,6 +1149,7 @@ function ejecutarFacturar() {
   const inputTasa = document.getElementById('facTasaBCV');
   if (inputTasa) {
     inputTasa.value = tasaGuardada ? tasaGuardada : "";
+    inputTasa.type = 'password'; // Asegurar máscara por puntos
   }
 
   document.getElementById('facCedulaBuscar').value = "";
