@@ -1,5 +1,6 @@
 /* ==========================================================================
    Lógica del Frontend e Interacción Optimizada - Mundocarnes
+   Base de Datos PostgreSQL en Supabase
    ========================================================================== */
 
 const GITHUB_CONFIG = {
@@ -8,7 +9,10 @@ const GITHUB_CONFIG = {
   branch: "main"
 };
 
-const API_URL_CLIENTES = "https://script.google.com/macros/s/AKfycbwioDKH4HuEZoaZfw5YvbmPI4450jipV4oNBVcZcqtCciRWCM3-s8T98pU9vS9VjSbz/exec";
+// Configuración de Supabase
+const SUPABASE_URL = "https://bdhlgiygrozdebhmwyds.supabase.co";
+const SUPABASE_KEY = "sb_publishable_qA5isaOYl_QZzB_WiZsIPA_zjWnTO_6";
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let carrito = {};
 let productoTemporal = {};
@@ -19,38 +23,6 @@ let cacheCategorias = [];
 let iti;
 let itiCheckout;
 let isZoomStatePushed = false;
-
-// Comunicación REST con Apps Script de Clientes (Nativa, Form-UrlEncoded y sin Preflight CORS)
-async function callClientesAPI(action, data = {}) {
-  if (!navigator.onLine) {
-    return { error: "Dispositivo sin conexión a Internet." };
-  }
-
-  try {
-    const payload = { action, ...data };
-    const response = await fetch(API_URL_CLIENTES, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: "data=" + encodeURIComponent(JSON.stringify(payload))
-    });
-
-    if (!response.ok) {
-      console.warn(`Aviso API Clientes: HTTP ${response.status} en la acción '${action}'.`);
-      return { error: `Servidor no disponible temporalmente (HTTP ${response.status}).` };
-    }
-
-    const rawText = await response.text();
-    try {
-      return JSON.parse(rawText);
-    } catch (parseErr) {
-      console.warn("Aviso API Clientes: Respuesta no válida del servidor.");
-      return { error: "Respuesta no válida del servidor." };
-    }
-  } catch (error) {
-    console.error("Error en conexión REST de clientes:", error);
-    return { error: "Ocurrió un retardo de conexión. Por favor intente de nuevo." };
-  }
-}
 
 // Subida directa de archivos a GitHub vía API REST
 async function subirArchivoAGitHub(path, contentBase64, commitMessage) {
@@ -208,43 +180,63 @@ function irALoginAdministrador() {
   document.getElementById('cedula').placeholder = "Ingrese Cédula o RIF";
 }
 
-function procesarPrimerPaso() {
-  const cedulaInput = document.getElementById('cedula').value.trim();
+// VERIFICACIÓN DE USUARIOS EN SUPABASE
+async function procesarPrimerPaso() {
+  const cedulaInput = document.getElementById('cedula').value.trim().toUpperCase();
   if (!cedulaInput) { mostrarAviso("Introduzca su Cédula o RIF."); return; }
   
   const btn = document.getElementById('btnSiguiente'); 
   btn.disabled = true; 
-  btn.textContent = "Verificando...";
+  btn.textContent = "Verificando en Supabase...";
   
-  callClientesAPI("verificarUsuario", { cedula: cedulaInput }).then(function(respuesta) {
-    btn.disabled = false; 
-    btn.textContent = "Siguiente";
-    if (!respuesta) return alert("Error crítico.");
-    if (respuesta.error) return alert("Aviso: " + respuesta.error);
-    
-    cacheUsuario.cedula = cedulaInput;
-    
-    if (respuesta.status === "ADMIN") {
-      cacheUsuario.nombre = respuesta.nombre; 
-      cacheUsuario.apellido = respuesta.apellido;
-      document.getElementById('saludoAdmin').textContent = `Bienvenido: ${respuesta.nombre} ${respuesta.apellido}`;
+  try {
+    // 1. Verificar si es Administrador
+    const { data: adminData } = await supabaseClient
+      .from('administradores')
+      .select('*')
+      .eq('cedula', cedulaInput)
+      .maybeSingle();
+
+    if (adminData) {
+      btn.disabled = false; 
+      btn.textContent = "Siguiente";
+      cacheUsuario.cedula = cedulaInput;
+      cacheUsuario.nombre = adminData.nombre || "ADMIN";
+      cacheUsuario.apellido = adminData.apellido || "";
+      document.getElementById('saludoAdmin').textContent = `Bienvenido: ${adminData.nombre} ${adminData.apellido}`;
       document.getElementById('vistaIngreso').classList.add('hidden'); 
       document.getElementById('vistaAdminPassword').classList.remove('hidden');
-    } else if (respuesta.status === "CLIENTE") {
-      cacheUsuario.nombre = respuesta.nombre; 
-      cacheUsuario.apellido = respuesta.apellido; 
-      cacheUsuario.telefono = respuesta.telefono; 
+      return;
+    }
+
+    // 2. Verificar si es Cliente
+    const { data: clienteData } = await supabaseClient
+      .from('clientes')
+      .select('*')
+      .eq('cedula', cedulaInput)
+      .maybeSingle();
+
+    btn.disabled = false; 
+    btn.textContent = "Siguiente";
+    cacheUsuario.cedula = cedulaInput;
+
+    if (clienteData) {
+      cacheUsuario.nombre = clienteData.nombre;
+      cacheUsuario.apellido = clienteData.apellido || "";
+      cacheUsuario.telefono = clienteData.telefono || "";
       cacheUsuario.rol = "CLIENTE";
       concederAccesoAlSistema();
     } else {
       document.getElementById('vistaIngreso').classList.add('hidden'); 
       document.getElementById('vistaRegistro').classList.remove('hidden');
     }
-  }).catch(function(err) {
+
+  } catch (err) {
     btn.disabled = false; 
     btn.textContent = "Siguiente";
-    alert("Error de conexión temporal.");
-  });
+    console.error("Error al verificar usuario en Supabase:", err);
+    mostrarAviso("Error de conexión al verificar identidad.");
+  }
 }
 
 async function verificarPasswordAdministrador() {
@@ -285,7 +277,8 @@ async function verificarPasswordAdministrador() {
   }
 }
 
-function ejecutarRegistroNuevoCliente() {
+// REGISTRO DE NUEVO CLIENTE EN SUPABASE
+async function ejecutarRegistroNuevoCliente() {
   const nom = document.getElementById('regNombre').value.trim();
   const ape = document.getElementById('regApellido').value.trim();
   
@@ -304,26 +297,36 @@ function ejecutarRegistroNuevoCliente() {
   
   const btn = document.getElementById('btnRegistrar'); 
   btn.disabled = true; 
-  btn.textContent = "Registrando...";
+  btn.textContent = "Registrando en Supabase...";
   
-  callClientesAPI("registrarCliente", { 
-    cedula: cacheUsuario.cedula, 
-    nombre: nom, 
-    apellido: ape, 
-    telefono: tel 
-  }).then(function(res) {
+  try {
+    const { error } = await supabaseClient
+      .from('clientes')
+      .upsert({
+        cedula: cacheUsuario.cedula,
+        nombre: nom.toUpperCase(),
+        apellido: ape.toUpperCase(),
+        telefono: tel
+      });
+
     btn.disabled = false; 
     btn.textContent = "Registrar y Comprar";
-    if (res.error) return alert(res.error);
+
+    if (error) {
+      return mostrarAviso("Error al registrar cliente: " + error.message);
+    }
+
     cacheUsuario.nombre = nom.toUpperCase(); 
     cacheUsuario.apellido = ape.toUpperCase(); 
     cacheUsuario.telefono = tel; 
     cacheUsuario.rol = "CLIENTE";
     concederAccesoAlSistema();
-  }).catch(function() {
+
+  } catch (err) {
     btn.disabled = false;
     btn.textContent = "Registrar y Comprar";
-  });
+    mostrarAviso("Error de conexión al registrar cliente.");
+  }
 }
 
 function concederAccesoAlSistema() {
@@ -386,14 +389,13 @@ function renderizarCatalogo(resp) {
   });
 }
 
-// Cargar Lista manteniendo las tarjetas públicas limpias (sin mostrar el código PLU al cliente)
 function cargarLista(idElemento, datos, nombreCategoria) {
   document.getElementById(idElemento).innerHTML = datos.map(f => {
     let esDisp = f[3]; 
     let cantMin = f[4]; 
     let unidad = f[5]; 
     let pesoProm = f[6] || 0;
-    let codigoBalanza = f[7] || ""; // Campo 8: Código PLU privado de balanza
+    let codigoBalanza = f[7] || "";
 
     let claseImg = esDisp ? "" : "img-agotado";
     let etiquetaDisp = esDisp ? "" : `<span class="badge bg-danger position-absolute top-0 start-0 m-2">Agotado</span>`;
@@ -411,7 +413,6 @@ function cargarLista(idElemento, datos, nombreCategoria) {
   }).join('');
 }
 
-// Abrir Modal de Edición del Administrador
 function abrirModalEdicion(nom, prec, cat, disp, min, unidad, pesoProm = 0, codigoBalanza = "") {
   productoTemporal = { nombre: nom, categoria: cat };
   
@@ -430,7 +431,6 @@ function abrirModalEdicion(nom, prec, cat, disp, min, unidad, pesoProm = 0, codi
   }
   alternarCampoPesoPromedio(unidad || "unidades");
 
-  // Asignar Código PLU privado
   const inputCodigo = document.getElementById('editProductoCodigo');
   if (inputCodigo) {
     inputCodigo.value = codigoBalanza || "";
@@ -464,7 +464,6 @@ function alternarCampoPesoPromedio(val) {
 }
 window.alternarCampoPesoPromedio = alternarCampoPesoPromedio;
 
-// Guardar Edición del Administrador
 async function guardarEdicionAdministrador() {
   const nuevoNombre = document.getElementById('editProductoNuevoNombre').value.trim();
   const prec = parseFloat(document.getElementById('editProductoPrecio').value);
@@ -506,7 +505,7 @@ async function guardarEdicionAdministrador() {
         prod[4] = min;
         prod[5] = unidad;
         prod[6] = pesoProm;
-        prod[7] = nuevoCodigo; // Guardar Código PLU / Balanza privado
+        prod[7] = nuevoCodigo;
 
         if (relativeImgPath) {
           prod[2] = relativeImgPath;
@@ -724,37 +723,38 @@ function abrirSolicitudPago() {
   }
 }
 
-function verificarClienteCheckout() {
-  const cedulaInput = document.getElementById('checkoutCedula').value.trim();
+// CHECKOUT CLIENTE EN SUPABASE
+async function verificarClienteCheckout() {
+  const cedulaInput = document.getElementById('checkoutCedula').value.trim().toUpperCase();
   if (!cedulaInput) return mostrarAviso("Por favor, ingrese su Cédula o RIF.");
   
   const btn = document.getElementById('btnContinuarCheckout');
   btn.disabled = true;
   btn.textContent = "Verificando...";
   
-  callClientesAPI("verificarUsuario", { cedula: cedulaInput }).then(function(respuesta) {
+  try {
+    const { data: clienteData, error } = await supabaseClient
+      .from('clientes')
+      .select('*')
+      .eq('cedula', cedulaInput)
+      .maybeSingle();
+
     btn.disabled = false;
     btn.textContent = "Continuar ➡️";
-    
-    if (respuesta.error) return alert("Aviso: " + respuesta.error);
-    
+
     cacheUsuario.cedula = cedulaInput;
-    
-    if (respuesta.status === "CLIENTE") {
-      cacheUsuario.nombre = respuesta.nombre;
-      cacheUsuario.apellido = respuesta.apellido;
-      cacheUsuario.telefono = respuesta.telefono;
+
+    if (!error && clienteData) {
+      cacheUsuario.nombre = clienteData.nombre;
+      cacheUsuario.apellido = clienteData.apellido || "";
+      cacheUsuario.telefono = clienteData.telefono || "";
       cacheUsuario.rol = "CLIENTE";
       
-      mostrarAviso(`Bienvenido de nuevo, ${respuesta.nombre} 👋`);
+      mostrarAviso(`Bienvenido de nuevo, ${clienteData.nombre} 👋`);
       
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAutenticacionCheckout')).hide();
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show();
       
-    } else if (respuesta.status === "ADMIN") {
-      mostrarAviso("Identificado como administrador. Inicie sesión desde el menú superior.");
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAutenticacionCheckout')).hide();
-      irALoginAdministrador();
     } else {
       document.getElementById('checkoutPasoCedula').classList.add('hidden');
       document.getElementById('checkoutPasoRegistro').classList.remove('hidden');
@@ -762,14 +762,15 @@ function verificarClienteCheckout() {
       document.getElementById('checkoutApellido').value = "";
       if (itiCheckout) itiCheckout.setNumber("");
     }
-  }).catch(function(err) {
+  } catch (err) {
     btn.disabled = false;
     btn.textContent = "Continuar ➡️";
-    alert("Error de conexión al verificar identidad.");
-  });
+    mostrarAviso("Error de conexión al verificar identidad.");
+  }
 }
 
-function ejecutarRegistroCheckout() {
+// REGISTRO DE CLIENTE EN CHECKOUT CON SUPABASE
+async function ejecutarRegistroCheckout() {
   const nom = document.getElementById('checkoutNombre').value.trim();
   const ape = document.getElementById('checkoutApellido').value.trim();
   
@@ -788,18 +789,25 @@ function ejecutarRegistroCheckout() {
   
   const btn = document.getElementById('btnRegistrarCheckout');
   btn.disabled = true;
-  btn.textContent = "Procesando...";
+  btn.textContent = "Procesando en Supabase...";
   
-  callClientesAPI("registrarCliente", { 
-    cedula: cacheUsuario.cedula, 
-    nombre: nom, 
-    apellido: ape, 
-    telefono: tel 
-  }).then(function(res) {
+  try {
+    const { error } = await supabaseClient
+      .from('clientes')
+      .upsert({
+        cedula: cacheUsuario.cedula,
+        nombre: nom.toUpperCase(),
+        apellido: ape.toUpperCase(),
+        telefono: tel
+      });
+
     btn.disabled = false;
     btn.textContent = "Registrarse y Comprar 🚀";
-    if (res.error) return alert(res.error);
-    
+
+    if (error) {
+      return mostrarAviso("Error de registro: " + error.message);
+    }
+
     cacheUsuario.nombre = nom.toUpperCase();
     cacheUsuario.apellido = ape.toUpperCase();
     cacheUsuario.telefono = tel;
@@ -809,10 +817,12 @@ function ejecutarRegistroCheckout() {
     
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAutenticacionCheckout')).hide();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show();
-  }).catch(function() {
+
+  } catch (err) {
     btn.disabled = false;
     btn.textContent = "Registrarse y Comprar 🚀";
-  });
+    mostrarAviso("Error de conexión al registrarse.");
+  }
 }
 
 function alternarTipoEntrega(tipo) { document.getElementById('contenedorUbicacion').classList.toggle('hidden', tipo === 'Pickup'); }
@@ -873,7 +883,8 @@ function regresarAFormulario() {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSolicitudPago')).show(); 
 }
 
-function ejecutarAccionFinal() {
+// CONFIRMACIÓN Y REGISTRO DE PEDIDO WEB EN SUPABASE Y WHATSAPP
+async function ejecutarAccionFinal() {
   let telConfirmado = "";
   
   if (window.itiConfirm) {
@@ -889,10 +900,9 @@ function ejecutarAccionFinal() {
   const numeroOriginal = cacheUsuario.telefono;
   if (telConfirmado !== numeroOriginal) {
     cacheUsuario.telefono = telConfirmado;
-    callClientesAPI("actualizarTelefonoCliente", { cedula: cacheUsuario.cedula, nuevoTelefono: telConfirmado })
-      .catch(function(err) {
-        console.error("Error al actualizar teléfono en base de datos:", err);
-      });
+    try {
+      await supabaseClient.from('clientes').update({ telefono: telConfirmado }).eq('cedula', cacheUsuario.cedula);
+    } catch (e) {}
   }
 
   const btn = document.getElementById('btnAceptarFinal'); 
@@ -905,6 +915,20 @@ function ejecutarAccionFinal() {
     listaWA += `  ▫️ ${p} - ${carrito[p].cantidad}\n`;
     total += parseFloat(carrito[p].precio);
   }
+
+  // Registrar pedido web en la tabla ventas de Supabase en segundo plano
+  try {
+    await supabaseClient.from('ventas').insert([{
+      num_factura: "WEB-" + String(Date.now()).slice(-6),
+      fecha_hora: new Date().toISOString(),
+      cedula: cacheUsuario.cedula,
+      nombre: `${cacheUsuario.nombre} ${cacheUsuario.apellido}`.trim(),
+      direccion: datosCheckout.ubicacion,
+      productos_summary: arr.join(' | '),
+      forma_pago: datosCheckout.formaPago,
+      monto_total_usd: total
+    }]);
+  } catch (e) {}
 
   let mensajeWA = `📱 *Teléfono:* ${cacheUsuario.telefono}\n👤 *Cliente:* ${cacheUsuario.nombre} ${cacheUsuario.apellido}\n📍 *Ubicación:* ${datosCheckout.ubicacion}\n\n🛒 *Pedido Solicitado:*\n${listaWA}\n💵 *Monto Aproximado:* $${total.toFixed(2)}\n💳 *Forma de Pago:* ${datosCheckout.formaPago}\n\n⚠️ *Nota Importante:* Entiendo y acepto que el monto total reflejado es una estimación. El pago final podría variar dependiendo del peso exacto de los productos al momento de prepararlos y de la tarifa aplicable al servicio de delivery. ✅`;
   
