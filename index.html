@@ -17,8 +17,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/css/intlTelInput.min.css">
     
-    <!-- Estilo Local Rediseñado -->
-    <link rel="stylesheet" href="style.css?v=2.2.0">
+    <!-- Estilo Local -->
+    <link rel="stylesheet" href="style.css?v=2.3.0">
   </head>
   <body>
     <div class="container d-flex justify-content-center">
@@ -61,26 +61,27 @@
         <button type="button" class="btn btn-outline-secondary w-100 fw-bold" onclick="regresarAlInicio()">Cancelar</button>
       </div>
       
-      <!-- Vista de Catálogo (Visible por defecto) -->
+      <!-- Vista de Catálogo Abierto (Visible por defecto, con todas las secciones continuas) -->
       <div id="vistaCombos" class="panel-base combos-container">
         <img src="img/LOGO-MUNDO123.webp" class="logo-header" alt="Logo Mundocarnes">
         
-        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
           <div>
-            <button type="button" id="btnSesionHeader" class="btn btn-dark fw-bold hidden shadow-sm" onclick="controlarSesionHeader()">Acceso Admin 🔑</button>
-            <button type="button" id="btnAdminPanel" class="btn btn-info fw-bold text-dark hidden shadow-sm" onclick="abrirPanelAdmin()">Panel de Control 🛠️</button>
+            <button type="button" id="btnSesionHeader" class="btn btn-dark btn-sm fw-bold hidden shadow-sm" onclick="controlarSesionHeader()">Acceso Admin 🔑</button>
+            <button type="button" id="btnAdminPanel" class="btn btn-info btn-sm fw-bold text-dark hidden shadow-sm" onclick="abrirPanelAdmin()">Panel de Control 🛠️</button>
           </div>
-          <button type="button" id="btnVerPedido" class="btn fw-bold shadow-sm ms-auto" onclick="mostrarPedido()">Ver Pedido 🛒</button>
         </div>
         
         <p id="saludoUsuario" class="text-center fw-bold mb-3"></p>
         
-        <!-- Navegación de Categorías con Scroll Horizontal Fluido -->
-        <ul class="nav nav-tabs mb-4" id="catalogoTabs" role="tablist">
-          <!-- Renderizado Dinámico -->
-        </ul>
-        <div class="tab-content" id="catalogoTabContent">
-          <!-- Renderizado Dinámico -->
+        <!-- Barra de Botones Píldora para Salto Rápido a Cada Sección -->
+        <div class="nav-categorias-sticky" id="catalogoTabs">
+          <!-- Renderizado Dinámico de Botones de Salto -->
+        </div>
+
+        <!-- Contenedor donde se muestran TODAS las secciones de forma obligatoria y continua -->
+        <div id="catalogoTabContent">
+          <!-- Renderizado Dinámico de Secciones de Productos -->
         </div>
       </div>
       
@@ -99,6 +100,12 @@
         </div>
       </div>
     </div>
+
+    <!-- Botón Flotante Permanente "Ver Pedido" con Contador Dinámico -->
+    <button type="button" id="btnVerPedido" class="btn-floating-pedido shadow" onclick="mostrarPedido()">
+      <span>🛒 Ver Pedido</span>
+      <span id="badgeCantCarrito" class="badge-contador-carrito">0</span>
+    </button>
     
     <!-- Overlay de Zoom de Imagen -->
     <div id="overlayImagenGrande" onclick="cerrarImagenGrande(event)">
@@ -456,6 +463,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/intlTelInput.min.js"></script>
     <!-- SDK Oficial Supabase v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=2.1.0"></script>
+    <script src="script.js?v=2.2.0"></script>
   </body>
 </html>
