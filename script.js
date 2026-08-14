@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Frontend e Interacción Optimizada - Mundocarnes
-   Base de Datos PostgreSQL en Supabase (Adaptativa)
+   Base de Datos PostgreSQL en Supabase
    ========================================================================== */
 
 const GITHUB_CONFIG = {
@@ -180,7 +180,7 @@ function irALoginAdministrador() {
   document.getElementById('cedula').placeholder = "Ingrese Cédula o RIF";
 }
 
-// VERIFICACIÓN DE USUARIOS EN SUPABASE (ADAPTATIVA)
+// VERIFICACIÓN DE USUARIOS EN SUPABASE (SIN SINTAXIS OR MULTI-COLUMNA)
 async function procesarPrimerPaso() {
   const cedulaInput = document.getElementById('cedula').value.trim().toUpperCase();
   if (!cedulaInput) { mostrarAviso("Introduzca su Cédula o RIF."); return; }
@@ -194,11 +194,11 @@ async function procesarPrimerPaso() {
     let { data: adminData } = await supabaseClient
       .from('administradores')
       .select('*')
-      .or(`cedula.eq.${cedulaInput},CEDULA.eq.${cedulaInput}`)
+      .eq('CEDULA', cedulaInput)
       .maybeSingle();
 
     if (!adminData) {
-      const { data: a2 } = await supabaseClient.from('administradores').select('*').eq('CEDULA', cedulaInput).maybeSingle();
+      const { data: a2 } = await supabaseClient.from('administradores').select('*').eq('cedula', cedulaInput).maybeSingle();
       if (a2) adminData = a2;
     }
 
@@ -214,15 +214,15 @@ async function procesarPrimerPaso() {
       return;
     }
 
-    // 2. Verificar si es Cliente (Búsqueda adaptativa por CEDULA o cedula)
+    // 2. Verificar si es Cliente (Búsqueda limpia por CEDULA primero)
     let { data: clienteData } = await supabaseClient
       .from('clientes')
       .select('*')
-      .or(`cedula.eq.${cedulaInput},CEDULA.eq.${cedulaInput}`)
+      .eq('CEDULA', cedulaInput)
       .maybeSingle();
 
     if (!clienteData) {
-      const { data: c2 } = await supabaseClient.from('clientes').select('*').eq('CEDULA', cedulaInput).maybeSingle();
+      const { data: c2 } = await supabaseClient.from('clientes').select('*').eq('cedula', cedulaInput).maybeSingle();
       if (c2) clienteData = c2;
     }
 
@@ -244,7 +244,7 @@ async function procesarPrimerPaso() {
   } catch (err) {
     btn.disabled = false; 
     btn.textContent = "Siguiente";
-    console.error("Error al verificar usuario:", err);
+    console.error("Error al verificar usuario en Supabase:", err);
     mostrarAviso("Error de conexión al verificar identidad.");
   }
 }
@@ -287,7 +287,7 @@ async function verificarPasswordAdministrador() {
   }
 }
 
-// REGISTRO DE NUEVO CLIENTE EN SUPABASE (ADAPTATIVO 100% COMPATIBLE)
+// REGISTRO DE NUEVO CLIENTE EN SUPABASE
 async function ejecutarRegistroNuevoCliente() {
   const nom = document.getElementById('regNombre').value.trim();
   const ape = document.getElementById('regApellido').value.trim();
@@ -310,7 +310,6 @@ async function ejecutarRegistroNuevoCliente() {
   btn.textContent = "Registrando en Supabase...";
   
   try {
-    // Intento 1: Columnas exactamente como están en tu tabla (CEDULA, NOMBRES, APELLIDOS, TELEFONO)
     let { error } = await supabaseClient
       .from('clientes')
       .upsert({
@@ -320,7 +319,6 @@ async function ejecutarRegistroNuevoCliente() {
         TELEFONO: tel
       });
 
-    // Intento 2: Fallback a columnas en minúsculas por si cambian en el futuro
     if (error) {
       const res2 = await supabaseClient
         .from('clientes')
@@ -743,7 +741,7 @@ function abrirSolicitudPago() {
   }
 }
 
-// CHECKOUT CLIENTE EN SUPABASE (ADAPTATIVO)
+// CHECKOUT CLIENTE EN SUPABASE (BÚSQUEDA ADAPTATIVA SIN SINTAXIS OR MULTI-COLUMNA)
 async function verificarClienteCheckout() {
   const cedulaInput = document.getElementById('checkoutCedula').value.trim().toUpperCase();
   if (!cedulaInput) return mostrarAviso("Por favor, ingrese su Cédula o RIF.");
@@ -753,14 +751,14 @@ async function verificarClienteCheckout() {
   btn.textContent = "Verificando...";
   
   try {
-    let { data: clienteData, error } = await supabaseClient
+    let { data: clienteData } = await supabaseClient
       .from('clientes')
       .select('*')
-      .or(`cedula.eq.${cedulaInput},CEDULA.eq.${cedulaInput}`)
+      .eq('CEDULA', cedulaInput)
       .maybeSingle();
 
     if (!clienteData) {
-      const { data: c2 } = await supabaseClient.from('clientes').select('*').eq('CEDULA', cedulaInput).maybeSingle();
+      const { data: c2 } = await supabaseClient.from('clientes').select('*').eq('cedula', cedulaInput).maybeSingle();
       if (c2) clienteData = c2;
     }
 
