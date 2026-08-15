@@ -1142,6 +1142,16 @@
           "gramos",
           0,
           ""
+        ],
+        [
+          "MASA FACIL FROZEN 1kg",
+          3,
+          "img/masa_facil_frozen_1kg.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
         ]
       ]
     }
