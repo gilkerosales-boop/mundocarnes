@@ -1122,6 +1122,16 @@
           "gramos",
           0,
           ""
+        ],
+        [
+          "CEREAL KELLOGG´S ZUCARITAS 250g",
+          4.4,
+          "img/cereal_kellogg´s_zucaritas_250g.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
         ]
       ]
     }
