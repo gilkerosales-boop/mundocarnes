@@ -819,7 +819,7 @@
           "img/arroz_tradicional_agua_blanca.webp",
           true,
           250,
-          "unidades",
+          "gramos",
           0,
           ""
         ],
@@ -889,7 +889,7 @@
           "img/aceite_la_comadre_828ml.webp",
           true,
           250,
-          "unidades",
+          "gramos",
           0,
           ""
         ],
@@ -899,7 +899,7 @@
           "img/mavesa_margarina_todo_uso_500g.webp",
           true,
           250,
-          "unidades",
+          "gramos",
           0,
           ""
         ],
@@ -909,7 +909,7 @@
           "img/margarina_nelly_250g.webp",
           true,
           250,
-          "unidades",
+          "gramos",
           0,
           ""
         ],
@@ -1099,7 +1099,7 @@
           "img/cereal_kellogg´s_zucaritas_250g.webp",
           true,
           250,
-          "unidades",
+          "gramos",
           0,
           ""
         ],
@@ -1119,7 +1119,7 @@
           "img/cereal_maizoritos_fruti_aros_250g.webp",
           true,
           250,
-          "unidades",
+          "gramos",
           0,
           ""
         ],
@@ -1129,7 +1129,7 @@
           "img/cereal_maizoritos_choco_safari_240gr.webp",
           true,
           250,
-          "unidades",
+          "gramos",
           0,
           ""
         ],
@@ -1179,7 +1179,7 @@
           "img/masa_facil_frozen_1kg.webp",
           true,
           250,
-          "unidades",
+          "gramos",
           0,
           ""
         ],
@@ -1189,7 +1189,7 @@
           "img/masa_facil_frozen_500g.webp",
           true,
           250,
-          "unidades",
+          "gramos",
           0,
           ""
         ],
@@ -1199,7 +1199,7 @@
           "img/carbon_para_parrilla_bolsa_transparente.webp",
           true,
           250,
-          "unidades",
+          "gramos",
           0,
           ""
         ]
