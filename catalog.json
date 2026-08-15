@@ -807,7 +807,7 @@
           "ARROZ MARY ESMERALDA",
           2.2,
           "img/arroz_e.webp",
-          true,
+          false,
           1,
           "unidades",
           0,
