@@ -774,6 +774,16 @@
           "0136"
         ],
         [
+          "HARINA DE TRIGO BLANCA FLOR 1KG",
+          1.5,
+          "img/harina_de_trigo_blanca_flor_1kg.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
+        ],
+        [
           "ARROZ MARY PREMIUM",
           2.5,
           "img/arroz_p.webp",
@@ -1137,16 +1147,6 @@
           "CEREAL KELLOGG´S ZUCARITAS 250g",
           4.4,
           "img/cereal_kellogg´s_zucaritas_250g.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          ""
-        ],
-        [
-          "HARINA DE TRIGO BLANCA FLOR 1KG",
-          1.5,
-          "img/harina_de_trigo_blanca_flor_1kg.webp",
           true,
           250,
           "gramos",
