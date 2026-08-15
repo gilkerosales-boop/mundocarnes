@@ -874,6 +874,16 @@
           ""
         ],
         [
+          "MAVESA MARGARINA TODO USO 500g",
+          4.5,
+          "img/mavesa_margarina_todo_uso_500g.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
+        ],
+        [
           "MAYONESA KRAFT 198g",
           2.6,
           "img/kraft_198.webp",
@@ -1107,16 +1117,6 @@
           "TRIPAC DE SALSAS (SOYA, AJO, INGLESA) 150cm",
           4,
           "img/tripac_de_salsas_(soya,_ajo,_inglesa)_150cm.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          ""
-        ],
-        [
-          "MAVESA MARGARINA TODO USO 500g",
-          4.5,
-          "img/mavesa_margarina_todo_uso_500g.webp",
           true,
           250,
           "gramos",
