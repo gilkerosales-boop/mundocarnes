@@ -1054,16 +1054,6 @@
           ""
         ],
         [
-          "CEREAL MAIZORITOS FRUTI AROS 250g",
-          3.9,
-          "img/cereal_maizoritos_fruti_aros_250g.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          ""
-        ],
-        [
           "COCA COLA 1.5 LITROS",
           1.8,
           "img/coca_cola_1.5_litros.webp",
@@ -1110,6 +1100,16 @@
           true,
           1,
           "unidades",
+          0,
+          ""
+        ],
+        [
+          "CEREAL MAIZORITOS FRUTI AROS 250g",
+          3.9,
+          "img/cereal_maizoritos_fruti_aros_250g.webp",
+          true,
+          250,
+          "gramos",
           0,
           ""
         ],
