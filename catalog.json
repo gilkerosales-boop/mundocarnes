@@ -1084,6 +1084,16 @@
           ""
         ],
         [
+          "CEREAL KELLOGG´S ZUCARITAS 250g",
+          4.4,
+          "img/cereal_kellogg´s_zucaritas_250g.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
+        ],
+        [
           "FIPS CHOCOLATE 220G",
           4.8,
           "img/fips_chocolate_220g.webp",
@@ -1147,16 +1157,6 @@
           "CEREAL MAIZORITOS FRUTI AROS 250g",
           3.9,
           "img/cereal_maizoritos_fruti_aros_250g.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          ""
-        ],
-        [
-          "CEREAL KELLOGG´S ZUCARITAS 250g",
-          4.4,
-          "img/cereal_kellogg´s_zucaritas_250g.webp",
           true,
           250,
           "gramos",
