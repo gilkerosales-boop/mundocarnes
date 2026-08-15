@@ -854,6 +854,16 @@
           "0106"
         ],
         [
+          "ACEITE LA COMADRE 828ml",
+          3.9,
+          "img/aceite_la_comadre_828ml.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
+        ],
+        [
           "MAYONESA KRAFT 198g",
           2.6,
           "img/kraft_198.webp",
@@ -1177,16 +1187,6 @@
           "MARGARINA NELLY 250g",
           1.9,
           "img/margarina_nelly_250g.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          ""
-        ],
-        [
-          "ACEITE LA COMADRE 828ml",
-          3.9,
-          "img/aceite_la_comadre_828ml.webp",
           true,
           250,
           "gramos",
