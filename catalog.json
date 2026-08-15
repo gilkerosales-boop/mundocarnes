@@ -884,6 +884,16 @@
           ""
         ],
         [
+          "MARGARINA NELLY 250g",
+          1.9,
+          "img/margarina_nelly_250g.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
+        ],
+        [
           "MAYONESA KRAFT 198g",
           2.6,
           "img/kraft_198.webp",
@@ -1177,16 +1187,6 @@
           "CARBON PARA PARRILLA BOLSA TRANSPARENTE",
           4.5,
           "img/carbon_para_parrilla_bolsa_transparente.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          ""
-        ],
-        [
-          "MARGARINA NELLY 250g",
-          1.9,
-          "img/margarina_nelly_250g.webp",
           true,
           250,
           "gramos",
