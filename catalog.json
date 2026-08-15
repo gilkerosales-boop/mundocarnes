@@ -1114,6 +1114,16 @@
           ""
         ],
         [
+          "CEREAL MAIZORITOS CHOCO SAFARI 240Gr",
+          3.9,
+          "img/cereal_maizoritos_choco_safari_240gr.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
+        ],
+        [
           "GALLETAS BELVITA HONY 9 UNIDADES",
           2.9,
           "img/galletas_belvita_hony_9_unidades.webp",
@@ -1147,16 +1157,6 @@
           "TRIPAC DE SALSAS (SOYA, AJO, INGLESA) 150cm",
           4,
           "img/tripac_de_salsas_(soya,_ajo,_inglesa)_150cm.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          ""
-        ],
-        [
-          "CEREAL MAIZORITOS CHOCO SAFARI 240Gr",
-          3.9,
-          "img/cereal_maizoritos_choco_safari_240gr.webp",
           true,
           250,
           "gramos",
