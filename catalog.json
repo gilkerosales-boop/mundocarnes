@@ -1172,6 +1172,16 @@
           "gramos",
           0,
           ""
+        ],
+        [
+          "MARGARINA NELLY 250g",
+          1.9,
+          "img/margarina_nelly_250g.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          ""
         ]
       ]
     }
