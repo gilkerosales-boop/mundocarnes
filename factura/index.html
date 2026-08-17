@@ -15,7 +15,7 @@
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Estilo Local POS Aislado -->
-    <link rel="stylesheet" href="style.css?v=3.0.0">
+    <link rel="stylesheet" href="style.css?v=3.1.0">
     <!-- Configuración de App Instalable PWA -->
     <link rel="manifest" href="manifest.json?v=1.0.3">
     <meta name="theme-color" content="#0f172a">
@@ -552,7 +552,7 @@
       </div>
     </div>
 
-    <!-- MODAL CIERRE DE CAJA - PASO 1 (SIN BOTÓN DE HISTORIAL) -->
+    <!-- MODAL CIERRE DE CAJA - PASO 1 -->
     <div class="modal fade" id="modalCierreCajaPaso1" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -566,7 +566,6 @@
               <small class="text-white-50">Ingrese los montos en efectivo presentes en caja al iniciar la jornada / turno.</small>
             </div>
 
-            <!-- Botón Único de Registro de Movimiento de Efectivo -->
             <div class="mb-3">
               <button type="button" class="btn btn-dark w-100 fw-bold py-2 rounded-pill shadow-sm" onclick="abrirModalMovimientosEfectivo()">
                 💸 Reg. Movimiento de Efectivo
@@ -746,7 +745,7 @@
       </div>
     </div>
 
-    <!-- MODAL GESTIÓN DE PRODUCTOS / PLU -->
+    <!-- MODAL GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS / PLU (CON BOTÓN DE AGREGAR PRODUCTO) -->
     <div class="modal fade" id="modalGestionCodigos" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
@@ -756,16 +755,19 @@
           </div>
           <div class="modal-body p-4">
             <div class="alert alert-dark mb-3 small shadow-sm">
-              <strong>ℹ️ Instrucciones:</strong> Modifique los códigos PLU, precios o disponibilidad de cada producto. Al guardar, los cambios se sincronizarán en tiempo real con el catálogo web (`mundocarnes.com.ve`), el Modo Editor (`/admin`) y Facturación.
+              <strong>ℹ️ Instrucciones:</strong> Modifique los códigos PLU, precios o disponibilidad de cada producto de forma rápida en la tabla, o haga clic en <strong>"⚙️ Configurar"</strong> para editar nombre, imagen, orden, modo y mínimos. Al guardar, los cambios se sincronizarán en tiempo real con el catálogo web (`mundocarnes.com.ve`), el Modo Editor (`/admin`) y Facturación.
             </div>
 
-            <!-- Filtro de Búsqueda -->
-            <div class="row g-2 align-items-center mb-3 bg-white p-2 rounded-3 border shadow-sm">
-              <div class="col-md-6 col-lg-8">
+            <!-- Filtro de Búsqueda y Botón para Agregar Producto Nuevo -->
+            <div class="row g-2 align-items-center mb-3 bg-white p-3 rounded-3 border shadow-sm">
+              <div class="col-md-6 col-lg-6">
                 <input type="text" id="facFiltroCodigosInput" class="form-control fw-bold" placeholder="🔍 Buscar por nombre de producto o código PLU..." oninput="filtrarTablaCodigos(this.value)">
               </div>
-              <div class="col-md-6 col-lg-4 text-end">
+              <div class="col-md-6 col-lg-6 d-flex justify-content-end align-items-center gap-2">
                 <span class="badge bg-dark fs-6" id="cntTotalProductosCodigos">Total: 0 Productos</span>
+                <button type="button" class="btn btn-success fw-bold rounded-pill px-3 shadow-sm" onclick="abrirModalCrearProductoPOS()">
+                  ➕ Agregar Producto
+                </button>
               </div>
             </div>
 
@@ -773,12 +775,15 @@
               <table class="table table-hover table-striped align-middle mb-0">
                 <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
                   <tr>
-                    <th style="width: 130px;">Código PLU</th>
+                    <th style="width: 100px;">Código PLU</th>
+                    <th style="width: 50px;">Foto</th>
                     <th>Producto</th>
                     <th>Categoría</th>
-                    <th style="width: 150px;">Disponibilidad</th>
-                    <th style="width: 90px;">Unidad</th>
-                    <th style="width: 130px;">Precio ($)</th>
+                    <th style="width: 80px;">Modo</th>
+                    <th style="width: 80px;">Mínimo</th>
+                    <th style="width: 130px;">Disponibilidad</th>
+                    <th style="width: 110px;">Precio ($)</th>
+                    <th style="width: 100px;">Acción</th>
                   </tr>
                 </thead>
                 <tbody id="tablaGestionCodigos" class="small"></tbody>
@@ -787,10 +792,165 @@
 
             <div id="errorModalGestionCodigos" class="text-danger small fw-bold mt-2 hidden"></div>
           </div>
-          <div class="modal-footer justify-content-between p-3">
+          <div class="modal-footer bg-white justify-content-between p-3">
             <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
             <button type="button" id="btnGuardarCodigosPLU" class="btn btn-success fw-bold px-4 fs-5 rounded-pill shadow-sm" onclick="guardarTodosLosCodigosPLU()">
               💾 Guardar Todos los Cambios
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL EDICIÓN INDIVIDUAL COMPLETA DE PRODUCTO DESDE FACTURACIÓN -->
+    <div class="modal fade" id="modalEditarProductoPOS" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header bg-warning text-dark">
+            <h5 class="modal-title fw-bold">⚙️ Configurar Producto</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            <div class="mb-3">
+              <label for="posEditProdNombre" class="form-label fw-bold small mb-1">Nombre del Producto *:</label>
+              <input type="text" id="posEditProdNombre" class="form-control fw-bold fs-5" required>
+            </div>
+
+            <div class="mb-3">
+              <label for="posEditProdCategoria" class="form-label fw-bold small mb-1">Categoría del Producto *:</label>
+              <select id="posEditProdCategoria" class="form-select fw-bold"></select>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label for="posEditProdPrecio" class="form-label fw-bold small mb-1">Precio de Venta ($) *:</label>
+                <input type="number" id="posEditProdPrecio" class="form-control fw-bold text-danger fs-5 num-legible text-center" step="0.01" min="0.01">
+              </div>
+              <div class="col-6">
+                <label for="posEditProdDisponible" class="form-label fw-bold small mb-1">Disponibilidad *:</label>
+                <select id="posEditProdDisponible" class="form-select fw-bold">
+                  <option value="true">✅ Disponible</option>
+                  <option value="false">🚫 No Disponible</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="posEditProdUnidad" class="form-label fw-bold small mb-1">Modo de Venta (Conteo) *:</label>
+              <select id="posEditProdUnidad" class="form-select fw-bold" onchange="alternarCampoPesoPromedioPOS(this.value, 'edit')">
+                <option value="unidades">Unidades (uds)</option>
+                <option value="gramos">Gramos (g)</option>
+                <option value="mixto">Mixto (Unidad con peso aprox.)</option>
+              </select>
+            </div>
+
+            <div class="mb-3 hidden" id="contenedorPosEditPesoPromedio">
+              <label for="posEditProdPesoPromedio" class="form-label fw-bold small mb-1">Peso Promedio Estimado por Unidad (g):</label>
+              <input type="number" id="posEditProdPesoPromedio" class="form-control fw-bold text-center num-legible" min="1" placeholder="Ej: 2000">
+              <div class="form-text text-muted small">Peso de referencia por cada unidad en gramos (ej. 2000g = 2kg).</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="posEditProdCodigo" class="form-label fw-bold small mb-1 text-primary">📟 Código PLU / Balanza (Balanza PS-30):</label>
+              <input type="text" id="posEditProdCodigo" class="form-control fw-bold text-center fs-5 num-legible" placeholder="Ej: 00350 o 350">
+              <div class="form-text text-muted small">Código PLU privado para detección rápida en balanza.</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="posEditProdArchivoImagen" class="form-label fw-bold small mb-1">Actualizar Imagen (.webp < 120 KB):</label>
+              <input type="file" id="posEditProdArchivoImagen" class="form-control fw-bold" accept="image/webp">
+              <div class="form-text text-muted small">Opcional. Deje en blanco para conservar la imagen actual.</div>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label for="posEditProdPosicion" class="form-label fw-bold small mb-1">Posición / Orden:</label>
+                <input type="number" id="posEditProdPosicion" class="form-control fw-bold text-center num-legible" min="1">
+              </div>
+              <div class="col-6">
+                <label for="posEditProdMinimo" class="form-label fw-bold small mb-1">Venta Mínima:</label>
+                <input type="number" id="posEditProdMinimo" class="form-control fw-bold text-center num-legible" min="1">
+              </div>
+            </div>
+            <div class="form-text text-muted small mb-3" id="posEditProdPosicionAyuda"></div>
+
+            <div id="errorModalEditarProdPOS" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer bg-light justify-content-between p-3">
+            <button type="button" id="btnEliminarProdPOS" class="btn btn-outline-danger fw-bold rounded-pill" onclick="eliminarProductoDesdePOS()">
+              🗑️ Eliminar Producto
+            </button>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+              <button type="button" id="btnGuardarProdPOS" class="btn btn-warning fw-bold text-dark rounded-pill shadow-sm px-3" onclick="guardarEdicionProductoIndividualPOS()">
+                💾 Guardar Cambios
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CREACIÓN DE NUEVO PRODUCTO DESDE FACTURACIÓN -->
+    <div class="modal fade" id="modalCrearProductoPOS" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header bg-success text-white">
+            <h5 class="modal-title fw-bold">➕ Agregar Producto Nuevo</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            <div class="mb-3">
+              <label for="posAddProdCatSelect" class="form-label fw-bold small mb-1">Seleccionar Categoría *:</label>
+              <select id="posAddProdCatSelect" class="form-select fw-bold"></select>
+            </div>
+
+            <div class="mb-3">
+              <label for="posAddProdNombre" class="form-label fw-bold small mb-1">Nombre del Producto *:</label>
+              <input type="text" id="posAddProdNombre" class="form-control fw-bold fs-5 text-uppercase" placeholder="Ej: LOMO DE CERDO" required>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label for="posAddProdPrecio" class="form-label fw-bold small mb-1">Precio de Venta ($) *:</label>
+                <input type="number" id="posAddProdPrecio" class="form-control fw-bold text-success fs-5 num-legible text-center" step="0.01" min="0.01" placeholder="8.50" required>
+              </div>
+              <div class="col-6">
+                <label for="posAddProdCodigo" class="form-label fw-bold small mb-1">Código PLU (Opcional):</label>
+                <input type="text" id="posAddProdCodigo" class="form-control fw-bold text-center fs-5 num-legible" placeholder="Ej: 00150">
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="posAddProdUnidad" class="form-label fw-bold small mb-1">Modo de Venta *:</label>
+              <select id="posAddProdUnidad" class="form-select fw-bold" onchange="alternarCampoPesoPromedioPOS(this.value, 'add')">
+                <option value="gramos" selected>Gramos / Kilos (g)</option>
+                <option value="unidades">Unidades (uds)</option>
+                <option value="mixto">Mixto (Unidad con peso aprox.)</option>
+              </select>
+            </div>
+
+            <div class="mb-3 hidden" id="contenedorPosAddPesoPromedio">
+              <label for="posAddProdPesoPromedio" class="form-label fw-bold small mb-1">Peso Promedio Estimado por Unidad (g):</label>
+              <input type="number" id="posAddProdPesoPromedio" class="form-control fw-bold text-center num-legible" min="1" placeholder="Ej: 2000">
+            </div>
+
+            <div class="mb-3">
+              <label for="posAddProdMinimo" class="form-label fw-bold small mb-1">Cantidad Mínima de Venta:</label>
+              <input type="number" id="posAddProdMinimo" class="form-control fw-bold text-center num-legible" min="1" value="250">
+            </div>
+
+            <div class="mb-3">
+              <label for="posAddProdArchivoImagen" class="form-label fw-bold small mb-1">Imagen del Producto (.webp < 120 KB) *:</label>
+              <input type="file" id="posAddProdArchivoImagen" class="form-control fw-bold" accept="image/webp" required>
+            </div>
+
+            <div id="errorModalCrearProdPOS" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer bg-light justify-content-between p-3">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnCrearProdPOS" class="btn btn-success fw-bold px-4 rounded-pill shadow-sm" onclick="ejecutarCrearNuevoProductoPOS()">
+              ➕ Crear y Guardar Producto
             </button>
           </div>
         </div>
@@ -1049,6 +1209,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- SDK Oficial Supabase v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=3.0.0"></script>
+    <script src="script.js?v=3.1.0"></script>
   </body>
 </html>
