@@ -320,11 +320,11 @@ async function procesarColaSincronizacion() {
           "BIOPAGO": parseFloat(desgl["Biopago"]) || 0
         };
 
-        // 1. Guardar en tabla general central 'ventas'
+        // 1. Guardar primero en la tabla general central 'ventas'
         const { error: errGlobal } = await supabaseClient.from('ventas').insert([registroVenta]);
         if (errGlobal) throw errGlobal;
 
-        // 2. Guardar en tabla personal del usuario ('ventas_mayka', 'ventas_gilker', etc.)
+        // 2. Guardar luego en la tabla personal del usuario ('ventas_mayka', 'ventas_gilker', etc.)
         if (tablaPersonal && tablaPersonal !== 'ventas') {
           const { error: errPers } = await supabaseClient.from(tablaPersonal).insert([registroVenta]);
           if (errPers) throw errPers;
@@ -364,11 +364,11 @@ async function procesarColaSincronizacion() {
           "TOTAL 4": parseFloat(d.totalCajaBS) || 0
         };
 
-        // 1. Guardar en tabla general central 'cierres'
+        // 1. Guardar primero en la tabla general central 'cierres'
         const { error: errCieGlobal } = await supabaseClient.from('cierres').insert([registroCierre]);
         if (errCieGlobal) throw errCieGlobal;
 
-        // 2. Guardar en tabla personal del usuario
+        // 2. Guardar luego en la tabla personal del usuario
         if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
           const { error: errCiePers } = await supabaseClient.from(tablaCierresPersonal).insert([registroCierre]);
           if (errCiePers) throw errCiePers;
@@ -529,7 +529,7 @@ async function sincronizarClientesDesdeServidor() {
   } catch (e) {}
 }
 
-// CORRELATIVO GLOBAL EFICIENTE
+// CORRELATIVO GLOBAL EFICIENTE Y CONFIABLE
 async function obtenerSiguienteCorrelativoLocal() {
   let ultimoNum = 0;
 
@@ -545,26 +545,39 @@ async function obtenerSiguienteCorrelativoLocal() {
     }
   });
 
-  // 2. Consultar últimas ventas en Supabase de forma rápida
+  // 2. Consultar siempre la tabla maestra global 'ventas' en Supabase de forma paginada sin .order() conflictivo
   if (navigator.onLine) {
     try {
-      const { data: facs, error } = await supabaseClient
-        .from('ventas')
-        .select('"FACTURA N°"')
-        .order('FACTURA N°', { ascending: false })
-        .limit(100);
+      let from = 0;
+      const step = 1000;
+      let continuar = true;
 
-      if (!error && facs && facs.length > 0) {
-        facs.forEach(v => {
-          let facStr = v["FACTURA N°"];
-          if (facStr) {
-            let match = String(facStr).match(/\d+$/);
-            if (match) {
-              let n = parseInt(match[0], 10);
-              if (n > ultimoNum) ultimoNum = n;
+      while (continuar) {
+        const { data: facs, error } = await supabaseClient
+          .from('ventas')
+          .select('"FACTURA N°"')
+          .range(from, from + step - 1);
+
+        if (error || !facs || facs.length === 0) {
+          continuar = false;
+        } else {
+          facs.forEach(v => {
+            let facStr = v["FACTURA N°"];
+            if (facStr) {
+              let match = String(facStr).match(/\d+$/);
+              if (match) {
+                let n = parseInt(match[0], 10);
+                if (n > ultimoNum) ultimoNum = n;
+              }
             }
+          });
+
+          if (facs.length < step) {
+            continuar = false;
+          } else {
+            from += step;
           }
-        });
+        }
       }
     } catch (e) {
       console.warn("Aviso correlativo en ventas:", e);
