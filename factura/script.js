@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Ventas y Cierres por Usuario (Tablas mayka, gilker, admin) y Correlativo Global
+   Correlativo Global en 'ventas', Doble Guardado y Edición Fullscreen en Línea
    ========================================================================== */
 
 // Configuración de Supabase
@@ -38,13 +38,12 @@ let listaFlatProductosCodigos = [];
 let listaMovimientosEfectivo = [];
 let cacheHistorialCierres = [];
 let sincronizandoEnProceso = false;
-let productoTemporalPOS = null;
 let accionPendienteGitHub = null;
 
 // Normalizar nombres de usuario para coincidir con las tablas en Supabase (mayka, gilker, admin)
 function normalizarUsuario(u) {
   let user = (u || sessionStorage.getItem("factura_usuario") || "admin").toLowerCase().trim();
-  if (user === "maika") return "mayka";
+  if (user === "maika" || user === "mayka") return "mayka";
   return user;
 }
 
@@ -151,7 +150,7 @@ async function dbDelete(storeName, key) {
 }
 
 // ==========================================================================
-// CONSULTA PAGINADA DE VENTAS SUPABASE
+// CONSULTA PAGINADA DE VENTAS SUPABASE (Sin invocar columnas id inexistentes)
 // ==========================================================================
 async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
   const tabla = tablaPersonalizada || obtenerTablaVentasUsuario();
@@ -186,7 +185,7 @@ async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
 }
 
 // ==========================================================================
-// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO EN SUPABASE
+// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO (GLOBAL 'ventas' + PERSONAL)
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
   const badge = document.getElementById('badgeEstadoSync');
@@ -316,7 +315,7 @@ async function procesarColaSincronizacion() {
         // 1. Guardar en la tabla general central 'cierres'
         await supabaseClient.from('cierres').insert([registroCierre]);
 
-        // 2. Guardar en la tabla personal del usuario ('cierres_mayka', etc.)
+        // 2. Guardar en la tabla personal del usuario
         if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
           await supabaseClient.from(tablaCierresPersonal).insert([registroCierre]);
         }
@@ -473,7 +472,7 @@ async function sincronizarClientesDesdeServidor() {
   } catch (e) {}
 }
 
-// CORRELATIVO GLOBAL: Consulta la tabla maestra 'ventas' en Supabase para obtener el máximo correlativo absoluto
+// CORRELATIVO GLOBAL: Consulta TODOS los registros en 'ventas' (sin ordenar por id) para hallar el máximo consecutivo
 async function obtenerSiguienteCorrelativoLocal() {
   let ultimoNum = 0;
 
@@ -489,26 +488,39 @@ async function obtenerSiguienteCorrelativoLocal() {
     }
   });
 
-  // 2. Consultar siempre la tabla maestra global 'ventas' en Supabase
+  // 2. Consultar siempre la tabla maestra global 'ventas' en Supabase de forma paginada limpia
   if (navigator.onLine) {
     try {
-      const { data: ultimasVentas, error } = await supabaseClient
-        .from('ventas')
-        .select('"FACTURA N°"')
-        .order('id', { ascending: false })
-        .limit(20);
+      let from = 0;
+      const step = 1000;
+      let continuar = true;
 
-      if (!error && ultimasVentas && ultimasVentas.length > 0) {
-        ultimasVentas.forEach(v => {
-          let facStr = v["FACTURA N°"];
-          if (facStr) {
-            let match = String(facStr).match(/\d+$/);
-            if (match) {
-              let n = parseInt(match[0], 10);
-              if (n > ultimoNum) ultimoNum = n;
+      while (continuar) {
+        const { data: facs, error } = await supabaseClient
+          .from('ventas')
+          .select('"FACTURA N°"')
+          .range(from, from + step - 1);
+
+        if (error || !facs || facs.length === 0) {
+          continuar = false;
+        } else {
+          facs.forEach(v => {
+            let facStr = v["FACTURA N°"];
+            if (facStr) {
+              let match = String(facStr).match(/\d+$/);
+              if (match) {
+                let n = parseInt(match[0], 10);
+                if (n > ultimoNum) ultimoNum = n;
+              }
             }
+          });
+
+          if (facs.length < step) {
+            continuar = false;
+          } else {
+            from += step;
           }
-        });
+        }
       }
     } catch (e) {
       console.warn("Aviso correlativo en ventas:", e);
@@ -1158,6 +1170,7 @@ function renderizarResumenFactura() {
 
   document.getElementById('montoTotalFactura').textContent = `$${totalAcumulado.toFixed(2)}`;
 
+  // Cálculo en vivo en Bolívares
   const tasa = obtenerTasaBCV();
   const elemBs = document.getElementById('montoTotalFacturaBs');
   if (elemBs) {
@@ -2243,7 +2256,7 @@ function confirmarAgregarCodigosAFactura() {
 }
 
 // ==========================================================================
-// SUITE DE GESTIÓN Y CONFIGURACIÓN COMPLETA DE PRODUCTOS / PLU
+// SUITE DE GESTIÓN Y CONFIGURACIÓN COMPLETA EN LÍNEA FULLSCREEN DE PRODUCTOS
 // ==========================================================================
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
@@ -2255,7 +2268,7 @@ function prepararListaProductosCodigos() {
   listaFlatProductosCodigos = [];
 
   cacheCategoriasFactura.forEach(cat => {
-    cat.productos.forEach(p => {
+    cat.productos.forEach((p, idx) => {
       let nom = p[0];
       let prec = p[1];
       let imgPath = p[2].startsWith('../') ? p[2] : '../' + p[2];
@@ -2266,6 +2279,8 @@ function prepararListaProductosCodigos() {
       let codPLU = p[7] ? String(p[7]).trim() : "";
 
       listaFlatProductosCodigos.push({
+        nombreOriginal: nom,
+        categoriaOriginal: cat.nombre,
         nombre: nom,
         precio: prec,
         categoria: cat.nombre,
@@ -2274,7 +2289,8 @@ function prepararListaProductosCodigos() {
         minimo: minVal,
         unidad: unidad,
         pesoPromedio: pesoProm,
-        codigoPLU: codPLU
+        codigoPLU: codPLU,
+        orden: idx + 1
       });
     });
   });
@@ -2295,6 +2311,7 @@ function prepararListaProductosCodigos() {
   renderizarTablaGestionCodigos(listaFlatProductosCodigos);
 }
 
+// Renderizado directo con todos los campos editables en una sola fila
 function renderizarTablaGestionCodigos(lista) {
   const tbody = document.getElementById('tablaGestionCodigos');
   const badgeCount = document.getElementById('cntTotalProductosCodigos');
@@ -2303,48 +2320,74 @@ function renderizarTablaGestionCodigos(lista) {
   if (badgeCount) badgeCount.textContent = `Total: ${lista.length} Productos`;
 
   if (lista.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
     return;
   }
 
+  const opcionesCategorias = cacheCategoriasFactura.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('');
+
   let html = "";
-  lista.forEach((item) => {
-    let safeName = item.nombre.replace(/["']/g, '');
-    let safeCat = item.categoria.replace(/["']/g, '');
-    let unidadTxt = (item.unidad === 'gramos') ? 'g' : (item.unidad === 'mixto' ? 'mixto' : 'uds');
-    let minTxt = (item.unidad === 'gramos') ? `${item.minimo}g` : `${item.minimo}uds`;
+  lista.forEach((item, index) => {
+    let safeName = item.nombreOriginal.replace(/["']/g, '');
+    let safeCat = item.categoriaOriginal.replace(/["']/g, '');
+    let catSelectHtml = cacheCategoriasFactura.map(c => `
+      <option value="${c.nombre}" ${c.nombre === item.categoriaOriginal ? 'selected' : ''}>${c.nombre}</option>
+    `).join('');
+
+    let disabledPeso = (item.unidad !== 'mixto') ? 'disabled' : '';
 
     html += `
-      <tr>
+      <tr class="fila-producto-cfg" data-index="${index}" data-original-name="${safeName}" data-original-cat="${safeCat}">
         <td class="text-center">
-          <input type="text" class="form-control form-control-sm text-center fw-bold text-primary input-codigo-plu-item num-legible" 
-                 data-nombre="${safeName}" 
-                 data-cat="${safeCat}" 
-                 value="${item.codigoPLU}" 
-                 placeholder="Sin código" style="max-width: 100px; margin: 0 auto;">
+          <input type="text" class="form-control form-control-sm text-center fw-bold text-primary cfg-plu num-legible" 
+                 value="${item.codigoPLU}" placeholder="PLU">
         </td>
-        <td class="text-center">
-          <img src="${item.imgPath}" class="img-thumb-config" alt="${safeName}">
+        <td class="text-center position-relative">
+          <label class="mb-0" title="Haga clic para cambiar imagen (.webp <120KB)">
+            <img src="${item.imgPath}" class="img-thumb-config-inline" id="thumb-cfg-${index}">
+            <input type="file" class="d-none cfg-file" accept="image/webp" onchange="previsualizarFotoInline(this, ${index})">
+          </label>
         </td>
-        <td class="fw-bold text-dark text-wrap">${item.nombre}</td>
-        <td class="small text-muted">${item.categoria}</td>
-        <td class="text-center"><span class="badge bg-light text-dark border">${unidadTxt}</span></td>
-        <td class="text-center small num-legible">${minTxt}</td>
-        <td class="text-center">
-          <select class="form-select form-select-sm fw-bold select-disp-item" data-nombre="${safeName}" style="max-width: 130px; margin: 0 auto;">
+        <td>
+          <input type="text" class="form-control form-control-sm fw-bold cfg-nombre" value="${item.nombre}" placeholder="Nombre producto">
+        </td>
+        <td>
+          <select class="form-select form-select-sm fw-semibold cfg-cat">
+            ${catSelectHtml}
+          </select>
+        </td>
+        <td>
+          <select class="form-select form-select-sm fw-semibold cfg-unidad" onchange="alternarCampoPesoFila(this)">
+            <option value="unidades" ${item.unidad === 'unidades' ? 'selected' : ''}>Unidades</option>
+            <option value="gramos" ${item.unidad === 'gramos' ? 'selected' : ''}>Gramos</option>
+            <option value="mixto" ${item.unidad === 'mixto' ? 'selected' : ''}>Mixto</option>
+          </select>
+        </td>
+        <td>
+          <input type="number" class="form-control form-control-sm text-center cfg-pesoprom num-legible" 
+                 value="${item.pesoPromedio || ''}" placeholder="g" min="1" ${disabledPeso}>
+        </td>
+        <td>
+          <input type="number" class="form-control form-control-sm text-center cfg-orden num-legible" 
+                 value="${item.orden}" min="1" style="max-width: 60px; margin: 0 auto;">
+        </td>
+        <td>
+          <input type="number" class="form-control form-control-sm text-center cfg-minimo num-legible" 
+                 value="${item.minimo}" min="1">
+        </td>
+        <td>
+          <select class="form-select form-select-sm fw-bold cfg-disp">
             <option value="true" ${item.disponible ? 'selected' : ''}>✅ Disponible</option>
             <option value="false" ${!item.disponible ? 'selected' : ''}>🚫 Agotado</option>
           </select>
         </td>
-        <td class="text-center">
-          <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-center fw-bold text-success input-precio-item num-legible" 
-                 data-nombre="${safeName}" 
-                 data-cat="${safeCat}" 
-                 value="${item.precio.toFixed(2)}" style="max-width: 100px; margin: 0 auto;">
+        <td>
+          <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-center fw-bold text-success cfg-precio num-legible" 
+                 value="${item.precio.toFixed(2)}">
         </td>
         <td class="text-center">
-          <button type="button" class="btn btn-sm btn-outline-dark fw-bold rounded-pill px-2" onclick="abrirModalEditarProductoPOS('${safeName}', '${safeCat}')" title="Configurar nombre, imagen, orden y mínimos">
-            ⚙️ Editar
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 border-0 fw-bold" onclick="eliminarProductoFilaInline('${safeName}', '${safeCat}')" title="Eliminar Producto">
+            🗑️
           </button>
         </td>
       </tr>`;
@@ -2369,8 +2412,39 @@ function filtrarTablaCodigos(query) {
   renderizarTablaGestionCodigos(filtrados);
 }
 
+function alternarCampoPesoFila(selectElem) {
+  const fila = selectElem.closest('tr');
+  if (!fila) return;
+  const inputPeso = fila.querySelector('.cfg-pesoprom');
+  if (inputPeso) {
+    inputPeso.disabled = (selectElem.value !== 'mixto');
+    if (selectElem.value === 'mixto' && !inputPeso.value) {
+      inputPeso.value = "2000";
+    }
+  }
+}
+window.alternarCampoPesoFila = alternarCampoPesoFila;
+
+function previsualizarFotoInline(fileInput, idx) {
+  if (fileInput.files && fileInput.files[0]) {
+    const file = fileInput.files[0];
+    if (file.size > 120 * 1024) {
+      alert("⚠️ La imagen excede el límite de 120 KB.");
+      fileInput.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const imgElem = document.getElementById(`thumb-cfg-${idx}`);
+      if (imgElem) imgElem.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+}
+window.previsualizarFotoInline = previsualizarFotoInline;
+
 function alternarCampoPesoPromedioPOS(val, modo) {
-  const cont = document.getElementById(modo === 'edit' ? 'contenedorPosEditPesoPromedio' : 'contenedorPosAddPesoPromedio');
+  const cont = document.getElementById('contenedorPosAddPesoPromedio');
   if (cont) {
     if (val === 'mixto') cont.classList.remove('hidden');
     else cont.classList.add('hidden');
@@ -2411,186 +2485,146 @@ function validarYLeerArchivoWebPFac(fileElement) {
   });
 }
 
-function abrirModalEditarProductoPOS(nom, cat) {
-  let catObj = cacheCategoriasFactura.find(c => c.nombre === cat);
-  if (!catObj) return;
-
-  let prod = catObj.productos.find(p => p[0] === nom);
-  if (!prod) return;
-
-  productoTemporalPOS = {
-    nombreOriginal: nom,
-    categoriaOriginal: cat
-  };
-
-  document.getElementById('posEditProdNombre').value = nom;
-  
-  const catSelect = document.getElementById('posEditProdCategoria');
-  catSelect.innerHTML = cacheCategoriasFactura.map(c => `
-    <option value="${c.nombre}" ${c.nombre === cat ? 'selected' : ''}>${c.nombre}</option>
-  `).join('');
-
-  document.getElementById('posEditProdPrecio').value = prod[1];
-  document.getElementById('posEditProdDisponible').value = prod[3] ? "true" : "false";
-  
-  const selUnidad = document.getElementById('posEditProdUnidad');
-  selUnidad.value = prod[5] || "unidades";
-
-  const inputPesoProm = document.getElementById('posEditProdPesoPromedio');
-  inputPesoProm.value = prod[6] || "";
-  alternarCampoPesoPromedioPOS(prod[5] || "unidades", 'edit');
-
-  document.getElementById('posEditProdCodigo').value = prod[7] || "";
-  document.getElementById('posEditProdArchivoImagen').value = "";
-  
-  const index = catObj.productos.findIndex(p => p[0] === nom);
-  const posicionActual = index + 1;
-  const totalProductos = catObj.productos.length;
-
-  const posInput = document.getElementById('posEditProdPosicion');
-  posInput.value = posicionActual;
-  posInput.max = totalProductos;
-
-  document.getElementById('posEditProdMinimo').value = prod[4] || 1;
-  document.getElementById('posEditProdPosicionAyuda').textContent = 
-    `Posición actual: ${posicionActual} de ${totalProductos} productos en esta categoría.`;
-  
-  document.getElementById('errorModalEditarProdPOS').classList.add('hidden');
-
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarProductoPOS')).show();
-}
-
-async function guardarEdicionProductoIndividualPOS() {
-  const errorDiv = document.getElementById('errorModalEditarProdPOS');
-  const nuevoNombre = document.getElementById('posEditProdNombre').value.trim();
-  const nuevaCatNombre = document.getElementById('posEditProdCategoria').value;
-  const nuevoPrecio = parseFloat(document.getElementById('posEditProdPrecio').value);
-  const nuevoDisp = document.getElementById('posEditProdDisponible').value === "true";
-  const nuevaUnidad = document.getElementById('posEditProdUnidad').value;
-  const nuevoPesoProm = (nuevaUnidad === "mixto") ? parseInt(document.getElementById('posEditProdPesoPromedio').value) : 0;
-  const nuevoCodigo = document.getElementById('posEditProdCodigo').value.trim();
-  const nuevaPos = parseInt(document.getElementById('posEditProdPosicion').value);
-  const nuevoMin = parseInt(document.getElementById('posEditProdMinimo').value);
-
-  if (!nuevoNombre || isNaN(nuevoPrecio) || nuevoPrecio <= 0 || isNaN(nuevoMin) || nuevoMin <= 0 || isNaN(nuevaPos) || (nuevaUnidad === "mixto" && (!nuevoPesoProm || nuevoPesoProm <= 0))) {
-    errorDiv.textContent = "Por favor, complete todos los campos obligatorios de forma válida.";
-    errorDiv.classList.remove('hidden');
-    return;
-  }
-
+// GUARDADO MASIVO DE TODAS LAS FILAS DE LA TABLA EN LÍNEA A GITHUB
+function guardarTodosLosCodigosPLU() {
   const token = sessionStorage.getItem("github_token");
   if (!token) {
-    accionPendienteGitHub = "guardarEdicionIndividual";
+    accionPendienteGitHub = "guardarCodigosMasivo";
+    const input = document.getElementById('inputTokenQR');
+    if (input) input.value = "";
+    document.getElementById('errorModalTokenQR').classList.add('hidden');
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).show();
+    setTimeout(() => { if (input) input.focus(); }, 400);
     return;
   }
 
-  const btn = document.getElementById('btnGuardarProdPOS');
-  btn.disabled = true;
-  btn.textContent = "Sincronizando...";
+  procesarSincronizacionGitHub();
+}
+
+async function procesarSincronizacionGitHub() {
+  const btn = document.getElementById('btnGuardarCodigosPLU');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Sincronizando con GitHub...";
+  }
 
   try {
-    const imgData = await validarYLeerArchivoWebPFac(document.getElementById('posEditProdArchivoImagen'));
-    let relativeImgPath = null;
+    const filas = document.querySelectorAll('.fila-producto-cfg');
+    let categoriasMap = {};
 
-    if (imgData) {
-      const filePath = `img/${imgData.name}`;
-      await subirArchivoAGitHubFactura(filePath, imgData.base64, `Actualización imagen producto: ${imgData.name}`);
-      relativeImgPath = filePath;
-    }
+    // Inicializar categorías existentes vacías para reconstruir orden
+    cacheCategoriasFactura.forEach(c => {
+      categoriasMap[c.nombre] = [];
+    });
 
-    const catOrigen = cacheCategoriasFactura.find(c => c.nombre === productoTemporalPOS.categoriaOriginal);
-    if (!catOrigen) throw new Error("Categoría original no encontrada.");
+    for (let f of filas) {
+      const origName = f.getAttribute('data-original-name');
+      const origCat = f.getAttribute('data-original-cat');
 
-    const oldIndex = catOrigen.productos.findIndex(p => p[0] === productoTemporalPOS.nombreOriginal);
-    if (oldIndex === -1) throw new Error("Producto no encontrado en la categoría.");
+      const nuevoPlu = f.querySelector('.cfg-plu').value.trim();
+      const nuevoNom = f.querySelector('.cfg-nombre').value.trim();
+      const nuevaCat = f.querySelector('.cfg-cat').value;
+      const nuevaUnidad = f.querySelector('.cfg-unidad').value;
+      const nuevoPeso = (nuevaUnidad === 'mixto') ? parseInt(f.querySelector('.cfg-pesoprom').value) || 2000 : 0;
+      const nuevoOrden = parseInt(f.querySelector('.cfg-orden').value) || 1;
+      const nuevoMin = parseInt(f.querySelector('.cfg-minimo').value) || 1;
+      const nuevoDisp = (f.querySelector('.cfg-disp').value === "true");
+      const nuevoPrecio = parseFloat(f.querySelector('.cfg-precio').value) || 0;
+      const fileInput = f.querySelector('.cfg-file');
 
-    let prod = catOrigen.productos[oldIndex];
-    prod[0] = nuevoNombre;
-    prod[1] = nuevoPrecio;
-    prod[3] = nuevoDisp;
-    prod[4] = nuevoMin;
-    prod[5] = nuevaUnidad;
-    prod[6] = nuevoPesoProm;
-    prod[7] = nuevoCodigo;
-    if (relativeImgPath) {
-      prod[2] = relativeImgPath;
-    }
+      if (!nuevoNom || nuevoPrecio <= 0) continue;
 
-    if (productoTemporalPOS.categoriaOriginal !== nuevaCatNombre) {
-      catOrigen.productos.splice(oldIndex, 1);
-      const catDestino = cacheCategoriasFactura.find(c => c.nombre === nuevaCatNombre);
-      if (catDestino) catDestino.productos.push(prod);
-    } else {
-      let targetIndex = nuevaPos - 1;
-      if (targetIndex < 0) targetIndex = 0;
-      if (targetIndex >= catOrigen.productos.length) targetIndex = catOrigen.productos.length - 1;
-      
-      if (oldIndex !== targetIndex) {
-        catOrigen.productos.splice(oldIndex, 1);
-        catOrigen.productos.splice(targetIndex, 0, prod);
+      // Buscar datos de imagen previos
+      let imgPathActual = "";
+      const catVieja = cacheCategoriasFactura.find(c => c.nombre === origCat);
+      if (catVieja) {
+        const prodViejo = catVieja.productos.find(p => p[0] === origName);
+        if (prodViejo) imgPathActual = prodViejo[2];
       }
+
+      // Si seleccionó una imagen nueva, subirla
+      if (fileInput && fileInput.files && fileInput.files.length > 0) {
+        const imgData = await validarYLeerArchivoWebPFac(fileInput);
+        if (imgData) {
+          const filePath = `img/${imgData.name}`;
+          await subirArchivoAGitHubFactura(filePath, imgData.base64, `Subida de imagen: ${imgData.name}`);
+          imgPathActual = filePath;
+        }
+      }
+
+      if (!categoriasMap[nuevaCat]) categoriasMap[nuevaCat] = [];
+
+      categoriasMap[nuevaCat].push({
+        datos: [nuevoNom, nuevoPrecio, imgPathActual, nuevoDisp, nuevoMin, nuevaUnidad, nuevoPeso, nuevoPlu],
+        orden: nuevoOrden
+      });
     }
+
+    // Reconstruir y ordenar productos por cada categoría
+    cacheCategoriasFactura.forEach(cat => {
+      let prodsEnCat = categoriasMap[cat.nombre] || [];
+      prodsEnCat.sort((a, b) => a.orden - b.orden);
+      cat.productos = prodsEnCat.map(p => p.datos);
+    });
 
     const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
     const base64Content = btoa(unescape(encodeURIComponent(contentString)));
 
-    await subirArchivoAGitHubFactura("catalog.json", base64Content, `Configuración avanzada de producto: ${nuevoNombre}`);
+    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización completa de catálogo desde tabla Fullscreen POS");
 
-    btn.disabled = false;
-    btn.textContent = "💾 Guardar Cambios";
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "💾 Guardar Todos los Cambios";
+    }
 
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarProductoPOS')).hide();
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
-    prepararListaProductosCodigos();
-
-    mostrarAvisoFactura(`🎉 Producto "${nuevoNombre}" guardado y sincronizado con éxito.`);
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
+    mostrarAvisoFactura("🎉 Catálogo completo actualizado y sincronizado con éxito.");
 
   } catch (err) {
-    btn.disabled = false;
-    btn.textContent = "💾 Guardar Cambios";
-    errorDiv.textContent = "Error: " + err.message;
-    errorDiv.classList.remove('hidden');
+    sessionStorage.removeItem("github_token");
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "💾 Guardar Todos los Cambios";
+    }
+    console.error("Error al guardar en GitHub:", err);
+    mostrarAvisoFactura("❌ Error de clave/sincronización con GitHub: " + err.message);
   }
 }
 
-async function eliminarProductoDesdePOS() {
-  if (!productoTemporalPOS) return;
-  const nom = productoTemporalPOS.nombreOriginal;
-
-  if (!confirm(`⚠️ ¿Está seguro que desea eliminar permanentemente el producto "${nom}" de la tienda y de la balanza?`)) {
-    return;
-  }
+// Eliminación directa de una fila de producto
+async function eliminarProductoFilaInline(nom, cat) {
+  if (!confirm(`⚠️ ¿Está seguro que desea eliminar el producto "${nom}"?`)) return;
 
   const token = sessionStorage.getItem("github_token");
   if (!token) {
-    accionPendienteGitHub = "eliminarProducto";
+    accionPendienteGitHub = "guardarCodigosMasivo";
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).show();
     return;
   }
 
   try {
-    let cat = cacheCategoriasFactura.find(c => c.nombre === productoTemporalPOS.categoriaOriginal);
-    if (cat) {
-      cat.productos = cat.productos.filter(p => p[0] !== nom);
+    let catObj = cacheCategoriasFactura.find(c => c.nombre === cat);
+    if (catObj) {
+      catObj.productos = catObj.productos.filter(p => p[0] !== nom);
     }
 
     const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
     const base64Content = btoa(unescape(encodeURIComponent(contentString)));
 
-    await subirArchivoAGitHubFactura("catalog.json", base64Content, `Eliminación de producto desde POS: ${nom}`);
+    await subirArchivoAGitHubFactura("catalog.json", base64Content, `Eliminación de producto: ${nom}`);
 
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarProductoPOS')).hide();
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     prepararListaProductosCodigos();
-
     mostrarAvisoFactura(`🗑️ Producto "${nom}" eliminado correctamente.`);
 
   } catch (err) {
     alert("Error al eliminar: " + err.message);
   }
 }
+window.eliminarProductoFilaInline = eliminarProductoFilaInline;
 
+// Modal para agregar producto nuevo
 function abrirModalCrearProductoPOS() {
   const catSelect = document.getElementById('posAddProdCatSelect');
   catSelect.innerHTML = cacheCategoriasFactura.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('');
@@ -2670,21 +2704,6 @@ async function ejecutarCrearNuevoProductoPOS() {
   }
 }
 
-function guardarTodosLosCodigosPLU() {
-  const token = sessionStorage.getItem("github_token");
-  if (!token) {
-    accionPendienteGitHub = "guardarCodigosMasivo";
-    const input = document.getElementById('inputTokenQR');
-    if (input) input.value = "";
-    document.getElementById('errorModalTokenQR').classList.add('hidden');
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).show();
-    setTimeout(() => { if (input) input.focus(); }, 400);
-    return;
-  }
-
-  procesarSincronizacionGitHub();
-}
-
 async function ejecutarGuardadoConTokenQR() {
   const input = document.getElementById('inputTokenQR');
   const errorDiv = document.getElementById('errorModalTokenQR');
@@ -2703,93 +2722,13 @@ async function ejecutarGuardadoConTokenQR() {
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).hide();
 
-  if (accionPendienteGitHub === "guardarEdicionIndividual") {
-    guardarEdicionProductoIndividualPOS();
-  } else if (accionPendienteGitHub === "eliminarProducto") {
-    eliminarProductoDesdePOS();
-  } else if (accionPendienteGitHub === "crearNuevoProducto") {
+  if (accionPendienteGitHub === "crearNuevoProducto") {
     ejecutarCrearNuevoProductoPOS();
   } else {
     procesarSincronizacionGitHub();
   }
 
   accionPendienteGitHub = null;
-}
-
-async function procesarSincronizacionGitHub() {
-  const btn = document.getElementById('btnGuardarCodigosPLU');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Sincronizando con GitHub...";
-  }
-
-  try {
-    const inputsPLU = document.querySelectorAll('.input-codigo-plu-item');
-    const selectsDisp = document.querySelectorAll('.select-disp-item');
-    const inputsPrecio = document.querySelectorAll('.input-precio-item');
-
-    let mapaNuevosCodigos = {};
-    let mapaDisponibilidad = {};
-    let mapaPrecios = {};
-
-    inputsPLU.forEach(inp => {
-      let nombreProd = inp.getAttribute('data-nombre');
-      let nuevoCod = inp.value.trim();
-      mapaNuevosCodigos[nombreProd] = nuevoCod;
-    });
-
-    selectsDisp.forEach(sel => {
-      let nombreProd = sel.getAttribute('data-nombre');
-      let esDisp = (sel.value === "true");
-      mapaDisponibilidad[nombreProd] = esDisp;
-    });
-
-    inputsPrecio.forEach(inp => {
-      let nombreProd = inp.getAttribute('data-nombre');
-      let nuevoPrec = parseFloat(inp.value);
-      if (!isNaN(nuevoPrec) && nuevoPrec > 0) {
-        mapaPrecios[nombreProd] = nuevoPrec;
-      }
-    });
-
-    cacheCategoriasFactura.forEach(cat => {
-      cat.productos.forEach(p => {
-        let nom = p[0];
-        if (mapaPrecios[nom] !== undefined) {
-          p[1] = mapaPrecios[nom];
-        }
-        if (mapaDisponibilidad[nom] !== undefined) {
-          p[3] = mapaDisponibilidad[nom];
-        }
-        if (mapaNuevosCodigos[nom] !== undefined) {
-          p[7] = mapaNuevosCodigos[nom];
-        }
-      });
-    });
-
-    const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
-    const base64Content = btoa(unescape(encodeURIComponent(contentString)));
-
-    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización rápida de precios, códigos PLU y disponibilidad desde Módulo de Facturación");
-
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "💾 Guardar Todos los Cambios";
-    }
-
-    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
-    mostrarAvisoFactura("🎉 Configuración de productos, precios y disponibilidad guardada con éxito.");
-
-  } catch (err) {
-    sessionStorage.removeItem("github_token");
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "💾 Guardar Todos los Cambios";
-    }
-    console.error("Error al guardar en GitHub:", err);
-    mostrarAvisoFactura("❌ Error de clave/sincronización con GitHub: " + err.message);
-  }
 }
 
 async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
