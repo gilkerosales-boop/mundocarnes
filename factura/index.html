@@ -7,7 +7,7 @@
     <!-- Favicon Oficial -->
     <link rel="icon" type="image/png" href="../img/MUNDOCARNE TRANSPARENTE.png">
     
-    <!-- Google Fonts: Plus Jakarta Sans & Inter (Diferenciación Óptima de Dígitos 0 vs 8) -->
+    <!-- Google Fonts: Plus Jakarta Sans & Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Estilo Local POS Aislado -->
-    <link rel="stylesheet" href="style.css?v=2.9.0">
+    <link rel="stylesheet" href="style.css?v=3.0.0">
     <!-- Configuración de App Instalable PWA -->
     <link rel="manifest" href="manifest.json?v=1.0.3">
     <meta name="theme-color" content="#0f172a">
@@ -58,7 +58,7 @@
           <!-- Indicador Dinámico de Estado de Sincronización -->
           <span id="badgeEstadoSync" class="badge bg-success fw-bold me-1" onclick="forzarSincronizacionManual()" style="cursor: pointer;" title="Haga clic para forzar sincronización con Supabase">🟢 Sincronizado</span>
           
-          <!-- Botón 1: Buscar / Historial -->
+          <!-- Botón 1: Buscar / Historial (Ventas y Cierres) -->
           <button type="button" class="btn btn-nav-custom btn-nav-yellow" onclick="abrirModalBuscarFacturas()">
             🔍 Historial
           </button>
@@ -552,7 +552,7 @@
       </div>
     </div>
 
-    <!-- MODAL CIERRE DE CAJA - PASO 1 -->
+    <!-- MODAL CIERRE DE CAJA - PASO 1 (SIN BOTÓN DE HISTORIAL) -->
     <div class="modal fade" id="modalCierreCajaPaso1" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -566,18 +566,11 @@
               <small class="text-white-50">Ingrese los montos en efectivo presentes en caja al iniciar la jornada / turno.</small>
             </div>
 
-            <!-- Dos Botones Principales -->
-            <div class="row g-2 mb-3">
-              <div class="col-12 col-md-6">
-                <button type="button" class="btn btn-dark w-100 fw-bold py-2 rounded-pill shadow-sm" onclick="abrirModalMovimientosEfectivo()">
-                  💸 Reg. Movimiento
-                </button>
-              </div>
-              <div class="col-12 col-md-6">
-                <button type="button" class="btn btn-warning text-dark w-100 fw-bold py-2 rounded-pill shadow-sm" onclick="abrirModalHistorialCierres()">
-                  📜 Historial Cierres
-                </button>
-              </div>
+            <!-- Botón Único de Registro de Movimiento de Efectivo -->
+            <div class="mb-3">
+              <button type="button" class="btn btn-dark w-100 fw-bold py-2 rounded-pill shadow-sm" onclick="abrirModalMovimientosEfectivo()">
+                💸 Reg. Movimiento de Efectivo
+              </button>
             </div>
 
             <div class="mb-3">
@@ -727,42 +720,6 @@
       </div>
     </div>
 
-    <!-- MODAL HISTORIAL DE CIERRES -->
-    <div class="modal fade" id="modalHistorialCierres" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title fw-bold">📜 Historial de Cierres de Caja (Reportes Z)</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body p-4">
-            <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
-              <table class="table table-hover align-middle mb-0">
-                <thead class="table-dark small text-center">
-                  <tr>
-                    <th>Fecha y Hora</th>
-                    <th>Usuario</th>
-                    <th>Inicial ($ / Bs)</th>
-                    <th>Ventas ($ / Bs)</th>
-                    <th>Final Caja ($ / Bs)</th>
-                    <th style="width: 130px;">Acción</th>
-                  </tr>
-                </thead>
-                <tbody id="tablaHistorialCierresCaja" class="small">
-                  <tr>
-                    <td colspan="6" class="text-center text-muted py-4">Cargando cierres de caja...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Volver</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- MODAL CIERRE PASO 2 -->
     <div class="modal fade" id="modalCierreCajaPaso2" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -840,57 +797,106 @@
       </div>
     </div>
     
-    <!-- MODAL HISTORIAL Y BÚSQUEDA DE FACTURAS -->
+    <!-- MODAL UNIFICADO: HISTORIAL Y BÚSQUEDA DE FACTURAS + CIERRES DE CAJA CON BORRADO INDIVIDUAL -->
     <div class="modal fade" id="modalBuscarFacturas" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title fw-bold">🔍 Historial y Búsqueda de Facturas</h5>
+            <h5 class="modal-title fw-bold">🔍 Historial de Ventas y Cierres de Caja</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4">
-            <div class="row g-2 align-items-end mb-4 bg-white p-3 rounded-3 border shadow-sm">
-              <div class="col-md-5 col-lg-5">
-                <label for="facBusquedaInput" class="form-label fw-bold small mb-1">Cédula / RIF, Nombre o N° Factura:</label>
-                <input type="text" id="facBusquedaInput" class="form-control text-uppercase fw-bold" placeholder="Ej: V19255985 o 001-00008..." onkeyup="if(event.key==='Enter') buscarFacturasHistorial('busqueda')">
-              </div>
-              <div class="col-md-2 col-lg-2">
-                <button type="button" class="btn btn-dark w-100 fw-bold rounded-pill" onclick="buscarFacturasHistorial('busqueda')">
-                  🔍 Buscar
+            
+            <!-- Píldoras de Navegación entre Facturas y Cierres -->
+            <ul class="nav nav-pills nav-pills-historial justify-content-center mb-3" id="pillsHistorialTab" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="pills-facturas-tab" data-bs-toggle="pill" data-bs-target="#pills-facturas" type="button" role="tab">
+                  🧾 Facturas Emitidas
                 </button>
-              </div>
-              <div class="col-md-2 col-lg-2">
-                <button type="button" class="btn btn-warning w-100 fw-bold text-dark rounded-pill" onclick="buscarFacturasHistorial('ultimas10')">
-                  🕒 Últimas 10
+              </li>
+              <li class="nav-item ms-2" role="presentation">
+                <button class="nav-link" id="pills-cierres-tab" data-bs-toggle="pill" data-bs-target="#pills-cierres" type="button" role="tab" onclick="cargarHistorialCierresCaja()">
+                  📜 Cierres de Caja (Reportes Z)
                 </button>
+              </li>
+            </ul>
+
+            <div class="tab-content" id="pillsHistorialTabContent">
+              
+              <!-- PESTAÑA 1: Facturas Emitidas -->
+              <div class="tab-pane fade show active" id="pills-facturas" role="tabpanel">
+                <div class="row g-2 align-items-end mb-3 bg-white p-3 rounded-3 border shadow-sm">
+                  <div class="col-md-5 col-lg-5">
+                    <label for="facBusquedaInput" class="form-label fw-bold small mb-1">Cédula / RIF, Nombre o N° Factura:</label>
+                    <input type="text" id="facBusquedaInput" class="form-control text-uppercase fw-bold" placeholder="Ej: V19255985 o 001-00008..." onkeyup="if(event.key==='Enter') buscarFacturasHistorial('busqueda')">
+                  </div>
+                  <div class="col-md-2 col-lg-2">
+                    <button type="button" class="btn btn-dark w-100 fw-bold rounded-pill" onclick="buscarFacturasHistorial('busqueda')">
+                      🔍 Buscar
+                    </button>
+                  </div>
+                  <div class="col-md-2 col-lg-2">
+                    <!-- Menú Desplegable Dinámico: Últimas 10, 20 o 50 -->
+                    <select id="facLimiteSelect" class="form-select fw-bold rounded-pill text-center bg-warning text-dark border-0 shadow-sm" onchange="buscarFacturasHistorial('ultimas')">
+                      <option value="10" selected>🕒 Últimas 10</option>
+                      <option value="20">🕒 Últimas 20</option>
+                      <option value="50">🕒 Últimas 50</option>
+                    </select>
+                  </div>
+                  <div class="col-md-3 col-lg-3">
+                    <button type="button" class="btn btn-success w-100 fw-bold rounded-pill" onclick="abrirModalFiltroDescarga()">
+                      📥 Descargar Excel
+                    </button>
+                  </div>
+                </div>
+
+                <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
+                  <table class="table table-hover align-middle mb-0">
+                    <thead class="table-dark small text-center">
+                      <tr>
+                        <th>N° Factura</th>
+                        <th>Fecha y Hora</th>
+                        <th>Cédula / RIF</th>
+                        <th>Cliente</th>
+                        <th>Forma de Pago</th>
+                        <th>Total ($)</th>
+                        <th style="width: 180px;">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tablaHistorialFacturas" class="small">
+                      <tr>
+                        <td colspan="7" class="text-center text-muted py-4">Ingrese un criterio de búsqueda o seleccione un límite.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div class="col-md-3 col-lg-3">
-                <button type="button" class="btn btn-success w-100 fw-bold rounded-pill" onclick="abrirModalFiltroDescarga()">
-                  📥 Descargar Excel
-                </button>
+
+              <!-- PESTAÑA 2: Cierres de Caja (Reportes Z) con Borrado Individual -->
+              <div class="tab-pane fade" id="pills-cierres" role="tabpanel">
+                <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 420px; overflow-y: auto;">
+                  <table class="table table-hover align-middle mb-0">
+                    <thead class="table-dark small text-center">
+                      <tr>
+                        <th>Fecha y Hora</th>
+                        <th>Usuario</th>
+                        <th>Inicial ($ / Bs)</th>
+                        <th>Ventas ($ / Bs)</th>
+                        <th>Final Caja ($ / Bs)</th>
+                        <th style="width: 180px;">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tablaHistorialCierresCaja" class="small">
+                      <tr>
+                        <td colspan="6" class="text-center text-muted py-4">Cargando cierres de caja...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
+
             </div>
 
-            <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
-              <table class="table table-hover align-middle mb-0">
-                <thead class="table-dark small text-center">
-                  <tr>
-                    <th>N° Factura</th>
-                    <th>Fecha y Hora</th>
-                    <th>Cédula / RIF</th>
-                    <th>Cliente</th>
-                    <th>Forma de Pago</th>
-                    <th>Total ($)</th>
-                    <th style="width: 180px;">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody id="tablaHistorialFacturas" class="small">
-                  <tr>
-                    <td colspan="7" class="text-center text-muted py-4">Ingrese un criterio de búsqueda o presione "Últimas 10".</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cerrar</button>
@@ -963,7 +969,7 @@
             </div>
 
             <h6 class="fw-bold text-dark border-bottom pb-2 mb-2">📦 Productos Detectados en Ticket:</h6>
-            <div class="table-responsive bg-white rounded-3 border mb-3 shadow-sm" style="max-height: 250px; overflow-y: auto;">
+            <div class="table-responsive bg-light rounded-3 border mb-3 shadow-sm" style="max-height: 250px; overflow-y: auto;">
               <table class="table table-sm table-striped align-middle mb-0">
                 <thead class="table-dark small text-center">
                   <tr>
@@ -1043,6 +1049,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- SDK Oficial Supabase v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=2.9.0"></script>
+    <script src="script.js?v=3.0.0"></script>
   </body>
 </html>
