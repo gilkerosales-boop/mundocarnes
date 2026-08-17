@@ -129,6 +129,48 @@
       </div>
     </div>
 
+    <!-- MODAL DE BIENVENIDA Y APERTURA DE CAJA / JORNADA -->
+    <div class="modal fade" id="modalAperturaCaja" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold" id="aperturaTituloSaludo">👋 ¡Bienvenido/a al Sistema!</h5>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            <div class="p-3 mb-3 rounded-3 shadow-sm text-white" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-left: 5px solid #ffc107;">
+              <div class="fw-bold fs-6 text-warning mb-1" id="aperturaMensajeMotivacion">¡Que tengas una excelente y exitosa jornada de ventas! 🚀🥩</div>
+              <p class="small text-white mb-0 mt-2" style="line-height: 1.4; opacity: 0.95;">
+                Por favor, ingrese los montos en efectivo presentes en caja al iniciar la jornada / turno. Estos se guardarán y reflejarán automáticamente en su <strong>Cierre de Caja</strong>.
+              </p>
+            </div>
+
+            <div class="mb-3">
+              <label for="aperturaInicialUSD" class="form-label fw-bold text-dark small">💵 Efectivo Inicial en Divisas ($):</label>
+              <div class="input-group">
+                <span class="input-group-text bg-white fw-bold">$</span>
+                <input type="number" id="aperturaInicialUSD" class="form-control fw-bold fs-5 text-center text-success num-legible" step="0.01" min="0" placeholder="0.00" value="0.00">
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="aperturaInicialBS" class="form-label fw-bold text-dark small">🇻🇪 Efectivo Inicial en Bolívares (Bs):</label>
+              <div class="input-group">
+                <span class="input-group-text bg-warning text-dark fw-bold">Bs</span>
+                <input type="number" id="aperturaInicialBS" class="form-control fw-bold fs-5 text-center text-primary num-legible" step="0.01" min="0" placeholder="0.00" value="0.00">
+              </div>
+            </div>
+
+            <div id="errorModalApertura" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer bg-light justify-content-center p-3">
+            <button type="button" id="btnConfirmarApertura" class="btn btn-success fw-bold px-5 py-2 fs-6 rounded-pill shadow" onclick="guardarAperturaCajaInicial()">
+              🚀 Iniciar Turno y Abrir Caja
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal para Selección de Cantidad / Peso de Catálogo -->
     <div class="modal fade" id="modalFacturaCantidad" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
@@ -552,7 +594,7 @@
       </div>
     </div>
 
-    <!-- MODAL CIERRE DE CAJA - PASO 1 -->
+    <!-- MODAL CIERRE DE CAJA - PASO 1 (ALTO CONTRASTE CORREGIDO) -->
     <div class="modal fade" id="modalCierreCajaPaso1" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -561,9 +603,13 @@
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4">
-            <div class="alert alert-dark mb-3 shadow-sm">
+            
+            <!-- Banner de Alto Contraste con Tipografía Nítida -->
+            <div class="p-3 mb-3 rounded-3 shadow-sm text-white" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-left: 5px solid #ffc107; border: 1px solid #334155;">
               <div class="fw-bold fs-6 text-warning mb-1" id="cierreUsuarioNombre">👤 Cajero: CERRANDO SESIÓN...</div>
-              <small class="text-white-50">Ingrese los montos en efectivo presentes en caja al iniciar la jornada / turno.</small>
+              <div class="small text-white" style="line-height: 1.4; opacity: 0.95;">
+                Ingrese o verifique los montos en efectivo presentes en caja al iniciar la jornada / turno.
+              </div>
             </div>
 
             <div class="mb-3">
@@ -1120,6 +1166,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- SDK Oficial Supabase v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=3.2.0"></script>
+    <script src="script.js?v=3.3.0"></script>
   </body>
 </html>
