@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Ventas por Usuario en Supabase, Filtro Dinámico de Historial y Borrado de Cierres
+   Ventas y Cierres por Usuario en Supabase, Filtro Dinámico y Borrado de Cierres
    ========================================================================== */
 
 // Configuración de Supabase
@@ -39,10 +39,16 @@ let listaMovimientosEfectivo = [];
 let cacheHistorialCierres = [];
 let sincronizandoEnProceso = false;
 
-// Determinar el nombre de la tabla de ventas personal según el usuario activo
+// Determinar el nombre de la tabla de VENTAS personal según el usuario activo
 function obtenerTablaVentasUsuario(u) {
   const user = (u || sessionStorage.getItem("factura_usuario") || "admin").toLowerCase().trim();
   return `ventas_${user}`;
+}
+
+// Determinar el nombre de la tabla de CIERRES personal según el usuario activo
+function obtenerTablaCierresUsuario(u) {
+  const user = (u || sessionStorage.getItem("factura_usuario") || "admin").toLowerCase().trim();
+  return `cierres_${user}`;
 }
 
 // ==========================================================================
@@ -271,8 +277,9 @@ async function procesarColaSincronizacion() {
       } else if (payload.action === "guardarCierreCaja") {
         const d = payload.datosCierre;
         const r = d.resumen || {};
+        const tablaCierres = d.tablaCierres || obtenerTablaCierresUsuario(d.usuario);
 
-        await supabaseClient.from('cierres').insert([{
+        await supabaseClient.from(tablaCierres).insert([{
           "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
           "USUARIO": d.usuario,
           "INICIAL $": parseFloat(d.inicialUSD) || 0,
@@ -296,10 +303,11 @@ async function procesarColaSincronizacion() {
         await ejecutarEliminarVentaSupabase(payload.numFactura, payload.tablaVentas);
 
       } else if (payload.action === "eliminarCierreCaja") {
+        const tablaCierres = payload.tablaCierres || obtenerTablaCierresUsuario(payload.usuario);
         if (payload.id) {
-          await supabaseClient.from('cierres').delete().eq('id', payload.id);
+          await supabaseClient.from(tablaCierres).delete().eq('id', payload.id);
         } else if (payload.fechaStr) {
-          await supabaseClient.from('cierres').delete().eq('FECHA', payload.fechaStr);
+          await supabaseClient.from(tablaCierres).delete().eq('FECHA', payload.fechaStr);
         }
       }
 
@@ -383,10 +391,11 @@ async function forzarSincronizacionManual() {
     }
   } catch (e) {}
 
-  mostrarAvisoFactura("🔄 Paso 4/4: Sincronizando Cierres...", false);
+  const tablaCierresUsuario = obtenerTablaCierresUsuario();
+  mostrarAvisoFactura(`🔄 Paso 4/4: Sincronizando Cierres (${tablaCierresUsuario})...`, false);
   let cantCierres = 0;
   try {
-    const { data: cierresSup, error } = await supabaseClient.from('cierres').select('*');
+    const { data: cierresSup, error } = await supabaseClient.from(tablaCierresUsuario).select('*');
     if (!error && cierresSup) {
       cantCierres = cierresSup.length;
       const cierresOrdenados = [...cierresSup].sort((a, b) => (b.id || 0) - (a.id || 0));
@@ -2511,7 +2520,6 @@ async function buscarFacturasHistorial(modo) {
     return numB - numA;
   });
 
-  // Filtro por límite seleccionado en el menú desplegable
   const limiteSeleccionado = document.getElementById('facLimiteSelect') 
     ? parseInt(document.getElementById('facLimiteSelect').value, 10) 
     : 10;
@@ -3097,11 +3105,12 @@ function abrirModalCierreCaja() {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso1')).show();
 }
 
-// CARGA Y GESTIÓN DE HISTORIAL DE CIERRES CON BORRADO INDIVIDUAL
+// CARGA Y GESTIÓN DE HISTORIAL DE CIERRES EN LA TABLA DEL USUARIO ACTIVO
 async function cargarHistorialCierresCaja() {
   const tbody = document.getElementById('tablaHistorialCierresCaja');
   if (!tbody) return;
 
+  const tablaCierresUsuario = obtenerTablaCierresUsuario();
   let cierresLocales = await dbGetAll("cierres");
   if (cierresLocales.length > 0) {
     cacheHistorialCierres = cierresLocales.sort((a, b) => (b.id || 0) - (a.id || 0));
@@ -3112,7 +3121,7 @@ async function cargarHistorialCierresCaja() {
 
   if (navigator.onLine) {
     try {
-      const { data: cierresSup, error } = await supabaseClient.from('cierres').select('*');
+      const { data: cierresSup, error } = await supabaseClient.from(tablaCierresUsuario).select('*');
       if (!error && cierresSup && cierresSup.length > 0) {
         cacheHistorialCierres = cierresSup.map(c => ({
           id: c.id,
@@ -3224,6 +3233,7 @@ async function eliminarCierreCajaHistorial(idx) {
   }
 
   const idCierre = c.id;
+  const tablaCierres = obtenerTablaCierresUsuario(c.usuario);
   cacheHistorialCierres.splice(idx, 1);
   renderizarTablaHistorialCierres();
 
@@ -3237,7 +3247,8 @@ async function eliminarCierreCajaHistorial(idx) {
       action: "eliminarCierreCaja",
       id: idCierre,
       fechaStr: c.fechaStr,
-      usuario: c.usuario
+      usuario: c.usuario,
+      tablaCierres: tablaCierres
     }
   });
 
@@ -3341,6 +3352,7 @@ async function procesarSiguienteCierreCaja() {
     btn.textContent = "Siguiente ➡️";
 
     const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
+    const tablaCierres = obtenerTablaCierresUsuario(usuario);
 
     let ingresosUSD = 0, retirosUSD = 0, ingresosBS = 0, retirosBS = 0;
     listaMovimientosEfectivo.forEach(m => {
@@ -3371,7 +3383,8 @@ async function procesarSiguienteCierreCaja() {
       retirosBS: retirosBS,
       resumen: resumen,
       totalCajaUSD: totalCajaUSD,
-      totalCajaBS: totalCajaBS
+      totalCajaBS: totalCajaBS,
+      tablaCierres: tablaCierres
     };
 
     renderizarTicketCierreCajaHTML(datosCierreCajaPendiente);
