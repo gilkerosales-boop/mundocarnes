@@ -1,6 +1,7 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Historial y Cierres Aislados por Usuario, Correlativo Global y Doble Guardado
+   Historial y Cierres Aislados por Usuario, Correlativo Global, Doble Guardado
+   y Modal de Bienvenida con Apertura de Caja por Jornada
    ========================================================================== */
 
 // Configuración de Supabase
@@ -396,7 +397,7 @@ async function procesarColaSincronizacion() {
 
     } catch (err) {
       console.warn("Aviso Sync Supabase (reintentará en siguiente ciclo):", err);
-      break; // Detener el ciclo para no saturar si hay fallo de conexión
+      break;
     }
   }
 
@@ -979,6 +980,7 @@ async function procesarLoginFacturacion(event) {
   }
 }
 
+// APERTURA DE CAJA / BIENVENIDA AL INICIAR SESIÓN
 function iniciarModuloFacturacion(usuario) {
   const userNorm = normalizarUsuario(usuario);
   document.getElementById('vistaLogin').classList.add('hidden');
@@ -992,6 +994,89 @@ function iniciarModuloFacturacion(usuario) {
     sincronizarClientesDesdeServidor();
     procesarColaSincronizacion();
   }
+
+  // Verificar o solicitar Apertura de Turno
+  verificarYSolicitarAperturaCaja(userNorm);
+}
+
+function verificarYSolicitarAperturaCaja(userNorm) {
+  const hoy = new Date().toISOString().split('T')[0];
+  const claveApertura = `apertura_caja_user_${userNorm}_${hoy}`;
+  const aperturaGuardada = localStorage.getItem(claveApertura);
+
+  const tituloSaludo = document.getElementById('aperturaTituloSaludo');
+  const msgMotivacion = document.getElementById('aperturaMensajeMotivacion');
+  const inpUSD = document.getElementById('aperturaInicialUSD');
+  const inpBS = document.getElementById('aperturaInicialBS');
+
+  if (tituloSaludo) {
+    tituloSaludo.textContent = `👋 ¡Bienvenido/a, ${userNorm.toUpperCase()}!`;
+  }
+
+  const frasesMotivacion = [
+    "¡Que tengas una excelente y muy productiva jornada laboral! 🚀🥩",
+    "¡Mucho éxito hoy! Gracias por tu dedicación y compromiso con Mundocarnes. ✨",
+    "¡Comenzamos con la mejor energía para atender a todos nuestros clientes! 🏆",
+    "¡Éxito en tus ventas hoy! Hagamos de esta jornada un gran día. 🌟"
+  ];
+  const fraseAleatoria = frasesMotivacion[Math.floor(Math.random() * frasesMotivacion.length)];
+  if (msgMotivacion) msgMotivacion.textContent = fraseAleatoria;
+
+  if (aperturaGuardada) {
+    try {
+      const datos = JSON.parse(aperturaGuardada);
+      inpUSD.value = (parseFloat(datos.usd) || 0).toFixed(2);
+      inpBS.value = (parseFloat(datos.bs) || 0).toFixed(2);
+    } catch (e) {
+      inpUSD.value = "0.00";
+      inpBS.value = "0.00";
+    }
+  } else {
+    inpUSD.value = "0.00";
+    inpBS.value = "0.00";
+  }
+
+  document.getElementById('errorModalApertura').classList.add('hidden');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAperturaCaja')).show();
+}
+
+function guardarAperturaCajaInicial() {
+  const usuario = obtenerUsuarioActivo();
+  const inpUSD = document.getElementById('aperturaInicialUSD');
+  const inpBS = document.getElementById('aperturaInicialBS');
+  const errorDiv = document.getElementById('errorModalApertura');
+
+  const usd = parseFloat(inpUSD.value);
+  const bs = parseFloat(inpBS.value);
+
+  if (isNaN(usd) || usd < 0 || isNaN(bs) || bs < 0) {
+    if (errorDiv) {
+      errorDiv.textContent = "Por favor, indique montos válidos (0 o mayores) para la apertura.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (errorDiv) errorDiv.classList.add('hidden');
+
+  const hoy = new Date().toISOString().split('T')[0];
+  const claveApertura = `apertura_caja_user_${usuario}_${hoy}`;
+  const registroApertura = {
+    usd: usd,
+    bs: bs,
+    fechaHora: new Date().toLocaleString('es-VE')
+  };
+
+  localStorage.setItem(claveApertura, JSON.stringify(registroApertura));
+
+  // Actualizar de inmediato los inputs del modal Cierre de Caja
+  const elemCierreUSD = document.getElementById('cierreInicialUSD');
+  const elemCierreBS = document.getElementById('cierreInicialBS');
+  if (elemCierreUSD) elemCierreUSD.value = usd.toFixed(2);
+  if (elemCierreBS) elemCierreBS.value = bs.toFixed(2);
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAperturaCaja')).hide();
+  mostrarAvisoFactura(`🚀 ¡Apertura de caja registrada! Saldo inicial: $${usd.toFixed(2)} / Bs.${bs.toFixed(2)}`, true, 6000);
 }
 
 function cerrarSesionFacturacion() {
@@ -1797,7 +1882,7 @@ function obtenerDetalleFormaPagoFinal() {
   return formaSelect;
 }
 
-// EMITIR FACTURA FINAL (Guarda en la tabla global 'ventas' y en la personal del usuario)
+// EMITIR FACTURA FINAL
 async function emitirFacturaFinal() {
   if (!clienteFacturaActual) {
     return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
@@ -2795,7 +2880,7 @@ async function buscarFacturasHistorial(modo) {
     }
   });
 
-  // 2. Consultar la tabla personal del usuario en Supabase (ventas_mayka, ventas_gilker, etc.)
+  // 2. Consultar la tabla personal del usuario en Supabase
   if (navigator.onLine) {
     try {
       const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
@@ -3020,7 +3105,7 @@ async function eliminarFacturaHistorial(numFactura) {
   procesarColaSincronizacion();
 }
 
-// DESCARGA DE EXCEL DE LA TABLA PERSONAL DEL USUARIO
+// DESCARGA DE EXCEL
 function abrirModalFiltroDescarga() {
   const inputFecha = document.getElementById('descargaFechaInput');
   const selectForma = document.getElementById('descargaFormaPagoSelect');
@@ -3400,14 +3485,33 @@ function eliminarMovimientoEfectivo(index) {
   }
 }
 
-// CIERRE DE CAJA
+// CIERRE DE CAJA (CARGA AUTOMÁTICA DEL SALDO INICIAL APERTURADO)
 function abrirModalCierreCaja() {
-  const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
-  document.getElementById('cierreUsuarioNombre').textContent = `👤 Cajero: ${usuario.toUpperCase()}`;
-  document.getElementById('cierreInicialUSD').value = "0.00";
-  document.getElementById('cierreInicialBS').value = "0.00";
-  document.getElementById('errorModalCierrePaso1').classList.add('hidden');
+  const usuario = obtenerUsuarioActivo();
+  const elemUsuario = document.getElementById('cierreUsuarioNombre');
+  if (elemUsuario) {
+    elemUsuario.textContent = `👤 Cajero: ${usuario.toUpperCase()}`;
+  }
 
+  const hoy = new Date().toISOString().split('T')[0];
+  const claveApertura = `apertura_caja_user_${usuario}_${hoy}`;
+  const aperturaGuardada = localStorage.getItem(claveApertura);
+
+  if (aperturaGuardada) {
+    try {
+      const datos = JSON.parse(aperturaGuardada);
+      document.getElementById('cierreInicialUSD').value = (parseFloat(datos.usd) || 0).toFixed(2);
+      document.getElementById('cierreInicialBS').value = (parseFloat(datos.bs) || 0).toFixed(2);
+    } catch (e) {
+      document.getElementById('cierreInicialUSD').value = "0.00";
+      document.getElementById('cierreInicialBS').value = "0.00";
+    }
+  } else {
+    document.getElementById('cierreInicialUSD').value = "0.00";
+    document.getElementById('cierreInicialBS').value = "0.00";
+  }
+
+  document.getElementById('errorModalCierrePaso1').classList.add('hidden');
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso1')).show();
 }
 
@@ -3573,7 +3677,16 @@ async function procesarSiguienteCierreCaja() {
   const inicialUSD = parseFloat(document.getElementById('cierreInicialUSD').value) || 0;
   const inicialBS = parseFloat(document.getElementById('cierreInicialBS').value) || 0;
   const btn = document.getElementById('btnSiguienteCierreCaja');
-  const tablaUsuarioActivo = obtenerTablaVentasUsuario();
+  const usuario = obtenerUsuarioActivo();
+  const tablaUsuarioActivo = obtenerTablaVentasUsuario(usuario);
+
+  // Actualizar también en el registro de apertura local por si el usuario editó el monto
+  const hoyStr = new Date().toISOString().split('T')[0];
+  localStorage.setItem(`apertura_caja_user_${usuario}_${hoyStr}`, JSON.stringify({
+    usd: inicialUSD,
+    bs: inicialBS,
+    fechaHora: new Date().toLocaleString('es-VE')
+  }));
 
   btn.disabled = true;
   btn.textContent = "Consultando ventas...";
@@ -3664,7 +3777,6 @@ async function procesarSiguienteCierreCaja() {
     btn.disabled = false;
     btn.textContent = "Siguiente ➡️";
 
-    const usuario = sessionStorage.getItem("factura_usuario") || "CAJERO";
     const tablaCierres = obtenerTablaCierresUsuario(usuario);
 
     let ingresosUSD = 0, retirosUSD = 0, ingresosBS = 0, retirosBS = 0;
