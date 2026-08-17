@@ -1,6 +1,6 @@
 /* ==========================================================================
    Estilos Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Diseño Anti-Fatiga Visual, Gestión Completa de Productos / PLU y Botón Nuevo
+   Diseño Anti-Fatiga Visual, Tabla Fullscreen de Configuración en Línea y PLU
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@500;700;800&display=swap');
@@ -405,6 +405,55 @@ body {
 }
 
 /* ==========================================================================
+   TABLA FULLSCREEN DE CONFIGURACIÓN EN LÍNEA (UNA SOLA FILA POR PRODUCTO)
+   ========================================================================== */
+.table-config-inline {
+  font-size: 0.82rem;
+}
+
+.table-config-inline th {
+  padding: 8px 6px !important;
+  font-size: 0.76rem !important;
+  letter-spacing: 0.2px;
+}
+
+.table-config-inline td {
+  padding: 6px 4px !important;
+  vertical-align: middle;
+}
+
+.table-config-inline .form-control, 
+.table-config-inline .form-select {
+  padding: 4px 6px !important;
+  font-size: 0.8rem !important;
+  border-radius: 6px !important;
+  border: 1px solid #cbd5e1 !important;
+  height: 32px;
+}
+
+.table-config-inline .form-control:focus, 
+.table-config-inline .form-select:focus {
+  border-color: var(--pos-blue) !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+}
+
+.img-thumb-config-inline {
+  width: 38px;
+  height: 38px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--pos-card-border);
+  background-color: #ffffff;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.img-thumb-config-inline:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+/* ==========================================================================
    GRID DE MÉTODOS DE PAGO (PAYMENT TILES)
    ========================================================================== */
 .grid-metodos-pago {
@@ -477,6 +526,11 @@ body {
   overflow: hidden;
 }
 
+.modal-fullscreen .modal-content {
+  border-radius: 0 !important;
+  border: none !important;
+}
+
 .modal-header {
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
   color: #ffffff !important;
@@ -533,15 +587,6 @@ body {
   object-fit: cover;
   border-radius: var(--pos-radius-sm);
   border: 1px solid var(--pos-card-border);
-}
-
-.img-thumb-config {
-  width: 40px;
-  height: 40px;
-  object-fit: cover;
-  border-radius: 6px;
-  border: 1px solid var(--pos-card-border);
-  background-color: #ffffff;
 }
 
 .hidden {
