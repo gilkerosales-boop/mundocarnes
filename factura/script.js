@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Ventas y Cierres por Usuario en Supabase, Filtro Dinámico y Borrado de Cierres
+   Ventas/Cierres por Usuario, Gestión Completa de Productos/PLU y Creación de Ítems
    ========================================================================== */
 
 // Configuración de Supabase
@@ -38,6 +38,8 @@ let listaFlatProductosCodigos = [];
 let listaMovimientosEfectivo = [];
 let cacheHistorialCierres = [];
 let sincronizandoEnProceso = false;
+let productoTemporalPOS = null; // Para edición individual profunda de producto
+let accionPendienteGitHub = null; // Para reanudar guardados tras escanear token
 
 // Determinar el nombre de la tabla de VENTAS personal según el usuario activo
 function obtenerTablaVentasUsuario(u) {
@@ -2210,7 +2212,9 @@ function confirmarAgregarCodigosAFactura() {
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
 }
 
-// GESTIÓN DE PRODUCTOS Y PLU
+// ==========================================================================
+// SUITE DE GESTIÓN Y CONFIGURACIÓN COMPLETA DE PRODUCTOS / PLU
+// ==========================================================================
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
   prepararListaProductosCodigos();
@@ -2224,16 +2228,22 @@ function prepararListaProductosCodigos() {
     cat.productos.forEach(p => {
       let nom = p[0];
       let prec = p[1];
+      let imgPath = p[2].startsWith('../') ? p[2] : '../' + p[2];
       let esDisp = p[3] !== undefined ? p[3] : true;
-      let unidad = p[5];
+      let minVal = p[4] !== undefined ? p[4] : 1;
+      let unidad = p[5] || "unidades";
+      let pesoProm = p[6] || 0;
       let codPLU = p[7] ? String(p[7]).trim() : "";
 
       listaFlatProductosCodigos.push({
         nombre: nom,
         precio: prec,
         categoria: cat.nombre,
+        imgPath: imgPath,
         disponible: esDisp,
+        minimo: minVal,
         unidad: unidad,
+        pesoPromedio: pesoProm,
         codigoPLU: codPLU
       });
     });
@@ -2263,38 +2273,49 @@ function renderizarTablaGestionCodigos(lista) {
   if (badgeCount) badgeCount.textContent = `Total: ${lista.length} Productos`;
 
   if (lista.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
     return;
   }
 
   let html = "";
   lista.forEach((item) => {
     let safeName = item.nombre.replace(/["']/g, '');
+    let safeCat = item.categoria.replace(/["']/g, '');
     let unidadTxt = (item.unidad === 'gramos') ? 'g' : (item.unidad === 'mixto' ? 'mixto' : 'uds');
+    let minTxt = (item.unidad === 'gramos') ? `${item.minimo}g` : `${item.minimo}uds`;
 
     html += `
       <tr>
         <td class="text-center">
           <input type="text" class="form-control form-control-sm text-center fw-bold text-primary input-codigo-plu-item num-legible" 
                  data-nombre="${safeName}" 
-                 data-cat="${item.categoria}" 
+                 data-cat="${safeCat}" 
                  value="${item.codigoPLU}" 
-                 placeholder="Sin código" style="max-width: 120px; margin: 0 auto;">
+                 placeholder="Sin código" style="max-width: 100px; margin: 0 auto;">
         </td>
-        <td class="fw-bold text-dark">${item.nombre}</td>
-        <td class="small text-muted">${item.categoria}</td>
         <td class="text-center">
-          <select class="form-select form-select-sm fw-bold select-disp-item" data-nombre="${safeName}" style="max-width: 140px; margin: 0 auto;">
+          <img src="${item.imgPath}" class="img-thumb-config" alt="${safeName}">
+        </td>
+        <td class="fw-bold text-dark text-wrap">${item.nombre}</td>
+        <td class="small text-muted">${item.categoria}</td>
+        <td class="text-center"><span class="badge bg-light text-dark border">${unidadTxt}</span></td>
+        <td class="text-center small num-legible">${minTxt}</td>
+        <td class="text-center">
+          <select class="form-select form-select-sm fw-bold select-disp-item" data-nombre="${safeName}" style="max-width: 130px; margin: 0 auto;">
             <option value="true" ${item.disponible ? 'selected' : ''}>✅ Disponible</option>
             <option value="false" ${!item.disponible ? 'selected' : ''}>🚫 Agotado</option>
           </select>
         </td>
-        <td class="text-center"><span class="badge bg-light text-dark border">${unidadTxt}</span></td>
         <td class="text-center">
           <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-center fw-bold text-success input-precio-item num-legible" 
                  data-nombre="${safeName}" 
-                 data-cat="${item.categoria}" 
-                 value="${item.precio.toFixed(2)}" style="max-width: 110px; margin: 0 auto;">
+                 data-cat="${safeCat}" 
+                 value="${item.precio.toFixed(2)}" style="max-width: 100px; margin: 0 auto;">
+        </td>
+        <td class="text-center">
+          <button type="button" class="btn btn-sm btn-outline-dark fw-bold rounded-pill px-2" onclick="abrirModalEditarProductoPOS('${safeName}', '${safeCat}')" title="Configurar nombre, imagen, orden y mínimos">
+            ⚙️ Editar
+          </button>
         </td>
       </tr>`;
   });
@@ -2318,16 +2339,330 @@ function filtrarTablaCodigos(query) {
   renderizarTablaGestionCodigos(filtrados);
 }
 
-function guardarTodosLosCodigosPLU() {
-  const input = document.getElementById('inputTokenQR');
-  if (input) input.value = "";
-  
-  document.getElementById('errorModalTokenQR').classList.add('hidden');
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).show();
+// Alternar campos de peso promedio para modo mixto
+function alternarCampoPesoPromedioPOS(val, modo) {
+  const cont = document.getElementById(modo === 'edit' ? 'contenedorPosEditPesoPromedio' : 'contenedorPosAddPesoPromedio');
+  if (cont) {
+    if (val === 'mixto') cont.classList.remove('hidden');
+    else cont.classList.add('hidden');
+  }
+}
+window.alternarCampoPesoPromedioPOS = alternarCampoPesoPromedioPOS;
 
-  setTimeout(() => {
-    if (input) input.focus();
-  }, 400);
+// Lector y validador de imágenes WebP (< 120 KB)
+function validarYLeerArchivoWebPFac(fileElement) {
+  return new Promise((resolve, reject) => {
+    const file = fileElement.files[0];
+    if (!file) {
+      resolve(null);
+      return;
+    }
+
+    const esWebP = file.type === "image/webp" || file.name.toLowerCase().endsWith(".webp");
+    if (!esWebP) {
+      reject("La imagen debe estar en formato .webp obligatoriamente.");
+      return;
+    }
+
+    const limitePeso = 120 * 1024;
+    if (file.size > limitePeso) {
+      reject("La imagen debe pesar menos de 120 KB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64 = e.target.result.split(",")[1];
+      const safeName = file.name.replace(/\s+/g, "_").toLowerCase();
+      resolve({ base64: base64, name: safeName });
+    };
+    reader.onerror = function() {
+      reject("Error al leer el archivo físico de imagen.");
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Abrir modal de edición profunda individual de producto
+function abrirModalEditarProductoPOS(nom, cat) {
+  let catObj = cacheCategoriasFactura.find(c => c.nombre === cat);
+  if (!catObj) return;
+
+  let prod = catObj.productos.find(p => p[0] === nom);
+  if (!prod) return;
+
+  productoTemporalPOS = {
+    nombreOriginal: nom,
+    categoriaOriginal: cat
+  };
+
+  document.getElementById('posEditProdNombre').value = nom;
+  
+  // Poblar selector de categorías
+  const catSelect = document.getElementById('posEditProdCategoria');
+  catSelect.innerHTML = cacheCategoriasFactura.map(c => `
+    <option value="${c.nombre}" ${c.nombre === cat ? 'selected' : ''}>${c.nombre}</option>
+  `).join('');
+
+  document.getElementById('posEditProdPrecio').value = prod[1];
+  document.getElementById('posEditProdDisponible').value = prod[3] ? "true" : "false";
+  
+  const selUnidad = document.getElementById('posEditProdUnidad');
+  selUnidad.value = prod[5] || "unidades";
+
+  const inputPesoProm = document.getElementById('posEditProdPesoPromedio');
+  inputPesoProm.value = prod[6] || "";
+  alternarCampoPesoPromedioPOS(prod[5] || "unidades", 'edit');
+
+  document.getElementById('posEditProdCodigo').value = prod[7] || "";
+  document.getElementById('posEditProdArchivoImagen').value = "";
+  
+  const index = catObj.productos.findIndex(p => p[0] === nom);
+  const posicionActual = index + 1;
+  const totalProductos = catObj.productos.length;
+
+  const posInput = document.getElementById('posEditProdPosicion');
+  posInput.value = posicionActual;
+  posInput.max = totalProductos;
+
+  document.getElementById('posEditProdMinimo').value = prod[4] || 1;
+  document.getElementById('posEditProdPosicionAyuda').textContent = 
+    `Posición actual: ${posicionActual} de ${totalProductos} productos en esta categoría.`;
+  
+  document.getElementById('errorModalEditarProdPOS').classList.add('hidden');
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarProductoPOS')).show();
+}
+
+// Guardar edición individual de producto
+async function guardarEdicionProductoIndividualPOS() {
+  const errorDiv = document.getElementById('errorModalEditarProdPOS');
+  const nuevoNombre = document.getElementById('posEditProdNombre').value.trim();
+  const nuevaCatNombre = document.getElementById('posEditProdCategoria').value;
+  const nuevoPrecio = parseFloat(document.getElementById('posEditProdPrecio').value);
+  const nuevoDisp = document.getElementById('posEditProdDisponible').value === "true";
+  const nuevaUnidad = document.getElementById('posEditProdUnidad').value;
+  const nuevoPesoProm = (nuevaUnidad === "mixto") ? parseInt(document.getElementById('posEditProdPesoPromedio').value) : 0;
+  const nuevoCodigo = document.getElementById('posEditProdCodigo').value.trim();
+  const nuevaPos = parseInt(document.getElementById('posEditProdPosicion').value);
+  const nuevoMin = parseInt(document.getElementById('posEditProdMinimo').value);
+
+  if (!nuevoNombre || isNaN(nuevoPrecio) || nuevoPrecio <= 0 || isNaN(nuevoMin) || nuevoMin <= 0 || isNaN(nuevaPos) || (nuevaUnidad === "mixto" && (!nuevoPesoProm || nuevoPesoProm <= 0))) {
+    errorDiv.textContent = "Por favor, complete todos los campos obligatorios de forma válida.";
+    errorDiv.classList.remove('hidden');
+    return;
+  }
+
+  const token = sessionStorage.getItem("github_token");
+  if (!token) {
+    accionPendienteGitHub = "guardarEdicionIndividual";
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).show();
+    return;
+  }
+
+  const btn = document.getElementById('btnGuardarProdPOS');
+  btn.disabled = true;
+  btn.textContent = "Sincronizando...";
+
+  try {
+    const imgData = await validarYLeerArchivoWebPFac(document.getElementById('posEditProdArchivoImagen'));
+    let relativeImgPath = null;
+
+    if (imgData) {
+      const filePath = `img/${imgData.name}`;
+      await subirArchivoAGitHubFactura(filePath, imgData.base64, `Actualización imagen producto: ${imgData.name}`);
+      relativeImgPath = filePath;
+    }
+
+    const catOrigen = cacheCategoriasFactura.find(c => c.nombre === productoTemporalPOS.categoriaOriginal);
+    if (!catOrigen) throw new Error("Categoría original no encontrada.");
+
+    const oldIndex = catOrigen.productos.findIndex(p => p[0] === productoTemporalPOS.nombreOriginal);
+    if (oldIndex === -1) throw new Error("Producto no encontrado en la categoría.");
+
+    let prod = catOrigen.productos[oldIndex];
+    prod[0] = nuevoNombre;
+    prod[1] = nuevoPrecio;
+    prod[3] = nuevoDisp;
+    prod[4] = nuevoMin;
+    prod[5] = nuevaUnidad;
+    prod[6] = nuevoPesoProm;
+    prod[7] = nuevoCodigo;
+    if (relativeImgPath) {
+      prod[2] = relativeImgPath;
+    }
+
+    // Manejo de cambio de categoría o cambio de posición
+    if (productoTemporalPOS.categoriaOriginal !== nuevaCatNombre) {
+      catOrigen.productos.splice(oldIndex, 1);
+      const catDestino = cacheCategoriasFactura.find(c => c.nombre === nuevaCatNombre);
+      if (catDestino) catDestino.productos.push(prod);
+    } else {
+      let targetIndex = nuevaPos - 1;
+      if (targetIndex < 0) targetIndex = 0;
+      if (targetIndex >= catOrigen.productos.length) targetIndex = catOrigen.productos.length - 1;
+      
+      if (oldIndex !== targetIndex) {
+        catOrigen.productos.splice(oldIndex, 1);
+        catOrigen.productos.splice(targetIndex, 0, prod);
+      }
+    }
+
+    const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
+    const base64Content = btoa(unescape(encodeURIComponent(contentString)));
+
+    await subirArchivoAGitHubFactura("catalog.json", base64Content, `Configuración avanzada de producto: ${nuevoNombre}`);
+
+    btn.disabled = false;
+    btn.textContent = "💾 Guardar Cambios";
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarProductoPOS')).hide();
+    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+    prepararListaProductosCodigos();
+
+    mostrarAvisoFactura(`🎉 Producto "${nuevoNombre}" guardado y sincronizado con éxito.`);
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "💾 Guardar Cambios";
+    errorDiv.textContent = "Error: " + err.message;
+    errorDiv.classList.remove('hidden');
+  }
+}
+
+// Eliminar producto desde el modal individual
+async function eliminarProductoDesdePOS() {
+  if (!productoTemporalPOS) return;
+  const nom = productoTemporalPOS.nombreOriginal;
+
+  if (!confirm(`⚠️ ¿Está seguro que desea eliminar permanentemente el producto "${nom}" de la tienda y de la balanza?`)) {
+    return;
+  }
+
+  const token = sessionStorage.getItem("github_token");
+  if (!token) {
+    accionPendienteGitHub = "eliminarProducto";
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).show();
+    return;
+  }
+
+  try {
+    let cat = cacheCategoriasFactura.find(c => c.nombre === productoTemporalPOS.categoriaOriginal);
+    if (cat) {
+      cat.productos = cat.productos.filter(p => p[0] !== nom);
+    }
+
+    const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
+    const base64Content = btoa(unescape(encodeURIComponent(contentString)));
+
+    await subirArchivoAGitHubFactura("catalog.json", base64Content, `Eliminación de producto desde POS: ${nom}`);
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarProductoPOS')).hide();
+    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+    prepararListaProductosCodigos();
+
+    mostrarAvisoFactura(`🗑️ Producto "${nom}" eliminado correctamente.`);
+
+  } catch (err) {
+    alert("Error al eliminar: " + err.message);
+  }
+}
+
+// Abrir modal de creación de nuevo producto
+function abrirModalCrearProductoPOS() {
+  const catSelect = document.getElementById('posAddProdCatSelect');
+  catSelect.innerHTML = cacheCategoriasFactura.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('');
+
+  document.getElementById('posAddProdNombre').value = "";
+  document.getElementById('posAddProdPrecio').value = "";
+  document.getElementById('posAddProdCodigo').value = "";
+  document.getElementById('posAddProdUnidad').value = "gramos";
+  document.getElementById('posAddProdPesoPromedio').value = "";
+  document.getElementById('posAddProdMinimo').value = "250";
+  document.getElementById('posAddProdArchivoImagen').value = "";
+  document.getElementById('contenedorPosAddPesoPromedio').classList.add('hidden');
+  document.getElementById('errorModalCrearProdPOS').classList.add('hidden');
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCrearProductoPOS')).show();
+}
+
+// Ejecutar creación de nuevo producto
+async function ejecutarCrearNuevoProductoPOS() {
+  const errorDiv = document.getElementById('errorModalCrearProdPOS');
+  const catNombre = document.getElementById('posAddProdCatSelect').value;
+  const prodNombre = document.getElementById('posAddProdNombre').value.trim().toUpperCase();
+  const prodPrecio = parseFloat(document.getElementById('posAddProdPrecio').value);
+  const prodCodigo = document.getElementById('posAddProdCodigo').value.trim();
+  const prodUnidad = document.getElementById('posAddProdUnidad').value;
+  const prodPesoProm = (prodUnidad === "mixto") ? parseInt(document.getElementById('posAddProdPesoPromedio').value) : 0;
+  const prodMin = parseInt(document.getElementById('posAddProdMinimo').value) || 1;
+  const fileInput = document.getElementById('posAddProdArchivoImagen');
+
+  if (!catNombre || !prodNombre || isNaN(prodPrecio) || prodPrecio <= 0 || !fileInput.files.length) {
+    errorDiv.textContent = "Por favor, complete todos los campos obligatorios e incluya la imagen WebP.";
+    errorDiv.classList.remove('hidden');
+    return;
+  }
+
+  const token = sessionStorage.getItem("github_token");
+  if (!token) {
+    accionPendienteGitHub = "crearNuevoProducto";
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).show();
+    return;
+  }
+
+  const btn = document.getElementById('btnCrearProdPOS');
+  btn.disabled = true;
+  btn.textContent = "Creando...";
+
+  try {
+    const imgData = await validarYLeerArchivoWebPFac(fileInput);
+    if (!imgData) throw new Error("Debe seleccionar una imagen en formato .webp menor a 120 KB.");
+
+    const relativePath = `img/${imgData.name}`;
+    await subirArchivoAGitHubFactura(relativePath, imgData.base64, `Creación producto POS con imagen: ${imgData.name}`);
+
+    let cat = cacheCategoriasFactura.find(c => c.nombre === catNombre);
+    if (cat) {
+      cat.productos.push([prodNombre, prodPrecio, relativePath, true, prodMin, prodUnidad, prodPesoProm, prodCodigo]);
+    }
+
+    const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
+    const base64Content = btoa(unescape(encodeURIComponent(contentString)));
+
+    await subirArchivoAGitHubFactura("catalog.json", base64Content, `Nuevo producto anexado desde POS: ${prodNombre}`);
+
+    btn.disabled = false;
+    btn.textContent = "➕ Crear y Guardar Producto";
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCrearProductoPOS')).hide();
+    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+    prepararListaProductosCodigos();
+
+    mostrarAvisoFactura(`🎉 Producto "${prodNombre}" creado y publicado con éxito.`);
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "➕ Crear y Guardar Producto";
+    errorDiv.textContent = "Error: " + err.message;
+    errorDiv.classList.remove('hidden');
+  }
+}
+
+// Guardado masivo rápido de códigos PLU, precios y disponibilidad de la tabla
+function guardarTodosLosCodigosPLU() {
+  const token = sessionStorage.getItem("github_token");
+  if (!token) {
+    accionPendienteGitHub = "guardarCodigosMasivo";
+    const input = document.getElementById('inputTokenQR');
+    if (input) input.value = "";
+    document.getElementById('errorModalTokenQR').classList.add('hidden');
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).show();
+    setTimeout(() => { if (input) input.focus(); }, 400);
+    return;
+  }
+
+  procesarSincronizacionGitHub();
 }
 
 async function ejecutarGuardadoConTokenQR() {
@@ -2347,7 +2682,18 @@ async function ejecutarGuardadoConTokenQR() {
   input.value = "";
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).hide();
-  procesarSincronizacionGitHub();
+
+  if (accionPendienteGitHub === "guardarEdicionIndividual") {
+    guardarEdicionProductoIndividualPOS();
+  } else if (accionPendienteGitHub === "eliminarProducto") {
+    eliminarProductoDesdePOS();
+  } else if (accionPendienteGitHub === "crearNuevoProducto") {
+    ejecutarCrearNuevoProductoPOS();
+  } else {
+    procesarSincronizacionGitHub();
+  }
+
+  accionPendienteGitHub = null;
 }
 
 async function procesarSincronizacionGitHub() {
@@ -2404,7 +2750,7 @@ async function procesarSincronizacionGitHub() {
     const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
     const base64Content = btoa(unescape(encodeURIComponent(contentString)));
 
-    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización de precios, códigos PLU y disponibilidad desde Módulo de Facturación");
+    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización rápida de precios, códigos PLU y disponibilidad desde Módulo de Facturación");
 
     if (btn) {
       btn.disabled = false;
