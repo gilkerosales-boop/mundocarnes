@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Correlativo Global en 'ventas', Doble Guardado y Tablas por Usuario
+   Ventas y Cierres por Usuario (Tablas mayka, gilker, admin) y Correlativo Global
    ========================================================================== */
 
 // Configuración de Supabase
@@ -41,21 +41,19 @@ let sincronizandoEnProceso = false;
 let productoTemporalPOS = null;
 let accionPendienteGitHub = null;
 
-// Normalizar nombres de usuario para evitar discrepancias (ej. mayka -> maika)
+// Normalizar nombres de usuario para coincidir con las tablas en Supabase (mayka, gilker, admin)
 function normalizarUsuario(u) {
   let user = (u || sessionStorage.getItem("factura_usuario") || "admin").toLowerCase().trim();
-  if (user === "mayka" || user === "maika") return "maika";
-  if (user === "gilker") return "gilker";
-  if (user === "admin") return "admin";
+  if (user === "maika") return "mayka";
   return user;
 }
 
-// Determinar el nombre de la tabla de VENTAS personal según el usuario activo
+// Determinar el nombre de la tabla de VENTAS personal según el usuario activo (ventas_mayka, etc.)
 function obtenerTablaVentasUsuario(u) {
   return `ventas_${normalizarUsuario(u)}`;
 }
 
-// Determinar el nombre de la tabla de CIERRES personal según el usuario activo
+// Determinar el nombre de la tabla de CIERRES personal según el usuario activo (cierres_mayka, etc.)
 function obtenerTablaCierresUsuario(u) {
   return `cierres_${normalizarUsuario(u)}`;
 }
@@ -277,7 +275,7 @@ async function procesarColaSincronizacion() {
         // 1. Guardar primero en la tabla general central 'ventas'
         await supabaseClient.from('ventas').insert([registroVenta]);
 
-        // 2. Guardar luego en la tabla personal del usuario ('ventas_maika', 'ventas_gilker', etc.)
+        // 2. Guardar luego en la tabla personal del usuario ('ventas_mayka', 'ventas_gilker', etc.)
         if (tablaPersonal && tablaPersonal !== 'ventas') {
           await supabaseClient.from(tablaPersonal).insert([registroVenta]);
         }
@@ -318,13 +316,12 @@ async function procesarColaSincronizacion() {
         // 1. Guardar en la tabla general central 'cierres'
         await supabaseClient.from('cierres').insert([registroCierre]);
 
-        // 2. Guardar en la tabla personal del usuario
+        // 2. Guardar en la tabla personal del usuario ('cierres_mayka', etc.)
         if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
           await supabaseClient.from(tablaCierresPersonal).insert([registroCierre]);
         }
 
       } else if (payload.action === "eliminarFactura") {
-        // Eliminar de la tabla general 'ventas' y de la tabla personal
         await ejecutarEliminarVentaSupabase(payload.numFactura, 'ventas');
         if (payload.tablaVentas && payload.tablaVentas !== 'ventas') {
           await ejecutarEliminarVentaSupabase(payload.numFactura, payload.tablaVentas);
@@ -333,7 +330,6 @@ async function procesarColaSincronizacion() {
       } else if (payload.action === "eliminarCierreCaja") {
         const tablaCierresPersonal = payload.tablaCierres || obtenerTablaCierresUsuario(payload.usuario);
         
-        // Eliminar de la tabla general y personal
         if (payload.id) {
           await supabaseClient.from('cierres').delete().eq('id', payload.id);
           await supabaseClient.from(tablaCierresPersonal).delete().eq('id', payload.id);
