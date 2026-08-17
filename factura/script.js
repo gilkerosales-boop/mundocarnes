@@ -1,7 +1,7 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Historial y Cierres Aislados por Usuario, Correlativo Global, Doble Guardado
-   y Modal de Bienvenida con Apertura de Caja por Jornada
+   Historial y Cierres Aislados por Usuario, Correlativo Global, Doble Guardado,
+   Eliminación Sincronizada y Modal de Bienvenida con Apertura por Jornada
    ========================================================================== */
 
 // Configuración de Supabase
@@ -234,7 +234,7 @@ async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
 }
 
 // ==========================================================================
-// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO (GLOBAL 'ventas' + PERSONAL)
+// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO (GLOBAL + PERSONAL)
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
   const badge = document.getElementById('badgeEstadoSync');
@@ -382,13 +382,21 @@ async function procesarColaSincronizacion() {
 
       } else if (payload.action === "eliminarCierreCaja") {
         const tablaCierresPersonal = payload.tablaCierres || obtenerTablaCierresUsuario(payload.usuario);
-        
-        if (payload.id) {
+        const fStr = payload.fechaStr;
+
+        if (fStr) {
+          // 1. Eliminar de la tabla global 'cierres' por FECHA exacta
+          await supabaseClient.from('cierres').delete().eq('FECHA', fStr);
+
+          // 2. Eliminar de la tabla personal del usuario ('cierres_gilker', etc.) por FECHA exacta
+          if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
+            await supabaseClient.from(tablaCierresPersonal).delete().eq('FECHA', fStr);
+          }
+        } else if (payload.id) {
           await supabaseClient.from('cierres').delete().eq('id', payload.id);
-          await supabaseClient.from(tablaCierresPersonal).delete().eq('id', payload.id);
-        } else if (payload.fechaStr) {
-          await supabaseClient.from('cierres').delete().eq('FECHA', payload.fechaStr);
-          await supabaseClient.from(tablaCierresPersonal).delete().eq('FECHA', payload.fechaStr);
+          if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
+            await supabaseClient.from(tablaCierresPersonal).delete().eq('id', payload.id);
+          }
         }
       }
 
@@ -3654,6 +3662,7 @@ function reimprimirCierreCajaHistorial(idx) {
   mostrarAvisoFactura(`🖨️ Reimprimiendo Reporte Z del ${c.fechaStr}...`);
 }
 
+// ELIMINACIÓN SINCRONIZADA DE CIERRE DE CAJA EN AMBAS TABLAS (POR FECHA EXACTA)
 async function eliminarCierreCajaHistorial(idx) {
   const c = cacheHistorialCierres[idx];
   if (!c) return;
@@ -3663,21 +3672,32 @@ async function eliminarCierreCajaHistorial(idx) {
   }
 
   const idCierre = c.id;
-  const tablaCierres = obtenerTablaCierresUsuario(c.usuario);
+  const fechaCierre = c.fechaStr;
+  const usuarioCierre = c.usuario;
+  const tablaCierres = obtenerTablaCierresUsuario(usuarioCierre);
+
   cacheHistorialCierres.splice(idx, 1);
   renderizarTablaHistorialCierres();
 
+  // 1. Borrar de IndexedDB local
   if (idCierre) {
     await dbDelete("cierres", idCierre);
   }
+  const todosCierresLocales = await dbGetAll("cierres");
+  for (let cie of todosCierresLocales) {
+    if (cie.fechaStr === fechaCierre) {
+      await dbDelete("cierres", cie.id);
+    }
+  }
 
+  // 2. Encolar para eliminar en Supabase tanto en 'cierres' como en 'cierres_[user]' por FECHA
   await dbPut("syncQueue", {
     id: "sync_del_cie_" + Date.now(),
     payload: {
       action: "eliminarCierreCaja",
       id: idCierre,
-      fechaStr: c.fechaStr,
-      usuario: c.usuario,
+      fechaStr: fechaCierre,
+      usuario: usuarioCierre,
       tablaCierres: tablaCierres
     }
   });
