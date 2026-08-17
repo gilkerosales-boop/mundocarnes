@@ -1,6 +1,6 @@
 /* ==========================================================================
    Estilos Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Diseño Anti-Fatiga Visual, Barra BCV Sticky Top, Enmascaramiento Seguro y Alto Contraste
+   Diseño Anti-Fatiga Visual, Pestañas de Historial Unificadas y Números Nítidos
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@500;700;800&display=swap');
@@ -148,7 +148,7 @@ body {
 }
 
 /* ==========================================================================
-   PESTAÑAS DE CATEGORÍA
+   PESTAÑAS DE CATEGORÍA DEL CATÁLOGO
    ========================================================================== */
 .nav-tabs {
   border-bottom: none;
@@ -186,6 +186,29 @@ body {
   background: linear-gradient(135deg, var(--pos-red) 0%, var(--pos-red-dark) 100%) !important;
   border-color: transparent !important;
   box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+/* Pestañas internas de modales (Pills de Historial Facturas / Cierres) */
+.nav-pills-historial .nav-link {
+  font-weight: 700;
+  font-size: 0.9rem;
+  border-radius: var(--pos-radius-pill);
+  padding: 8px 22px;
+  color: #475569;
+  background-color: #e2e8f0;
+  border: 1px solid var(--pos-card-border);
+  transition: all 0.2s ease;
+}
+
+.nav-pills-historial .nav-link:hover {
+  background-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.nav-pills-historial .nav-link.active {
+  background-color: var(--pos-dark) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
 }
 
 /* ==========================================================================
@@ -347,7 +370,7 @@ body {
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
 }
 
-/* Enmascaramiento Seguro por CSS Puro (Evita errores de autofill) */
+/* Enmascaramiento Seguro por CSS Puro */
 .input-tasa-masked {
   -webkit-text-security: disc !important;
   text-security: disc !important;
