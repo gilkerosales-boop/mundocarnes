@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Ventas/Cierres por Usuario, Gestión Completa de Productos/PLU y Creación de Ítems
+   Correlativo Global en 'ventas', Doble Guardado y Tablas por Usuario
    ========================================================================== */
 
 // Configuración de Supabase
@@ -38,19 +38,26 @@ let listaFlatProductosCodigos = [];
 let listaMovimientosEfectivo = [];
 let cacheHistorialCierres = [];
 let sincronizandoEnProceso = false;
-let productoTemporalPOS = null; // Para edición individual profunda de producto
-let accionPendienteGitHub = null; // Para reanudar guardados tras escanear token
+let productoTemporalPOS = null;
+let accionPendienteGitHub = null;
+
+// Normalizar nombres de usuario para evitar discrepancias (ej. mayka -> maika)
+function normalizarUsuario(u) {
+  let user = (u || sessionStorage.getItem("factura_usuario") || "admin").toLowerCase().trim();
+  if (user === "mayka" || user === "maika") return "maika";
+  if (user === "gilker") return "gilker";
+  if (user === "admin") return "admin";
+  return user;
+}
 
 // Determinar el nombre de la tabla de VENTAS personal según el usuario activo
 function obtenerTablaVentasUsuario(u) {
-  const user = (u || sessionStorage.getItem("factura_usuario") || "admin").toLowerCase().trim();
-  return `ventas_${user}`;
+  return `ventas_${normalizarUsuario(u)}`;
 }
 
 // Determinar el nombre de la tabla de CIERRES personal según el usuario activo
 function obtenerTablaCierresUsuario(u) {
-  const user = (u || sessionStorage.getItem("factura_usuario") || "admin").toLowerCase().trim();
-  return `cierres_${user}`;
+  return `cierres_${normalizarUsuario(u)}`;
 }
 
 // ==========================================================================
@@ -146,7 +153,7 @@ async function dbDelete(storeName, key) {
 }
 
 // ==========================================================================
-// CONSULTA PAGINADA DE VENTAS SUPABASE EN LA TABLA DEL USUARIO ACTIVO
+// CONSULTA PAGINADA DE VENTAS SUPABASE
 // ==========================================================================
 async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
   const tabla = tablaPersonalizada || obtenerTablaVentasUsuario();
@@ -173,7 +180,6 @@ async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
         }
       }
     } catch (e) {
-      console.warn(`Aviso paginación en tabla ${tabla}:`, e);
       continuar = false;
     }
   }
@@ -182,7 +188,7 @@ async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
 }
 
 // ==========================================================================
-// MOTOR DE SINCRONIZACIÓN
+// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO EN SUPABASE
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
   const badge = document.getElementById('badgeEstadoSync');
@@ -246,9 +252,9 @@ async function procesarColaSincronizacion() {
       if (payload.action === "guardarFacturaFinal") {
         const d = payload.datosFactura;
         const desgl = d.desglosePagos || {};
-        const tablaDestino = d.tablaVentas || obtenerTablaVentasUsuario(d.usuario);
+        const tablaPersonal = d.tablaVentas || obtenerTablaVentasUsuario(d.usuario);
 
-        await supabaseClient.from(tablaDestino).insert([{
+        const registroVenta = {
           "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
           "FACTURA N°": d.numFactura,
           "CEDULA O RIF": d.cedula,
@@ -266,7 +272,15 @@ async function procesarColaSincronizacion() {
           "PUNTO DE VENTA": parseFloat(desgl["Punto de Venta"]) || 0,
           "TRANSFERENCIA": parseFloat(desgl["Transferencia Bancaria"]) || 0,
           "BIOPAGO": parseFloat(desgl["Biopago"]) || 0
-        }]);
+        };
+
+        // 1. Guardar primero en la tabla general central 'ventas'
+        await supabaseClient.from('ventas').insert([registroVenta]);
+
+        // 2. Guardar luego en la tabla personal del usuario ('ventas_maika', 'ventas_gilker', etc.)
+        if (tablaPersonal && tablaPersonal !== 'ventas') {
+          await supabaseClient.from(tablaPersonal).insert([registroVenta]);
+        }
 
       } else if (payload.action === "registrarClienteFactura") {
         await supabaseClient.from('clientes').upsert({
@@ -279,9 +293,9 @@ async function procesarColaSincronizacion() {
       } else if (payload.action === "guardarCierreCaja") {
         const d = payload.datosCierre;
         const r = d.resumen || {};
-        const tablaCierres = d.tablaCierres || obtenerTablaCierresUsuario(d.usuario);
+        const tablaCierresPersonal = d.tablaCierres || obtenerTablaCierresUsuario(d.usuario);
 
-        await supabaseClient.from(tablaCierres).insert([{
+        const registroCierre = {
           "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
           "USUARIO": d.usuario,
           "INICIAL $": parseFloat(d.inicialUSD) || 0,
@@ -299,17 +313,33 @@ async function procesarColaSincronizacion() {
           "TOTAL 2": parseFloat(r.totalGeneralVentasBS) || 0,
           "TOTAL 3": parseFloat(d.totalCajaUSD) || 0,
           "TOTAL 4": parseFloat(d.totalCajaBS) || 0
-        }]);
+        };
+
+        // 1. Guardar en la tabla general central 'cierres'
+        await supabaseClient.from('cierres').insert([registroCierre]);
+
+        // 2. Guardar en la tabla personal del usuario
+        if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
+          await supabaseClient.from(tablaCierresPersonal).insert([registroCierre]);
+        }
 
       } else if (payload.action === "eliminarFactura") {
-        await ejecutarEliminarVentaSupabase(payload.numFactura, payload.tablaVentas);
+        // Eliminar de la tabla general 'ventas' y de la tabla personal
+        await ejecutarEliminarVentaSupabase(payload.numFactura, 'ventas');
+        if (payload.tablaVentas && payload.tablaVentas !== 'ventas') {
+          await ejecutarEliminarVentaSupabase(payload.numFactura, payload.tablaVentas);
+        }
 
       } else if (payload.action === "eliminarCierreCaja") {
-        const tablaCierres = payload.tablaCierres || obtenerTablaCierresUsuario(payload.usuario);
+        const tablaCierresPersonal = payload.tablaCierres || obtenerTablaCierresUsuario(payload.usuario);
+        
+        // Eliminar de la tabla general y personal
         if (payload.id) {
-          await supabaseClient.from(tablaCierres).delete().eq('id', payload.id);
+          await supabaseClient.from('cierres').delete().eq('id', payload.id);
+          await supabaseClient.from(tablaCierresPersonal).delete().eq('id', payload.id);
         } else if (payload.fechaStr) {
-          await supabaseClient.from(tablaCierres).delete().eq('FECHA', payload.fechaStr);
+          await supabaseClient.from('cierres').delete().eq('FECHA', payload.fechaStr);
+          await supabaseClient.from(tablaCierresPersonal).delete().eq('FECHA', payload.fechaStr);
         }
       }
 
@@ -385,11 +415,6 @@ async function forzarSincronizacionManual() {
           montoTotalUSD: parseFloat(v["MONTO TOTAL"]) || 0
         });
       }
-
-      let maxNum = parseInt(String(ventasOrdenadas[0]["FACTURA N°"] || "").replace(/\D/g, ''), 10) || 0;
-      if (maxNum > 0) {
-        await dbPut("config", { key: "ultimoCorrelativo", value: maxNum });
-      }
     }
   } catch (e) {}
 
@@ -452,10 +477,11 @@ async function sincronizarClientesDesdeServidor() {
   } catch (e) {}
 }
 
-// CORRELATIVO LOCAL
+// CORRELATIVO GLOBAL: Consulta la tabla maestra 'ventas' en Supabase para obtener el máximo correlativo absoluto
 async function obtenerSiguienteCorrelativoLocal() {
   let ultimoNum = 0;
 
+  // 1. Revisar ventas locales en IndexedDB
   const ventasLocales = await dbGetAll("ventas");
   ventasLocales.forEach(v => {
     if (v.numFactura) {
@@ -467,11 +493,17 @@ async function obtenerSiguienteCorrelativoLocal() {
     }
   });
 
+  // 2. Consultar siempre la tabla maestra global 'ventas' en Supabase
   if (navigator.onLine) {
     try {
-      const ventasSup = await obtenerTodasLasVentasSupabase(obtenerTablaVentasUsuario());
-      if (ventasSup && ventasSup.length > 0) {
-        ventasSup.forEach(v => {
+      const { data: ultimasVentas, error } = await supabaseClient
+        .from('ventas')
+        .select('"FACTURA N°"')
+        .order('id', { ascending: false })
+        .limit(20);
+
+      if (!error && ultimasVentas && ultimasVentas.length > 0) {
+        ultimasVentas.forEach(v => {
           let facStr = v["FACTURA N°"];
           if (facStr) {
             let match = String(facStr).match(/\d+$/);
@@ -482,7 +514,9 @@ async function obtenerSiguienteCorrelativoLocal() {
           }
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn("Aviso correlativo en ventas:", e);
+    }
   }
 
   let siguienteNum = ultimoNum + 1;
@@ -1128,7 +1162,6 @@ function renderizarResumenFactura() {
 
   document.getElementById('montoTotalFactura').textContent = `$${totalAcumulado.toFixed(2)}`;
 
-  // Cálculo en vivo en Bolívares
   const tasa = obtenerTasaBCV();
   const elemBs = document.getElementById('montoTotalFacturaBs');
   if (elemBs) {
@@ -1147,6 +1180,8 @@ function ejecutarFacturar() {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
   }
 
+  const usuarioActivo = sessionStorage.getItem("factura_usuario") || "admin";
+
   transaccionActiva = {
     id: "tx_" + Date.now(),
     horaPausa: new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }),
@@ -1154,7 +1189,7 @@ function ejecutarFacturar() {
     cliente: null,
     formaPago: "",
     tasaBCV: obtenerTasaBCV(),
-    usuario: sessionStorage.getItem("factura_usuario") || "admin"
+    usuario: usuarioActivo
   };
 
   itemsFactura = {};
@@ -1173,8 +1208,7 @@ function ejecutarFacturar() {
   const contMixto = document.getElementById('contenedorPagoMixto');
   if (contMixto) contMixto.classList.add('hidden');
 
-  const usuario = sessionStorage.getItem("factura_usuario") || "global";
-  const tasaGuardada = localStorage.getItem("tasa_bcv_user_" + usuario);
+  const tasaGuardada = localStorage.getItem("tasa_bcv_user_" + usuarioActivo);
   const inputTasa = document.getElementById('facTasaBCV');
   if (inputTasa) {
     inputTasa.value = tasaGuardada ? tasaGuardada : "";
@@ -1709,7 +1743,7 @@ function obtenerDetalleFormaPagoFinal() {
   return formaSelect;
 }
 
-// EMITIR FACTURA FINAL (Guarda en la tabla personal del usuario activo)
+// EMITIR FACTURA FINAL (Guarda en la tabla global 'ventas' y en la personal del usuario)
 async function emitirFacturaFinal() {
   if (!clienteFacturaActual) {
     return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
@@ -2339,7 +2373,6 @@ function filtrarTablaCodigos(query) {
   renderizarTablaGestionCodigos(filtrados);
 }
 
-// Alternar campos de peso promedio para modo mixto
 function alternarCampoPesoPromedioPOS(val, modo) {
   const cont = document.getElementById(modo === 'edit' ? 'contenedorPosEditPesoPromedio' : 'contenedorPosAddPesoPromedio');
   if (cont) {
@@ -2349,7 +2382,6 @@ function alternarCampoPesoPromedioPOS(val, modo) {
 }
 window.alternarCampoPesoPromedioPOS = alternarCampoPesoPromedioPOS;
 
-// Lector y validador de imágenes WebP (< 120 KB)
 function validarYLeerArchivoWebPFac(fileElement) {
   return new Promise((resolve, reject) => {
     const file = fileElement.files[0];
@@ -2383,7 +2415,6 @@ function validarYLeerArchivoWebPFac(fileElement) {
   });
 }
 
-// Abrir modal de edición profunda individual de producto
 function abrirModalEditarProductoPOS(nom, cat) {
   let catObj = cacheCategoriasFactura.find(c => c.nombre === cat);
   if (!catObj) return;
@@ -2398,7 +2429,6 @@ function abrirModalEditarProductoPOS(nom, cat) {
 
   document.getElementById('posEditProdNombre').value = nom;
   
-  // Poblar selector de categorías
   const catSelect = document.getElementById('posEditProdCategoria');
   catSelect.innerHTML = cacheCategoriasFactura.map(c => `
     <option value="${c.nombre}" ${c.nombre === cat ? 'selected' : ''}>${c.nombre}</option>
@@ -2434,7 +2464,6 @@ function abrirModalEditarProductoPOS(nom, cat) {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarProductoPOS')).show();
 }
 
-// Guardar edición individual de producto
 async function guardarEdicionProductoIndividualPOS() {
   const errorDiv = document.getElementById('errorModalEditarProdPOS');
   const nuevoNombre = document.getElementById('posEditProdNombre').value.trim();
@@ -2492,7 +2521,6 @@ async function guardarEdicionProductoIndividualPOS() {
       prod[2] = relativeImgPath;
     }
 
-    // Manejo de cambio de categoría o cambio de posición
     if (productoTemporalPOS.categoriaOriginal !== nuevaCatNombre) {
       catOrigen.productos.splice(oldIndex, 1);
       const catDestino = cacheCategoriasFactura.find(c => c.nombre === nuevaCatNombre);
@@ -2530,7 +2558,6 @@ async function guardarEdicionProductoIndividualPOS() {
   }
 }
 
-// Eliminar producto desde el modal individual
 async function eliminarProductoDesdePOS() {
   if (!productoTemporalPOS) return;
   const nom = productoTemporalPOS.nombreOriginal;
@@ -2568,7 +2595,6 @@ async function eliminarProductoDesdePOS() {
   }
 }
 
-// Abrir modal de creación de nuevo producto
 function abrirModalCrearProductoPOS() {
   const catSelect = document.getElementById('posAddProdCatSelect');
   catSelect.innerHTML = cacheCategoriasFactura.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('');
@@ -2586,7 +2612,6 @@ function abrirModalCrearProductoPOS() {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCrearProductoPOS')).show();
 }
 
-// Ejecutar creación de nuevo producto
 async function ejecutarCrearNuevoProductoPOS() {
   const errorDiv = document.getElementById('errorModalCrearProdPOS');
   const catNombre = document.getElementById('posAddProdCatSelect').value;
@@ -2649,7 +2674,6 @@ async function ejecutarCrearNuevoProductoPOS() {
   }
 }
 
-// Guardado masivo rápido de códigos PLU, precios y disponibilidad de la tabla
 function guardarTodosLosCodigosPLU() {
   const token = sessionStorage.getItem("github_token");
   if (!token) {
