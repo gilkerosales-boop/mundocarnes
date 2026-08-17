@@ -1,6 +1,6 @@
 /* ==========================================================================
    Estilos Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Diseño Anti-Fatiga Visual, Pestañas de Historial Unificadas y Números Nítidos
+   Diseño Anti-Fatiga Visual, Gestión Completa de Productos / PLU y Botón Nuevo
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@500;700;800&display=swap');
@@ -188,7 +188,7 @@ body {
   box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
 }
 
-/* Pestañas internas de modales (Pills de Historial Facturas / Cierres) */
+/* Pestañas de Historial */
 .nav-pills-historial .nav-link {
   font-weight: 700;
   font-size: 0.9rem;
@@ -533,6 +533,15 @@ body {
   object-fit: cover;
   border-radius: var(--pos-radius-sm);
   border: 1px solid var(--pos-card-border);
+}
+
+.img-thumb-config {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--pos-card-border);
+  background-color: #ffffff;
 }
 
 .hidden {
