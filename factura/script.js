@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Base de Datos PostgreSQL en Supabase, IndexedDB Offline-First y Números Nítidos
+   Ventas por Usuario en Supabase, Filtro Dinámico de Historial y Borrado de Cierres
    ========================================================================== */
 
 // Configuración de Supabase
@@ -39,6 +39,12 @@ let listaMovimientosEfectivo = [];
 let cacheHistorialCierres = [];
 let sincronizandoEnProceso = false;
 
+// Determinar el nombre de la tabla de ventas personal según el usuario activo
+function obtenerTablaVentasUsuario(u) {
+  const user = (u || sessionStorage.getItem("factura_usuario") || "admin").toLowerCase().trim();
+  return `ventas_${user}`;
+}
+
 // ==========================================================================
 // MOTOR DE BASE DE DATOS LOCAL INDEXEDDB (OFFLINE-FIRST A 0ms)
 // ==========================================================================
@@ -57,7 +63,7 @@ function abrirDB() {
         db.createObjectStore("movimientos", { autoIncrement: true });
       }
       if (!db.objectStoreNames.contains("cierres")) {
-        db.createObjectStore("cierres", { autoIncrement: true });
+        db.createObjectStore("cierres", { autoIncrement: true, keyPath: "id" });
       }
       if (!db.objectStoreNames.contains("syncQueue")) {
         db.createObjectStore("syncQueue", { autoIncrement: true, keyPath: "id" });
@@ -132,9 +138,10 @@ async function dbDelete(storeName, key) {
 }
 
 // ==========================================================================
-// CONSULTA PAGINADA DE VENTAS SUPABASE (>1000 REGISTROS)
+// CONSULTA PAGINADA DE VENTAS SUPABASE EN LA TABLA DEL USUARIO ACTIVO
 // ==========================================================================
-async function obtenerTodasLasVentasSupabase() {
+async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
+  const tabla = tablaPersonalizada || obtenerTablaVentasUsuario();
   let todas = [];
   let from = 0;
   const step = 1000;
@@ -143,7 +150,7 @@ async function obtenerTodasLasVentasSupabase() {
   while (continuar) {
     try {
       const { data, error } = await supabaseClient
-        .from('ventas')
+        .from(tabla)
         .select('*')
         .range(from, from + step - 1);
 
@@ -158,7 +165,7 @@ async function obtenerTodasLasVentasSupabase() {
         }
       }
     } catch (e) {
-      console.warn("Aviso paginación ventas:", e);
+      console.warn(`Aviso paginación en tabla ${tabla}:`, e);
       continuar = false;
     }
   }
@@ -188,9 +195,10 @@ async function actualizarEstadoSyncBadge() {
   }
 }
 
-async function ejecutarEliminarVentaSupabase(numFactura) {
+async function ejecutarEliminarVentaSupabase(numFactura, tablaPersonalizada) {
+  const tabla = tablaPersonalizada || obtenerTablaVentasUsuario();
   try {
-    const url = `${SUPABASE_URL}/rest/v1/ventas?%22FACTURA%20N%C2%B0%22=eq.${encodeURIComponent(numFactura)}`;
+    const url = `${SUPABASE_URL}/rest/v1/${tabla}?%22FACTURA%20N%C2%B0%22=eq.${encodeURIComponent(numFactura)}`;
     const res = await fetch(url, {
       method: "DELETE",
       headers: {
@@ -230,8 +238,9 @@ async function procesarColaSincronizacion() {
       if (payload.action === "guardarFacturaFinal") {
         const d = payload.datosFactura;
         const desgl = d.desglosePagos || {};
+        const tablaDestino = d.tablaVentas || obtenerTablaVentasUsuario(d.usuario);
 
-        await supabaseClient.from('ventas').insert([{
+        await supabaseClient.from(tablaDestino).insert([{
           "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
           "FACTURA N°": d.numFactura,
           "CEDULA O RIF": d.cedula,
@@ -284,7 +293,14 @@ async function procesarColaSincronizacion() {
         }]);
 
       } else if (payload.action === "eliminarFactura") {
-        await ejecutarEliminarVentaSupabase(payload.numFactura);
+        await ejecutarEliminarVentaSupabase(payload.numFactura, payload.tablaVentas);
+
+      } else if (payload.action === "eliminarCierreCaja") {
+        if (payload.id) {
+          await supabaseClient.from('cierres').delete().eq('id', payload.id);
+        } else if (payload.fechaStr) {
+          await supabaseClient.from('cierres').delete().eq('FECHA', payload.fechaStr);
+        }
       }
 
       await dbDelete("syncQueue", item.id);
@@ -332,10 +348,11 @@ async function forzarSincronizacionManual() {
     }
   } catch (e) {}
 
-  mostrarAvisoFactura("🔄 Paso 3/4: Sincronizando Ventas...", false);
+  const tablaUsuarioActivo = obtenerTablaVentasUsuario();
+  mostrarAvisoFactura(`🔄 Paso 3/4: Sincronizando Ventas (${tablaUsuarioActivo})...`, false);
   let cantVentas = 0;
   try {
-    const ventasSup = await obtenerTodasLasVentasSupabase();
+    const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
     if (ventasSup && ventasSup.length > 0) {
       cantVentas = ventasSup.length;
       const ventasOrdenadas = [...ventasSup].sort((a, b) => {
@@ -441,7 +458,7 @@ async function obtenerSiguienteCorrelativoLocal() {
 
   if (navigator.onLine) {
     try {
-      const ventasSup = await obtenerTodasLasVentasSupabase();
+      const ventasSup = await obtenerTodasLasVentasSupabase(obtenerTablaVentasUsuario());
       if (ventasSup && ventasSup.length > 0) {
         ventasSup.forEach(v => {
           let facStr = v["FACTURA N°"];
@@ -1125,7 +1142,8 @@ function ejecutarFacturar() {
     items: { ...itemsFactura },
     cliente: null,
     formaPago: "",
-    tasaBCV: obtenerTasaBCV()
+    tasaBCV: obtenerTasaBCV(),
+    usuario: sessionStorage.getItem("factura_usuario") || "admin"
   };
 
   itemsFactura = {};
@@ -1680,7 +1698,7 @@ function obtenerDetalleFormaPagoFinal() {
   return formaSelect;
 }
 
-// EMITIR FACTURA FINAL
+// EMITIR FACTURA FINAL (Guarda en la tabla personal del usuario activo)
 async function emitirFacturaFinal() {
   if (!clienteFacturaActual) {
     return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
@@ -1708,6 +1726,8 @@ async function emitirFacturaFinal() {
     }
 
     let totalBs = totalUSD * (tasa > 0 ? tasa : 1);
+    const usuarioActivo = sessionStorage.getItem("factura_usuario") || "admin";
+    const tablaPersonal = obtenerTablaVentasUsuario(usuarioActivo);
 
     datosFacturaPendiente = {
       numFactura: numFactura,
@@ -1719,7 +1739,9 @@ async function emitirFacturaFinal() {
       totalBs: totalBs,
       tasaBCV: tasa,
       monedaVistaModal: monedaVistaModal,
-      productosSummary: productosSummaryList.join(' | ')
+      productosSummary: productosSummaryList.join(' | '),
+      usuario: usuarioActivo,
+      tablaVentas: tablaPersonal
     };
 
     renderizarTicketTermicoHTML(datosFacturaPendiente);
@@ -1914,7 +1936,9 @@ async function confirmarEImprimirFactura() {
           productosSummary: datosFacturaPendiente.productosSummary,
           formaPago: datosFacturaPendiente.formaPagoStr,
           montoTotal: datosFacturaPendiente.totalUSD,
-          desglosePagos: datosFacturaPendiente.desglosePagos
+          desglosePagos: datosFacturaPendiente.desglosePagos,
+          usuario: datosFacturaPendiente.usuario,
+          tablaVentas: datosFacturaPendiente.tablaVentas
         }
       }
     });
@@ -2433,15 +2457,19 @@ async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
   return await response.json();
 }
 
-// HISTORIAL Y BÚSQUEDA DE FACTURAS
+// HISTORIAL Y BÚSQUEDA DE FACTURAS (CON MENÚ DESPLEGABLE 10, 20, 50)
 function abrirModalBuscarFacturas() {
   document.getElementById('facBusquedaInput').value = "";
-  buscarFacturasHistorial('ultimas10');
+  if (document.getElementById('facLimiteSelect')) {
+    document.getElementById('facLimiteSelect').value = "10";
+  }
+  buscarFacturasHistorial('ultimas');
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalBuscarFacturas')).show();
 }
 
 async function buscarFacturasHistorial(modo) {
   const inputVal = document.getElementById('facBusquedaInput').value.trim().toUpperCase();
+  const tablaUsuarioActivo = obtenerTablaVentasUsuario();
   
   if (modo === 'busqueda' && !inputVal) {
     return mostrarAvisoFactura("Ingrese Cédula, RIF o N° de Factura a buscar.");
@@ -2456,7 +2484,7 @@ async function buscarFacturasHistorial(modo) {
 
   if (navigator.onLine) {
     try {
-      const ventasSup = await obtenerTodasLasVentasSupabase();
+      const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
       if (ventasSup && ventasSup.length > 0) {
         ventasSup.forEach(v => {
           let numFac = v["FACTURA N°"];
@@ -2483,8 +2511,13 @@ async function buscarFacturasHistorial(modo) {
     return numB - numA;
   });
 
-  if (modo === 'ultimas10') {
-    cacheHistorialFacturas = todasLasFacturas.slice(0, 10);
+  // Filtro por límite seleccionado en el menú desplegable
+  const limiteSeleccionado = document.getElementById('facLimiteSelect') 
+    ? parseInt(document.getElementById('facLimiteSelect').value, 10) 
+    : 10;
+
+  if (modo === 'ultimas') {
+    cacheHistorialFacturas = todasLasFacturas.slice(0, limiteSeleccionado);
   } else if (inputVal) {
     cacheHistorialFacturas = todasLasFacturas.filter(f => {
       return (f.numFactura && String(f.numFactura).toUpperCase().includes(inputVal)) ||
@@ -2492,7 +2525,7 @@ async function buscarFacturasHistorial(modo) {
              (f.nombre && String(f.nombre).toUpperCase().includes(inputVal));
     }).slice(0, 200);
   } else {
-    cacheHistorialFacturas = todasLasFacturas.slice(0, 200);
+    cacheHistorialFacturas = todasLasFacturas.slice(0, limiteSeleccionado);
   }
 
   for (let f of cacheHistorialFacturas) {
@@ -2659,20 +2692,21 @@ async function eliminarFacturaHistorial(numFactura) {
     return;
   }
 
+  const tablaUsuarioActivo = obtenerTablaVentasUsuario();
   await dbDelete("ventas", numFactura);
   cacheHistorialFacturas = cacheHistorialFacturas.filter(f => f.numFactura !== numFactura);
   renderizarTablaHistorialFacturas();
 
   await dbPut("syncQueue", {
     id: "sync_del_fac_" + Date.now(),
-    payload: { action: "eliminarFactura", numFactura: numFactura }
+    payload: { action: "eliminarFactura", numFactura: numFactura, tablaVentas: tablaUsuarioActivo }
   });
 
   mostrarAvisoFactura(`🗑️ Factura ${numFactura} eliminada.`);
   procesarColaSincronizacion();
 }
 
-// DESCARGA DE EXCEL
+// DESCARGA DE EXCEL DE LA TABLA PERSONAL DEL USUARIO
 function abrirModalFiltroDescarga() {
   const inputFecha = document.getElementById('descargaFechaInput');
   const selectForma = document.getElementById('descargaFormaPagoSelect');
@@ -2693,6 +2727,7 @@ async function ejecutarDescargaExcelFacturas() {
   const formaPagoVal = document.getElementById('descargaFormaPagoSelect').value;
   const errorDiv = document.getElementById('errorModalDescarga');
   const btn = document.getElementById('btnProcesarDescargaExcel');
+  const tablaUsuarioActivo = obtenerTablaVentasUsuario();
 
   if (!fechaVal) {
     if (errorDiv) {
@@ -2712,7 +2747,7 @@ async function ejecutarDescargaExcelFacturas() {
     const patronFecha1 = `${dia}/${mes}/${ano}`;
     const patronFecha2 = `${parseInt(dia, 10)}/${parseInt(mes, 10)}/${ano}`;
 
-    const todosRegistros = await obtenerTodasLasVentasSupabase();
+    const todosRegistros = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
 
     btn.disabled = false;
     btn.textContent = "📊 Descargar Excel (.xlsx)";
@@ -2773,7 +2808,7 @@ async function ejecutarDescargaExcelFacturas() {
       }));
       worksheet['!cols'] = maxCols;
 
-      const nombreArchivo = `Reporte_Facturas_${fechaVal}_${formaPagoVal.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+      const nombreArchivo = `Reporte_${tablaUsuarioActivo}_${fechaVal}_${formaPagoVal.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
       XLSX.writeFile(workbook, nombreArchivo);
 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiltroDescarga')).hide();
@@ -2781,7 +2816,7 @@ async function ejecutarDescargaExcelFacturas() {
 
     } else {
       if (errorDiv) {
-        errorDiv.textContent = "No se encontraron registros de ventas para la fecha seleccionada.";
+        errorDiv.textContent = `No se encontraron registros en ${tablaUsuarioActivo} para la fecha seleccionada.`;
         errorDiv.classList.remove('hidden');
       }
     }
@@ -3062,11 +3097,7 @@ function abrirModalCierreCaja() {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso1')).show();
 }
 
-function abrirModalHistorialCierres() {
-  cargarHistorialCierresCaja();
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalHistorialCierres')).show();
-}
-
+// CARGA Y GESTIÓN DE HISTORIAL DE CIERRES CON BORRADO INDIVIDUAL
 async function cargarHistorialCierresCaja() {
   const tbody = document.getElementById('tablaHistorialCierresCaja');
   if (!tbody) return;
@@ -3145,8 +3176,11 @@ function renderizarTablaHistorialCierres() {
         <td class="text-center small num-legible">$${venUSD} / Bs.${venBS}</td>
         <td class="text-center fw-bold text-success num-legible">$${finUSD} / Bs.${finBS}</td>
         <td class="text-center">
-          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill" onclick="reimprimirCierreCajaHistorial(${idx})" title="Reimprimir Reporte Z">
-            🖨️ Reimprimir
+          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill me-1" onclick="reimprimirCierreCajaHistorial(${idx})" title="Reimprimir Reporte Z">
+            🖨️ Imprimir
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarCierreCajaHistorial(${idx})" title="Eliminar Registro de Cierre">
+            🗑️
           </button>
         </td>
       </tr>`;
@@ -3180,10 +3214,42 @@ function reimprimirCierreCajaHistorial(idx) {
   mostrarAvisoFactura(`🖨️ Reimprimiendo Reporte Z del ${c.fechaStr}...`);
 }
 
+// BORRADO INDIVIDUAL DE CIERRES DE CAJA
+async function eliminarCierreCajaHistorial(idx) {
+  const c = cacheHistorialCierres[idx];
+  if (!c) return;
+
+  if (!confirm(`⚠️ ¿Está seguro que desea eliminar este registro de Cierre de Caja (${c.fechaStr} - ${c.usuario})?`)) {
+    return;
+  }
+
+  const idCierre = c.id;
+  cacheHistorialCierres.splice(idx, 1);
+  renderizarTablaHistorialCierres();
+
+  if (idCierre) {
+    await dbDelete("cierres", idCierre);
+  }
+
+  await dbPut("syncQueue", {
+    id: "sync_del_cie_" + Date.now(),
+    payload: {
+      action: "eliminarCierreCaja",
+      id: idCierre,
+      fechaStr: c.fechaStr,
+      usuario: c.usuario
+    }
+  });
+
+  mostrarAvisoFactura("🗑️ Cierre de caja eliminado con éxito.");
+  procesarColaSincronizacion();
+}
+
 async function procesarSiguienteCierreCaja() {
   const inicialUSD = parseFloat(document.getElementById('cierreInicialUSD').value) || 0;
   const inicialBS = parseFloat(document.getElementById('cierreInicialBS').value) || 0;
   const btn = document.getElementById('btnSiguienteCierreCaja');
+  const tablaUsuarioActivo = obtenerTablaVentasUsuario();
 
   btn.disabled = true;
   btn.textContent = "Consultando ventas...";
@@ -3199,7 +3265,7 @@ async function procesarSiguienteCierreCaja() {
 
     let todasVentas = [];
     if (navigator.onLine) {
-      todasVentas = await obtenerTodasLasVentasSupabase();
+      todasVentas = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
     } else {
       todasVentas = await dbGetAll("ventas");
     }
