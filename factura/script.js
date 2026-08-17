@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Correlativo Global en 'ventas', Doble Guardado y Edición Fullscreen en Línea
+   Historial y Cierres Aislados por Usuario, Correlativo Global y Doble Guardado
    ========================================================================== */
 
 // Configuración de Supabase
@@ -45,6 +45,11 @@ function normalizarUsuario(u) {
   let user = (u || sessionStorage.getItem("factura_usuario") || "admin").toLowerCase().trim();
   if (user === "maika" || user === "mayka") return "mayka";
   return user;
+}
+
+// Obtener el usuario activo normalizado actual
+function obtenerUsuarioActivo() {
+  return normalizarUsuario(sessionStorage.getItem("factura_usuario"));
 }
 
 // Determinar el nombre de la tabla de VENTAS personal según el usuario activo (ventas_mayka, etc.)
@@ -150,7 +155,7 @@ async function dbDelete(storeName, key) {
 }
 
 // ==========================================================================
-// CONSULTA PAGINADA DE VENTAS SUPABASE (Sin invocar columnas id inexistentes)
+// CONSULTA PAGINADA DE VENTAS SUPABASE
 // ==========================================================================
 async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
   const tabla = tablaPersonalizada || obtenerTablaVentasUsuario();
@@ -383,7 +388,8 @@ async function forzarSincronizacionManual() {
     }
   } catch (e) {}
 
-  const tablaUsuarioActivo = obtenerTablaVentasUsuario();
+  const usuarioActivo = obtenerUsuarioActivo();
+  const tablaUsuarioActivo = obtenerTablaVentasUsuario(usuarioActivo);
   mostrarAvisoFactura(`🔄 Paso 3/4: Sincronizando Ventas (${tablaUsuarioActivo})...`, false);
   let cantVentas = 0;
   try {
@@ -407,13 +413,14 @@ async function forzarSincronizacionManual() {
           direccion: v["UBICACION"] || null,
           productosSummary: v["PRODUCTOS"] || "",
           formaPagoStr: v["FORMA DE PAGO"] || "",
-          montoTotalUSD: parseFloat(v["MONTO TOTAL"]) || 0
+          montoTotalUSD: parseFloat(v["MONTO TOTAL"]) || 0,
+          usuario: usuarioActivo
         });
       }
     }
   } catch (e) {}
 
-  const tablaCierresUsuario = obtenerTablaCierresUsuario();
+  const tablaCierresUsuario = obtenerTablaCierresUsuario(usuarioActivo);
   mostrarAvisoFactura(`🔄 Paso 4/4: Sincronizando Cierres (${tablaCierresUsuario})...`, false);
   let cantCierres = 0;
   try {
@@ -426,7 +433,7 @@ async function forzarSincronizacionManual() {
         await dbPut("cierres", {
           id: cie.id,
           fechaStr: cie["FECHA"] || "",
-          usuario: cie["USUARIO"] || "",
+          usuario: usuarioActivo,
           inicialUSD: parseFloat(cie["INICIAL $"]) || 0,
           inicialBS: parseFloat(cie["INICIAL Bs"]) || 0,
           cajaFinalUSD: parseFloat(cie["TOTAL 3"]) || 0,
@@ -914,14 +921,15 @@ async function procesarLoginFacturacion(event) {
       const userFound = data.find(u => {
         const uNom = String(u["NOMBRE DE USUARIO"] || "").trim().toLowerCase();
         const uPass = String(u["CLAVE"] || "").trim();
-        return uNom === usuario && uPass === password;
+        return (uNom === usuario || (usuario === "mayka" && uNom === "maika") || (usuario === "maika" && uNom === "mayka")) && uPass === password;
       });
 
       if (userFound) {
-        let token = btoa(usuario + ":" + Date.now());
+        const usuarioNormalizado = normalizarUsuario(userFound["NOMBRE DE USUARIO"]);
+        let token = btoa(usuarioNormalizado + ":" + Date.now());
         sessionStorage.setItem("factura_token", token);
-        sessionStorage.setItem("factura_usuario", usuario);
-        iniciarModuloFacturacion(usuario);
+        sessionStorage.setItem("factura_usuario", usuarioNormalizado);
+        iniciarModuloFacturacion(usuarioNormalizado);
         return;
       }
     }
@@ -936,9 +944,10 @@ async function procesarLoginFacturacion(event) {
 }
 
 function iniciarModuloFacturacion(usuario) {
+  const userNorm = normalizarUsuario(usuario);
   document.getElementById('vistaLogin').classList.add('hidden');
   document.getElementById('vistaFacturacion').classList.remove('hidden');
-  document.getElementById('usuarioActivo').textContent = `👤 ${usuario.toUpperCase()}`;
+  document.getElementById('usuarioActivo').textContent = `👤 ${userNorm.toUpperCase()}`;
   
   cargarCatalogoFacturacion();
   cargarMovimientosEfectivoPersistentes();
@@ -1170,7 +1179,6 @@ function renderizarResumenFactura() {
 
   document.getElementById('montoTotalFactura').textContent = `$${totalAcumulado.toFixed(2)}`;
 
-  // Cálculo en vivo en Bolívares
   const tasa = obtenerTasaBCV();
   const elemBs = document.getElementById('montoTotalFacturaBs');
   if (elemBs) {
@@ -1189,7 +1197,7 @@ function ejecutarFacturar() {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
   }
 
-  const usuarioActivo = sessionStorage.getItem("factura_usuario") || "admin";
+  const usuarioActivo = obtenerUsuarioActivo();
 
   transaccionActiva = {
     id: "tx_" + Date.now(),
@@ -1780,7 +1788,7 @@ async function emitirFacturaFinal() {
     }
 
     let totalBs = totalUSD * (tasa > 0 ? tasa : 1);
-    const usuarioActivo = sessionStorage.getItem("factura_usuario") || "admin";
+    const usuarioActivo = obtenerUsuarioActivo();
     const tablaPersonal = obtenerTablaVentasUsuario(usuarioActivo);
 
     datosFacturaPendiente = {
@@ -1965,6 +1973,7 @@ async function confirmarEImprimirFactura() {
 
   try {
     let numFactura = datosFacturaPendiente.numFactura;
+    const usuarioActivo = obtenerUsuarioActivo();
 
     await dbPut("ventas", {
       numFactura: numFactura,
@@ -1974,7 +1983,8 @@ async function confirmarEImprimirFactura() {
       nombre: datosFacturaPendiente.cliente.nombre,
       direccion: datosFacturaPendiente.cliente.direccion || null,
       formaPagoStr: datosFacturaPendiente.formaPagoStr,
-      productosSummary: datosFacturaPendiente.productosSummary
+      productosSummary: datosFacturaPendiente.productosSummary,
+      usuario: usuarioActivo
     });
 
     await dbPut("syncQueue", {
@@ -1991,7 +2001,7 @@ async function confirmarEImprimirFactura() {
           formaPago: datosFacturaPendiente.formaPagoStr,
           montoTotal: datosFacturaPendiente.totalUSD,
           desglosePagos: datosFacturaPendiente.desglosePagos,
-          usuario: datosFacturaPendiente.usuario,
+          usuario: usuarioActivo,
           tablaVentas: datosFacturaPendiente.tablaVentas
         }
       }
@@ -2311,7 +2321,6 @@ function prepararListaProductosCodigos() {
   renderizarTablaGestionCodigos(listaFlatProductosCodigos);
 }
 
-// Renderizado directo con todos los campos editables en una sola fila
 function renderizarTablaGestionCodigos(lista) {
   const tbody = document.getElementById('tablaGestionCodigos');
   const badgeCount = document.getElementById('cntTotalProductosCodigos');
@@ -2323,8 +2332,6 @@ function renderizarTablaGestionCodigos(lista) {
     tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
     return;
   }
-
-  const opcionesCategorias = cacheCategoriasFactura.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('');
 
   let html = "";
   lista.forEach((item, index) => {
@@ -2485,7 +2492,6 @@ function validarYLeerArchivoWebPFac(fileElement) {
   });
 }
 
-// GUARDADO MASIVO DE TODAS LAS FILAS DE LA TABLA EN LÍNEA A GITHUB
 function guardarTodosLosCodigosPLU() {
   const token = sessionStorage.getItem("github_token");
   if (!token) {
@@ -2512,7 +2518,6 @@ async function procesarSincronizacionGitHub() {
     const filas = document.querySelectorAll('.fila-producto-cfg');
     let categoriasMap = {};
 
-    // Inicializar categorías existentes vacías para reconstruir orden
     cacheCategoriasFactura.forEach(c => {
       categoriasMap[c.nombre] = [];
     });
@@ -2534,7 +2539,6 @@ async function procesarSincronizacionGitHub() {
 
       if (!nuevoNom || nuevoPrecio <= 0) continue;
 
-      // Buscar datos de imagen previos
       let imgPathActual = "";
       const catVieja = cacheCategoriasFactura.find(c => c.nombre === origCat);
       if (catVieja) {
@@ -2542,7 +2546,6 @@ async function procesarSincronizacionGitHub() {
         if (prodViejo) imgPathActual = prodViejo[2];
       }
 
-      // Si seleccionó una imagen nueva, subirla
       if (fileInput && fileInput.files && fileInput.files.length > 0) {
         const imgData = await validarYLeerArchivoWebPFac(fileInput);
         if (imgData) {
@@ -2560,7 +2563,6 @@ async function procesarSincronizacionGitHub() {
       });
     }
 
-    // Reconstruir y ordenar productos por cada categoría
     cacheCategoriasFactura.forEach(cat => {
       let prodsEnCat = categoriasMap[cat.nombre] || [];
       prodsEnCat.sort((a, b) => a.orden - b.orden);
@@ -2592,7 +2594,6 @@ async function procesarSincronizacionGitHub() {
   }
 }
 
-// Eliminación directa de una fila de producto
 async function eliminarProductoFilaInline(nom, cat) {
   if (!confirm(`⚠️ ¿Está seguro que desea eliminar el producto "${nom}"?`)) return;
 
@@ -2624,7 +2625,6 @@ async function eliminarProductoFilaInline(nom, cat) {
 }
 window.eliminarProductoFilaInline = eliminarProductoFilaInline;
 
-// Modal para agregar producto nuevo
 function abrirModalCrearProductoPOS() {
   const catSelect = document.getElementById('posAddProdCatSelect');
   catSelect.innerHTML = cacheCategoriasFactura.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('');
@@ -2731,47 +2731,7 @@ async function ejecutarGuardadoConTokenQR() {
   accionPendienteGitHub = null;
 }
 
-async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
-  const token = sessionStorage.getItem("github_token");
-  if (!token) throw new Error("Token de GitHub no disponible.");
-
-  const url = `https://api.github.com/repos/${GITHUB_CONFIG_FAC.owner}/${GITHUB_CONFIG_FAC.repo}/contents/${path}`;
-
-  let sha = null;
-  try {
-    const resInfo = await fetch(url, {
-      headers: { "Authorization": `Bearer ${token}` }
-    });
-    if (resInfo.ok) {
-      const info = await resInfo.json();
-      sha = info.sha;
-    }
-  } catch (e) {}
-
-  const body = {
-    message: commitMessage,
-    content: contentBase64,
-    branch: GITHUB_CONFIG_FAC.branch
-  };
-  if (sha) body.sha = sha;
-
-  const response = await fetch(url, {
-    method: "PUT",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body)
-  });
-
-  if (!response.ok) {
-    const errData = await response.json();
-    throw new Error(errData.message || "Fallo en la comunicación con GitHub.");
-  }
-  return await response.json();
-}
-
-// HISTORIAL Y BÚSQUEDA DE FACTURAS (CON MENÚ DESPLEGABLE 10, 20, 50)
+// HISTORIAL Y BÚSQUEDA DE FACTURAS AISLADO POR USUARIO
 function abrirModalBuscarFacturas() {
   document.getElementById('facBusquedaInput').value = "";
   if (document.getElementById('facLimiteSelect')) {
@@ -2783,19 +2743,24 @@ function abrirModalBuscarFacturas() {
 
 async function buscarFacturasHistorial(modo) {
   const inputVal = document.getElementById('facBusquedaInput').value.trim().toUpperCase();
-  const tablaUsuarioActivo = obtenerTablaVentasUsuario();
+  const usuarioActivo = obtenerUsuarioActivo();
+  const tablaUsuarioActivo = obtenerTablaVentasUsuario(usuarioActivo);
   
   if (modo === 'busqueda' && !inputVal) {
     return mostrarAvisoFactura("Ingrese Cédula, RIF o N° de Factura a buscar.");
   }
 
+  // 1. Filtrar solo las ventas locales pertenecientes a ESTE usuario
   let ventasLocales = await dbGetAll("ventas");
   let mapFacturas = {};
 
   ventasLocales.forEach(f => {
-    if (f.numFactura) mapFacturas[f.numFactura] = f;
+    if (f.numFactura && normalizarUsuario(f.usuario) === usuarioActivo) {
+      mapFacturas[f.numFactura] = f;
+    }
   });
 
+  // 2. Consultar la tabla personal del usuario en Supabase (ventas_mayka, ventas_gilker, etc.)
   if (navigator.onLine) {
     try {
       const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
@@ -2811,7 +2776,8 @@ async function buscarFacturasHistorial(modo) {
               direccion: v["UBICACION"] || null,
               productosSummary: v["PRODUCTOS"] || "",
               formaPagoStr: v["FORMA DE PAGO"] || "",
-              montoTotalUSD: parseFloat(v["MONTO TOTAL"]) || 0
+              montoTotalUSD: parseFloat(v["MONTO TOTAL"]) || 0,
+              usuario: usuarioActivo
             };
           }
         });
@@ -2853,7 +2819,7 @@ function renderizarTablaHistorialFacturas() {
   if (!tbody) return;
 
   if (cacheHistorialFacturas.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No se encontraron facturas registradas.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No se encontraron facturas registradas para este usuario.</td></tr>`;
     return;
   }
 
@@ -3415,15 +3381,21 @@ async function cargarHistorialCierresCaja() {
   const tbody = document.getElementById('tablaHistorialCierresCaja');
   if (!tbody) return;
 
-  const tablaCierresUsuario = obtenerTablaCierresUsuario();
+  const usuarioActivo = obtenerUsuarioActivo();
+  const tablaCierresUsuario = obtenerTablaCierresUsuario(usuarioActivo);
+
+  // 1. Filtrar solo los cierres locales de ESTE usuario
   let cierresLocales = await dbGetAll("cierres");
-  if (cierresLocales.length > 0) {
-    cacheHistorialCierres = cierresLocales.sort((a, b) => (b.id || 0) - (a.id || 0));
+  let cierresFiltrados = cierresLocales.filter(c => normalizarUsuario(c.usuario) === usuarioActivo);
+
+  if (cierresFiltrados.length > 0) {
+    cacheHistorialCierres = cierresFiltrados.sort((a, b) => (b.id || 0) - (a.id || 0));
     renderizarTablaHistorialCierres();
   } else {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">⏳ Consultando cierres de caja...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">⏳ Consultando cierres de ${usuarioActivo.toUpperCase()}...</td></tr>`;
   }
 
+  // 2. Consultar la tabla personal de cierres en Supabase (cierres_mayka, cierres_gilker, etc.)
   if (navigator.onLine) {
     try {
       const { data: cierresSup, error } = await supabaseClient.from(tablaCierresUsuario).select('*');
@@ -3431,7 +3403,7 @@ async function cargarHistorialCierresCaja() {
         cacheHistorialCierres = cierresSup.map(c => ({
           id: c.id,
           fechaStr: c["FECHA"] || "",
-          usuario: c["USUARIO"] || "",
+          usuario: usuarioActivo,
           inicialUSD: parseFloat(c["INICIAL $"]) || 0,
           inicialBS: parseFloat(c["INICIAL Bs"]) || 0,
           cajaFinalUSD: parseFloat(c["TOTAL 3"]) || 0,
@@ -3457,6 +3429,9 @@ async function cargarHistorialCierresCaja() {
           await dbPut("cierres", c);
         }
         renderizarTablaHistorialCierres();
+      } else if (!error && (!cierresSup || cierresSup.length === 0)) {
+        cacheHistorialCierres = [];
+        renderizarTablaHistorialCierres();
       }
     } catch (e) {}
   }
@@ -3467,7 +3442,7 @@ function renderizarTablaHistorialCierres() {
   if (!tbody) return;
 
   if (cacheHistorialCierres.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No hay cierres de caja registrados.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No hay cierres de caja registrados para este usuario.</td></tr>`;
     return;
   }
 
