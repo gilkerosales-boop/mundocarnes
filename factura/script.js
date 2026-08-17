@@ -155,6 +155,49 @@ async function dbDelete(storeName, key) {
 }
 
 // ==========================================================================
+// CLIENTE REST API DE GITHUB PARA POS
+// ==========================================================================
+async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
+  const token = sessionStorage.getItem("github_token");
+  if (!token) throw new Error("Sesión o token de autorización de GitHub no disponible.");
+
+  const url = `https://api.github.com/repos/${GITHUB_CONFIG_FAC.owner}/${GITHUB_CONFIG_FAC.repo}/contents/${path}`;
+
+  let sha = null;
+  try {
+    const resInfo = await fetch(url, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    if (resInfo.ok) {
+      const info = await resInfo.json();
+      sha = info.sha;
+    }
+  } catch (e) {}
+
+  const body = {
+    message: commitMessage,
+    content: contentBase64,
+    branch: GITHUB_CONFIG_FAC.branch
+  };
+  if (sha) body.sha = sha;
+
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const errData = await response.json();
+    throw new Error(errData.message || "Fallo en la comunicación con GitHub API.");
+  }
+  return await response.json();
+}
+
+// ==========================================================================
 // CONSULTA PAGINADA DE VENTAS SUPABASE
 // ==========================================================================
 async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
@@ -276,21 +319,24 @@ async function procesarColaSincronizacion() {
           "BIOPAGO": parseFloat(desgl["Biopago"]) || 0
         };
 
-        // 1. Guardar primero en la tabla general central 'ventas'
-        await supabaseClient.from('ventas').insert([registroVenta]);
+        // 1. Guardar en tabla general central 'ventas'
+        const { error: errGlobal } = await supabaseClient.from('ventas').insert([registroVenta]);
+        if (errGlobal) throw errGlobal;
 
-        // 2. Guardar luego en la tabla personal del usuario ('ventas_mayka', 'ventas_gilker', etc.)
+        // 2. Guardar en tabla personal del usuario ('ventas_mayka', 'ventas_gilker', etc.)
         if (tablaPersonal && tablaPersonal !== 'ventas') {
-          await supabaseClient.from(tablaPersonal).insert([registroVenta]);
+          const { error: errPers } = await supabaseClient.from(tablaPersonal).insert([registroVenta]);
+          if (errPers) throw errPers;
         }
 
       } else if (payload.action === "registrarClienteFactura") {
-        await supabaseClient.from('clientes').upsert({
+        const { error: errCli } = await supabaseClient.from('clientes').upsert({
           "CEDULA": payload.cedula,
           "NOMBRES": payload.nombre,
           "TELEFONO": payload.telefono,
           "DIRECCION": payload.direccion || null
         });
+        if (errCli) throw errCli;
 
       } else if (payload.action === "guardarCierreCaja") {
         const d = payload.datosCierre;
@@ -310,19 +356,21 @@ async function procesarColaSincronizacion() {
           "PUNTO DE VENTA": parseFloat(r.ventasPuntoVenta) || 0,
           "BIOPAGO": parseFloat(r.ventasBiopago) || 0,
           "CASHEA": parseFloat(r.ventasCashea) || 0,
-          "TRANSFERECIA": parseFloat(r.ventasTransferencia) || 0,
+          "TRANSFERENCIA": parseFloat(r.ventasTransferencia) || 0,
           "TOTAL 1": parseFloat(r.totalGeneralVentasUSD) || 0,
           "TOTAL 2": parseFloat(r.totalGeneralVentasBS) || 0,
           "TOTAL 3": parseFloat(d.totalCajaUSD) || 0,
           "TOTAL 4": parseFloat(d.totalCajaBS) || 0
         };
 
-        // 1. Guardar en la tabla general central 'cierres'
-        await supabaseClient.from('cierres').insert([registroCierre]);
+        // 1. Guardar en tabla general central 'cierres'
+        const { error: errCieGlobal } = await supabaseClient.from('cierres').insert([registroCierre]);
+        if (errCieGlobal) throw errCieGlobal;
 
-        // 2. Guardar en la tabla personal del usuario
+        // 2. Guardar en tabla personal del usuario
         if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
-          await supabaseClient.from(tablaCierresPersonal).insert([registroCierre]);
+          const { error: errCiePers } = await supabaseClient.from(tablaCierresPersonal).insert([registroCierre]);
+          if (errCiePers) throw errCiePers;
         }
 
       } else if (payload.action === "eliminarFactura") {
@@ -343,11 +391,12 @@ async function procesarColaSincronizacion() {
         }
       }
 
+      // Solo se elimina de la cola local tras confirmar éxito en Supabase
       await dbDelete("syncQueue", item.id);
 
     } catch (err) {
-      console.warn("Aviso Sync Supabase:", err);
-      await dbDelete("syncQueue", item.id);
+      console.warn("Aviso Sync Supabase (reintentará en siguiente ciclo):", err);
+      break; // Detener el ciclo para no saturar si hay fallo de conexión
     }
   }
 
@@ -449,7 +498,7 @@ async function forzarSincronizacionManual() {
             ventasPuntoVenta: parseFloat(cie["PUNTO DE VENTA"]) || 0,
             ventasBiopago: parseFloat(cie["BIOPAGO"]) || 0,
             ventasCashea: parseFloat(cie["CASHEA"]) || 0,
-            ventasTransferencia: parseFloat(cie["TRANSFERECIA"]) || 0,
+            ventasTransferencia: parseFloat(cie["TRANSFERENCIA"] || cie["TRANSFERECIA"]) || 0,
             totalGeneralVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
             totalGeneralVentasBS: parseFloat(cie["TOTAL 2"]) || 0
           }
@@ -479,7 +528,7 @@ async function sincronizarClientesDesdeServidor() {
   } catch (e) {}
 }
 
-// CORRELATIVO GLOBAL: Consulta TODOS los registros en 'ventas' (sin ordenar por id) para hallar el máximo consecutivo
+// CORRELATIVO GLOBAL EFICIENTE
 async function obtenerSiguienteCorrelativoLocal() {
   let ultimoNum = 0;
 
@@ -495,39 +544,26 @@ async function obtenerSiguienteCorrelativoLocal() {
     }
   });
 
-  // 2. Consultar siempre la tabla maestra global 'ventas' en Supabase de forma paginada limpia
+  // 2. Consultar últimas ventas en Supabase de forma rápida
   if (navigator.onLine) {
     try {
-      let from = 0;
-      const step = 1000;
-      let continuar = true;
+      const { data: facs, error } = await supabaseClient
+        .from('ventas')
+        .select('"FACTURA N°"')
+        .order('FACTURA N°', { ascending: false })
+        .limit(100);
 
-      while (continuar) {
-        const { data: facs, error } = await supabaseClient
-          .from('ventas')
-          .select('"FACTURA N°"')
-          .range(from, from + step - 1);
-
-        if (error || !facs || facs.length === 0) {
-          continuar = false;
-        } else {
-          facs.forEach(v => {
-            let facStr = v["FACTURA N°"];
-            if (facStr) {
-              let match = String(facStr).match(/\d+$/);
-              if (match) {
-                let n = parseInt(match[0], 10);
-                if (n > ultimoNum) ultimoNum = n;
-              }
+      if (!error && facs && facs.length > 0) {
+        facs.forEach(v => {
+          let facStr = v["FACTURA N°"];
+          if (facStr) {
+            let match = String(facStr).match(/\d+$/);
+            if (match) {
+              let n = parseInt(match[0], 10);
+              if (n > ultimoNum) ultimoNum = n;
             }
-          });
-
-          if (facs.length < step) {
-            continuar = false;
-          } else {
-            from += step;
           }
-        }
+        });
       }
     } catch (e) {
       console.warn("Aviso correlativo en ventas:", e);
@@ -1241,7 +1277,7 @@ function ejecutarFacturar() {
   actualizarCalculosBCV();
 }
 
-// LÓGICA DE STANDBY / FACTURAS EN ESPERA
+// STANDBY / FACTURAS EN ESPERA
 function ponerFacturaEnEspera() {
   if (!transaccionActiva || !transaccionActiva.items || Object.keys(transaccionActiva.items).length === 0) {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
@@ -1386,25 +1422,26 @@ async function buscarClienteFactura() {
 
   if (navigator.onLine) {
     try {
-      const { data: todosClientes, error } = await supabaseClient.from('clientes').select('*');
+      const { data: resSup, error } = await supabaseClient
+        .from('clientes')
+        .select('*')
+        .eq('CEDULA', cedula)
+        .maybeSingle();
 
       if (btn) { btn.disabled = false; btn.textContent = "🔍 Buscar"; }
 
-      if (!error && todosClientes && todosClientes.length > 0) {
-        const resSup = todosClientes.find(c => String(c["CEDULA"] || "").trim().toUpperCase() === cedula);
-        if (resSup) {
-          let cliObj = {
-            cedula: resSup.CEDULA,
-            nombre: resSup.NOMBRES || 'N/D',
-            telefono: resSup.TELEFONO || 'N/D',
-            direccion: resSup.DIRECCION || null
-          };
-          clienteFacturaActual = cliObj;
-          await dbPut("clientes", cliObj);
-          poblarClienteEnVista(cliObj);
-          mostrarAvisoFactura("Cliente localizado con éxito en Supabase.");
-          return;
-        }
+      if (!error && resSup) {
+        let cliObj = {
+          cedula: resSup.CEDULA,
+          nombre: resSup.NOMBRES || 'N/D',
+          telefono: resSup.TELEFONO || 'N/D',
+          direccion: resSup.DIRECCION || null
+        };
+        clienteFacturaActual = cliObj;
+        await dbPut("clientes", cliObj);
+        poblarClienteEnVista(cliObj);
+        mostrarAvisoFactura("Cliente localizado con éxito en Supabase.");
+        return;
       }
     } catch (err) {}
   }
@@ -2265,9 +2302,7 @@ function confirmarAgregarCodigosAFactura() {
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
 }
 
-// ==========================================================================
-// SUITE DE GESTIÓN Y CONFIGURACIÓN COMPLETA EN LÍNEA FULLSCREEN DE PRODUCTOS
-// ==========================================================================
+// CONFIGURACIÓN FULLSCREEN DE PRODUCTOS Y PLU
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
   prepararListaProductosCodigos();
@@ -3376,7 +3411,6 @@ function abrirModalCierreCaja() {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso1')).show();
 }
 
-// CARGA Y GESTIÓN DE HISTORIAL DE CIERRES EN LA TABLA DEL USUARIO ACTIVO
 async function cargarHistorialCierresCaja() {
   const tbody = document.getElementById('tablaHistorialCierresCaja');
   if (!tbody) return;
@@ -3395,7 +3429,7 @@ async function cargarHistorialCierresCaja() {
     tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">⏳ Consultando cierres de ${usuarioActivo.toUpperCase()}...</td></tr>`;
   }
 
-  // 2. Consultar la tabla personal de cierres en Supabase (cierres_mayka, cierres_gilker, etc.)
+  // 2. Consultar la tabla personal de cierres en Supabase
   if (navigator.onLine) {
     try {
       const { data: cierresSup, error } = await supabaseClient.from(tablaCierresUsuario).select('*');
@@ -3419,7 +3453,7 @@ async function cargarHistorialCierresCaja() {
             ventasPuntoVenta: parseFloat(c["PUNTO DE VENTA"]) || 0,
             ventasBiopago: parseFloat(c["BIOPAGO"]) || 0,
             ventasCashea: parseFloat(c["CASHEA"]) || 0,
-            ventasTransferencia: parseFloat(c["TRANSFERECIA"]) || 0,
+            ventasTransferencia: parseFloat(c["TRANSFERENCIA"] || c["TRANSFERECIA"]) || 0,
             totalGeneralVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
             totalGeneralVentasBS: parseFloat(c["TOTAL 2"]) || 0
           }
@@ -3503,7 +3537,6 @@ function reimprimirCierreCajaHistorial(idx) {
   mostrarAvisoFactura(`🖨️ Reimprimiendo Reporte Z del ${c.fechaStr}...`);
 }
 
-// BORRADO INDIVIDUAL DE CIERRES DE CAJA
 async function eliminarCierreCajaHistorial(idx) {
   const c = cacheHistorialCierres[idx];
   if (!c) return;
