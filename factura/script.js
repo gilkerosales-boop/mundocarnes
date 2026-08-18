@@ -1,7 +1,7 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Historial y Cierres Aislados por Usuario, Correlativo Global Blindado,
-   Doble Guardado y Eliminación Segura de Facturas y Cierres en Supabase
+   Historial y Cierres Aislados por Usuario, Correlativo Global con Columna FACTURA,
+   Doble Guardado, Módulo de Créditos y Apertura por Jornada
    ========================================================================== */
 
 // Configuración de Supabase
@@ -262,7 +262,7 @@ async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
 }
 
 // ==========================================================================
-// ELIMINACIÓN DE FACTURA EN SUPABASE CON PARÁMETRO ENTRECOMILLADO SEGURO
+// ELIMINACIÓN DE FACTURA EN SUPABASE POR COLUMNA ESTÁNDAR 'FACTURA'
 // ==========================================================================
 async function ejecutarEliminarVentaSupabase(numFactura, tablaPersonalizada) {
   const tabla = tablaPersonalizada || obtenerTablaVentasUsuario();
@@ -270,7 +270,7 @@ async function ejecutarEliminarVentaSupabase(numFactura, tablaPersonalizada) {
     const { error } = await supabaseClient
       .from(tabla)
       .delete()
-      .eq('"FACTURA N°"', numFactura);
+      .eq('FACTURA', numFactura);
 
     if (!error) return true;
   } catch (e) {
@@ -327,8 +327,8 @@ async function procesarColaSincronizacion() {
         const tablaPersonal = d.tablaVentas || obtenerTablaVentasUsuario(d.usuario);
 
         const registroVenta = {
+          "FACTURA": d.numFactura,
           "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
-          "FACTURA N°": d.numFactura,
           "CEDULA O RIF": d.cedula,
           "NOMBRE / RAZON SOCIAL": d.nombre,
           "UBICACION": d.direccion || null,
@@ -361,8 +361,8 @@ async function procesarColaSincronizacion() {
         const montoCredito = parseFloat(desgl["Crédito"]) || (d.formaPago && d.formaPago.toUpperCase().includes("CRÉDITO") ? parseFloat(d.montoTotal) : 0);
         if (montoCredito > 0) {
           const registroCreditoSupabase = {
+            "FACTURA": d.numFactura,
             "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
-            "FACTURA N°": d.numFactura,
             "CEDULA O RIF": d.cedula,
             "NOMBRE / RAZON SOCIAL": d.nombre,
             "TELEFONO": (d.cliente && d.cliente.telefono) ? d.cliente.telefono : (d.telefono || 'N/D'),
@@ -434,22 +434,13 @@ async function procesarColaSincronizacion() {
         }
 
       } else if (payload.action === "eliminarFactura") {
-        // Eliminar de ventas global
         await ejecutarEliminarVentaSupabase(payload.numFactura, 'ventas');
-        
-        // Eliminar de ventas personal
         if (payload.tablaVentas && payload.tablaVentas !== 'ventas') {
           await ejecutarEliminarVentaSupabase(payload.numFactura, payload.tablaVentas);
         }
-
-        // Eliminar de tabla creditos
         try {
-          await supabaseClient
-            .from('creditos')
-            .delete()
-            .eq('"FACTURA N°"', payload.numFactura);
+          await supabaseClient.from('creditos').delete().eq('FACTURA', payload.numFactura);
         } catch (eDelCred) {}
-        
         await dbDelete("creditos", payload.numFactura);
 
       } else if (payload.action === "eliminarCierreCaja") {
@@ -536,8 +527,8 @@ async function forzarSincronizacionManual() {
     if (ventasSup && ventasSup.length > 0) {
       cantVentas = ventasSup.length;
       const ventasOrdenadas = [...ventasSup].sort((a, b) => {
-        let numA = parseInt(String(a["FACTURA N°"] || "").replace(/\D/g, ''), 10) || 0;
-        let numB = parseInt(String(b["FACTURA N°"] || "").replace(/\D/g, ''), 10) || 0;
+        let numA = parseInt(String(a["FACTURA"] || a["FACTURA N°"] || "").replace(/\D/g, ''), 10) || 0;
+        let numB = parseInt(String(b["FACTURA"] || b["FACTURA N°"] || "").replace(/\D/g, ''), 10) || 0;
         return numB - numA;
       });
 
@@ -545,7 +536,7 @@ async function forzarSincronizacionManual() {
       for (let i = 0; i < maxAGuardar; i++) {
         let v = ventasOrdenadas[i];
         await dbPut("ventas", {
-          numFactura: v["FACTURA N°"],
+          numFactura: v["FACTURA"] || v["FACTURA N°"],
           fechaStr: v["FECHA"] || "",
           cedula: v["CEDULA O RIF"] || "",
           nombre: v["NOMBRE / RAZON SOCIAL"] || "",
@@ -619,7 +610,7 @@ async function sincronizarClientesDesdeServidor() {
   } catch (e) {}
 }
 
-// CORRELATIVO GLOBAL ROBUSTO Y BLINDADO CONTRA DUPLICADOS
+// CORRELATIVO GLOBAL ROBUSTO Y BLINDADO CONTRA DUPLICADOS (COLUMNA 'FACTURA')
 async function obtenerSiguienteCorrelativoLocal() {
   let ultimoNum = 0;
 
@@ -663,14 +654,14 @@ async function obtenerSiguienteCorrelativoLocal() {
       while (continuar) {
         const { data: facs, error } = await supabaseClient
           .from('ventas')
-          .select('"FACTURA N°"')
+          .select('FACTURA')
           .range(from, from + step - 1);
 
         if (error || !facs || facs.length === 0) {
           continuar = false;
         } else {
           facs.forEach(v => {
-            let facStr = v["FACTURA N°"];
+            let facStr = v.FACTURA || v["FACTURA N°"];
             if (facStr) {
               let match = String(facStr).match(/\d+$/);
               if (match) {
@@ -3009,7 +3000,7 @@ async function buscarFacturasHistorial(modo) {
       const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
       if (ventasSup && ventasSup.length > 0) {
         ventasSup.forEach(v => {
-          let numFac = v["FACTURA N°"];
+          let numFac = v.FACTURA || v["FACTURA N°"];
           if (numFac) {
             mapFacturas[numFac] = {
               numFactura: numFac,
@@ -3306,7 +3297,7 @@ async function ejecutarDescargaExcelFacturas() {
 
       const filasExcel = registrosFiltrados.map(r => ({
         "Fecha / Hora": r["FECHA"] || "",
-        "Factura N°": r["FACTURA N°"] || "",
+        "Factura N°": r.FACTURA || r["FACTURA N°"] || "",
         "Cédula / RIF": r["CEDULA O RIF"] || "",
         "Cliente": r["NOMBRE / RAZON SOCIAL"] || "",
         "Dirección / Ubicación": r["UBICACION"] || "",
@@ -3359,7 +3350,7 @@ async function ejecutarDescargaExcelFacturas() {
 }
 
 // MOVIMIENTOS DE EFECTIVO PERSISTENTES
-function cargarMovimientosEfectivoPersistENTES() {
+function cargarMovimientosEfectivoPersistentes() {
   const hoy = new Date().toISOString().split('T')[0];
   const guardado = localStorage.getItem("movimientos_efectivo_" + hoy);
   if (guardado) {
