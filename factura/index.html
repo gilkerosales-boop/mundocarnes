@@ -15,7 +15,7 @@
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Estilo Local POS Aislado -->
-    <link rel="stylesheet" href="style.css?v=3.2.0">
+    <link rel="stylesheet" href="style.css?v=3.3.0">
     <!-- Configuración de App Instalable PWA -->
     <link rel="manifest" href="manifest.json?v=1.0.3">
     <meta name="theme-color" content="#0f172a">
@@ -928,23 +928,25 @@
           <div class="modal-body p-4">
             
             <!-- Píldoras de Navegación Principal -->
-            <ul class="nav nav-pills nav-pills-historial justify-content-center mb-3 flex-wrap gap-1" id="pillsHistorialTab" role="tablist">
-              <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="pills-facturas-tab" data-bs-toggle="pill" data-bs-target="#pills-facturas" type="button" role="tab">
-                  🧾 Facturas Emitidas
-                </button>
-              </li>
-              <li class="nav-item ms-1" role="presentation">
-                <button class="nav-link" id="pills-cierres-tab" data-bs-toggle="pill" data-bs-target="#pills-cierres" type="button" role="tab" onclick="cargarHistorialCierresCaja()">
-                  📜 Cierres de Caja (Reportes Z)
-                </button>
-              </li>
-              <li class="nav-item ms-1" role="presentation">
-                <button class="nav-link" id="pills-cxc-tab" data-bs-toggle="pill" data-bs-target="#pills-cxc" type="button" role="tab" onclick="cargarHistorialCuentasPorCobrar()">
-                  💳 Cuentas por Cobrar
-                </button>
-              </li>
-            </ul>
+            <div class="d-flex justify-content-center mb-3">
+              <ul class="nav nav-pills nav-pills-historial flex-wrap justify-content-center gap-1" id="pillsHistorialTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link active" id="pills-facturas-tab" data-bs-toggle="pill" data-bs-target="#pills-facturas" type="button" role="tab">
+                    🧾 Facturas Emitidas
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="pills-cierres-tab" data-bs-toggle="pill" data-bs-target="#pills-cierres" type="button" role="tab" onclick="cargarHistorialCierresCaja()">
+                    📜 Cierres de Caja (Reportes Z)
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="pills-cxc-tab" data-bs-toggle="pill" data-bs-target="#pills-cxc" type="button" role="tab" onclick="cargarHistorialCuentasPorCobrar()">
+                    💳 Cuentas por Cobrar
+                  </button>
+                </li>
+              </ul>
+            </div>
 
             <div class="tab-content" id="pillsHistorialTabContent">
               
@@ -1022,31 +1024,33 @@
               <!-- PESTAÑA 3: Cuentas por Cobrar (Créditos y Vales de Caja) -->
               <div class="tab-pane fade" id="pills-cxc" role="tabpanel">
                 
-                <!-- Sub-píldoras de alternancia entre Créditos y Vales -->
-                <div class="d-flex justify-content-center gap-2 mb-3">
-                  <button type="button" class="btn btn-sm btn-danger fw-bold rounded-pill shadow-sm px-4" id="btnSubTabCreditos" onclick="alternarSubTabCXC('creditos')">
-                    🏷️ Ventas a Crédito (<span id="cntCreditosPendientes">0</span>)
-                  </button>
-                  <button type="button" class="btn btn-sm btn-outline-dark fw-bold rounded-pill px-4" id="btnSubTabVales" onclick="alternarSubTabCXC('vales')">
-                    🎟️ Historial de Vales (<span id="cntValesTotal">0</span>)
-                  </button>
+                <!-- Control Segmentado Moderno para Sub-pestañas CXC -->
+                <div class="d-flex justify-content-center mb-3">
+                  <div class="segmented-control-cxc">
+                    <button type="button" class="btn-segment-cxc active-creditos" id="btnSubTabCreditos" onclick="alternarSubTabCXC('creditos')">
+                      🏷️ Ventas a Crédito <span class="badge-cxc-pill" id="cntCreditosPendientes">0</span>
+                    </button>
+                    <button type="button" class="btn-segment-cxc" id="btnSubTabVales" onclick="alternarSubTabCXC('vales')">
+                      🎟️ Historial de Vales <span class="badge-cxc-pill" id="cntValesTotal">0</span>
+                    </button>
+                  </div>
                 </div>
 
                 <!-- SUB-VISTA A: Ventas a Crédito -->
                 <div id="subVistaCreditos">
-                  <div class="row g-2 align-items-center mb-3 bg-white p-3 rounded-3 border shadow-sm">
-                    <div class="col-md-5 col-lg-5">
-                      <input type="text" id="filtroCreditosInput" class="form-control fw-bold" placeholder="🔍 Buscar por Cédula, Cliente o N° Factura..." oninput="filtrarTablaCreditos()">
+                  <div class="cxc-filter-bar mb-3">
+                    <div class="flex-grow-1" style="min-width: 220px;">
+                      <input type="text" id="filtroCreditosInput" class="form-control fw-bold" placeholder="🔍 Buscar por Cédula, Cliente o Factura..." oninput="filtrarTablaCreditos()">
                     </div>
-                    <div class="col-md-3 col-lg-3">
+                    <div style="min-width: 200px;">
                       <select id="filtroEstatusCredito" class="form-select fw-bold" onchange="filtrarTablaCreditos()">
                         <option value="TODOS">-- Todos los Estados --</option>
                         <option value="EN ESPERA DE PAGO" selected>⏳ Pendientes por Cobrar</option>
                         <option value="PAGADO">✅ Pagados</option>
                       </select>
                     </div>
-                    <div class="col-md-4 col-lg-4 text-end">
-                      <div class="badge bg-danger fs-6 p-2 w-100 text-truncate shadow-sm" id="badgeTotalPorCobrar">
+                    <div>
+                      <div class="badge-resumen-cxc bg-danger text-white shadow-sm" id="badgeTotalPorCobrar">
                         Por Cobrar: $0.00
                       </div>
                     </div>
@@ -1054,16 +1058,16 @@
 
                   <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
                     <table class="table table-hover align-middle mb-0">
-                      <thead class="table-dark small text-center">
+                      <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
                         <tr>
-                          <th>N° Factura</th>
-                          <th>Fecha</th>
-                          <th>Cédula / RIF</th>
-                          <th>Cliente</th>
-                          <th>Teléfono</th>
-                          <th>Monto Crédito</th>
-                          <th>Estatus</th>
-                          <th style="width: 210px;">Acciones</th>
+                          <th style="width: 100px;">N° Factura</th>
+                          <th style="width: 130px;">Fecha</th>
+                          <th style="width: 110px;">Cédula / RIF</th>
+                          <th style="min-width: 150px;">Cliente</th>
+                          <th style="width: 120px;">Teléfono</th>
+                          <th style="width: 110px;">Monto Crédito</th>
+                          <th style="width: 120px;">Estatus</th>
+                          <th style="width: 160px;">Acciones</th>
                         </tr>
                       </thead>
                       <tbody id="tablaHistorialCreditos" class="small">
@@ -1077,19 +1081,19 @@
 
                 <!-- SUB-VISTA B: Historial de Vales de Caja -->
                 <div id="subVistaVales" class="hidden">
-                  <div class="row g-2 align-items-center mb-3 bg-white p-3 rounded-3 border shadow-sm">
-                    <div class="col-md-5 col-lg-5">
+                  <div class="cxc-filter-bar mb-3">
+                    <div class="flex-grow-1" style="min-width: 220px;">
                       <input type="text" id="filtroValesInput" class="form-control fw-bold" placeholder="🔍 Buscar vale por Empleado, Cédula o Motivo..." oninput="filtrarTablaVales()">
                     </div>
-                    <div class="col-md-3 col-lg-3">
+                    <div style="min-width: 200px;">
                       <select id="filtroEstatusVales" class="form-select fw-bold" onchange="filtrarTablaVales()">
                         <option value="TODOS">-- Todos los Estados --</option>
                         <option value="PENDIENTE" selected>⏳ Pendientes por Descontar</option>
                         <option value="DESCONTADO">✅ Descontados / Pagados</option>
                       </select>
                     </div>
-                    <div class="col-md-4 col-lg-4 text-end">
-                      <div class="badge bg-dark fs-6 p-2 w-100 text-truncate shadow-sm" id="badgeTotalValesEmitidos">
+                    <div>
+                      <div class="badge-resumen-cxc bg-dark text-white shadow-sm" id="badgeTotalValesEmitidos">
                         Total Vales: $0.00 / Bs. 0.00
                       </div>
                     </div>
@@ -1097,17 +1101,17 @@
 
                   <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
                     <table class="table table-hover align-middle mb-0">
-                      <thead class="table-dark small text-center">
+                      <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
                         <tr>
-                          <th>Fecha / Hora</th>
-                          <th>Empleado</th>
-                          <th>Cédula</th>
-                          <th>Monto</th>
-                          <th>Motivo</th>
-                          <th>Cuotas</th>
-                          <th>Autorizado Por</th>
-                          <th>Estatus</th>
-                          <th style="width: 210px;">Acciones</th>
+                          <th style="width: 130px;">Fecha / Hora</th>
+                          <th style="min-width: 140px;">Empleado</th>
+                          <th style="width: 100px;">Cédula</th>
+                          <th style="width: 110px;">Monto</th>
+                          <th style="min-width: 130px;">Motivo</th>
+                          <th style="width: 70px;">Cuotas</th>
+                          <th style="width: 110px;">Autorizado Por</th>
+                          <th style="width: 120px;">Estatus</th>
+                          <th style="width: 160px;">Acciones</th>
                         </tr>
                       </thead>
                       <tbody id="tablaHistorialVales" class="small">
@@ -1276,6 +1280,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- SDK Oficial Supabase v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=3.6.0"></script>
+    <script src="script.js?v=3.7.0"></script>
   </body>
 </html>
