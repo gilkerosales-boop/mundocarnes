@@ -1,7 +1,7 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Historial y Cierres Aislados por Usuario, Correlativo Global, Doble Guardado,
-   Módulo de Créditos / Cuentas por Cobrar y Apertura por Jornada
+   Historial y Cierres Aislados por Usuario, Correlativo Global Idempotente,
+   Doble Guardado Upsert, Módulo de Créditos y Apertura por Jornada
    ========================================================================== */
 
 // Configuración de Supabase
@@ -237,7 +237,7 @@ async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
 }
 
 // ==========================================================================
-// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO (GLOBAL + PERSONAL + CRÉDITOS)
+// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO IDEMPOTENTE (UPSERT)
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
   const badge = document.getElementById('badgeEstadoSync');
@@ -324,14 +324,19 @@ async function procesarColaSincronizacion() {
           "BIOPAGO": parseFloat(desgl["Biopago"]) || 0
         };
 
-        // 1. Guardar primero en la tabla general central 'ventas'
-        const { error: errGlobal } = await supabaseClient.from('ventas').insert([registroVenta]);
-        if (errGlobal) throw errGlobal;
+        // 1. Guardar primero en la tabla general central 'ventas' con upsert para evitar 409 Conflict
+        const { error: errGlobal } = await supabaseClient
+          .from('ventas')
+          .upsert([registroVenta], { onConflict: 'FACTURA N°' });
+        
+        if (errGlobal && errGlobal.code !== '23505') throw errGlobal;
 
         // 2. Guardar luego en la tabla personal del usuario ('ventas_mayka', 'ventas_gilker', etc.)
         if (tablaPersonal && tablaPersonal !== 'ventas') {
-          const { error: errPers } = await supabaseClient.from(tablaPersonal).insert([registroVenta]);
-          if (errPers) throw errPers;
+          const { error: errPers } = await supabaseClient
+            .from(tablaPersonal)
+            .upsert([registroVenta], { onConflict: 'FACTURA N°' });
+          if (errPers && errPers.code !== '23505') throw errPers;
         }
 
         // 3. Si la venta incluye Crédito, registrar en la tabla independiente 'creditos'
@@ -351,7 +356,7 @@ async function procesarColaSincronizacion() {
             "FECHA PAGO": null
           };
 
-          await supabaseClient.from('creditos').upsert(registroCredito);
+          await supabaseClient.from('creditos').upsert(registroCredito, { onConflict: 'FACTURA N°' });
           await dbPut("creditos", registroCredito);
         }
 
@@ -392,12 +397,12 @@ async function procesarColaSincronizacion() {
 
         // 1. Guardar primero en la tabla general central 'cierres'
         const { error: errCieGlobal } = await supabaseClient.from('cierres').insert([registroCierre]);
-        if (errCieGlobal) throw errCieGlobal;
+        if (errCieGlobal && errCieGlobal.code !== '23505') throw errCieGlobal;
 
         // 2. Guardar luego en la tabla personal del usuario
         if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
           const { error: errCiePers } = await supabaseClient.from(tablaCierresPersonal).insert([registroCierre]);
-          if (errCiePers) throw errCiePers;
+          if (errCiePers && errCiePers.code !== '23505') throw errCiePers;
         }
 
       } else if (payload.action === "eliminarFactura") {
@@ -413,10 +418,7 @@ async function procesarColaSincronizacion() {
         const fStr = payload.fechaStr;
 
         if (fStr) {
-          // 1. Eliminar de la tabla global 'cierres' por FECHA exacta
           await supabaseClient.from('cierres').delete().eq('FECHA', fStr);
-
-          // 2. Eliminar de la tabla personal del usuario por FECHA exacta
           if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
             await supabaseClient.from(tablaCierresPersonal).delete().eq('FECHA', fStr);
           }
@@ -428,11 +430,16 @@ async function procesarColaSincronizacion() {
         }
       }
 
-      // Solo se elimina de la cola local tras confirmar éxito en Supabase
+      // Eliminar de la cola local tras confirmar éxito
       await dbDelete("syncQueue", item.id);
 
     } catch (err) {
-      console.warn("Aviso Sync Supabase (reintentará en siguiente ciclo):", err);
+      console.warn("Aviso Sync Supabase:", err);
+      // Si el error es por clave duplicada (23505), el dato ya existe en Supabase y no debe trabar la cola
+      if (err && (err.code === '23505' || String(err.message || '').includes('duplicate key') || String(err.message || '').includes('already exists'))) {
+        await dbDelete("syncQueue", item.id);
+        continue;
+      }
       break;
     }
   }
@@ -566,7 +573,7 @@ async function sincronizarClientesDesdeServidor() {
   } catch (e) {}
 }
 
-// CORRELATIVO GLOBAL EFICIENTE Y CONFIABLE
+// CORRELATIVO GLOBAL ROBUSTO Y BLINDADO CONTRA DUPLICADOS
 async function obtenerSiguienteCorrelativoLocal() {
   let ultimoNum = 0;
 
@@ -582,7 +589,25 @@ async function obtenerSiguienteCorrelativoLocal() {
     }
   });
 
-  // 2. Consultar siempre la tabla maestra global 'ventas' en Supabase de forma paginada limpia
+  // 2. Revisar facturas pendientes en la cola de sincronización (syncQueue)
+  const queue = await dbGetAll("syncQueue");
+  queue.forEach(item => {
+    if (item.payload && item.payload.datosFactura && item.payload.datosFactura.numFactura) {
+      let match = String(item.payload.datosFactura.numFactura).match(/\d+$/);
+      if (match) {
+        let n = parseInt(match[0], 10);
+        if (n > ultimoNum) ultimoNum = n;
+      }
+    }
+  });
+
+  // 3. Revisar último valor registrado en config de IndexedDB
+  const cfgCorrelativo = await dbGet("config", "ultimoCorrelativo");
+  if (cfgCorrelativo && typeof cfgCorrelativo.value === "number" && cfgCorrelativo.value > ultimoNum) {
+    ultimoNum = cfgCorrelativo.value;
+  }
+
+  // 4. Consultar siempre la tabla maestra global 'ventas' en Supabase
   if (navigator.onLine) {
     try {
       let from = 0;
@@ -3605,18 +3630,18 @@ async function cargarHistorialCierresCaja() {
           totalVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
           totalVentasBS: parseFloat(c["TOTAL 2"]) || 0,
           resumen: {
-            ventasEfectivoUSD: parseFloat(c["DIVISAS"]) || 0,
-            ventasEfectivoBS: parseFloat(c["BOLIVARES"]) || 0,
-            ventasPagoMovil: parseFloat(c["PAGO MOVIL"]) || 0,
-            ventasZelle: parseFloat(c["ZELLE"]) || 0,
-            ventasPayPal: parseFloat(c["PAYPAL"]) || 0,
-            ventasPuntoVenta: parseFloat(c["PUNTO DE VENTA"]) || 0,
-            ventasBiopago: parseFloat(c["BIOPAGO"]) || 0,
-            ventasCashea: parseFloat(c["CASHEA"]) || 0,
-            ventasCredito: parseFloat(c["CREDITO"]) || 0,
-            ventasTransferencia: parseFloat(c["TRANSFERENCIA"] || c["TRANSFERECIA"]) || 0,
-            totalGeneralVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
-            totalGeneralVentasBS: parseFloat(c["TOTAL 2"]) || 0
+            ventasEfectivoUSD: parseFloat(cie["DIVISAS"]) || 0,
+            ventasEfectivoBS: parseFloat(cie["BOLIVARES"]) || 0,
+            ventasPagoMovil: parseFloat(cie["PAGO MOVIL"]) || 0,
+            ventasZelle: parseFloat(cie["ZELLE"]) || 0,
+            ventasPayPal: parseFloat(cie["PAYPAL"]) || 0,
+            ventasPuntoVenta: parseFloat(cie["PUNTO DE VENTA"]) || 0,
+            ventasBiopago: parseFloat(cie["BIOPAGO"]) || 0,
+            ventasCashea: parseFloat(cie["CASHEA"]) || 0,
+            ventasCredito: parseFloat(cie["CREDITO"]) || 0,
+            ventasTransferencia: parseFloat(cie["TRANSFERENCIA"] || cie["TRANSFERECIA"]) || 0,
+            totalGeneralVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
+            totalGeneralVentasBS: parseFloat(cie["TOTAL 2"]) || 0
           }
         })).sort((a, b) => (b.id || 0) - (a.id || 0));
 
@@ -3749,7 +3774,7 @@ async function procesarSiguienteCierreCaja() {
   const usuario = obtenerUsuarioActivo();
   const tablaUsuarioActivo = obtenerTablaVentasUsuario(usuario);
 
-  // Actualizar también en el registro de apertura local por si el usuario editó el monto
+  // Actualizar en el registro de apertura local
   const hoyStr = new Date().toISOString().split('T')[0];
   localStorage.setItem(`apertura_caja_user_${usuario}_${hoyStr}`, JSON.stringify({
     usd: inicialUSD,
