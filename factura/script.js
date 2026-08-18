@@ -1,7 +1,7 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
    Historial y Cierres Aislados por Usuario, Módulo de Cuentas por Cobrar
-   (Ventas a Crédito e Historial de Vales), Correlativo Global y Sincronización
+   (Consulta y Gestión Directa en Tablas 'creditos' y 'vales' de Supabase)
    ========================================================================== */
 
 // Configuración de Supabase
@@ -71,7 +71,7 @@ function obtenerTablaCierresUsuario(u) {
 // ==========================================================================
 function abrirDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("MundocarnesPOS_DB", 3);
+    const request = indexedDB.open("MundocarnesPOS_DB", 4);
     request.onupgradeneeded = (e) => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains("clientes")) {
@@ -82,6 +82,9 @@ function abrirDB() {
       }
       if (!db.objectStoreNames.contains("creditos")) {
         db.createObjectStore("creditos", { keyPath: "numFactura" });
+      }
+      if (!db.objectStoreNames.contains("vales")) {
+        db.createObjectStore("vales", { keyPath: "id", autoIncrement: true });
       }
       if (!db.objectStoreNames.contains("movimientos")) {
         db.createObjectStore("movimientos", { autoIncrement: true });
@@ -350,7 +353,7 @@ async function procesarColaSincronizacion() {
           "BIOPAGO": parseFloat(desgl["Biopago"]) || 0
         };
 
-        // 1. Guardar en la tabla general central 'ventas'
+        // 1. Guardar en la tabla general 'ventas'
         const { error: errGlobal } = await supabaseClient.from('ventas').insert([registroVenta]);
         if (errGlobal && errGlobal.code !== '23505') throw errGlobal;
 
@@ -470,6 +473,54 @@ async function procesarColaSincronizacion() {
 
       } else if (payload.action === "eliminarCredito") {
         await supabaseClient.from('creditos').delete().eq('FACTURA', payload.numFactura);
+
+      } else if (payload.action === "guardarVale") {
+        const v = payload.datosVale;
+        const registroValeSupabase = {
+          "FECHA": v.fechaHora || new Date().toLocaleString('es-VE'),
+          "EMPLEADO": v.empleadoNombre,
+          "CEDULA": v.empleadoCedula,
+          "MONTO": parseFloat(v.monto) || 0,
+          "MONEDA": v.moneda || 'USD',
+          "MOTIVO": v.motivo,
+          "CUOTAS": String(v.cuotas || '1'),
+          "AUTORIZADO POR": v.autorizadoPor,
+          "USUARIO": v.usuario || obtenerUsuarioActivo().toUpperCase(),
+          "ESTATUS": v.estatus || "PENDIENTE",
+          "FECHA PAGO": v.fechaPago || null
+        };
+        const { data: resVale, error: errVale } = await supabaseClient.from('vales').insert([registroValeSupabase]).select();
+        if (!errVale && resVale && resVale[0] && payload.localId) {
+          await dbPut("vales", {
+            ...registroValeSupabase,
+            id: resVale[0].id
+          });
+        }
+
+      } else if (payload.action === "actualizarEstatusVale") {
+        if (payload.id) {
+          await supabaseClient.from('vales')
+            .update({
+              "ESTATUS": payload.estatus,
+              "FECHA PAGO": payload.fechaPago
+            })
+            .eq('id', payload.id);
+        } else if (payload.fechaHora && payload.cedula) {
+          await supabaseClient.from('vales')
+            .update({
+              "ESTATUS": payload.estatus,
+              "FECHA PAGO": payload.fechaPago
+            })
+            .eq('FECHA', payload.fechaHora)
+            .eq('CEDULA', payload.cedula);
+        }
+
+      } else if (payload.action === "eliminarVale") {
+        if (payload.id) {
+          await supabaseClient.from('vales').delete().eq('id', payload.id);
+        } else if (payload.fechaHora && payload.cedula) {
+          await supabaseClient.from('vales').delete().eq('FECHA', payload.fechaHora).eq('CEDULA', payload.cedula);
+        }
       }
 
       await dbDelete("syncQueue", item.id);
@@ -599,11 +650,12 @@ async function forzarSincronizacionManual() {
     }
   } catch (e) {}
 
-  mostrarAvisoFactura(`🔄 Paso 5/5: Sincronizando Cuentas por Cobrar (Créditos)...`, false);
+  mostrarAvisoFactura(`🔄 Paso 5/5: Sincronizando Créditos y Vales...`, false);
   let cantCreditos = 0;
+  let cantVales = 0;
   try {
-    const { data: credSup, error: errCred } = await supabaseClient.from('creditos').select('*');
-    if (!errCred && credSup) {
+    const { data: credSup } = await supabaseClient.from('creditos').select('*');
+    if (credSup) {
       cantCreditos = credSup.length;
       for (let cr of credSup) {
         await dbPut("creditos", {
@@ -622,10 +674,31 @@ async function forzarSincronizacionManual() {
         });
       }
     }
-  } catch (eCred) {}
+
+    const { data: valesSup } = await supabaseClient.from('vales').select('*');
+    if (valesSup) {
+      cantVales = valesSup.length;
+      for (let v of valesSup) {
+        await dbPut("vales", {
+          id: v.id,
+          FECHA: v.FECHA,
+          EMPLEADO: v.EMPLEADO,
+          CEDULA: v.CEDULA,
+          MONTO: parseFloat(v.MONTO) || 0,
+          MONEDA: v.MONEDA || 'USD',
+          MOTIVO: v.MOTIVO,
+          CUOTAS: String(v.CUOTAS || '1'),
+          "AUTORIZADO POR": v["AUTORIZADO POR"],
+          USUARIO: v.USUARIO || "CAJERO",
+          ESTATUS: v.ESTATUS || "PENDIENTE",
+          "FECHA PAGO": v["FECHA PAGO"] || null
+        });
+      }
+    }
+  } catch (eCXC) {}
 
   await actualizarEstadoSyncBadge();
-  mostrarAvisoFactura(`🎉 ¡Sincronizado! (${cantClientes} cli, ${cantVentas} vtas, ${cantCierres} cierres, ${cantCreditos} créd)`, true, 8000);
+  mostrarAvisoFactura(`🎉 ¡Sincronizado! (${cantClientes} cli, ${cantVentas} vtas, ${cantCierres} cierres, ${cantCreditos} créd, ${cantVales} vales)`, true, 8000);
 }
 
 async function sincronizarClientesDesdeServidor() {
@@ -649,7 +722,6 @@ async function sincronizarClientesDesdeServidor() {
 async function obtenerSiguienteCorrelativoLocal() {
   let ultimoNum = 0;
 
-  // 1. Revisar ventas locales en IndexedDB
   const ventasLocales = await dbGetAll("ventas");
   ventasLocales.forEach(v => {
     if (v.numFactura) {
@@ -661,7 +733,6 @@ async function obtenerSiguienteCorrelativoLocal() {
     }
   });
 
-  // 2. Revisar facturas pendientes en syncQueue
   const queue = await dbGetAll("syncQueue");
   queue.forEach(item => {
     if (item.payload && item.payload.datosFactura && item.payload.datosFactura.numFactura) {
@@ -673,13 +744,11 @@ async function obtenerSiguienteCorrelativoLocal() {
     }
   });
 
-  // 3. Revisar último valor registrado en config
   const cfgCorrelativo = await dbGet("config", "ultimoCorrelativo");
   if (cfgCorrelativo && typeof cfgCorrelativo.value === "number" && cfgCorrelativo.value > ultimoNum) {
     ultimoNum = cfgCorrelativo.value;
   }
 
-  // 4. Consultar tabla maestra 'ventas' en Supabase
   if (navigator.onLine) {
     try {
       let from = 0;
@@ -2288,6 +2357,7 @@ async function confirmarEImprimirFactura() {
     renderizarResumenFactura();
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVistaPreviaFactura')).hide();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
 
     mostrarAvisoFactura(`Venta N° ${numFactura} emitida e impresa con éxito 🎉`);
@@ -3473,16 +3543,47 @@ async function registrarMovimientoEfectivo() {
 
     conceptoFinal = `VALE DE CAJA: ${empNombre} (CI: ${empCedula}) - ${motivoVal} [${cuotasVal} CUOTA(S)] - AUT: ${autPor}`;
 
+    const usuarioActivo = obtenerUsuarioActivo().toUpperCase();
+    const fechaHoraActual = new Date().toLocaleString('es-VE');
+
     datosVale = {
-      fechaHora: new Date().toLocaleString('es-VE'),
+      fechaHora: fechaHoraActual,
       empleadoNombre: empNombre,
       empleadoCedula: empCedula,
       motivo: motivoVal,
       monto: monto,
       moneda: moneda,
       cuotas: cuotasVal,
-      autorizadoPor: autPor
+      autorizadoPor: autPor,
+      usuario: usuarioActivo,
+      estatus: "PENDIENTE",
+      fechaPago: null
     };
+
+    // Guardar el vale en IndexedDB
+    const localId = await dbPut("vales", {
+      FECHA: fechaHoraActual,
+      EMPLEADO: empNombre,
+      CEDULA: empCedula,
+      MONTO: monto,
+      MONEDA: moneda,
+      MOTIVO: motivoVal,
+      CUOTAS: String(cuotasVal),
+      "AUTORIZADO POR": autPor,
+      USUARIO: usuarioActivo,
+      ESTATUS: "PENDIENTE",
+      "FECHA PAGO": null
+    });
+
+    // Encolar sincronización a la tabla 'vales' en Supabase
+    await dbPut("syncQueue", {
+      id: "sync_vale_" + Date.now(),
+      payload: {
+        action: "guardarVale",
+        localId: localId,
+        datosVale: datosVale
+      }
+    });
 
   } else {
     conceptoFinal = document.getElementById('movConceptoInput').value.trim().toUpperCase();
@@ -3525,15 +3626,24 @@ async function registrarMovimientoEfectivo() {
     const ticketHtml = document.getElementById('contenidoTicketImprimible').innerHTML;
     ejecutarImpresionTicket(ticketHtml);
     mostrarAvisoFactura(`🎟️ Vale de Caja para ${datosVale.empleadoNombre} registrado e impreso.`);
+    procesarColaSincronizacion();
   } else {
     mostrarAvisoFactura(`💸 Movimiento de ${tipo} (${moneda}) registrado exitosamente.`);
   }
 }
 
 function renderizarTicketValeCajaHTML(d) {
-  let montoTxt = (d.moneda === "BS")
-    ? `Bs. ${parseFloat(d.monto).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    : `$${parseFloat(d.monto).toFixed(2)}`;
+  let montoTxt = (d.moneda === "BS" || d.MONEDA === "BS")
+    ? `Bs. ${parseFloat(d.monto || d.MONTO).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : `$${parseFloat(d.monto || d.MONTO).toFixed(2)}`;
+
+  let fec = d.fechaHora || d.FECHA || new Date().toLocaleString('es-VE');
+  let emp = d.empleadoNombre || d.EMPLEADO || 'EMPLEADO';
+  let ced = d.empleadoCedula || d.CEDULA || 'N/D';
+  let mot = d.motivo || d.MOTIVO || 'ADELANTO DE SUELDO';
+  let cuo = d.cuotas || d.CUOTAS || '1';
+  let aut = d.autorizadoPor || d["AUTORIZADO POR"] || 'GERENCIA';
+  let est = (d.estatus || d.ESTATUS || 'PENDIENTE').toUpperCase();
 
   const ticketHtml = `
     <div class="ticket-container shadow-sm border text-start">
@@ -3545,17 +3655,18 @@ function renderizarTicketValeCajaHTML(d) {
       </div>
 
       <div class="ticket-info">
-        <div><strong>FECHA Y HORA:</strong> <span class="num-legible">${d.fechaHora}</span></div>
+        <div><strong>FECHA Y HORA:</strong> <span class="num-legible">${fec}</span></div>
         <div><strong>CONCEPTO:</strong> ADELANTO DE SUELDO</div>
+        <div><strong>ESTATUS:</strong> <strong>${est}</strong></div>
       </div>
 
       <div class="ticket-box-info">
-        <div><strong>EMPLEADO:</strong> ${d.empleadoNombre}</div>
-        <div><strong>CÉDULA / CI:</strong> <span class="num-legible">${d.empleadoCedula}</span></div>
-        <div><strong>MOTIVO:</strong> ${d.motivo}</div>
+        <div><strong>EMPLEADO:</strong> ${emp}</div>
+        <div><strong>CÉDULA / CI:</strong> <span class="num-legible">${ced}</span></div>
+        <div><strong>MOTIVO:</strong> ${mot}</div>
         <div><strong>MONTO DEL VALE:</strong> <span class="fs-6 font-weight-bold num-legible">${montoTxt}</span></div>
-        <div><strong>CUOTAS A DESCONTAR:</strong> ${d.cuotas} cuota(s)</div>
-        <div><strong>AUTORIZADO POR:</strong> ${d.autorizadoPor}</div>
+        <div><strong>CUOTAS A DESCONTAR:</strong> ${cuo} cuota(s)</div>
+        <div><strong>AUTORIZADO POR:</strong> ${aut}</div>
       </div>
 
       <div class="small text-muted text-justify mt-2 mb-3" style="font-size: 8.5px; line-height: 1.2;">
@@ -3565,7 +3676,7 @@ function renderizarTicketValeCajaHTML(d) {
       <div class="ticket-firma-linea">
         ____________________________________<br>
         FIRMA Y CONFORMIDAD EMPLEADO<br>
-        CI: <span class="num-legible">${d.empleadoCedula}</span>
+        CI: <span class="num-legible">${ced}</span>
       </div>
 
       <div class="ticket-footer mt-3">
@@ -4178,7 +4289,7 @@ async function confirmarEImprimirCierreCaja() {
 }
 
 // ==========================================================================
-// MÓDULO NUEVO: HISTORIAL DE CUENTAS POR COBRAR (CRÉDITOS Y VALES DE CAJA)
+// MÓDULO: HISTORIAL DE CUENTAS POR COBRAR (DIRECTO DESDE 'creditos' Y 'vales')
 // ==========================================================================
 
 function alternarSubTabCXC(subtab) {
@@ -4208,11 +4319,12 @@ async function cargarHistorialCuentasPorCobrar() {
   ]);
 }
 
+// 1. HISTORIAL DIRECTO DE VENTAS A CRÉDITO DESDE TABLA 'creditos'
 async function cargarHistorialVentasCredito() {
   const tbody = document.getElementById('tablaHistorialCreditos');
   if (!tbody) return;
 
-  tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">⏳ Consultando cuentas por cobrar...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">⏳ Consultando tabla de créditos...</td></tr>`;
 
   let creditosLocales = await dbGetAll("creditos");
   let mapCreditos = {};
@@ -4224,7 +4336,10 @@ async function cargarHistorialVentasCredito() {
 
   if (navigator.onLine) {
     try {
-      const { data: credSup, error } = await supabaseClient.from('creditos').select('*');
+      const { data: credSup, error } = await supabaseClient
+        .from('creditos')
+        .select('*');
+
       if (!error && credSup) {
         credSup.forEach(cr => {
           let fac = cr.FACTURA || cr.numFactura;
@@ -4314,7 +4429,7 @@ function renderizarTablaHistorialCreditos(lista) {
   if (!tbody) return;
 
   if (!lista || lista.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No se encontraron ventas a crédito con los filtros seleccionados.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No se encontraron ventas a crédito.</td></tr>`;
     return;
   }
 
@@ -4466,94 +4581,94 @@ async function eliminarCreditoHistorial(numFactura) {
   procesarColaSincronizacion();
 }
 
+// 2. HISTORIAL DIRECTO DE VALES DESDE TABLA 'vales'
 async function cargarHistorialValesCaja() {
   const tbody = document.getElementById('tablaHistorialVales');
   if (!tbody) return;
 
-  tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">⏳ Consultando vales de caja...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">⏳ Consultando tabla de vales...</td></tr>`;
 
-  let todosMovimientos = await dbGetAll("movimientos");
-  let vales = [];
+  let valesLocales = await dbGetAll("vales");
+  let mapVales = {};
 
-  todosMovimientos.forEach(m => {
-    if (m && m.tipo === 'RETIRO' && (m.datosVale || String(m.concepto || '').includes('VALE DE CAJA'))) {
-      let dVale = m.datosVale || {};
-      let concepto = m.concepto || '';
-      
-      let empNom = dVale.empleadoNombre;
-      let empCed = dVale.empleadoCedula;
-      let motivo = dVale.motivo;
-      let cuotas = dVale.cuotas || '1';
-      let aut = dVale.autorizadoPor || 'GERENCIA';
-
-      if (!empNom && concepto) {
-        let match = concepto.match(/VALE DE CAJA:\s*(.*?)\s*\(CI:\s*(.*?)\)\s*-\s*(.*?)\s*\[(.*?)\]\s*-\s*AUT:\s*(.*)/i);
-        if (match) {
-          empNom = match[1];
-          empCed = match[2];
-          motivo = match[3];
-          cuotas = match[4];
-          aut = match[5];
-        } else {
-          empNom = 'EMPLEADO';
-          empCed = 'N/D';
-          motivo = concepto;
-        }
-      }
-
-      vales.push({
-        fechaHora: m.fechaCompleta || m.hora || new Date().toLocaleString('es-VE'),
-        empleadoNombre: empNom || 'EMPLEADO',
-        empleadoCedula: empCed || 'N/D',
-        monto: parseFloat(m.monto) || 0,
-        moneda: m.moneda || 'USD',
-        motivo: motivo || 'ADELANTO DE SUELDO',
-        cuotas: cuotas || '1',
-        autorizadoPor: aut || 'GERENCIA'
-      });
-    }
+  valesLocales.forEach(v => {
+    let key = v.id || `${v.FECHA}_${v.CEDULA}`;
+    mapVales[key] = v;
   });
 
-  listaMovimientosEfectivo.forEach(m => {
-    if (m && m.tipo === 'RETIRO' && (m.datosVale || String(m.concepto || '').includes('VALE DE CAJA'))) {
-      let dVale = m.datosVale || {};
-      let yaExiste = vales.some(v => v.fechaHora === (m.fechaCompleta || m.hora) && v.monto === m.monto && v.empleadoCedula === dVale.empleadoCedula);
-      if (!yaExiste) {
-        vales.push({
-          fechaHora: m.fechaCompleta || m.hora || new Date().toLocaleString('es-VE'),
-          empleadoNombre: dVale.empleadoNombre || 'EMPLEADO',
-          empleadoCedula: dVale.empleadoCedula || 'N/D',
-          monto: parseFloat(m.monto) || 0,
-          moneda: m.moneda || 'USD',
-          motivo: dVale.motivo || m.concepto,
-          cuotas: dVale.cuotas || '1',
-          autorizadoPor: dVale.autorizadoPor || 'GERENCIA'
+  if (navigator.onLine) {
+    try {
+      const { data: valesSup, error } = await supabaseClient
+        .from('vales')
+        .select('*');
+
+      if (!error && valesSup) {
+        valesSup.forEach(v => {
+          let key = v.id || `${v.FECHA}_${v.CEDULA}`;
+          mapVales[key] = {
+            id: v.id,
+            FECHA: v.FECHA || "",
+            EMPLEADO: v.EMPLEADO || "",
+            CEDULA: v.CEDULA || "",
+            MONTO: parseFloat(v.MONTO) || 0,
+            MONEDA: v.MONEDA || "USD",
+            MOTIVO: v.MOTIVO || "",
+            CUOTAS: String(v.CUOTAS || "1"),
+            "AUTORIZADO POR": v["AUTORIZADO POR"] || "GERENCIA",
+            USUARIO: v.USUARIO || "CAJERO",
+            ESTATUS: v.ESTATUS || "PENDIENTE",
+            "FECHA PAGO": v["FECHA PAGO"] || null
+          };
         });
       }
-    }
+    } catch (e) {}
+  }
+
+  cacheHistorialVales = Object.values(mapVales).sort((a, b) => {
+    return (b.id || 0) - (a.id || 0);
   });
 
-  cacheHistorialVales = vales.reverse();
+  for (let v of cacheHistorialVales) {
+    await dbPut("vales", v);
+  }
+
   filtrarTablaVales();
 }
 
 function filtrarTablaVales() {
   const inputVal = (document.getElementById('filtroValesInput')?.value || "").trim().toUpperCase();
+  const filtroEstado = document.getElementById('filtroEstatusVales')?.value || "TODOS";
 
   let filtrados = cacheHistorialVales.filter(v => {
-    if (!inputVal) return true;
-    let nom = String(v.empleadoNombre || "").toUpperCase();
-    let ced = String(v.empleadoCedula || "").toUpperCase();
-    let mot = String(v.motivo || "").toUpperCase();
-    return nom.includes(inputVal) || ced.includes(inputVal) || mot.includes(inputVal);
+    let coincideTexto = true;
+    if (inputVal) {
+      let nom = String(v.EMPLEADO || "").toUpperCase();
+      let ced = String(v.CEDULA || "").toUpperCase();
+      let mot = String(v.MOTIVO || "").toUpperCase();
+      coincideTexto = nom.includes(inputVal) || ced.includes(inputVal) || mot.includes(inputVal);
+    }
+
+    let coincideEstado = true;
+    let estatusActual = (v.ESTATUS || "PENDIENTE").toUpperCase();
+    if (filtroEstado !== "TODOS") {
+      coincideEstado = (estatusActual === filtroEstado);
+    }
+
+    return coincideTexto && coincideEstado;
   });
 
   let totalValesUSD = 0;
   let totalValesBS = 0;
+  let cantPendientes = 0;
 
   cacheHistorialVales.forEach(v => {
-    if (v.moneda === "BS") totalValesBS += v.monto;
-    else totalValesUSD += v.monto;
+    let est = (v.ESTATUS || "PENDIENTE").toUpperCase();
+    let monto = parseFloat(v.MONTO) || 0;
+    if (est === "PENDIENTE") {
+      cantPendientes++;
+    }
+    if (v.MONEDA === "BS") totalValesBS += monto;
+    else totalValesUSD += monto;
   });
 
   const badgeVales = document.getElementById('badgeTotalValesEmitidos');
@@ -4563,7 +4678,7 @@ function filtrarTablaVales() {
 
   const cntValesElem = document.getElementById('cntValesTotal');
   if (cntValesElem) {
-    cntValesElem.textContent = cacheHistorialVales.length;
+    cntValesElem.textContent = cantPendientes;
   }
 
   renderizarTablaHistorialVales(filtrados);
@@ -4574,28 +4689,44 @@ function renderizarTablaHistorialVales(lista) {
   if (!tbody) return;
 
   if (!lista || lista.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No se encontraron vales de caja emitidos.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">No se encontraron vales de caja con los filtros seleccionados.</td></tr>`;
     return;
   }
 
   let html = "";
-  lista.forEach((v, idx) => {
-    let montoTxt = (v.moneda === "BS") 
-      ? `Bs. ${v.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-      : `$${v.monto.toFixed(2)}`;
+  lista.forEach(v => {
+    let montoTxt = (v.MONEDA === "BS") 
+      ? `Bs. ${parseFloat(v.MONTO).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+      : `$${parseFloat(v.MONTO).toFixed(2)}`;
+
+    let estatus = (v.ESTATUS || "PENDIENTE").toUpperCase();
+    let esDescontado = (estatus === "DESCONTADO" || estatus === "PAGADO");
+
+    let badgeEstatus = esDescontado
+      ? `<span class="badge bg-success">✅ DESCONTADO</span>`
+      : `<span class="badge bg-warning text-dark fw-bold">⏳ PENDIENTE</span>`;
+
+    let btnDescontar = esDescontado
+      ? `<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 fw-bold rounded-pill" disabled title="Vale Descontado">✔ Descontado</button>`
+      : `<button type="button" class="btn btn-sm btn-success py-0 px-2 fw-bold rounded-pill" onclick="marcarValeComoDescontado(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Marcar como Descontado">💵 Descontar</button>`;
 
     html += `
       <tr>
-        <td class="text-center small num-legible">${v.fechaHora}</td>
-        <td class="fw-bold text-dark">${v.empleadoNombre}</td>
-        <td class="text-center fw-bold num-legible">${v.empleadoCedula}</td>
+        <td class="text-center small num-legible">${v.FECHA}</td>
+        <td class="fw-bold text-dark">${v.EMPLEADO}</td>
+        <td class="text-center fw-bold num-legible">${v.CEDULA}</td>
         <td class="text-end fw-bold text-danger num-legible">${montoTxt}</td>
-        <td class="small text-wrap">${v.motivo}</td>
-        <td class="text-center small">${v.cuotas}</td>
-        <td class="text-center small">${v.autorizadoPor}</td>
+        <td class="small text-wrap">${v.MOTIVO}</td>
+        <td class="text-center small">${v.CUOTAS}</td>
+        <td class="text-center small">${v["AUTORIZADO POR"]}</td>
+        <td class="text-center">${badgeEstatus}</td>
         <td class="text-center">
-          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill" onclick="reimprimirValeHistorial(${idx})" title="Reimprimir Comprobante de Vale">
-            🖨️ Imprimir
+          ${btnDescontar}
+          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill ms-1" onclick="reimprimirValeHistorial(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Reimprimir Vale">
+            🖨️
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill ms-1" onclick="eliminarValeHistorial(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Eliminar Registro">
+            🗑️
           </button>
         </td>
       </tr>`;
@@ -4604,14 +4735,69 @@ function renderizarTablaHistorialVales(lista) {
   tbody.innerHTML = html;
 }
 
-function reimprimirValeHistorial(idx) {
-  const v = cacheHistorialVales[idx];
-  if (!v) return mostrarAvisoFactura("No se encontró el vale de caja.");
+async function marcarValeComoDescontado(id, fechaHora, cedula) {
+  if (!confirm(`¿Confirma que desea marcar este Vale de Caja como DESCONTADO / PAGADO?`)) {
+    return;
+  }
+
+  const fechaPagoStr = new Date().toLocaleString('es-VE');
+  let valeObj = cacheHistorialVales.find(v => (id && v.id === id) || (v.FECHA === fechaHora && v.CEDULA === cedula));
+  if (valeObj) {
+    valeObj.ESTATUS = "DESCONTADO";
+    valeObj["FECHA PAGO"] = fechaPagoStr;
+    await dbPut("vales", valeObj);
+  }
+
+  await dbPut("syncQueue", {
+    id: "sync_upd_vale_" + Date.now(),
+    payload: {
+      action: "actualizarEstatusVale",
+      id: id || null,
+      fechaHora: fechaHora,
+      cedula: cedula,
+      estatus: "DESCONTADO",
+      fechaPago: fechaPagoStr
+    }
+  });
+
+  filtrarTablaVales();
+  mostrarAvisoFactura(`✅ Vale de Caja marcado como DESCONTADO.`);
+  procesarColaSincronizacion();
+}
+
+function reimprimirValeHistorial(id, fechaHora, cedula) {
+  const v = cacheHistorialVales.find(item => (id && item.id === id) || (item.FECHA === fechaHora && item.CEDULA === cedula));
+  if (!v) return mostrarAvisoFactura("No se encontró la información del vale.");
 
   renderizarTicketValeCajaHTML(v);
   const ticketHtml = document.getElementById('contenidoTicketImprimible').innerHTML;
   ejecutarImpresionTicket(ticketHtml);
-  mostrarAvisoFactura(`🖨️ Reimprimiendo Vale de Caja para ${v.empleadoNombre}...`);
+  mostrarAvisoFactura(`🖨️ Reimprimiendo Vale de Caja para ${v.EMPLEADO}...`);
+}
+
+async function eliminarValeHistorial(id, fechaHora, cedula) {
+  if (!confirm(`⚠️ ¿Está seguro que desea eliminar permanentemente este registro de Vale de Caja?`)) {
+    return;
+  }
+
+  cacheHistorialVales = cacheHistorialVales.filter(v => !((id && v.id === id) || (v.FECHA === fechaHora && v.CEDULA === cedula)));
+  if (id) {
+    await dbDelete("vales", id);
+  }
+
+  await dbPut("syncQueue", {
+    id: "sync_del_vale_" + Date.now(),
+    payload: {
+      action: "eliminarVale",
+      id: id || null,
+      fechaHora: fechaHora,
+      cedula: cedula
+    }
+  });
+
+  filtrarTablaVales();
+  mostrarAvisoFactura(`🗑️ Vale de Caja eliminado.`);
+  procesarColaSincronizacion();
 }
 
 // OYENTES DE EVENTOS
