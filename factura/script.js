@@ -1,7 +1,7 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Historial y Cierres Aislados por Usuario, Correlativo Global con Columna FACTURA,
-   Doble Guardado, Módulo de Créditos y Apertura por Jornada
+   Historial y Cierres Aislados por Usuario, Módulo de Cuentas por Cobrar
+   (Ventas a Crédito e Historial de Vales), Correlativo Global y Sincronización
    ========================================================================== */
 
 // Configuración de Supabase
@@ -20,7 +20,7 @@ const GITHUB_CONFIG_FAC = {
 const logoComprobantePreload = new Image();
 logoComprobantePreload.src = "../img/LOGO-MUNDO123.webp";
 
-// Clasificación de Métodos por Naturaleza de Moneda (Incluye Crédito)
+// Clasificación de Métodos por Naturaleza de Moneda
 const METODOS_USD = ["Efectivo Divisas", "Zelle", "PayPal", "Cashea", "Crédito"];
 const METODOS_BS = ["Pago Móvil", "Efectivo Bolívares", "Punto de Venta", "Transferencia Bancaria", "Biopago"];
 
@@ -38,10 +38,13 @@ let datosCierreCajaPendiente = null;
 let listaFlatProductosCodigos = [];
 let listaMovimientosEfectivo = [];
 let cacheHistorialCierres = [];
+let cacheHistorialCreditos = [];
+let cacheHistorialVales = [];
+let subTabCXCActual = "creditos";
 let sincronizandoEnProceso = false;
 let accionPendienteGitHub = null;
 
-// Normalizar nombres de usuario para coincidir con las tablas en Supabase (mayka, gilker, admin)
+// Normalizar nombres de usuario para coincidir con las tablas en Supabase
 function normalizarUsuario(u) {
   let user = (u || sessionStorage.getItem("factura_usuario") || "admin").toLowerCase().trim();
   if (user === "maika" || user === "mayka") return "mayka";
@@ -53,12 +56,12 @@ function obtenerUsuarioActivo() {
   return normalizarUsuario(sessionStorage.getItem("factura_usuario"));
 }
 
-// Determinar el nombre de la tabla de VENTAS personal según el usuario activo (ventas_mayka, etc.)
+// Determinar el nombre de la tabla de VENTAS personal según el usuario activo
 function obtenerTablaVentasUsuario(u) {
   return `ventas_${normalizarUsuario(u)}`;
 }
 
-// Determinar el nombre de la tabla de CIERRES personal según el usuario activo (cierres_mayka, etc.)
+// Determinar el nombre de la tabla de CIERRES personal según el usuario activo
 function obtenerTablaCierresUsuario(u) {
   return `cierres_${normalizarUsuario(u)}`;
 }
@@ -347,17 +350,17 @@ async function procesarColaSincronizacion() {
           "BIOPAGO": parseFloat(desgl["Biopago"]) || 0
         };
 
-        // 1. Guardar primero en la tabla general central 'ventas'
+        // 1. Guardar en la tabla general central 'ventas'
         const { error: errGlobal } = await supabaseClient.from('ventas').insert([registroVenta]);
         if (errGlobal && errGlobal.code !== '23505') throw errGlobal;
 
-        // 2. Guardar luego en la tabla personal del usuario ('ventas_mayka', 'ventas_gilker', etc.)
+        // 2. Guardar en la tabla personal del usuario
         if (tablaPersonal && tablaPersonal !== 'ventas') {
           const { error: errPers } = await supabaseClient.from(tablaPersonal).insert([registroVenta]);
           if (errPers && errPers.code !== '23505') throw errPers;
         }
 
-        // 3. Si la venta incluye Crédito, registrar en la tabla independiente 'creditos'
+        // 3. Si la venta incluye Crédito, registrar en la tabla 'creditos'
         const montoCredito = parseFloat(desgl["Crédito"]) || (d.formaPago && d.formaPago.toUpperCase().includes("CRÉDITO") ? parseFloat(d.montoTotal) : 0);
         if (montoCredito > 0) {
           const registroCreditoSupabase = {
@@ -423,11 +426,9 @@ async function procesarColaSincronizacion() {
           "TOTAL 4": parseFloat(d.totalCajaBS) || 0
         };
 
-        // 1. Guardar primero en la tabla general central 'cierres'
         const { error: errCieGlobal } = await supabaseClient.from('cierres').insert([registroCierre]);
         if (errCieGlobal && errCieGlobal.code !== '23505') throw errCieGlobal;
 
-        // 2. Guardar luego en la tabla personal del usuario
         if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
           const { error: errCiePers } = await supabaseClient.from(tablaCierresPersonal).insert([registroCierre]);
           if (errCiePers && errCiePers.code !== '23505') throw errCiePers;
@@ -458,14 +459,23 @@ async function procesarColaSincronizacion() {
             await supabaseClient.from(tablaCierresPersonal).delete().eq('id', payload.id);
           }
         }
+
+      } else if (payload.action === "actualizarEstatusCredito") {
+        await supabaseClient.from('creditos')
+          .update({
+            "ESTATUS": payload.estatus,
+            "FECHA PAGO": payload.fechaPago
+          })
+          .eq('FACTURA', payload.numFactura);
+
+      } else if (payload.action === "eliminarCredito") {
+        await supabaseClient.from('creditos').delete().eq('FACTURA', payload.numFactura);
       }
 
-      // Eliminar de la cola local tras confirmar éxito
       await dbDelete("syncQueue", item.id);
 
     } catch (err) {
       console.warn("Aviso Sync Supabase:", err);
-      // Si el error es por duplicado (23505) o permisos RLS en tablas secundarias (42501), descartar de la cola
       if (err && (
         err.code === '23505' || 
         err.code === '42501' || 
@@ -497,11 +507,11 @@ async function forzarSincronizacionManual() {
     badge.textContent = "🔄 Sincronizando...";
   }
 
-  mostrarAvisoFactura("🔄 Paso 1/4: Subiendo pendientes...", false);
+  mostrarAvisoFactura("🔄 Paso 1/5: Subiendo pendientes...", false);
   await procesarColaSincronizacion();
   await new Promise(r => setTimeout(r, 300));
 
-  mostrarAvisoFactura("🔄 Paso 2/4: Sincronizando Clientes...", false);
+  mostrarAvisoFactura("🔄 Paso 2/5: Sincronizando Clientes...", false);
   let cantClientes = 0;
   try {
     const { data: clientesSup, error } = await supabaseClient.from('clientes').select('*');
@@ -520,7 +530,7 @@ async function forzarSincronizacionManual() {
 
   const usuarioActivo = obtenerUsuarioActivo();
   const tablaUsuarioActivo = obtenerTablaVentasUsuario(usuarioActivo);
-  mostrarAvisoFactura(`🔄 Paso 3/4: Sincronizando Ventas (${tablaUsuarioActivo})...`, false);
+  mostrarAvisoFactura(`🔄 Paso 3/5: Sincronizando Ventas (${tablaUsuarioActivo})...`, false);
   let cantVentas = 0;
   try {
     const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
@@ -551,7 +561,7 @@ async function forzarSincronizacionManual() {
   } catch (e) {}
 
   const tablaCierresUsuario = obtenerTablaCierresUsuario(usuarioActivo);
-  mostrarAvisoFactura(`🔄 Paso 4/4: Sincronizando Cierres (${tablaCierresUsuario})...`, false);
+  mostrarAvisoFactura(`🔄 Paso 4/5: Sincronizando Cierres (${tablaCierresUsuario})...`, false);
   let cantCierres = 0;
   try {
     const { data: cierresSup, error } = await supabaseClient.from(tablaCierresUsuario).select('*');
@@ -589,8 +599,33 @@ async function forzarSincronizacionManual() {
     }
   } catch (e) {}
 
+  mostrarAvisoFactura(`🔄 Paso 5/5: Sincronizando Cuentas por Cobrar (Créditos)...`, false);
+  let cantCreditos = 0;
+  try {
+    const { data: credSup, error: errCred } = await supabaseClient.from('creditos').select('*');
+    if (!errCred && credSup) {
+      cantCreditos = credSup.length;
+      for (let cr of credSup) {
+        await dbPut("creditos", {
+          numFactura: cr.FACTURA,
+          FACTURA: cr.FACTURA,
+          FECHA: cr.FECHA,
+          "CEDULA O RIF": cr["CEDULA O RIF"],
+          "NOMBRE / RAZON SOCIAL": cr["NOMBRE / RAZON SOCIAL"],
+          TELEFONO: cr.TELEFONO || 'N/D',
+          UBICACION: cr.UBICACION || null,
+          PRODUCTOS: cr.PRODUCTOS || "",
+          "MONTO CREDITO": parseFloat(cr["MONTO CREDITO"]) || 0,
+          ESTATUS: cr.ESTATUS || "EN ESPERA DE PAGO",
+          USUARIO: cr.USUARIO || "CAJERO",
+          "FECHA PAGO": cr["FECHA PAGO"] || null
+        });
+      }
+    }
+  } catch (eCred) {}
+
   await actualizarEstadoSyncBadge();
-  mostrarAvisoFactura(`🎉 ¡Sincronizado! (${cantClientes} clientes, ${cantVentas} ventas, ${cantCierres} cierres)`, true, 8000);
+  mostrarAvisoFactura(`🎉 ¡Sincronizado! (${cantClientes} cli, ${cantVentas} vtas, ${cantCierres} cierres, ${cantCreditos} créd)`, true, 8000);
 }
 
 async function sincronizarClientesDesdeServidor() {
@@ -610,7 +645,7 @@ async function sincronizarClientesDesdeServidor() {
   } catch (e) {}
 }
 
-// CORRELATIVO GLOBAL ROBUSTO Y BLINDADO CONTRA DUPLICADOS (COLUMNA 'FACTURA')
+// CORRELATIVO GLOBAL ROBUSTO (COLUMNA 'FACTURA')
 async function obtenerSiguienteCorrelativoLocal() {
   let ultimoNum = 0;
 
@@ -626,7 +661,7 @@ async function obtenerSiguienteCorrelativoLocal() {
     }
   });
 
-  // 2. Revisar facturas pendientes en la cola de sincronización (syncQueue)
+  // 2. Revisar facturas pendientes en syncQueue
   const queue = await dbGetAll("syncQueue");
   queue.forEach(item => {
     if (item.payload && item.payload.datosFactura && item.payload.datosFactura.numFactura) {
@@ -638,13 +673,13 @@ async function obtenerSiguienteCorrelativoLocal() {
     }
   });
 
-  // 3. Revisar último valor registrado en config de IndexedDB
+  // 3. Revisar último valor registrado en config
   const cfgCorrelativo = await dbGet("config", "ultimoCorrelativo");
   if (cfgCorrelativo && typeof cfgCorrelativo.value === "number" && cfgCorrelativo.value > ultimoNum) {
     ultimoNum = cfgCorrelativo.value;
   }
 
-  // 4. Consultar siempre la tabla maestra global 'ventas' en Supabase de forma paginada limpia
+  // 4. Consultar tabla maestra 'ventas' en Supabase
   if (navigator.onLine) {
     try {
       let from = 0;
@@ -1107,7 +1142,6 @@ function iniciarModuloFacturacion(usuario) {
     procesarColaSincronizacion();
   }
 
-  // Verificar o solicitar Apertura de Turno
   verificarYSolicitarAperturaCaja(userNorm);
 }
 
@@ -1181,7 +1215,6 @@ function guardarAperturaCajaInicial() {
 
   localStorage.setItem(claveApertura, JSON.stringify(registroApertura));
 
-  // Actualizar de inmediato los inputs del modal Cierre de Caja
   const elemCierreUSD = document.getElementById('cierreInicialUSD');
   const elemCierreBS = document.getElementById('cierreInicialBS');
   if (elemCierreUSD) elemCierreUSD.value = usd.toFixed(2);
@@ -2984,7 +3017,6 @@ async function buscarFacturasHistorial(modo) {
     return mostrarAvisoFactura("Ingrese Cédula, RIF o N° de Factura a buscar.");
   }
 
-  // 1. Filtrar solo las ventas locales pertenecientes a ESTE usuario
   let ventasLocales = await dbGetAll("ventas");
   let mapFacturas = {};
 
@@ -2994,7 +3026,6 @@ async function buscarFacturasHistorial(modo) {
     }
   });
 
-  // 2. Consultar la tabla personal del usuario en Supabase
   if (navigator.onLine) {
     try {
       const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
@@ -3469,7 +3500,9 @@ async function registrarMovimientoEfectivo() {
     tipo: tipo,
     moneda: moneda,
     monto: monto,
-    concepto: conceptoFinal
+    concepto: conceptoFinal,
+    datosVale: datosVale || null,
+    fechaCompleta: new Date().toLocaleString('es-VE')
   };
 
   listaMovimientosEfectivo.push(nuevoMov);
@@ -3499,8 +3532,8 @@ async function registrarMovimientoEfectivo() {
 
 function renderizarTicketValeCajaHTML(d) {
   let montoTxt = (d.moneda === "BS")
-    ? `Bs. ${d.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    : `$${d.monto.toFixed(2)}`;
+    ? `Bs. ${parseFloat(d.monto).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : `$${parseFloat(d.monto).toFixed(2)}`;
 
   const ticketHtml = `
     <div class="ticket-container shadow-sm border text-start">
@@ -3640,7 +3673,6 @@ async function cargarHistorialCierresCaja() {
   const usuarioActivo = obtenerUsuarioActivo();
   const tablaCierresUsuario = obtenerTablaCierresUsuario(usuarioActivo);
 
-  // 1. Filtrar solo los cierres locales de ESTE usuario
   let cierresLocales = await dbGetAll("cierres");
   let cierresFiltrados = cierresLocales.filter(c => normalizarUsuario(c.usuario) === usuarioActivo);
 
@@ -3651,7 +3683,6 @@ async function cargarHistorialCierresCaja() {
     tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">⏳ Consultando cierres de ${usuarioActivo.toUpperCase()}...</td></tr>`;
   }
 
-  // 2. Consultar la tabla personal de cierres en Supabase
   if (navigator.onLine) {
     try {
       const { data: cierresSup, error } = await supabaseClient.from(tablaCierresUsuario).select('*');
@@ -3667,18 +3698,18 @@ async function cargarHistorialCierresCaja() {
           totalVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
           totalVentasBS: parseFloat(c["TOTAL 2"]) || 0,
           resumen: {
-            ventasEfectivoUSD: parseFloat(cie["DIVISAS"]) || 0,
-            ventasEfectivoBS: parseFloat(cie["BOLIVARES"]) || 0,
-            ventasPagoMovil: parseFloat(cie["PAGO MOVIL"]) || 0,
-            ventasZelle: parseFloat(cie["ZELLE"]) || 0,
-            ventasPayPal: parseFloat(cie["PAYPAL"]) || 0,
-            ventasPuntoVenta: parseFloat(cie["PUNTO DE VENTA"]) || 0,
-            ventasBiopago: parseFloat(cie["BIOPAGO"]) || 0,
-            ventasCashea: parseFloat(cie["CASHEA"]) || 0,
-            ventasCredito: parseFloat(cie["CREDITO"]) || 0,
-            ventasTransferencia: parseFloat(cie["TRANSFERENCIA"] || cie["TRANSFERECIA"]) || 0,
-            totalGeneralVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
-            totalGeneralVentasBS: parseFloat(cie["TOTAL 2"]) || 0
+            ventasEfectivoUSD: parseFloat(c["DIVISAS"]) || 0,
+            ventasEfectivoBS: parseFloat(c["BOLIVARES"]) || 0,
+            ventasPagoMovil: parseFloat(c["PAGO MOVIL"]) || 0,
+            ventasZelle: parseFloat(c["ZELLE"]) || 0,
+            ventasPayPal: parseFloat(c["PAYPAL"]) || 0,
+            ventasPuntoVenta: parseFloat(c["PUNTO DE VENTA"]) || 0,
+            ventasBiopago: parseFloat(c["BIOPAGO"]) || 0,
+            ventasCashea: parseFloat(c["CASHEA"]) || 0,
+            ventasCredito: parseFloat(c["CREDITO"]) || 0,
+            ventasTransferencia: parseFloat(c["TRANSFERENCIA"] || c["TRANSFERECIA"]) || 0,
+            totalGeneralVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
+            totalGeneralVentasBS: parseFloat(c["TOTAL 2"]) || 0
           }
         })).sort((a, b) => (b.id || 0) - (a.id || 0));
 
@@ -3760,7 +3791,6 @@ function reimprimirCierreCajaHistorial(idx) {
   mostrarAvisoFactura(`🖨️ Reimprimiendo Reporte Z del ${c.fechaStr}...`);
 }
 
-// ELIMINACIÓN SINCRONIZADA DE CIERRE DE CAJA EN AMBAS TABLAS (POR FECHA EXACTA)
 async function eliminarCierreCajaHistorial(idx) {
   const c = cacheHistorialCierres[idx];
   if (!c) return;
@@ -3777,7 +3807,6 @@ async function eliminarCierreCajaHistorial(idx) {
   cacheHistorialCierres.splice(idx, 1);
   renderizarTablaHistorialCierres();
 
-  // 1. Borrar de IndexedDB local
   if (idCierre) {
     await dbDelete("cierres", idCierre);
   }
@@ -3788,7 +3817,6 @@ async function eliminarCierreCajaHistorial(idx) {
     }
   }
 
-  // 2. Encolar para eliminar en Supabase tanto en 'cierres' como en 'cierres_[user]' por FECHA
   await dbPut("syncQueue", {
     id: "sync_del_cie_" + Date.now(),
     payload: {
@@ -3811,7 +3839,6 @@ async function procesarSiguienteCierreCaja() {
   const usuario = obtenerUsuarioActivo();
   const tablaUsuarioActivo = obtenerTablaVentasUsuario(usuario);
 
-  // Actualizar en el registro de apertura local
   const hoyStr = new Date().toISOString().split('T')[0];
   localStorage.setItem(`apertura_caja_user_${usuario}_${hoyStr}`, JSON.stringify({
     usd: inicialUSD,
@@ -3925,7 +3952,6 @@ async function procesarSiguienteCierreCaja() {
       }
     });
 
-    // El crédito representa cuentas por cobrar y NO ingresa a caja física
     resumen.totalGeneralVentasUSD = resumen.ventasEfectivoUSD + resumen.ventasZelle + resumen.ventasPayPal + resumen.ventasCashea;
     resumen.totalGeneralVentasBS = resumen.ventasEfectivoBS + resumen.ventasPagoMovil + resumen.ventasPuntoVenta + resumen.ventasBiopago + resumen.ventasTransferencia;
 
@@ -4149,6 +4175,443 @@ async function confirmarEImprimirCierreCaja() {
     console.error("Error al guardar cierre local:", err);
     mostrarAvisoFactura("Error al registrar el cierre de caja localmente.");
   }
+}
+
+// ==========================================================================
+// MÓDULO NUEVO: HISTORIAL DE CUENTAS POR COBRAR (CRÉDITOS Y VALES DE CAJA)
+// ==========================================================================
+
+function alternarSubTabCXC(subtab) {
+  subTabCXCActual = subtab;
+  const btnCreditos = document.getElementById('btnSubTabCreditos');
+  const btnVales = document.getElementById('btnSubTabVales');
+  const vistaCreditos = document.getElementById('subVistaCreditos');
+  const vistaVales = document.getElementById('subVistaVales');
+
+  if (subtab === 'creditos') {
+    btnCreditos.className = "btn btn-sm btn-danger fw-bold rounded-pill shadow-sm px-4";
+    btnVales.className = "btn btn-sm btn-outline-dark fw-bold rounded-pill px-4";
+    vistaCreditos.classList.remove('hidden');
+    vistaVales.classList.add('hidden');
+  } else {
+    btnCreditos.className = "btn btn-sm btn-outline-danger fw-bold rounded-pill px-4";
+    btnVales.className = "btn btn-sm btn-dark fw-bold rounded-pill shadow-sm px-4";
+    vistaCreditos.classList.add('hidden');
+    vistaVales.classList.remove('hidden');
+  }
+}
+
+async function cargarHistorialCuentasPorCobrar() {
+  await Promise.all([
+    cargarHistorialVentasCredito(),
+    cargarHistorialValesCaja()
+  ]);
+}
+
+async function cargarHistorialVentasCredito() {
+  const tbody = document.getElementById('tablaHistorialCreditos');
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">⏳ Consultando cuentas por cobrar...</td></tr>`;
+
+  let creditosLocales = await dbGetAll("creditos");
+  let mapCreditos = {};
+
+  creditosLocales.forEach(cr => {
+    let fac = cr.numFactura || cr.FACTURA;
+    if (fac) mapCreditos[fac] = cr;
+  });
+
+  if (navigator.onLine) {
+    try {
+      const { data: credSup, error } = await supabaseClient.from('creditos').select('*');
+      if (!error && credSup) {
+        credSup.forEach(cr => {
+          let fac = cr.FACTURA || cr.numFactura;
+          if (fac) {
+            mapCreditos[fac] = {
+              numFactura: fac,
+              FACTURA: fac,
+              FECHA: cr.FECHA || "",
+              "CEDULA O RIF": cr["CEDULA O RIF"] || "",
+              "NOMBRE / RAZON SOCIAL": cr["NOMBRE / RAZON SOCIAL"] || "",
+              TELEFONO: cr.TELEFONO || 'N/D',
+              UBICACION: cr.UBICACION || null,
+              PRODUCTOS: cr.PRODUCTOS || "",
+              "MONTO CREDITO": parseFloat(cr["MONTO CREDITO"]) || 0,
+              ESTATUS: cr.ESTATUS || "EN ESPERA DE PAGO",
+              USUARIO: cr.USUARIO || "CAJERO",
+              "FECHA PAGO": cr["FECHA PAGO"] || null
+            };
+          }
+        });
+      }
+    } catch (e) {}
+  }
+
+  cacheHistorialCreditos = Object.values(mapCreditos).sort((a, b) => {
+    let numA = parseInt(String(a.FACTURA || a.numFactura || "").replace(/\D/g, ''), 10) || 0;
+    let numB = parseInt(String(b.FACTURA || b.numFactura || "").replace(/\D/g, ''), 10) || 0;
+    return numB - numA;
+  });
+
+  for (let cr of cacheHistorialCreditos) {
+    await dbPut("creditos", cr);
+  }
+
+  filtrarTablaCreditos();
+}
+
+function filtrarTablaCreditos() {
+  const inputVal = (document.getElementById('filtroCreditosInput')?.value || "").trim().toUpperCase();
+  const filtroEstado = document.getElementById('filtroEstatusCredito')?.value || "TODOS";
+
+  let filtrados = cacheHistorialCreditos.filter(cr => {
+    let coincideTexto = true;
+    if (inputVal) {
+      let fac = String(cr.FACTURA || cr.numFactura || "").toUpperCase();
+      let ced = String(cr["CEDULA O RIF"] || "").toUpperCase();
+      let nom = String(cr["NOMBRE / RAZON SOCIAL"] || "").toUpperCase();
+      coincideTexto = fac.includes(inputVal) || ced.includes(inputVal) || nom.includes(inputVal);
+    }
+
+    let coincideEstado = true;
+    let estatusActual = (cr.ESTATUS || "EN ESPERA DE PAGO").toUpperCase();
+    if (filtroEstado !== "TODOS") {
+      coincideEstado = (estatusActual === filtroEstado);
+    }
+
+    return coincideTexto && coincideEstado;
+  });
+
+  let totalPorCobrar = 0;
+  let cantPendientes = 0;
+
+  cacheHistorialCreditos.forEach(cr => {
+    let est = (cr.ESTATUS || "EN ESPERA DE PAGO").toUpperCase();
+    let monto = parseFloat(cr["MONTO CREDITO"]) || 0;
+    if (est !== "PAGADO") {
+      totalPorCobrar += monto;
+      cantPendientes++;
+    }
+  });
+
+  const badgeTotal = document.getElementById('badgeTotalPorCobrar');
+  if (badgeTotal) {
+    badgeTotal.textContent = `Por Cobrar: $${totalPorCobrar.toFixed(2)}`;
+  }
+
+  const cntPendientesElem = document.getElementById('cntCreditosPendientes');
+  if (cntPendientesElem) {
+    cntPendientesElem.textContent = cantPendientes;
+  }
+
+  renderizarTablaHistorialCreditos(filtrados);
+}
+
+function renderizarTablaHistorialCreditos(lista) {
+  const tbody = document.getElementById('tablaHistorialCreditos');
+  if (!tbody) return;
+
+  if (!lista || lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No se encontraron ventas a crédito con los filtros seleccionados.</td></tr>`;
+    return;
+  }
+
+  let html = "";
+  lista.forEach(cr => {
+    let fac = cr.FACTURA || cr.numFactura;
+    let fec = cr.FECHA || 'N/D';
+    let ced = cr["CEDULA O RIF"] || 'N/D';
+    let nom = cr["NOMBRE / RAZON SOCIAL"] || 'CONSUMIDOR FINAL';
+    let tel = cr.TELEFONO || 'N/D';
+    let monto = parseFloat(cr["MONTO CREDITO"]) || 0;
+    let estatus = (cr.ESTATUS || "EN ESPERA DE PAGO").toUpperCase();
+    let esPagado = (estatus === "PAGADO");
+
+    let badgeEstatus = esPagado 
+      ? `<span class="badge bg-success">✅ PAGADO</span>` 
+      : `<span class="badge bg-warning text-dark fw-bold">⏳ PENDIENTE</span>`;
+
+    let btnCobrar = esPagado 
+      ? `<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 fw-bold rounded-pill" disabled title="Factura Pagada">✔ Pagado</button>`
+      : `<button type="button" class="btn btn-sm btn-success py-0 px-2 fw-bold rounded-pill" onclick="marcarCreditoComoPagado('${fac}')" title="Registrar Cobro">💵 Cobrar</button>`;
+
+    html += `
+      <tr>
+        <td class="fw-bold text-center text-danger num-legible">${fac}</td>
+        <td class="text-center small num-legible">${fec}</td>
+        <td class="fw-bold text-center num-legible">${ced}</td>
+        <td class="fw-bold text-wrap">${nom}</td>
+        <td class="text-center small num-legible">${tel}</td>
+        <td class="text-end fw-bold text-danger num-legible">$${monto.toFixed(2)}</td>
+        <td class="text-center">${badgeEstatus}</td>
+        <td class="text-center">
+          ${btnCobrar}
+          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill ms-1" onclick="reimprimirCreditoHistorial('${fac}')" title="Reimprimir Comprobante de Crédito">
+            🖨️
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill ms-1" onclick="eliminarCreditoHistorial('${fac}')" title="Eliminar Registro">
+            🗑️
+          </button>
+        </td>
+      </tr>`;
+  });
+
+  tbody.innerHTML = html;
+}
+
+async function marcarCreditoComoPagado(numFactura) {
+  if (!confirm(`¿Confirma que desea marcar como PAGADA la Factura a Crédito N° ${numFactura}?`)) {
+    return;
+  }
+
+  const fechaPagoStr = new Date().toLocaleString('es-VE');
+  let creditoObj = cacheHistorialCreditos.find(c => (c.FACTURA === numFactura || c.numFactura === numFactura));
+  if (creditoObj) {
+    creditoObj.ESTATUS = "PAGADO";
+    creditoObj["FECHA PAGO"] = fechaPagoStr;
+    await dbPut("creditos", creditoObj);
+  }
+
+  await dbPut("syncQueue", {
+    id: "sync_upd_cred_" + Date.now(),
+    payload: {
+      action: "actualizarEstatusCredito",
+      numFactura: numFactura,
+      estatus: "PAGADO",
+      fechaPago: fechaPagoStr
+    }
+  });
+
+  filtrarTablaCreditos();
+  mostrarAvisoFactura(`✅ Crédito de Factura N° ${numFactura} registrado como PAGADO.`);
+  procesarColaSincronizacion();
+}
+
+function reimprimirCreditoHistorial(numFactura) {
+  let cr = cacheHistorialCreditos.find(c => (c.FACTURA === numFactura || c.numFactura === numFactura));
+  if (!cr) return mostrarAvisoFactura("No se encontró la información del crédito.");
+
+  const tasa = obtenerTasaBCV();
+  const montoUSD = parseFloat(cr["MONTO CREDITO"]) || 0;
+  const montoBS = montoUSD * (tasa > 0 ? tasa : 1);
+  const estatus = cr.ESTATUS || "EN ESPERA DE PAGO";
+
+  const ticketHtml = `
+    <div class="ticket-container shadow-sm border text-start">
+      <div class="ticket-header">
+        <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
+        <div class="ticket-title fs-6">COMPROBANTE DE VENTA A CRÉDITO</div>
+        <div>RIF: J-505072889 | TELF: 0412-1753275</div>
+        <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
+      </div>
+
+      <div class="ticket-info">
+        <div><strong>FACTURA N°:</strong> <span class="fs-6 num-legible">${cr.FACTURA || cr.numFactura}</span></div>
+        <div><strong>FECHA EMISIÓN:</strong> <span class="num-legible">${cr.FECHA}</span></div>
+        <div><strong>CLIENTE:</strong> ${cr["NOMBRE / RAZON SOCIAL"]}</div>
+        <div><strong>CI / RIF:</strong> <span class="num-legible">${cr["CEDULA O RIF"]}</span></div>
+        <div><strong>TELÉFONO:</strong> <span class="num-legible">${cr.TELEFONO || 'N/D'}</span></div>
+        <div><strong>ESTATUS ACTUAL:</strong> <strong>${estatus}</strong></div>
+        ${cr["FECHA PAGO"] ? `<div><strong>FECHA DE PAGO:</strong> <span class="num-legible">${cr["FECHA PAGO"]}</span></div>` : ''}
+      </div>
+
+      <div class="ticket-box-info">
+        <div><strong>MONTO TOTAL DEL CRÉDITO:</strong></div>
+        <div class="fs-5 text-danger font-weight-bold num-legible">$${montoUSD.toFixed(2)}</div>
+        <div class="small text-muted num-legible">Equivalente BCV: Bs. ${montoBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+      </div>
+
+      <div class="small text-muted text-justify mt-2 mb-3" style="font-size: 8.5px; line-height: 1.2;">
+        Reconozco y acepto la deuda contraída descrita en el presente comprobante comercial no fiscal, comprometiéndome a liquidar el saldo total acordado.
+      </div>
+
+      <div class="ticket-firma-linea">
+        ____________________________________<br>
+        FIRMA DE CONFORMIDAD DEL CLIENTE<br>
+        CI: <span class="num-legible">${cr["CEDULA O RIF"]}</span>
+      </div>
+
+      <div class="ticket-footer mt-3">
+        <div class="small">DOCUMENTO DE CONTROL INTERNO DE COBRANZA</div>
+      </div>
+    </div>
+  `;
+
+  const elemImpresion = document.getElementById('contenidoTicketImprimible');
+  if (elemImpresion) elemImpresion.innerHTML = ticketHtml;
+  ejecutarImpresionTicket(ticketHtml);
+  mostrarAvisoFactura(`🖨️ Reimprimiendo Comprobante de Crédito Factura N° ${numFactura}...`);
+}
+
+async function eliminarCreditoHistorial(numFactura) {
+  if (!confirm(`⚠️ ¿Está seguro que desea eliminar este registro de crédito (Factura N° ${numFactura})?`)) {
+    return;
+  }
+
+  cacheHistorialCreditos = cacheHistorialCreditos.filter(c => (c.FACTURA !== numFactura && c.numFactura !== numFactura));
+  await dbDelete("creditos", numFactura);
+
+  await dbPut("syncQueue", {
+    id: "sync_del_cred_" + Date.now(),
+    payload: {
+      action: "eliminarCredito",
+      numFactura: numFactura
+    }
+  });
+
+  filtrarTablaCreditos();
+  mostrarAvisoFactura(`🗑️ Crédito N° ${numFactura} eliminado.`);
+  procesarColaSincronizacion();
+}
+
+async function cargarHistorialValesCaja() {
+  const tbody = document.getElementById('tablaHistorialVales');
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">⏳ Consultando vales de caja...</td></tr>`;
+
+  let todosMovimientos = await dbGetAll("movimientos");
+  let vales = [];
+
+  todosMovimientos.forEach(m => {
+    if (m && m.tipo === 'RETIRO' && (m.datosVale || String(m.concepto || '').includes('VALE DE CAJA'))) {
+      let dVale = m.datosVale || {};
+      let concepto = m.concepto || '';
+      
+      let empNom = dVale.empleadoNombre;
+      let empCed = dVale.empleadoCedula;
+      let motivo = dVale.motivo;
+      let cuotas = dVale.cuotas || '1';
+      let aut = dVale.autorizadoPor || 'GERENCIA';
+
+      if (!empNom && concepto) {
+        let match = concepto.match(/VALE DE CAJA:\s*(.*?)\s*\(CI:\s*(.*?)\)\s*-\s*(.*?)\s*\[(.*?)\]\s*-\s*AUT:\s*(.*)/i);
+        if (match) {
+          empNom = match[1];
+          empCed = match[2];
+          motivo = match[3];
+          cuotas = match[4];
+          aut = match[5];
+        } else {
+          empNom = 'EMPLEADO';
+          empCed = 'N/D';
+          motivo = concepto;
+        }
+      }
+
+      vales.push({
+        fechaHora: m.fechaCompleta || m.hora || new Date().toLocaleString('es-VE'),
+        empleadoNombre: empNom || 'EMPLEADO',
+        empleadoCedula: empCed || 'N/D',
+        monto: parseFloat(m.monto) || 0,
+        moneda: m.moneda || 'USD',
+        motivo: motivo || 'ADELANTO DE SUELDO',
+        cuotas: cuotas || '1',
+        autorizadoPor: aut || 'GERENCIA'
+      });
+    }
+  });
+
+  listaMovimientosEfectivo.forEach(m => {
+    if (m && m.tipo === 'RETIRO' && (m.datosVale || String(m.concepto || '').includes('VALE DE CAJA'))) {
+      let dVale = m.datosVale || {};
+      let yaExiste = vales.some(v => v.fechaHora === (m.fechaCompleta || m.hora) && v.monto === m.monto && v.empleadoCedula === dVale.empleadoCedula);
+      if (!yaExiste) {
+        vales.push({
+          fechaHora: m.fechaCompleta || m.hora || new Date().toLocaleString('es-VE'),
+          empleadoNombre: dVale.empleadoNombre || 'EMPLEADO',
+          empleadoCedula: dVale.empleadoCedula || 'N/D',
+          monto: parseFloat(m.monto) || 0,
+          moneda: m.moneda || 'USD',
+          motivo: dVale.motivo || m.concepto,
+          cuotas: dVale.cuotas || '1',
+          autorizadoPor: dVale.autorizadoPor || 'GERENCIA'
+        });
+      }
+    }
+  });
+
+  cacheHistorialVales = vales.reverse();
+  filtrarTablaVales();
+}
+
+function filtrarTablaVales() {
+  const inputVal = (document.getElementById('filtroValesInput')?.value || "").trim().toUpperCase();
+
+  let filtrados = cacheHistorialVales.filter(v => {
+    if (!inputVal) return true;
+    let nom = String(v.empleadoNombre || "").toUpperCase();
+    let ced = String(v.empleadoCedula || "").toUpperCase();
+    let mot = String(v.motivo || "").toUpperCase();
+    return nom.includes(inputVal) || ced.includes(inputVal) || mot.includes(inputVal);
+  });
+
+  let totalValesUSD = 0;
+  let totalValesBS = 0;
+
+  cacheHistorialVales.forEach(v => {
+    if (v.moneda === "BS") totalValesBS += v.monto;
+    else totalValesUSD += v.monto;
+  });
+
+  const badgeVales = document.getElementById('badgeTotalValesEmitidos');
+  if (badgeVales) {
+    badgeVales.textContent = `Total Vales: $${totalValesUSD.toFixed(2)} / Bs. ${totalValesBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  const cntValesElem = document.getElementById('cntValesTotal');
+  if (cntValesElem) {
+    cntValesElem.textContent = cacheHistorialVales.length;
+  }
+
+  renderizarTablaHistorialVales(filtrados);
+}
+
+function renderizarTablaHistorialVales(lista) {
+  const tbody = document.getElementById('tablaHistorialVales');
+  if (!tbody) return;
+
+  if (!lista || lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No se encontraron vales de caja emitidos.</td></tr>`;
+    return;
+  }
+
+  let html = "";
+  lista.forEach((v, idx) => {
+    let montoTxt = (v.moneda === "BS") 
+      ? `Bs. ${v.monto.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+      : `$${v.monto.toFixed(2)}`;
+
+    html += `
+      <tr>
+        <td class="text-center small num-legible">${v.fechaHora}</td>
+        <td class="fw-bold text-dark">${v.empleadoNombre}</td>
+        <td class="text-center fw-bold num-legible">${v.empleadoCedula}</td>
+        <td class="text-end fw-bold text-danger num-legible">${montoTxt}</td>
+        <td class="small text-wrap">${v.motivo}</td>
+        <td class="text-center small">${v.cuotas}</td>
+        <td class="text-center small">${v.autorizadoPor}</td>
+        <td class="text-center">
+          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill" onclick="reimprimirValeHistorial(${idx})" title="Reimprimir Comprobante de Vale">
+            🖨️ Imprimir
+          </button>
+        </td>
+      </tr>`;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function reimprimirValeHistorial(idx) {
+  const v = cacheHistorialVales[idx];
+  if (!v) return mostrarAvisoFactura("No se encontró el vale de caja.");
+
+  renderizarTicketValeCajaHTML(v);
+  const ticketHtml = document.getElementById('contenidoTicketImprimible').innerHTML;
+  ejecutarImpresionTicket(ticketHtml);
+  mostrarAvisoFactura(`🖨️ Reimprimiendo Vale de Caja para ${v.empleadoNombre}...`);
 }
 
 // OYENTES DE EVENTOS
