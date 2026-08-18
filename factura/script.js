@@ -1,7 +1,7 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Historial y Cierres Aislados por Usuario, Correlativo Global Idempotente,
-   Doble Guardado Upsert, Módulo de Créditos y Apertura por Jornada
+   Historial y Cierres Aislados por Usuario, Correlativo Global Blindado,
+   Doble Guardado Seguro, Módulo de Créditos y Apertura por Jornada
    ========================================================================== */
 
 // Configuración de Supabase
@@ -237,7 +237,7 @@ async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
 }
 
 // ==========================================================================
-// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO IDEMPOTENTE (UPSERT)
+// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO SEGURO (INSERT CON MANEJO 23505)
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
   const badge = document.getElementById('badgeEstadoSync');
@@ -261,19 +261,12 @@ async function actualizarEstadoSyncBadge() {
 async function ejecutarEliminarVentaSupabase(numFactura, tablaPersonalizada) {
   const tabla = tablaPersonalizada || obtenerTablaVentasUsuario();
   try {
-    const url = `${SUPABASE_URL}/rest/v1/${tabla}?%22FACTURA%20N%C2%B0%22=eq.${encodeURIComponent(numFactura)}`;
-    const res = await fetch(url, {
-      method: "DELETE",
-      headers: {
-        "apikey": SUPABASE_KEY,
-        "Authorization": `Bearer ${SUPABASE_KEY}`,
-        "Content-Type": "application/json"
-      }
-    });
+    const { error } = await supabaseClient
+      .from(tabla)
+      .delete()
+      .eq('FACTURA N°', numFactura);
 
-    if (res.ok || res.status === 204 || res.status === 404) {
-      return true;
-    }
+    if (!error) return true;
   } catch (e) {}
 
   return true;
@@ -324,18 +317,13 @@ async function procesarColaSincronizacion() {
           "BIOPAGO": parseFloat(desgl["Biopago"]) || 0
         };
 
-        // 1. Guardar primero en la tabla general central 'ventas' con upsert para evitar 409 Conflict
-        const { error: errGlobal } = await supabaseClient
-          .from('ventas')
-          .upsert([registroVenta], { onConflict: 'FACTURA N°' });
-        
+        // 1. Guardar primero en la tabla general central 'ventas'
+        const { error: errGlobal } = await supabaseClient.from('ventas').insert([registroVenta]);
         if (errGlobal && errGlobal.code !== '23505') throw errGlobal;
 
         // 2. Guardar luego en la tabla personal del usuario ('ventas_mayka', 'ventas_gilker', etc.)
         if (tablaPersonal && tablaPersonal !== 'ventas') {
-          const { error: errPers } = await supabaseClient
-            .from(tablaPersonal)
-            .upsert([registroVenta], { onConflict: 'FACTURA N°' });
+          const { error: errPers } = await supabaseClient.from(tablaPersonal).insert([registroVenta]);
           if (errPers && errPers.code !== '23505') throw errPers;
         }
 
@@ -356,7 +344,8 @@ async function procesarColaSincronizacion() {
             "FECHA PAGO": null
           };
 
-          await supabaseClient.from('creditos').upsert(registroCredito, { onConflict: 'FACTURA N°' });
+          const { error: errCred } = await supabaseClient.from('creditos').insert([registroCredito]);
+          if (errCred && errCred.code !== '23505') throw errCred;
           await dbPut("creditos", registroCredito);
         }
 
@@ -435,7 +424,7 @@ async function procesarColaSincronizacion() {
 
     } catch (err) {
       console.warn("Aviso Sync Supabase:", err);
-      // Si el error es por clave duplicada (23505), el dato ya existe en Supabase y no debe trabar la cola
+      // Si el error es por clave duplicada (23505), el registro ya existe en Supabase y no debe trabar la cola
       if (err && (err.code === '23505' || String(err.message || '').includes('duplicate key') || String(err.message || '').includes('already exists'))) {
         await dbDelete("syncQueue", item.id);
         continue;
