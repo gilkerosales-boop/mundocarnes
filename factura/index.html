@@ -429,7 +429,7 @@
               </div>
             </div>
 
-            <!-- SECCIÓN 3: Mosaico de Formas de Pago -->
+            <!-- SECCIÓN 3: Mosaico de Formas de Pago (Incluye Crédito) -->
             <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">3. Forma de Pago</h6>
             <div class="mb-4">
               <label class="form-label fw-bold small mb-2">Seleccione Método de Pago *:</label>
@@ -474,6 +474,12 @@
                 <button type="button" class="btn-metodo-pago" data-metodo="Cashea" onclick="seleccionarMetodoPagoBoton('Cashea', this)">
                   <img src="../img/CASHEA.png" alt="Cashea">
                   <span>CASHEA</span>
+                </button>
+
+                <!-- NUEVO MÉTODO: CRÉDITO -->
+                <button type="button" class="btn-metodo-pago" data-metodo="Crédito" onclick="seleccionarMetodoPagoBoton('Crédito', this)">
+                  <img src="../img/CREDITO.png" alt="Crédito">
+                  <span>CRÉDITO</span>
                 </button>
 
                 <button type="button" class="btn-metodo-pago" data-metodo="Pago Mixto" onclick="seleccionarMetodoPagoBoton('Pago Mixto', this)">
@@ -1048,6 +1054,7 @@
                 <option value="Punto de Venta">Punto de Venta</option>
                 <option value="Biopago">Biopago</option>
                 <option value="Cashea">Cashea</option>
+                <option value="Crédito">Crédito</option>
                 <option value="Pago Mixto">Pago Mixto</option>
               </select>
             </div>
@@ -1166,6 +1173,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- SDK Oficial Supabase v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=3.3.0"></script>
+    <script src="script.js?v=3.4.0"></script>
   </body>
 </html>
