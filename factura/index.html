@@ -58,7 +58,7 @@
           <!-- Indicador Dinámico de Estado de Sincronización -->
           <span id="badgeEstadoSync" class="badge bg-success fw-bold me-1" onclick="forzarSincronizacionManual()" style="cursor: pointer;" title="Haga clic para forzar sincronización con Supabase">🟢 Sincronizado</span>
           
-          <!-- Botón 1: Buscar / Historial (Ventas y Cierres) -->
+          <!-- Botón 1: Buscar / Historial (Ventas, Cierres y Cuentas por Cobrar) -->
           <button type="button" class="btn btn-nav-custom btn-nav-yellow" onclick="abrirModalBuscarFacturas()">
             🔍 Historial
           </button>
@@ -476,7 +476,7 @@
                   <span>CASHEA</span>
                 </button>
 
-                <!-- NUEVO MÉTODO: CRÉDITO -->
+                <!-- MÉTODO CRÉDITO -->
                 <button type="button" class="btn-metodo-pago" data-metodo="Crédito" onclick="seleccionarMetodoPagoBoton('Crédito', this)">
                   <img src="../img/CREDITO.png" alt="Crédito">
                   <span>CRÉDITO</span>
@@ -600,7 +600,7 @@
       </div>
     </div>
 
-    <!-- MODAL CIERRE DE CAJA - PASO 1 (ALTO CONTRASTE CORREGIDO) -->
+    <!-- MODAL CIERRE DE CAJA - PASO 1 -->
     <div class="modal fade" id="modalCierreCajaPaso1" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -610,7 +610,6 @@
           </div>
           <div class="modal-body p-4">
             
-            <!-- Banner de Alto Contraste con Tipografía Nítida -->
             <div class="p-3 mb-3 rounded-3 shadow-sm text-white" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-left: 5px solid #ffc107; border: 1px solid #334155;">
               <div class="fw-bold fs-6 text-warning mb-1" id="cierreUsuarioNombre">👤 Cajero: CERRANDO SESIÓN...</div>
               <div class="small text-white" style="line-height: 1.4; opacity: 0.95;">
@@ -797,7 +796,7 @@
       </div>
     </div>
 
-    <!-- MODAL GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS / PLU (A PANTALLA COMPLETA) -->
+    <!-- MODAL GESTIÓN Y CONFIGURACIÓN DE PRODUCTOS / PLU -->
     <div class="modal fade" id="modalGestionCodigos" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-fullscreen">
         <div class="modal-content">
@@ -807,7 +806,6 @@
           </div>
           <div class="modal-body p-3 p-lg-4">
             
-            <!-- Barra de Herramientas Superior del Modal -->
             <div class="row g-2 align-items-center mb-3 bg-white p-3 rounded-3 border shadow-sm">
               <div class="col-md-5 col-lg-6">
                 <input type="text" id="facFiltroCodigosInput" class="form-control fw-bold" placeholder="🔍 Buscar por nombre de producto o código PLU..." oninput="filtrarTablaCodigos(this.value)">
@@ -820,7 +818,6 @@
               </div>
             </div>
 
-            <!-- Tabla Fullscreen de Configuración en Línea (Todo en una sola fila) -->
             <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: calc(100vh - 220px); overflow-y: auto;">
               <table class="table table-hover table-striped align-middle mb-0 table-config-inline">
                 <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
@@ -920,26 +917,31 @@
       </div>
     </div>
     
-    <!-- MODAL UNIFICADO: HISTORIAL Y BÚSQUEDA DE FACTURAS + CIERRES DE CAJA CON BORRADO INDIVIDUAL -->
+    <!-- MODAL UNIFICADO: HISTORIAL DE VENTAS, CIERRES Y CUENTAS POR COBRAR -->
     <div class="modal fade" id="modalBuscarFacturas" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title fw-bold">🔍 Historial de Ventas y Cierres de Caja</h5>
+            <h5 class="modal-title fw-bold">🔍 Historial de Ventas, Cierres y Cuentas por Cobrar</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4">
             
-            <!-- Píldoras de Navegación entre Facturas y Cierres -->
-            <ul class="nav nav-pills nav-pills-historial justify-content-center mb-3" id="pillsHistorialTab" role="tablist">
+            <!-- Píldoras de Navegación Principal -->
+            <ul class="nav nav-pills nav-pills-historial justify-content-center mb-3 flex-wrap gap-1" id="pillsHistorialTab" role="tablist">
               <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="pills-facturas-tab" data-bs-toggle="pill" data-bs-target="#pills-facturas" type="button" role="tab">
                   🧾 Facturas Emitidas
                 </button>
               </li>
-              <li class="nav-item ms-2" role="presentation">
+              <li class="nav-item ms-1" role="presentation">
                 <button class="nav-link" id="pills-cierres-tab" data-bs-toggle="pill" data-bs-target="#pills-cierres" type="button" role="tab" onclick="cargarHistorialCierresCaja()">
                   📜 Cierres de Caja (Reportes Z)
+                </button>
+              </li>
+              <li class="nav-item ms-1" role="presentation">
+                <button class="nav-link" id="pills-cxc-tab" data-bs-toggle="pill" data-bs-target="#pills-cxc" type="button" role="tab" onclick="cargarHistorialCuentasPorCobrar()">
+                  💳 Cuentas por Cobrar
                 </button>
               </li>
             </ul>
@@ -959,7 +961,6 @@
                     </button>
                   </div>
                   <div class="col-md-2 col-lg-2">
-                    <!-- Menú Desplegable Dinámico: Últimas 10, 20 o 50 -->
                     <select id="facLimiteSelect" class="form-select fw-bold rounded-pill text-center bg-warning text-dark border-0 shadow-sm" onchange="buscarFacturasHistorial('ultimas')">
                       <option value="10" selected>🕒 Últimas 10</option>
                       <option value="20">🕒 Últimas 20</option>
@@ -995,7 +996,7 @@
                 </div>
               </div>
 
-              <!-- PESTAÑA 2: Cierres de Caja (Reportes Z) con Borrado Individual -->
+              <!-- PESTAÑA 2: Cierres de Caja (Reportes Z) -->
               <div class="tab-pane fade" id="pills-cierres" role="tabpanel">
                 <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 420px; overflow-y: auto;">
                   <table class="table table-hover align-middle mb-0">
@@ -1016,6 +1017,100 @@
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              <!-- PESTAÑA 3: Cuentas por Cobrar (Créditos y Vales de Caja) -->
+              <div class="tab-pane fade" id="pills-cxc" role="tabpanel">
+                
+                <!-- Sub-píldoras de alternancia entre Créditos y Vales -->
+                <div class="d-flex justify-content-center gap-2 mb-3">
+                  <button type="button" class="btn btn-sm btn-danger fw-bold rounded-pill shadow-sm px-4" id="btnSubTabCreditos" onclick="alternarSubTabCXC('creditos')">
+                    🏷️ Ventas a Crédito (<span id="cntCreditosPendientes">0</span>)
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-dark fw-bold rounded-pill px-4" id="btnSubTabVales" onclick="alternarSubTabCXC('vales')">
+                    🎟️ Historial de Vales (<span id="cntValesTotal">0</span>)
+                  </button>
+                </div>
+
+                <!-- SUB-VISTA A: Ventas a Crédito -->
+                <div id="subVistaCreditos">
+                  <div class="row g-2 align-items-center mb-3 bg-white p-3 rounded-3 border shadow-sm">
+                    <div class="col-md-5 col-lg-5">
+                      <input type="text" id="filtroCreditosInput" class="form-control fw-bold" placeholder="🔍 Buscar por Cédula, Cliente o N° Factura..." oninput="filtrarTablaCreditos()">
+                    </div>
+                    <div class="col-md-3 col-lg-3">
+                      <select id="filtroEstatusCredito" class="form-select fw-bold" onchange="filtrarTablaCreditos()">
+                        <option value="TODOS">-- Todos los Estados --</option>
+                        <option value="EN ESPERA DE PAGO" selected>⏳ Pendientes por Cobrar</option>
+                        <option value="PAGADO">✅ Pagados</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4 col-lg-4 text-end">
+                      <div class="badge bg-danger fs-6 p-2 w-100 text-truncate shadow-sm" id="badgeTotalPorCobrar">
+                        Por Cobrar: $0.00
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0">
+                      <thead class="table-dark small text-center">
+                        <tr>
+                          <th>N° Factura</th>
+                          <th>Fecha</th>
+                          <th>Cédula / RIF</th>
+                          <th>Cliente</th>
+                          <th>Teléfono</th>
+                          <th>Monto Crédito</th>
+                          <th>Estatus</th>
+                          <th style="width: 210px;">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody id="tablaHistorialCreditos" class="small">
+                        <tr>
+                          <td colspan="8" class="text-center text-muted py-4">Cargando ventas a crédito...</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <!-- SUB-VISTA B: Historial de Vales de Caja -->
+                <div id="subVistaVales" class="hidden">
+                  <div class="row g-2 align-items-center mb-3 bg-white p-3 rounded-3 border shadow-sm">
+                    <div class="col-md-6 col-lg-7">
+                      <input type="text" id="filtroValesInput" class="form-control fw-bold" placeholder="🔍 Buscar vale por Empleado, Cédula o Motivo..." oninput="filtrarTablaVales()">
+                    </div>
+                    <div class="col-md-6 col-lg-5 text-end">
+                      <div class="badge bg-dark fs-6 p-2 w-100 text-truncate shadow-sm" id="badgeTotalValesEmitidos">
+                        Total Vales: $0.00 / Bs. 0.00
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0">
+                      <thead class="table-dark small text-center">
+                        <tr>
+                          <th>Fecha / Hora</th>
+                          <th>Empleado</th>
+                          <th>Cédula</th>
+                          <th>Monto</th>
+                          <th>Motivo</th>
+                          <th>Cuotas</th>
+                          <th>Autorizado Por</th>
+                          <th style="width: 140px;">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody id="tablaHistorialVales" class="small">
+                        <tr>
+                          <td colspan="8" class="text-center text-muted py-4">Cargando vales de caja...</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
               </div>
 
             </div>
@@ -1173,6 +1268,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- SDK Oficial Supabase v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=3.4.0"></script>
+    <script src="script.js?v=3.5.0"></script>
   </body>
 </html>
