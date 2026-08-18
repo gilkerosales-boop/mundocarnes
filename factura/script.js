@@ -68,7 +68,7 @@ function obtenerTablaCierresUsuario(u) {
 // ==========================================================================
 function abrirDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("MundocarnesPOS_DB", 2);
+    const request = indexedDB.open("MundocarnesPOS_DB", 3);
     request.onupgradeneeded = (e) => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains("clientes")) {
@@ -101,12 +101,17 @@ function abrirDB() {
 async function dbGet(storeName, key) {
   try {
     const db = await abrirDB();
+    if (!db || !db.objectStoreNames.contains(storeName)) return null;
     return new Promise((resolve) => {
-      const tx = db.transaction(storeName, "readonly");
-      const store = tx.objectStore(storeName);
-      const req = store.get(key);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => resolve(null);
+      try {
+        const tx = db.transaction(storeName, "readonly");
+        const store = tx.objectStore(storeName);
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      } catch (errTx) {
+        resolve(null);
+      }
     });
   } catch (e) {
     return null;
@@ -116,27 +121,42 @@ async function dbGet(storeName, key) {
 async function dbPut(storeName, item) {
   try {
     const db = await abrirDB();
+    if (!db || !db.objectStoreNames.contains(storeName)) return null;
     return new Promise((resolve) => {
-      const tx = db.transaction(storeName, "readwrite");
-      const store = tx.objectStore(storeName);
-      const req = store.put(item);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
+      try {
+        const tx = db.transaction(storeName, "readwrite");
+        const store = tx.objectStore(storeName);
+        const req = store.put(item);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = (e) => {
+          console.warn(`Aviso dbPut en ${storeName}:`, e);
+          resolve(null);
+        };
+      } catch (errTx) {
+        console.warn(`Excepción dbPut en ${storeName}:`, errTx);
+        resolve(null);
+      }
     });
   } catch (e) {
-    console.error("Error dbPut:", e);
+    console.warn("Error dbPut:", e);
+    return null;
   }
 }
 
 async function dbGetAll(storeName) {
   try {
     const db = await abrirDB();
+    if (!db || !db.objectStoreNames.contains(storeName)) return [];
     return new Promise((resolve) => {
-      const tx = db.transaction(storeName, "readonly");
-      const store = tx.objectStore(storeName);
-      const req = store.getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => resolve([]);
+      try {
+        const tx = db.transaction(storeName, "readonly");
+        const store = tx.objectStore(storeName);
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      } catch (errTx) {
+        resolve([]);
+      }
     });
   } catch (e) {
     return [];
@@ -146,12 +166,17 @@ async function dbGetAll(storeName) {
 async function dbDelete(storeName, key) {
   try {
     const db = await abrirDB();
+    if (!db || !db.objectStoreNames.contains(storeName)) return false;
     return new Promise((resolve) => {
-      const tx = db.transaction(storeName, "readwrite");
-      const store = tx.objectStore(storeName);
-      const req = store.delete(key);
-      req.onsuccess = () => resolve(true);
-      req.onerror = () => resolve(false);
+      try {
+        const tx = db.transaction(storeName, "readwrite");
+        const store = tx.objectStore(storeName);
+        const req = store.delete(key);
+        req.onsuccess = () => resolve(true);
+        req.onerror = () => resolve(false);
+      } catch (errTx) {
+        resolve(false);
+      }
     });
   } catch (e) {
     return false;
@@ -330,7 +355,7 @@ async function procesarColaSincronizacion() {
         // 3. Si la venta incluye Crédito, registrar en la tabla independiente 'creditos'
         const montoCredito = parseFloat(desgl["Crédito"]) || (d.formaPago && d.formaPago.toUpperCase().includes("CRÉDITO") ? parseFloat(d.montoTotal) : 0);
         if (montoCredito > 0) {
-          const registroCredito = {
+          const registroCreditoSupabase = {
             "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
             "FACTURA N°": d.numFactura,
             "CEDULA O RIF": d.cedula,
@@ -345,11 +370,18 @@ async function procesarColaSincronizacion() {
           };
 
           try {
-            await supabaseClient.from('creditos').insert([registroCredito]);
-          } catch (eCred) {
-            console.warn("Aviso inserción tabla creditos (guardado localmente):", eCred);
-          }
-          await dbPut("creditos", registroCredito);
+            const { error: errCred } = await supabaseClient.from('creditos').insert([registroCreditoSupabase]);
+            if (errCred && errCred.code !== '23505') {
+              console.warn("Aviso inserción Supabase creditos:", errCred);
+            }
+          } catch (eCred) {}
+
+          // Objeto adaptado con numFactura para la clave primaria de IndexedDB
+          const registroCreditoLocal = {
+            numFactura: d.numFactura,
+            ...registroCreditoSupabase
+          };
+          await dbPut("creditos", registroCreditoLocal);
         }
 
       } else if (payload.action === "registrarClienteFactura") {
@@ -429,8 +461,15 @@ async function procesarColaSincronizacion() {
 
     } catch (err) {
       console.warn("Aviso Sync Supabase:", err);
-      // Si el error es por duplicado (23505) o permisos RLS en tablas secundarias (42501), liberar la cola
-      if (err && (err.code === '23505' || err.code === '42501' || String(err.message || '').includes('duplicate key') || String(err.message || '').includes('row-level security'))) {
+      // Si el error es por duplicado (23505), RLS (42501) o DataError de clave local, descartar de la cola para no trabar
+      if (err && (
+        err.code === '23505' || 
+        err.code === '42501' || 
+        err.name === 'DataError' || 
+        String(err.message || '').includes('duplicate key') || 
+        String(err.message || '').includes('row-level security') ||
+        String(err.message || '').includes('key path')
+      )) {
         await dbDelete("syncQueue", item.id);
         continue;
       }
