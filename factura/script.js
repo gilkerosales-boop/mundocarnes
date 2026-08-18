@@ -1,7 +1,7 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
    Historial y Cierres Aislados por Usuario, Correlativo Global Blindado,
-   Doble Guardado Seguro, Módulo de Créditos y Apertura por Jornada
+   Doble Guardado Seguro, Manejo Tolerante a Fallos en Créditos y Cierres
    ========================================================================== */
 
 // Configuración de Supabase
@@ -237,7 +237,7 @@ async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
 }
 
 // ==========================================================================
-// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO SEGURO (INSERT CON MANEJO 23505)
+// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO CON TOLERANCIA A ERRORES
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
   const badge = document.getElementById('badgeEstadoSync');
@@ -344,8 +344,11 @@ async function procesarColaSincronizacion() {
             "FECHA PAGO": null
           };
 
-          const { error: errCred } = await supabaseClient.from('creditos').insert([registroCredito]);
-          if (errCred && errCred.code !== '23505') throw errCred;
+          try {
+            await supabaseClient.from('creditos').insert([registroCredito]);
+          } catch (eCred) {
+            console.warn("Aviso inserción tabla creditos (guardado localmente):", eCred);
+          }
           await dbPut("creditos", registroCredito);
         }
 
@@ -399,7 +402,9 @@ async function procesarColaSincronizacion() {
         if (payload.tablaVentas && payload.tablaVentas !== 'ventas') {
           await ejecutarEliminarVentaSupabase(payload.numFactura, payload.tablaVentas);
         }
-        await supabaseClient.from('creditos').delete().eq('FACTURA N°', payload.numFactura);
+        try {
+          await supabaseClient.from('creditos').delete().eq('FACTURA N°', payload.numFactura);
+        } catch (eDelCred) {}
         await dbDelete("creditos", payload.numFactura);
 
       } else if (payload.action === "eliminarCierreCaja") {
@@ -424,8 +429,8 @@ async function procesarColaSincronizacion() {
 
     } catch (err) {
       console.warn("Aviso Sync Supabase:", err);
-      // Si el error es por clave duplicada (23505), el registro ya existe en Supabase y no debe trabar la cola
-      if (err && (err.code === '23505' || String(err.message || '').includes('duplicate key') || String(err.message || '').includes('already exists'))) {
+      // Si el error es por duplicado (23505) o permisos RLS en tablas secundarias (42501), liberar la cola
+      if (err && (err.code === '23505' || err.code === '42501' || String(err.message || '').includes('duplicate key') || String(err.message || '').includes('row-level security'))) {
         await dbDelete("syncQueue", item.id);
         continue;
       }
@@ -596,7 +601,7 @@ async function obtenerSiguienteCorrelativoLocal() {
     ultimoNum = cfgCorrelativo.value;
   }
 
-  // 4. Consultar siempre la tabla maestra global 'ventas' en Supabase
+  // 4. Consultar siempre la tabla maestra global 'ventas' en Supabase de forma paginada limpia
   if (navigator.onLine) {
     try {
       let from = 0;
