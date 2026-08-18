@@ -1,5 +1,5 @@
 // Service Worker para PWA Módulo de Ventas / Facturación - Mundocarnes
-const CACHE_NAME = 'mundocarnes-pwa-v1.9.0';
+const CACHE_NAME = 'mundocarnes-pwa-v2.0.0';
 const ASSETS_TO_CACHE = [
   './',
   'index.html',
@@ -18,10 +18,12 @@ const ASSETS_TO_CACHE = [
   '../img/PUNTO%20DE%20VENTA.png',
   '../img/BIOPAGO.png',
   '../img/CASHEA.png',
+  '../img/CREDITO.png',
   '../img/PAGOS%20MIXTOS.png',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 ];
 
 self.addEventListener('install', (event) => {
@@ -51,7 +53,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Ignorar solicitudes que no sean GET (como las llamadas API POST)
+  // Ignorar solicitudes que no sean GET (como las llamadas API POST o REST)
   if (event.request.method !== 'GET') {
     return;
   }
