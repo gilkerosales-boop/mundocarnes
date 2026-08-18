@@ -1,6 +1,6 @@
 /* ==========================================================================
    Estilos Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Diseño Anti-Fatiga Visual, Tabla Fullscreen de Configuración en Línea y PLU
+   Diseño Anti-Fatiga Visual, Módulo CXC Refinado y Tabla PLU Fullscreen
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@500;700;800&display=swap');
@@ -14,11 +14,11 @@
   --pos-green: #10b981;
   --pos-green-dark: #059669;
   --pos-amber: #f59e0b;
-  --pos-amber-contrast: #c2410c; /* Ámbar oscuro de alto contraste */
+  --pos-amber-contrast: #c2410c;
   --pos-blue: #3b82f6;
-  --pos-bg: #e2e8f0;            /* Gris mate suave anti-deslumbramiento */
-  --pos-surface-card: #f8fafc;  /* Superficie suave para tarjetas */
-  --pos-card-border: #cbd5e1;   /* Borde gris definido pero suave */
+  --pos-bg: #e2e8f0;
+  --pos-surface-card: #f8fafc;
+  --pos-card-border: #cbd5e1;
   --pos-radius-sm: 8px;
   --pos-radius-md: 12px;
   --pos-radius-lg: 18px;
@@ -188,27 +188,152 @@ body {
   box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
 }
 
-/* Pestañas de Historial */
+/* Pestañas de Historial Principal */
+.nav-pills-historial {
+  background: #e2e8f0;
+  padding: 6px;
+  border-radius: var(--pos-radius-pill);
+  border: 1px solid var(--pos-card-border);
+  display: inline-flex;
+}
+
 .nav-pills-historial .nav-link {
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.86rem;
   border-radius: var(--pos-radius-pill);
-  padding: 8px 22px;
+  padding: 7px 18px;
   color: #475569;
-  background-color: #e2e8f0;
-  border: 1px solid var(--pos-card-border);
+  background-color: transparent;
+  border: none;
   transition: all 0.2s ease;
 }
 
 .nav-pills-historial .nav-link:hover {
-  background-color: #cbd5e1;
+  background-color: rgba(255, 255, 255, 0.6);
   color: #0f172a;
 }
 
 .nav-pills-historial .nav-link.active {
   background-color: var(--pos-dark) !important;
   color: #ffffff !important;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.25);
+}
+
+/* ==========================================================================
+   SEGMENTED CONTROL Y ESTILOS PARA MÓDULO CUENTAS POR COBRAR (CXC)
+   ========================================================================== */
+.segmented-control-cxc {
+  background: #cbd5e1;
+  padding: 4px;
+  border-radius: var(--pos-radius-pill);
+  display: inline-flex;
+  gap: 4px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.btn-segment-cxc {
+  border: none;
+  background: transparent;
+  color: #334155;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 6px 20px;
+  border-radius: var(--pos-radius-pill);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-segment-cxc:hover {
+  color: #0f172a;
+}
+
+.btn-segment-cxc.active-creditos {
+  background: var(--pos-red) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.35);
+}
+
+.btn-segment-cxc.active-vales {
+  background: var(--pos-dark) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+}
+
+.badge-cxc-pill {
+  background: rgba(255, 255, 255, 0.25);
+  color: inherit;
+  padding: 2px 7px;
+  border-radius: var(--pos-radius-pill);
+  font-size: 0.72rem;
+}
+
+/* Barra de Filtros CXC */
+.cxc-filter-bar {
+  background: #ffffff;
+  padding: 12px 16px;
+  border-radius: var(--pos-radius-md);
+  border: 1px solid var(--pos-card-border);
+  box-shadow: var(--pos-shadow-sm);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cxc-filter-bar .form-control,
+.cxc-filter-bar .form-select {
+  height: 38px !important;
+  font-size: 0.85rem !important;
+}
+
+.badge-resumen-cxc {
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border-radius: var(--pos-radius-pill);
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+/* Acciones en Línea en Tablas CXC */
+.acciones-cxc-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.acciones-cxc-group .btn {
+  height: 28px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: var(--pos-radius-pill);
+}
+
+.acciones-cxc-group .btn-icon-only {
+  width: 28px;
+  padding: 0;
+}
+
+/* Insignias de Estatus Limpias */
+.badge-estatus-cxc {
+  padding: 5px 10px;
+  border-radius: var(--pos-radius-pill);
+  font-weight: 800;
+  font-size: 0.72rem;
+  letter-spacing: 0.3px;
+  display: inline-block;
 }
 
 /* ==========================================================================
@@ -370,7 +495,6 @@ body {
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
 }
 
-/* Enmascaramiento Seguro por CSS Puro */
 .input-tasa-masked {
   -webkit-text-security: disc !important;
   text-security: disc !important;
@@ -390,7 +514,6 @@ body {
   cursor: text;
 }
 
-/* Monto Restante con Alto Contraste */
 .monto-restante-alerta {
   color: var(--pos-amber-contrast) !important;
   font-weight: 800;
@@ -405,7 +528,7 @@ body {
 }
 
 /* ==========================================================================
-   TABLA FULLSCREEN DE CONFIGURACIÓN EN LÍNEA (UNA SOLA FILA POR PRODUCTO)
+   TABLA FULLSCREEN DE CONFIGURACIÓN EN LÍNEA
    ========================================================================== */
 .table-config-inline {
   font-size: 0.82rem;
@@ -517,7 +640,7 @@ body {
 }
 
 /* ==========================================================================
-   MODALES UNIFICADOS (TEMA PROFESIONAL GRAFITO / SLATE)
+   MODALES UNIFICADOS
    ========================================================================== */
 .modal-content {
   border-radius: var(--pos-radius-lg) !important;
@@ -594,7 +717,7 @@ body {
 }
 
 /* ==========================================================================
-   ESTILOS DE IMPRESIÓN TÉRMICA XP-80C (72mm EN PAPEL 80mm) - INTACTOS
+   ESTILOS DE IMPRESIÓN TÉRMICA XP-80C (72mm EN PAPEL 80mm)
    ========================================================================== */
 #seccionImpresionTicket {
   display: none;
