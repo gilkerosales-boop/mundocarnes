@@ -1,7 +1,7 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
    Historial y Cierres Aislados por Usuario, Correlativo Global Blindado,
-   Doble Guardado Seguro, Manejo Tolerante a Fallos en Créditos y Cierres
+   Doble Guardado y Eliminación Segura de Facturas y Cierres en Supabase
    ========================================================================== */
 
 // Configuración de Supabase
@@ -262,6 +262,25 @@ async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
 }
 
 // ==========================================================================
+// ELIMINACIÓN DE FACTURA EN SUPABASE CON PARÁMETRO ENTRECOMILLADO SEGURO
+// ==========================================================================
+async function ejecutarEliminarVentaSupabase(numFactura, tablaPersonalizada) {
+  const tabla = tablaPersonalizada || obtenerTablaVentasUsuario();
+  try {
+    const { error } = await supabaseClient
+      .from(tabla)
+      .delete()
+      .eq('"FACTURA N°"', numFactura);
+
+    if (!error) return true;
+  } catch (e) {
+    console.warn(`Aviso eliminación en ${tabla}:`, e);
+  }
+
+  return true;
+}
+
+// ==========================================================================
 // MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO CON TOLERANCIA A ERRORES
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
@@ -281,20 +300,6 @@ async function actualizarEstadoSyncBadge() {
     badge.className = "badge bg-success fw-bold me-1";
     badge.textContent = `🟢 Sincronizado`;
   }
-}
-
-async function ejecutarEliminarVentaSupabase(numFactura, tablaPersonalizada) {
-  const tabla = tablaPersonalizada || obtenerTablaVentasUsuario();
-  try {
-    const { error } = await supabaseClient
-      .from(tabla)
-      .delete()
-      .eq('FACTURA N°', numFactura);
-
-    if (!error) return true;
-  } catch (e) {}
-
-  return true;
 }
 
 async function procesarColaSincronizacion() {
@@ -376,7 +381,6 @@ async function procesarColaSincronizacion() {
             }
           } catch (eCred) {}
 
-          // Objeto adaptado con numFactura para la clave primaria de IndexedDB
           const registroCreditoLocal = {
             numFactura: d.numFactura,
             ...registroCreditoSupabase
@@ -430,13 +434,22 @@ async function procesarColaSincronizacion() {
         }
 
       } else if (payload.action === "eliminarFactura") {
+        // Eliminar de ventas global
         await ejecutarEliminarVentaSupabase(payload.numFactura, 'ventas');
+        
+        // Eliminar de ventas personal
         if (payload.tablaVentas && payload.tablaVentas !== 'ventas') {
           await ejecutarEliminarVentaSupabase(payload.numFactura, payload.tablaVentas);
         }
+
+        // Eliminar de tabla creditos
         try {
-          await supabaseClient.from('creditos').delete().eq('FACTURA N°', payload.numFactura);
+          await supabaseClient
+            .from('creditos')
+            .delete()
+            .eq('"FACTURA N°"', payload.numFactura);
         } catch (eDelCred) {}
+        
         await dbDelete("creditos", payload.numFactura);
 
       } else if (payload.action === "eliminarCierreCaja") {
@@ -461,7 +474,7 @@ async function procesarColaSincronizacion() {
 
     } catch (err) {
       console.warn("Aviso Sync Supabase:", err);
-      // Si el error es por duplicado (23505), RLS (42501) o DataError de clave local, descartar de la cola para no trabar
+      // Si el error es por duplicado (23505) o permisos RLS en tablas secundarias (42501), descartar de la cola
       if (err && (
         err.code === '23505' || 
         err.code === '42501' || 
@@ -3346,7 +3359,7 @@ async function ejecutarDescargaExcelFacturas() {
 }
 
 // MOVIMIENTOS DE EFECTIVO PERSISTENTES
-function cargarMovimientosEfectivoPersistentes() {
+function cargarMovimientosEfectivoPersistENTES() {
   const hoy = new Date().toISOString().split('T')[0];
   const guardado = localStorage.getItem("movimientos_efectivo_" + hoy);
   if (guardado) {
