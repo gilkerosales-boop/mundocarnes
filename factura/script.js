@@ -1,7 +1,7 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
    Historial y Cierres Aislados por Usuario, Módulo de Cuentas por Cobrar
-   (Consulta y Gestión Directa en Tablas 'creditos' y 'vales' de Supabase)
+   (Diseño Refinado de Botones en Línea, Insignias Nítidas y Control Segmentado)
    ========================================================================== */
 
 // Configuración de Supabase
@@ -353,17 +353,14 @@ async function procesarColaSincronizacion() {
           "BIOPAGO": parseFloat(desgl["Biopago"]) || 0
         };
 
-        // 1. Guardar en la tabla general 'ventas'
         const { error: errGlobal } = await supabaseClient.from('ventas').insert([registroVenta]);
         if (errGlobal && errGlobal.code !== '23505') throw errGlobal;
 
-        // 2. Guardar en la tabla personal del usuario
         if (tablaPersonal && tablaPersonal !== 'ventas') {
           const { error: errPers } = await supabaseClient.from(tablaPersonal).insert([registroVenta]);
           if (errPers && errPers.code !== '23505') throw errPers;
         }
 
-        // 3. Si la venta incluye Crédito, registrar en la tabla 'creditos'
         const montoCredito = parseFloat(desgl["Crédito"]) || (d.formaPago && d.formaPago.toUpperCase().includes("CRÉDITO") ? parseFloat(d.montoTotal) : 0);
         if (montoCredito > 0) {
           const registroCreditoSupabase = {
@@ -2357,7 +2354,6 @@ async function confirmarEImprimirFactura() {
     renderizarResumenFactura();
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVistaPreviaFactura')).hide();
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
 
     mostrarAvisoFactura(`Venta N° ${numFactura} emitida e impresa con éxito 🎉`);
@@ -3560,7 +3556,6 @@ async function registrarMovimientoEfectivo() {
       fechaPago: null
     };
 
-    // Guardar el vale en IndexedDB
     const localId = await dbPut("vales", {
       FECHA: fechaHoraActual,
       EMPLEADO: empNombre,
@@ -3575,7 +3570,6 @@ async function registrarMovimientoEfectivo() {
       "FECHA PAGO": null
     });
 
-    // Encolar sincronización a la tabla 'vales' en Supabase
     await dbPut("syncQueue", {
       id: "sync_vale_" + Date.now(),
       payload: {
@@ -4300,15 +4294,15 @@ function alternarSubTabCXC(subtab) {
   const vistaVales = document.getElementById('subVistaVales');
 
   if (subtab === 'creditos') {
-    btnCreditos.className = "btn btn-sm btn-danger fw-bold rounded-pill shadow-sm px-4";
-    btnVales.className = "btn btn-sm btn-outline-dark fw-bold rounded-pill px-4";
-    vistaCreditos.classList.remove('hidden');
-    vistaVales.classList.add('hidden');
+    if (btnCreditos) btnCreditos.className = "btn-segment-cxc active-creditos";
+    if (btnVales) btnVales.className = "btn-segment-cxc";
+    if (vistaCreditos) vistaCreditos.classList.remove('hidden');
+    if (vistaVales) vistaVales.classList.add('hidden');
   } else {
-    btnCreditos.className = "btn btn-sm btn-outline-danger fw-bold rounded-pill px-4";
-    btnVales.className = "btn btn-sm btn-dark fw-bold rounded-pill shadow-sm px-4";
-    vistaCreditos.classList.add('hidden');
-    vistaVales.classList.remove('hidden');
+    if (btnCreditos) btnCreditos.className = "btn-segment-cxc";
+    if (btnVales) btnVales.className = "btn-segment-cxc active-vales";
+    if (vistaCreditos) vistaCreditos.classList.add('hidden');
+    if (vistaVales) vistaVales.classList.remove('hidden');
   }
 }
 
@@ -4445,30 +4439,28 @@ function renderizarTablaHistorialCreditos(lista) {
     let esPagado = (estatus === "PAGADO");
 
     let badgeEstatus = esPagado 
-      ? `<span class="badge bg-success">✅ PAGADO</span>` 
-      : `<span class="badge bg-warning text-dark fw-bold">⏳ PENDIENTE</span>`;
+      ? `<span class="badge-estatus-cxc bg-success text-white">✅ Pagado</span>` 
+      : `<span class="badge-estatus-cxc bg-warning text-dark">⏳ Pendiente</span>`;
 
     let btnCobrar = esPagado 
-      ? `<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 fw-bold rounded-pill" disabled title="Factura Pagada">✔ Pagado</button>`
-      : `<button type="button" class="btn btn-sm btn-success py-0 px-2 fw-bold rounded-pill" onclick="marcarCreditoComoPagado('${fac}')" title="Registrar Cobro">💵 Cobrar</button>`;
+      ? `<button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Factura Pagada">✔ Pagado</button>`
+      : `<button type="button" class="btn btn-sm btn-success" onclick="marcarCreditoComoPagado('${fac}')" title="Registrar Cobro">💵 Cobrar</button>`;
 
     html += `
       <tr>
         <td class="fw-bold text-center text-danger num-legible">${fac}</td>
         <td class="text-center small num-legible">${fec}</td>
         <td class="fw-bold text-center num-legible">${ced}</td>
-        <td class="fw-bold text-wrap">${nom}</td>
+        <td class="fw-bold text-truncate" style="max-width: 170px;" title="${nom}">${nom}</td>
         <td class="text-center small num-legible">${tel}</td>
         <td class="text-end fw-bold text-danger num-legible">$${monto.toFixed(2)}</td>
         <td class="text-center">${badgeEstatus}</td>
         <td class="text-center">
-          ${btnCobrar}
-          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill ms-1" onclick="reimprimirCreditoHistorial('${fac}')" title="Reimprimir Comprobante de Crédito">
-            🖨️
-          </button>
-          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill ms-1" onclick="eliminarCreditoHistorial('${fac}')" title="Eliminar Registro">
-            🗑️
-          </button>
+          <div class="acciones-cxc-group">
+            ${btnCobrar}
+            <button type="button" class="btn btn-sm btn-primary btn-icon-only" onclick="reimprimirCreditoHistorial('${fac}')" title="Reimprimir Comprobante de Crédito">🖨️</button>
+            <button type="button" class="btn btn-sm btn-outline-danger btn-icon-only" onclick="eliminarCreditoHistorial('${fac}')" title="Eliminar Registro">🗑️</button>
+          </div>
         </td>
       </tr>`;
   });
@@ -4703,31 +4695,29 @@ function renderizarTablaHistorialVales(lista) {
     let esDescontado = (estatus === "DESCONTADO" || estatus === "PAGADO");
 
     let badgeEstatus = esDescontado
-      ? `<span class="badge bg-success">✅ DESCONTADO</span>`
-      : `<span class="badge bg-warning text-dark fw-bold">⏳ PENDIENTE</span>`;
+      ? `<span class="badge-estatus-cxc bg-success text-white">✅ Descontado</span>`
+      : `<span class="badge-estatus-cxc bg-warning text-dark">⏳ Pendiente</span>`;
 
     let btnDescontar = esDescontado
-      ? `<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 fw-bold rounded-pill" disabled title="Vale Descontado">✔ Descontado</button>`
-      : `<button type="button" class="btn btn-sm btn-success py-0 px-2 fw-bold rounded-pill" onclick="marcarValeComoDescontado(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Marcar como Descontado">💵 Descontar</button>`;
+      ? `<button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Vale Descontado">✔ Descontado</button>`
+      : `<button type="button" class="btn btn-sm btn-success" onclick="marcarValeComoDescontado(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Marcar como Descontado">💵 Descontar</button>`;
 
     html += `
       <tr>
         <td class="text-center small num-legible">${v.FECHA}</td>
-        <td class="fw-bold text-dark">${v.EMPLEADO}</td>
+        <td class="fw-bold text-dark text-truncate" style="max-width: 150px;" title="${v.EMPLEADO}">${v.EMPLEADO}</td>
         <td class="text-center fw-bold num-legible">${v.CEDULA}</td>
         <td class="text-end fw-bold text-danger num-legible">${montoTxt}</td>
-        <td class="small text-wrap">${v.MOTIVO}</td>
+        <td class="small text-truncate" style="max-width: 140px;" title="${v.MOTIVO}">${v.MOTIVO}</td>
         <td class="text-center small">${v.CUOTAS}</td>
         <td class="text-center small">${v["AUTORIZADO POR"]}</td>
         <td class="text-center">${badgeEstatus}</td>
         <td class="text-center">
-          ${btnDescontar}
-          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill ms-1" onclick="reimprimirValeHistorial(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Reimprimir Vale">
-            🖨️
-          </button>
-          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill ms-1" onclick="eliminarValeHistorial(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Eliminar Registro">
-            🗑️
-          </button>
+          <div class="acciones-cxc-group">
+            ${btnDescontar}
+            <button type="button" class="btn btn-sm btn-primary btn-icon-only" onclick="reimprimirValeHistorial(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Reimprimir Vale">🖨️</button>
+            <button type="button" class="btn btn-sm btn-outline-danger btn-icon-only" onclick="eliminarValeHistorial(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Eliminar Registro">🗑️</button>
+          </div>
         </td>
       </tr>`;
   });
