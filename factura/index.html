@@ -1078,10 +1078,17 @@
                 <!-- SUB-VISTA B: Historial de Vales de Caja -->
                 <div id="subVistaVales" class="hidden">
                   <div class="row g-2 align-items-center mb-3 bg-white p-3 rounded-3 border shadow-sm">
-                    <div class="col-md-6 col-lg-7">
+                    <div class="col-md-5 col-lg-5">
                       <input type="text" id="filtroValesInput" class="form-control fw-bold" placeholder="🔍 Buscar vale por Empleado, Cédula o Motivo..." oninput="filtrarTablaVales()">
                     </div>
-                    <div class="col-md-6 col-lg-5 text-end">
+                    <div class="col-md-3 col-lg-3">
+                      <select id="filtroEstatusVales" class="form-select fw-bold" onchange="filtrarTablaVales()">
+                        <option value="TODOS">-- Todos los Estados --</option>
+                        <option value="PENDIENTE" selected>⏳ Pendientes por Descontar</option>
+                        <option value="DESCONTADO">✅ Descontados / Pagados</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4 col-lg-4 text-end">
                       <div class="badge bg-dark fs-6 p-2 w-100 text-truncate shadow-sm" id="badgeTotalValesEmitidos">
                         Total Vales: $0.00 / Bs. 0.00
                       </div>
@@ -1099,12 +1106,13 @@
                           <th>Motivo</th>
                           <th>Cuotas</th>
                           <th>Autorizado Por</th>
-                          <th style="width: 140px;">Acción</th>
+                          <th>Estatus</th>
+                          <th style="width: 210px;">Acciones</th>
                         </tr>
                       </thead>
                       <tbody id="tablaHistorialVales" class="small">
                         <tr>
-                          <td colspan="8" class="text-center text-muted py-4">Cargando vales de caja...</td>
+                          <td colspan="9" class="text-center text-muted py-4">Cargando vales de caja...</td>
                         </tr>
                       </tbody>
                     </table>
@@ -1268,6 +1276,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- SDK Oficial Supabase v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js?v=3.5.0"></script>
+    <script src="script.js?v=3.6.0"></script>
   </body>
 </html>
