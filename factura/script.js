@@ -1,7 +1,7 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
    Historial y Cierres Aislados por Usuario, Correlativo Global, Doble Guardado,
-   Eliminación Sincronizada y Modal de Bienvenida con Apertura por Jornada
+   Módulo de Créditos / Cuentas por Cobrar y Apertura por Jornada
    ========================================================================== */
 
 // Configuración de Supabase
@@ -20,8 +20,8 @@ const GITHUB_CONFIG_FAC = {
 const logoComprobantePreload = new Image();
 logoComprobantePreload.src = "../img/LOGO-MUNDO123.webp";
 
-// Clasificación de Métodos por Naturaleza de Moneda
-const METODOS_USD = ["Efectivo Divisas", "Zelle", "PayPal", "Cashea"];
+// Clasificación de Métodos por Naturaleza de Moneda (Incluye Crédito)
+const METODOS_USD = ["Efectivo Divisas", "Zelle", "PayPal", "Cashea", "Crédito"];
 const METODOS_BS = ["Pago Móvil", "Efectivo Bolívares", "Punto de Venta", "Transferencia Bancaria", "Biopago"];
 
 let itemsFactura = {};
@@ -76,6 +76,9 @@ function abrirDB() {
       }
       if (!db.objectStoreNames.contains("ventas")) {
         db.createObjectStore("ventas", { keyPath: "numFactura" });
+      }
+      if (!db.objectStoreNames.contains("creditos")) {
+        db.createObjectStore("creditos", { keyPath: "numFactura" });
       }
       if (!db.objectStoreNames.contains("movimientos")) {
         db.createObjectStore("movimientos", { autoIncrement: true });
@@ -234,7 +237,7 @@ async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
 }
 
 // ==========================================================================
-// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO (GLOBAL + PERSONAL)
+// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO (GLOBAL + PERSONAL + CRÉDITOS)
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
   const badge = document.getElementById('badgeEstadoSync');
@@ -315,6 +318,7 @@ async function procesarColaSincronizacion() {
           "ZELLE": parseFloat(desgl["Zelle"]) || 0,
           "PAYPAL": parseFloat(desgl["PayPal"]) || 0,
           "CASHEA": parseFloat(desgl["Cashea"]) || 0,
+          "CREDITO": parseFloat(desgl["Crédito"]) || 0,
           "PUNTO DE VENTA": parseFloat(desgl["Punto de Venta"]) || 0,
           "TRANSFERENCIA": parseFloat(desgl["Transferencia Bancaria"]) || 0,
           "BIOPAGO": parseFloat(desgl["Biopago"]) || 0
@@ -328,6 +332,27 @@ async function procesarColaSincronizacion() {
         if (tablaPersonal && tablaPersonal !== 'ventas') {
           const { error: errPers } = await supabaseClient.from(tablaPersonal).insert([registroVenta]);
           if (errPers) throw errPers;
+        }
+
+        // 3. Si la venta incluye Crédito, registrar en la tabla independiente 'creditos'
+        const montoCredito = parseFloat(desgl["Crédito"]) || (d.formaPago && d.formaPago.toUpperCase().includes("CRÉDITO") ? parseFloat(d.montoTotal) : 0);
+        if (montoCredito > 0) {
+          const registroCredito = {
+            "FECHA": d.fechaStr || new Date().toLocaleString('es-VE'),
+            "FACTURA N°": d.numFactura,
+            "CEDULA O RIF": d.cedula,
+            "NOMBRE / RAZON SOCIAL": d.nombre,
+            "TELEFONO": (d.cliente && d.cliente.telefono) ? d.cliente.telefono : (d.telefono || 'N/D'),
+            "UBICACION": d.direccion || null,
+            "PRODUCTOS": d.productosSummary,
+            "MONTO CREDITO": montoCredito,
+            "ESTATUS": "EN ESPERA DE PAGO",
+            "USUARIO": d.usuario ? d.usuario.toUpperCase() : "CAJERO",
+            "FECHA PAGO": null
+          };
+
+          await supabaseClient.from('creditos').upsert(registroCredito);
+          await dbPut("creditos", registroCredito);
         }
 
       } else if (payload.action === "registrarClienteFactura") {
@@ -357,6 +382,7 @@ async function procesarColaSincronizacion() {
           "PUNTO DE VENTA": parseFloat(r.ventasPuntoVenta) || 0,
           "BIOPAGO": parseFloat(r.ventasBiopago) || 0,
           "CASHEA": parseFloat(r.ventasCashea) || 0,
+          "CREDITO": parseFloat(r.ventasCredito) || 0,
           "TRANSFERENCIA": parseFloat(r.ventasTransferencia) || 0,
           "TOTAL 1": parseFloat(r.totalGeneralVentasUSD) || 0,
           "TOTAL 2": parseFloat(r.totalGeneralVentasBS) || 0,
@@ -379,6 +405,8 @@ async function procesarColaSincronizacion() {
         if (payload.tablaVentas && payload.tablaVentas !== 'ventas') {
           await ejecutarEliminarVentaSupabase(payload.numFactura, payload.tablaVentas);
         }
+        await supabaseClient.from('creditos').delete().eq('FACTURA N°', payload.numFactura);
+        await dbDelete("creditos", payload.numFactura);
 
       } else if (payload.action === "eliminarCierreCaja") {
         const tablaCierresPersonal = payload.tablaCierres || obtenerTablaCierresUsuario(payload.usuario);
@@ -388,7 +416,7 @@ async function procesarColaSincronizacion() {
           // 1. Eliminar de la tabla global 'cierres' por FECHA exacta
           await supabaseClient.from('cierres').delete().eq('FECHA', fStr);
 
-          // 2. Eliminar de la tabla personal del usuario ('cierres_gilker', etc.) por FECHA exacta
+          // 2. Eliminar de la tabla personal del usuario por FECHA exacta
           if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
             await supabaseClient.from(tablaCierresPersonal).delete().eq('FECHA', fStr);
           }
@@ -507,6 +535,7 @@ async function forzarSincronizacionManual() {
             ventasPuntoVenta: parseFloat(cie["PUNTO DE VENTA"]) || 0,
             ventasBiopago: parseFloat(cie["BIOPAGO"]) || 0,
             ventasCashea: parseFloat(cie["CASHEA"]) || 0,
+            ventasCredito: parseFloat(cie["CREDITO"]) || 0,
             ventasTransferencia: parseFloat(cie["TRANSFERENCIA"] || cie["TRANSFERECIA"]) || 0,
             totalGeneralVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
             totalGeneralVentasBS: parseFloat(cie["TOTAL 2"]) || 0
@@ -553,7 +582,7 @@ async function obtenerSiguienteCorrelativoLocal() {
     }
   });
 
-  // 2. Consultar siempre la tabla maestra global 'ventas' en Supabase de forma paginada sin .order() conflictivo
+  // 2. Consultar siempre la tabla maestra global 'ventas' en Supabase de forma paginada limpia
   if (navigator.onLine) {
     try {
       let from = 0;
@@ -1699,7 +1728,7 @@ function agregarLineaPagoMixtoFija(metodoPredeterminado, esEliminable = true) {
   divFila.className = 'row g-2 mb-2 align-items-center fila-pago-mixto';
 
   const opciones = [
-    "Cashea", "Efectivo Divisas", "Efectivo Bolívares", "Pago Móvil", 
+    "Cashea", "Crédito", "Efectivo Divisas", "Efectivo Bolívares", "Pago Móvil", 
     "Zelle", "PayPal", "Punto de Venta", "Transferencia Bancaria", "Biopago"
   ];
 
@@ -1754,6 +1783,7 @@ function agregarLineaPagoMixto() {
         <option value="Zelle">Zelle</option>
         <option value="PayPal">PayPal</option>
         <option value="Cashea">Cashea</option>
+        <option value="Crédito">Crédito</option>
         <option value="Punto de Venta">Punto de Venta</option>
         <option value="Transferencia Bancaria">Transferencia Bancaria</option>
         <option value="Biopago">Biopago</option>
@@ -2076,7 +2106,7 @@ function obtenerObjetoDesgloseMetodos() {
 
   let desgl = {
     "Efectivo Divisas": 0, "Efectivo Bolívares": 0, "Pago Móvil": 0,
-    "Zelle": 0, "PayPal": 0, "Cashea": 0, "Punto de Venta": 0,
+    "Zelle": 0, "PayPal": 0, "Cashea": 0, "Crédito": 0, "Punto de Venta": 0,
     "Transferencia Bancaria": 0, "Biopago": 0
   };
 
@@ -2139,6 +2169,7 @@ async function confirmarEImprimirFactura() {
           fechaStr: datosFacturaPendiente.fechaStr,
           cedula: datosFacturaPendiente.cliente.cedula,
           nombre: datosFacturaPendiente.cliente.nombre,
+          telefono: datosFacturaPendiente.cliente.telefono || 'N/D',
           direccion: datosFacturaPendiente.cliente.direccion || null,
           productosSummary: datosFacturaPendiente.productosSummary,
           formaPago: datosFacturaPendiente.formaPagoStr,
@@ -3114,6 +3145,7 @@ async function eliminarFacturaHistorial(numFactura) {
 
   const tablaUsuarioActivo = obtenerTablaVentasUsuario();
   await dbDelete("ventas", numFactura);
+  await dbDelete("creditos", numFactura);
   cacheHistorialFacturas = cacheHistorialFacturas.filter(f => f.numFactura !== numFactura);
   renderizarTablaHistorialFacturas();
 
@@ -3182,6 +3214,8 @@ async function ejecutarDescargaExcelFacturas() {
           const formaStr = String(r["FORMA DE PAGO"] || "").toUpperCase();
           if (formaPagoVal === "Cashea") {
             return formaStr.includes("CASHEA");
+          } else if (formaPagoVal === "Crédito") {
+            return formaStr.includes("CRÉDITO") || formaStr.includes("CREDITO");
           } else if (formaPagoVal === "Pago Mixto") {
             return formaStr.includes("MIXTO") || formaStr.includes("+");
           } else {
@@ -3214,6 +3248,7 @@ async function ejecutarDescargaExcelFacturas() {
         "Zelle ($)": parseFloat(r["ZELLE"]) || 0,
         "PayPal ($)": parseFloat(r["PAYPAL"]) || 0,
         "Cashea ($)": parseFloat(r["CASHEA"]) || 0,
+        "Crédito ($)": parseFloat(r["CREDITO"]) || 0,
         "Punto de Venta (Bs)": parseFloat(r["PUNTO DE VENTA"]) || 0,
         "Transferencia (Bs)": parseFloat(r["TRANSFERENCIA"]) || 0,
         "Biopago (Bs)": parseFloat(r["BIOPAGO"]) || 0
@@ -3578,6 +3613,7 @@ async function cargarHistorialCierresCaja() {
             ventasPuntoVenta: parseFloat(c["PUNTO DE VENTA"]) || 0,
             ventasBiopago: parseFloat(c["BIOPAGO"]) || 0,
             ventasCashea: parseFloat(c["CASHEA"]) || 0,
+            ventasCredito: parseFloat(c["CREDITO"]) || 0,
             ventasTransferencia: parseFloat(c["TRANSFERENCIA"] || c["TRANSFERECIA"]) || 0,
             totalGeneralVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
             totalGeneralVentasBS: parseFloat(c["TOTAL 2"]) || 0
@@ -3728,7 +3764,7 @@ async function procesarSiguienteCierreCaja() {
     const tasa = obtenerTasaBCV();
     let resumen = {
       ventasEfectivoUSD: 0, ventasEfectivoBS: 0, ventasPagoMovil: 0,
-      ventasZelle: 0, ventasPayPal: 0, ventasCashea: 0,
+      ventasZelle: 0, ventasPayPal: 0, ventasCashea: 0, ventasCredito: 0,
       ventasPuntoVenta: 0, ventasTransferencia: 0, ventasBiopago: 0,
       totalGeneralVentasUSD: 0, totalGeneralVentasBS: 0
     };
@@ -3765,11 +3801,12 @@ async function procesarSiguienteCierreCaja() {
         let zUSD = parseFloat(v["ZELLE"]) || 0;
         let ppUSD = parseFloat(v["PAYPAL"]) || 0;
         let cUSD = parseFloat(v["CASHEA"]) || 0;
+        let crUSD = parseFloat(v["CREDITO"]) || 0;
         let pvBS = parseFloat(v["PUNTO DE VENTA"]) || 0;
         let trBS = parseFloat(v["TRANSFERENCIA"]) || 0;
         let bioBS = parseFloat(v["BIOPAGO"]) || 0;
 
-        let sumaEspecifica = evUSD + zUSD + ppUSD + cUSD + evBS + pmBS + pvBS + trBS + bioBS;
+        let sumaEspecifica = evUSD + zUSD + ppUSD + cUSD + crUSD + evBS + pmBS + pvBS + trBS + bioBS;
 
         if (sumaEspecifica > 0) {
           resumen.ventasEfectivoUSD += evUSD;
@@ -3778,6 +3815,7 @@ async function procesarSiguienteCierreCaja() {
           resumen.ventasZelle += zUSD;
           resumen.ventasPayPal += ppUSD;
           resumen.ventasCashea += cUSD;
+          resumen.ventasCredito += crUSD;
           resumen.ventasPuntoVenta += pvBS;
           resumen.ventasTransferencia += trBS;
           resumen.ventasBiopago += bioBS;
@@ -3796,6 +3834,8 @@ async function procesarSiguienteCierreCaja() {
             resumen.ventasPayPal += totalUSDVenta;
           } else if (formaStr.includes("CASHEA")) {
             resumen.ventasCashea += totalUSDVenta;
+          } else if (formaStr.includes("CRÉDITO") || formaStr.includes("CREDITO")) {
+            resumen.ventasCredito += totalUSDVenta;
           } else if (formaStr.includes("BIOPAGO")) {
             resumen.ventasBiopago += (totalUSDVenta * (tasa > 0 ? tasa : 1));
           } else if (formaStr.includes("TRANSFERENCIA")) {
@@ -3823,6 +3863,7 @@ async function procesarSiguienteCierreCaja() {
       }
     });
 
+    // El crédito representa cuentas por cobrar y NO ingresa a caja física
     resumen.totalGeneralVentasUSD = resumen.ventasEfectivoUSD + resumen.ventasZelle + resumen.ventasPayPal + resumen.ventasCashea;
     resumen.totalGeneralVentasBS = resumen.ventasEfectivoBS + resumen.ventasPagoMovil + resumen.ventasPuntoVenta + resumen.ventasBiopago + resumen.ventasTransferencia;
 
@@ -3956,6 +3997,10 @@ function renderizarTicketCierreCajaHTML(d) {
           <tr>
             <td>CASHEA:</td>
             <td class="text-end fw-bold num-legible">$${(r.ventasCashea || 0).toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td>CRÉDITO (CTAS X COBRAR):</td>
+            <td class="text-end fw-bold text-muted num-legible">$${(r.ventasCredito || 0).toFixed(2)}</td>
           </tr>
           <tr>
             <td>TRANSFERENCIA BANCARIA:</td>
