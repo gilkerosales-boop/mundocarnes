@@ -1,6 +1,6 @@
 /* ==========================================================================
-   Estilos Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Diseño Anti-Fatiga Visual, Módulo CXC Refinado y Tabla PLU Fullscreen
+   Estilos Módulo de Ventas / Facturación No Fiscal y Fiscal - Mundocarnes
+   Diseño Anti-Fatiga Visual, Control Dual Fiscal (Aclas PP9), Módulo CXC y PLU
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@500;700;800&display=swap');
@@ -16,6 +16,7 @@
   --pos-amber: #f59e0b;
   --pos-amber-contrast: #c2410c;
   --pos-blue: #3b82f6;
+  --pos-fiscal: #0284c7;        /* Azul oficial para modo fiscal */
   --pos-bg: #e2e8f0;
   --pos-surface-card: #f8fafc;
   --pos-card-border: #cbd5e1;
@@ -77,7 +78,7 @@ body {
 }
 
 /* ==========================================================================
-   NAVBAR SUPERIOR POS
+   NAVBAR SUPERIOR POS CON SELECTOR FISCAL
    ========================================================================== */
 .admin-navbar {
   position: sticky;
@@ -145,6 +146,125 @@ body {
   padding: 6px 14px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   letter-spacing: 0.2px;
+}
+
+/* ==========================================================================
+   INTERRUPTOR DUAL FISCAL / CONTROL INTERNO (TOGGLE SWITCH POS)
+   ========================================================================== */
+.toggle-fiscal-wrapper {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 3px 6px;
+  border-radius: var(--pos-radius-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(6px);
+}
+
+.toggle-fiscal-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  margin-bottom: 0;
+}
+
+.toggle-fiscal-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-fiscal-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #64748b;
+  transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 34px;
+}
+
+.toggle-fiscal-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+}
+
+.toggle-fiscal-switch input:checked + .toggle-fiscal-slider {
+  background-color: var(--pos-green);
+}
+
+.toggle-fiscal-switch input:checked + .toggle-fiscal-slider:before {
+  transform: translateX(20px);
+}
+
+.badge-modo-fiscal {
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: var(--pos-radius-pill);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+}
+
+.badge-modo-fiscal.fiscal-on {
+  background: var(--pos-green);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+.badge-modo-fiscal.fiscal-off {
+  background: #475569;
+  color: #f1f5f9;
+}
+
+.btn-hardware-fiscal {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: var(--pos-radius-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.2s ease;
+}
+
+/* ==========================================================================
+   DESGLOSE DE IVA Y BASES IMPONIBLES EN DETALLE DE VENTA
+   ========================================================================== */
+.caja-desglose-iva {
+  background: #f8fafc;
+  border: 1.5px solid var(--pos-card-border);
+  border-radius: var(--pos-radius-md);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 0.8rem;
+}
+
+.caja-desglose-iva .fila-iva {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+}
+
+.caja-desglose-iva .fila-iva strong {
+  color: var(--pos-dark);
 }
 
 /* ==========================================================================
@@ -447,7 +567,7 @@ body {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   border: none;
   border-radius: var(--pos-radius-md);
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 800;
   padding: 12px;
   box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35);
@@ -460,6 +580,15 @@ body {
   box-shadow: 0 8px 24px rgba(16, 185, 129, 0.45);
   background: linear-gradient(135deg, #059669 0%, #047857 100%);
   color: #ffffff;
+}
+
+.btn-facturar-fiscal {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.4) !important;
+}
+
+.btn-facturar-fiscal:hover {
+  background: linear-gradient(135deg, #0369a1 0%, #075985 100%) !important;
 }
 
 .btn-standby-pos {
