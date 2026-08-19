@@ -48,7 +48,7 @@
 
     <!-- VISTA 2: Módulo de Ventas Principal -->
     <div id="vistaFacturacion" class="hidden">
-      <!-- Navbar Superior POS Unificada con Selector Fiscal y Hardware -->
+      <!-- Navbar Superior POS con Selector Fiscal y Modelo de Hardware -->
       <nav class="admin-navbar d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div class="d-flex align-items-center">
           <img src="../img/LOGOTIPO MUNDOCARNES.jpg" alt="Logo Mundocarnes" class="logo-nav me-3">
@@ -57,7 +57,7 @@
 
         <div class="d-flex align-items-center flex-wrap gap-2">
           <!-- SELECTOR DUAL DE MODO DE IMPRESIÓN (FISCAL / NO FISCAL) -->
-          <div class="toggle-fiscal-wrapper" title="Alternar entre Facturación Fiscal (Aclas PP9 Plus) y Control Interno (XP-80C)">
+          <div class="toggle-fiscal-wrapper" title="Alternar entre Facturación Fiscal (HKA80 / PP9 Plus) y Control Interno (XP-80C)">
             <label class="toggle-fiscal-switch">
               <input type="checkbox" id="chkModoFiscal" onchange="alternarModoFiscalPOS(this.checked)">
               <span class="toggle-fiscal-slider"></span>
@@ -65,9 +65,15 @@
             <span id="badgeModoFiscal" class="badge-modo-fiscal fiscal-off">📄 No Fiscal</span>
           </div>
 
+          <!-- SELECTOR DE MODELO DE IMPRESORA FISCAL (HKA80 / ACLAS PP9 PLUS) -->
+          <select id="selectModeloFiscal" class="form-select form-select-sm fw-bold border-0 text-white rounded-pill px-2 hidden" style="background: rgba(255, 255, 255, 0.18); width: 110px; height: 32px;" onchange="cambiarModeloImpresoraFiscal(this.value)" title="Seleccionar Modelo de Impresora Fiscal">
+            <option value="HKA80" class="text-dark" selected>🖨️ HKA80</option>
+            <option value="PP9" class="text-dark">🖨️ PP9 Plus</option>
+          </select>
+
           <!-- BOTÓN DE CONEXIÓN USB / ESTADO DE IMPRESORA FISCAL -->
-          <button type="button" id="btnConectarPP9" class="btn btn-sm btn-outline-info fw-bold btn-hardware-fiscal hidden" onclick="conectarImpresoraFiscalManual()" title="Haga clic para conectar o probar la impresora fiscal Aclas PP9 Plus">
-            🔌 Conectar PP9
+          <button type="button" id="btnConectarFiscal" class="btn btn-sm btn-outline-info fw-bold btn-hardware-fiscal hidden" onclick="conectarImpresoraFiscalManual()" title="Haga clic para conectar o probar la impresora fiscal seleccionada">
+            🔌 Conectar Fiscal
           </button>
 
           <!-- Indicador Dinámico de Estado de Sincronización -->
@@ -316,7 +322,7 @@
       </div>
     </div>
 
-    <!-- MODAL DE COBRO Y PROCESAMIENTO (DUAL: FISCAL PP9 PLUS / NO FISCAL) -->
+    <!-- MODAL DE COBRO Y PROCESAMIENTO (DUAL: FISCAL / NO FISCAL) -->
     <div class="modal fade" id="modalProcesarFactura" data-bs-backdrop="static" tabindex="-1" aria-labelledby="labelProcesarFactura" aria-hidden="true">
       <div class="modal-dialog modal-fullscreen">
         <div class="modal-content rounded-0">
@@ -1363,9 +1369,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- SDK Oficial Supabase v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Driver Fiscal Aclas PP9 Plus (Web Serial API / The Factory HKA) -->
-    <script src="fiscalDriver.js?v=1.1.0"></script>
+    <!-- Driver Fiscal Universal The Factory HKA (HKA80 / Aclas PP9 Plus) -->
+    <script src="fiscalDriver.js?v=1.2.0"></script>
     <!-- Lógica POS Completa -->
-    <script src="script.js?v=4.0.0"></script>
+    <script src="script.js?v=4.1.0"></script>
   </body>
 </html>
