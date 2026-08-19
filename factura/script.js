@@ -1,7 +1,7 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Historial y Cierres Aislados por Usuario, Módulo de Cuentas por Cobrar
-   (Diseño Refinado de Botones en Línea, Insignias Nítidas y Control Segmentado)
+   Integración de Tasa de IVA (E / G / R) en Catálogo, Balanza PLU y Editor POS,
+   Cuentas por Cobrar (Créditos y Vales), Sincronización y Doble Guardado
    ========================================================================== */
 
 // Configuración de Supabase
@@ -1101,6 +1101,7 @@ function confirmarAgregarProductoManual() {
       unidad: "unidades",
       minBase: 1,
       pesoPromedio: 0,
+      tasaIVA: "E",
       imgPath: '../img/LOGO-MUNDO123.webp',
       esManual: true
     };
@@ -1129,6 +1130,7 @@ function confirmarAgregarProductoManual() {
       unidad: "gramos",
       minBase: 1,
       pesoPromedio: 0,
+      tasaIVA: "E",
       imgPath: '../img/LOGO-MUNDO123.webp',
       esManual: true
     };
@@ -1358,10 +1360,11 @@ function cargarListaFacturacion(idElemento, productos, nombreCategoria) {
     let cantMin = f[4];
     let unidad = f[5];
     let pesoPromedio = f[6] || 0;
+    let tasaIVA = f[8] || "E";
 
     let claseImg = esDisp ? "" : "img-agotado";
     let boton = esDisp 
-      ? `<button class="btn btn-sm btn-outline-danger fw-bold mt-2 w-100" onclick="abrirModalAgregarFactura('${nom}', ${prec}, '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoPromedio}, '${imgPath}')">+ Seleccionar</button>`
+      ? `<button class="btn btn-sm btn-outline-danger fw-bold mt-2 w-100" onclick="abrirModalAgregarFactura('${nom}', ${prec}, '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoPromedio}, '${imgPath}', '${tasaIVA}')">+ Seleccionar</button>`
       : `<button class="btn btn-sm btn-secondary fw-bold mt-2 w-100" disabled>Agotado</button>`;
 
     let unidadTxt = (unidad === 'gramos') ? 'g' : 'uds';
@@ -1371,7 +1374,7 @@ function cargarListaFacturacion(idElemento, productos, nombreCategoria) {
         <div class="card card-producto h-100 text-center">
           <img src="${imgPath}" loading="lazy" class="${claseImg}">
           <h6 class="fw-bold mt-2 text-truncate mb-1">${nom}</h6>
-          <p class="text-success fw-bold mb-0 num-legible">$${prec.toFixed(2)}</p>
+          <p class="text-success fw-bold mb-0 num-legible">$${parseFloat(prec).toFixed(2)}</p>
           <small class="text-muted" style="font-size:0.72rem;">Mín: ${cantMin} ${unidadTxt}</small>
           ${boton}
         </div>
@@ -1379,7 +1382,7 @@ function cargarListaFacturacion(idElemento, productos, nombreCategoria) {
   }).join('');
 }
 
-function abrirModalAgregarFactura(nom, prec, cat, cantMin, unidad, pesoProm, imgPath) {
+function abrirModalAgregarFactura(nom, prec, cat, cantMin, unidad, pesoProm, imgPath, tasaIVA = "E") {
   productoTemporalFactura = { 
     nombre: nom, 
     precio: prec, 
@@ -1387,11 +1390,12 @@ function abrirModalAgregarFactura(nom, prec, cat, cantMin, unidad, pesoProm, img
     minBase: cantMin, 
     unidad: unidad, 
     pesoPromedio: pesoProm,
-    imgPath: imgPath
+    imgPath: imgPath,
+    tasaIVA: tasaIVA || "E"
   };
 
   document.getElementById('modalNombreProducto').textContent = nom;
-  document.getElementById('modalPrecioProducto').textContent = `$${prec.toFixed(2)}`;
+  document.getElementById('modalPrecioProducto').textContent = `$${parseFloat(prec).toFixed(2)}`;
 
   const contUds = document.getElementById('contFacUnidades');
   const contPeso = document.getElementById('contFacPeso');
@@ -1450,6 +1454,7 @@ function confirmarAgregarAFactura() {
       unidad: prod.unidad,
       minBase: prod.minBase,
       pesoPromedio: prod.pesoPromedio || 0,
+      tasaIVA: prod.tasaIVA || "E",
       imgPath: prod.imgPath || '../img/LOGO-MUNDO123.webp'
     };
 
@@ -1476,6 +1481,7 @@ function confirmarAgregarAFactura() {
       unidad: prod.unidad,
       minBase: prod.minBase,
       pesoPromedio: 0,
+      tasaIVA: prod.tasaIVA || "E",
       imgPath: prod.imgPath || '../img/LOGO-MUNDO123.webp'
     };
   }
@@ -2475,6 +2481,7 @@ function procesarEntradaScanner(cadenaTexto) {
         cantNumerica: cantidadUds,
         pesoTotalGramos: pesoTotalGramos,
         precioTotal: calcSubtotal.toFixed(2),
+        tasaIVA: productoEncontrado.tasaIVA || "E",
         imgPath: productoEncontrado.imgPath,
         encontrado: true
       });
@@ -2489,6 +2496,7 @@ function procesarEntradaScanner(cadenaTexto) {
         cantNumerica: 0,
         pesoTotalGramos: 0,
         precioTotal: "0.00",
+        tasaIVA: "E",
         imgPath: "../img/LOGO-MUNDO123.webp",
         encontrado: false
       });
@@ -2515,7 +2523,8 @@ function buscarProductoPorCodigo(codStr, numInt) {
             nombre: p[0],
             precio: p[1],
             imgPath: p[2].startsWith('../') ? p[2] : '../' + p[2],
-            unidad: p[5]
+            unidad: p[5],
+            tasaIVA: p[8] || "E"
           };
         }
       }
@@ -2582,6 +2591,7 @@ function confirmarAgregarCodigosAFactura() {
         unidad: it.unidad,
         minBase: 1,
         pesoPromedio: 0,
+        tasaIVA: it.tasaIVA || "E",
         imgPath: it.imgPath
       };
       agregados++;
@@ -2600,7 +2610,7 @@ function confirmarAgregarCodigosAFactura() {
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
 }
 
-// CONFIGURACIÓN FULLSCREEN DE PRODUCTOS Y PLU
+// CONFIGURACIÓN FULLSCREEN DE PRODUCTOS Y PLU (CON COLUMNA IVA)
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
   prepararListaProductosCodigos();
@@ -2620,6 +2630,7 @@ function prepararListaProductosCodigos() {
       let unidad = p[5] || "unidades";
       let pesoProm = p[6] || 0;
       let codPLU = p[7] ? String(p[7]).trim() : "";
+      let tasaIVA = p[8] || "E";
 
       listaFlatProductosCodigos.push({
         nombreOriginal: nom,
@@ -2633,6 +2644,7 @@ function prepararListaProductosCodigos() {
         unidad: unidad,
         pesoPromedio: pesoProm,
         codigoPLU: codPLU,
+        tasaIVA: tasaIVA,
         orden: idx + 1
       });
     });
@@ -2662,7 +2674,7 @@ function renderizarTablaGestionCodigos(lista) {
   if (badgeCount) badgeCount.textContent = `Total: ${lista.length} Productos`;
 
   if (lista.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
     return;
   }
 
@@ -2709,21 +2721,28 @@ function renderizarTablaGestionCodigos(lista) {
         </td>
         <td>
           <input type="number" class="form-control form-control-sm text-center cfg-orden num-legible" 
-                 value="${item.orden}" min="1" style="max-width: 60px; margin: 0 auto;">
+                 value="${item.orden}" min="1" style="max-width: 55px; margin: 0 auto;">
         </td>
         <td>
           <input type="number" class="form-control form-control-sm text-center cfg-minimo num-legible" 
-                 value="${item.minimo}" min="1">
+                 value="${item.minimo}" min="1" style="max-width: 65px; margin: 0 auto;">
         </td>
         <td>
           <select class="form-select form-select-sm fw-bold cfg-disp">
-            <option value="true" ${item.disponible ? 'selected' : ''}>✅ Disponible</option>
-            <option value="false" ${!item.disponible ? 'selected' : ''}>🚫 Agotado</option>
+            <option value="true" ${item.disponible ? 'selected' : ''}>✅ Disp.</option>
+            <option value="false" ${!item.disponible ? 'selected' : ''}>🚫 Agot.</option>
+          </select>
+        </td>
+        <td>
+          <select class="form-select form-select-sm fw-bold text-center cfg-iva">
+            <option value="E" ${item.tasaIVA === 'E' ? 'selected' : ''}>E (0%)</option>
+            <option value="G" ${item.tasaIVA === 'G' ? 'selected' : ''}>G (16%)</option>
+            <option value="R" ${item.tasaIVA === 'R' ? 'selected' : ''}>R (8%)</option>
           </select>
         </td>
         <td>
           <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-center fw-bold text-success cfg-precio num-legible" 
-                 value="${item.precio.toFixed(2)}">
+                 value="${parseFloat(item.precio).toFixed(2)}" style="max-width: 85px; margin: 0 auto;">
         </td>
         <td class="text-center">
           <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 border-0 fw-bold" onclick="eliminarProductoFilaInline('${safeName}', '${safeCat}')" title="Eliminar Producto">
@@ -2867,6 +2886,7 @@ async function procesarSincronizacionGitHub() {
       const nuevoOrden = parseInt(f.querySelector('.cfg-orden').value) || 1;
       const nuevoMin = parseInt(f.querySelector('.cfg-minimo').value) || 1;
       const nuevoDisp = (f.querySelector('.cfg-disp').value === "true");
+      const nuevoIVA = f.querySelector('.cfg-iva') ? f.querySelector('.cfg-iva').value : "E";
       const nuevoPrecio = parseFloat(f.querySelector('.cfg-precio').value) || 0;
       const fileInput = f.querySelector('.cfg-file');
 
@@ -2891,7 +2911,7 @@ async function procesarSincronizacionGitHub() {
       if (!categoriasMap[nuevaCat]) categoriasMap[nuevaCat] = [];
 
       categoriasMap[nuevaCat].push({
-        datos: [nuevoNom, nuevoPrecio, imgPathActual, nuevoDisp, nuevoMin, nuevaUnidad, nuevoPeso, nuevoPlu],
+        datos: [nuevoNom, nuevoPrecio, imgPathActual, nuevoDisp, nuevoMin, nuevaUnidad, nuevoPeso, nuevoPlu, nuevoIVA],
         orden: nuevoOrden
       });
     }
@@ -2905,7 +2925,7 @@ async function procesarSincronizacionGitHub() {
     const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
     const base64Content = btoa(unescape(encodeURIComponent(contentString)));
 
-    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización completa de catálogo desde tabla Fullscreen POS");
+    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización completa de catálogo con IVA desde tabla Fullscreen POS");
 
     if (btn) {
       btn.disabled = false;
@@ -2914,7 +2934,7 @@ async function procesarSincronizacionGitHub() {
 
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
-    mostrarAvisoFactura("🎉 Catálogo completo actualizado y sincronizado con éxito.");
+    mostrarAvisoFactura("🎉 Catálogo completo con IVA actualizado y sincronizado con éxito.");
 
   } catch (err) {
     sessionStorage.removeItem("github_token");
@@ -2964,6 +2984,9 @@ function abrirModalCrearProductoPOS() {
 
   document.getElementById('posAddProdNombre').value = "";
   document.getElementById('posAddProdPrecio').value = "";
+  if (document.getElementById('posAddProdIVA')) {
+    document.getElementById('posAddProdIVA').value = "E";
+  }
   document.getElementById('posAddProdCodigo').value = "";
   document.getElementById('posAddProdUnidad').value = "gramos";
   document.getElementById('posAddProdPesoPromedio').value = "";
@@ -2980,6 +3003,7 @@ async function ejecutarCrearNuevoProductoPOS() {
   const catNombre = document.getElementById('posAddProdCatSelect').value;
   const prodNombre = document.getElementById('posAddProdNombre').value.trim().toUpperCase();
   const prodPrecio = parseFloat(document.getElementById('posAddProdPrecio').value);
+  const prodIVA = document.getElementById('posAddProdIVA') ? document.getElementById('posAddProdIVA').value : "E";
   const prodCodigo = document.getElementById('posAddProdCodigo').value.trim();
   const prodUnidad = document.getElementById('posAddProdUnidad').value;
   const prodPesoProm = (prodUnidad === "mixto") ? parseInt(document.getElementById('posAddProdPesoPromedio').value) : 0;
@@ -3012,7 +3036,7 @@ async function ejecutarCrearNuevoProductoPOS() {
 
     let cat = cacheCategoriasFactura.find(c => c.nombre === catNombre);
     if (cat) {
-      cat.productos.push([prodNombre, prodPrecio, relativePath, true, prodMin, prodUnidad, prodPesoProm, prodCodigo]);
+      cat.productos.push([prodNombre, prodPrecio, relativePath, true, prodMin, prodUnidad, prodPesoProm, prodCodigo, prodIVA]);
     }
 
     const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
