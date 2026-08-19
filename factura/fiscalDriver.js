@@ -486,27 +486,43 @@ class FiscalDriverTFHKA {
     return resp;
   }
 
-  // 5. Emitir Reporte Z (Comando I0Z)
+  // 5. Emitir Reporte Z Oficial TFHKA (Comando I0Z) y Captura de Contadores [cite: 1.3.8]
   async imprimirReporteZ() {
     if (!this.conectado) throw new Error(`Impresora fiscal ${this.getNombreModelo()} no conectada.`);
     this.notificarEstado("IMPRIMIENDO_Z", `Imprimiendo Reporte Z oficial en ${this.getNombreModelo()}...`);
+    
     const resp = await this.enviarComando("I0Z");
 
-    await new Promise(r => setTimeout(r, 800));
-    const status = await this.consultarEstado();
-    this.ultimoNumeroZ = status.ultimaFactura || null;
+    // Pausa para finalización del corte físico del Reporte Z
+    await new Promise(r => setTimeout(r, 1200));
 
-    this.notificarEstado("FINALIZADO_Z", `Cierre Fiscal Reporte Z completado en ${this.getNombreModelo()}.`, {
-      numeroZ: this.ultimoNumeroZ
+    // Consultar estado para extraer el Número de Reporte Z generado (ej. 0002) [cite: 1.3.8]
+    const status = await this.consultarEstado();
+    this.ultimoNumeroZ = status.ultimoZ || (status.raw ? this.extraerNumeroZDeRespuesta(status.raw) : null);
+
+    this.notificarEstado("FINALIZADO_Z", `Cierre Fiscal Reporte Z N° ${this.ultimoNumeroZ || 'OK'} completado en ${this.getNombreModelo()}.`, {
+      numeroZ: this.ultimoNumeroZ,
+      serial: status.serial,
+      rif: status.rif
     });
 
     return {
       exito: true,
       numeroZ: this.ultimoNumeroZ,
+      statusFiscal: status,
       respuestaRaw: resp
     };
   }
-}
+
+  // Extractor auxiliar de correlativo Z
+  extraerNumeroZDeRespuesta(rawStr) {
+    if (!rawStr) return null;
+    const lineas = String(rawStr).split(/\x0A|\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    if (lineas.length >= 7 && /^\d+$/.test(lineas[6])) {
+      return lineas[6].padStart(4, '0');
+    }
+    return null;
+  }
 
 // Instancia global única del Driver Fiscal TFHKA
 window.fiscalDriver = new FiscalDriverTFHKA();
