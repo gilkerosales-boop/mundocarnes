@@ -296,7 +296,7 @@ class FiscalDriverTFHKA {
   // OPERACIONES FISCALES DE ALTO NIVEL
   // ========================================================================
 
-  // 1. Consultar Estado S1 con Descodificación de Trama Fija TFHKA
+  // 1. Consultar Estado S1 con Descodificación Oficial TFHKA (Separador 0x0A) [cite: 1.3.8]
   async consultarEstado() {
     this.notificarEstado("CONSULTANDO", `Consultando estado S1 en ${this.getNombreModelo()}...`);
     const resp = await this.enviarComando("S1", true);
@@ -304,46 +304,50 @@ class FiscalDriverTFHKA {
 
     let numFacturaDetectado = null;
     let numZDetectado = null;
+    let serialEquipo = null;
+    let rifEquipo = null;
 
     if (resp) {
-      // Limpieza de caracteres de control
-      const cleanResp = String(resp).replace(/[\x00-\x1F\x7F]/g, '');
+      // En protocolo directo TFHKA, los campos vienen separados por 0x0A (\n) [cite: 1.3.8]
+      const lineas = String(resp)
+        .split(/\x0A|\r?\n/)
+        .map(l => l.trim())
+        .filter(l => l.length > 0);
 
-      // Estructura oficial TFHKA S1:
-      // Bytes 0..2: Estados y banderas (3 bytes)
-      // Bytes 3..11: Nro. Última Factura Emitida (8 dígitos, ej: 00000005)
-      // Bytes 39..43: Nro. Último Reporte Z (4 dígitos, ej: 0001)
-      if (cleanResp.length >= 11) {
-        const subFac8 = cleanResp.substring(3, 11);
-        const subFac7 = cleanResp.substring(2, 10);
+      // Posiciones estándar TFHKA:
+      // lineas[0]: S101 (Comando + Cajero)
+      // lineas[1]: Total ventas acumuladas
+      // lineas[2]: NÚMERO DE LA ÚLTIMA FACTURA EMITIDA (ej: 00000005) [cite: 1.3.8]
+      // lineas[6]: Contador de Reportes Z [cite: 1.3.8]
+      // lineas[8]: RIF [cite: 1.3.8]
+      // lineas[9]: Serial de la máquina fiscal [cite: 1.3.8]
 
-        if (/^\d{6,8}$/.test(subFac8)) {
-          numFacturaDetectado = subFac8.padStart(8, '0');
-        } else if (/^\d{6,8}$/.test(subFac7)) {
-          numFacturaDetectado = subFac7.padStart(8, '0');
-        }
-
-        if (cleanResp.length >= 43) {
-          const subZ = cleanResp.substring(39, 43);
-          if (/^\d{1,4}$/.test(subZ)) {
-            numZDetectado = subZ.padStart(4, '0');
-          }
-        }
+      if (lineas.length >= 3 && /^\d+$/.test(lineas[2])) {
+        numFacturaDetectado = lineas[2].padStart(8, '0');
       }
 
-      // Caso alternativo por delimitador (Puentes o drivers formateados)
-      if (!numFacturaDetectado && cleanResp.includes(',')) {
-        const partes = cleanResp.split(',');
+      if (lineas.length >= 7 && /^\d+$/.test(lineas[6])) {
+        numZDetectado = lineas[6].padStart(4, '0');
+      }
+
+      if (lineas.length >= 9) rifEquipo = lineas[8];
+      if (lineas.length >= 10) serialEquipo = lineas[9];
+
+      // Caso B: Si la respuesta viene delimitada por comas (puentes/emuladores)
+      if (!numFacturaDetectado && resp.includes(',')) {
+        const partes = resp.split(',');
         if (partes.length > 2 && /^\d+$/.test(partes[2].trim())) {
           numFacturaDetectado = partes[2].trim().padStart(8, '0');
         }
       }
 
-      // Extracción heurística de seguridad
+      // Caso C: Búsqueda segura en las líneas
       if (!numFacturaDetectado) {
-        const digitos = cleanResp.match(/\d{5,8}/);
-        if (digitos) {
-          numFacturaDetectado = digitos[0].padStart(8, '0');
+        for (let i = 2; i < lineas.length; i++) {
+          if (/^\d{6,8}$/.test(lineas[i]) && parseInt(lineas[i], 10) > 0) {
+            numFacturaDetectado = lineas[i].padStart(8, '0');
+            break;
+          }
         }
       }
     }
@@ -352,7 +356,9 @@ class FiscalDriverTFHKA {
       raw: resp,
       enLinea: true,
       ultimaFactura: numFacturaDetectado,
-      ultimoZ: numZDetectado
+      ultimoZ: numZDetectado,
+      serial: serialEquipo,
+      rif: rifEquipo
     };
   }
 
