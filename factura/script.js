@@ -5488,7 +5488,9 @@ async function eliminarValeHistorial(id, fechaHora, cedula) {
   procesarColaSincronizacion();
 }
 
-// OYENTES DE EVENTOS
+// ==========================================================================
+// OYENTES DE EVENTOS DE RED Y ARRANQUE DEL SISTEMA
+// ==========================================================================
 window.addEventListener('online', async () => {
   actualizarEstadoSyncBadge();
   await procesarColaSincronizacion();
@@ -5520,13 +5522,36 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
-  // Registro de Service Worker con Escucha Activa de Auto-Actualización
+  // Registro del Service Worker con auto-actualización inmediata
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js', { scope: '/factura/' })
       .then(reg => {
         console.log('App de Ventas Offline-First lista para instalar:', reg.scope);
-        // Forzar verificación de nuevas versiones en el servidor
         reg.update();
+
+        reg.onupdatefound = () => {
+          const installingWorker = reg.installing;
+          if (installingWorker) {
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('🔄 Nueva versión detectada. Actualizando aplicación...');
+                window.location.reload();
+              }
+            };
+          }
+        };
+      })
+      .catch(err => console.error('Error PWA Ventas:', err));
+
+    let actualizando = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!actualizando) {
+        actualizando = true;
+        window.location.reload();
+      }
+    });
+  }
+});
 
         reg.onupdatefound = () => {
           const installingWorker = reg.installing;
