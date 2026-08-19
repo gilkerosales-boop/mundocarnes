@@ -2644,18 +2644,24 @@ async function confirmarEImprimirFactura() {
       ejecutarImpresionTicket(ticketHtml);
     }
 
+    const esFiscalActivo = Boolean(datosFacturaPendiente.modoFiscal);
+    let formaPagoFinalStr = datosFacturaPendiente.formaPagoStr || "EFECTIVO";
+    if (esFiscalActivo && !formaPagoFinalStr.toUpperCase().includes("FISCAL")) {
+      formaPagoFinalStr = `${formaPagoFinalStr} (FISCAL)`;
+    }
+
     // 3. Guardar en IndexedDB local
     await dbPut("ventas", {
-      numFactura: numFactura,
+      numFactura: String(numFactura),
       fechaStr: datosFacturaPendiente.fechaStr,
       montoTotalUSD: datosFacturaPendiente.totalUSD,
       cedula: datosFacturaPendiente.cliente.cedula,
       nombre: datosFacturaPendiente.cliente.nombre,
       direccion: datosFacturaPendiente.cliente.direccion || null,
-      formaPagoStr: datosFacturaPendiente.formaPagoStr,
+      formaPagoStr: formaPagoFinalStr,
       productosSummary: datosFacturaPendiente.productosSummary,
       usuario: usuarioActivo,
-      esFiscal: datosFacturaPendiente.modoFiscal
+      esFiscal: esFiscalActivo
     });
 
     // 4. Encolar para sincronización con Supabase
@@ -2664,19 +2670,19 @@ async function confirmarEImprimirFactura() {
       payload: {
         action: "guardarFacturaFinal",
         datosFactura: {
-          numFactura: numFactura,
+          numFactura: String(numFactura),
           fechaStr: datosFacturaPendiente.fechaStr,
           cedula: datosFacturaPendiente.cliente.cedula,
           nombre: datosFacturaPendiente.cliente.nombre,
           telefono: datosFacturaPendiente.cliente.telefono || 'N/D',
           direccion: datosFacturaPendiente.cliente.direccion || null,
           productosSummary: datosFacturaPendiente.productosSummary,
-          formaPago: datosFacturaPendiente.formaPagoStr,
+          formaPago: formaPagoFinalStr,
           montoTotal: datosFacturaPendiente.totalUSD,
           desglosePagos: datosFacturaPendiente.desglosePagos,
           usuario: usuarioActivo,
           tablaVentas: datosFacturaPendiente.tablaVentas,
-          esFiscal: datosFacturaPendiente.modoFiscal
+          esFiscal: esFiscalActivo
         }
       }
     });
@@ -3537,7 +3543,17 @@ function renderizarTablaHistorialFacturas() {
 
   let html = "";
   cacheHistorialFacturas.forEach(f => {
-    let badgeTipo = f.esFiscal 
+    const numFacStr = String(f.numFactura || "");
+    const formaStr = String(f.formaPagoStr || "").toUpperCase();
+    const esRealmenteFiscal = Boolean(
+      f.esFiscal === true || 
+      f.esFiscal === "true" || 
+      formaStr.includes("FISCAL") || 
+      numFacStr.startsWith("FAC-") || 
+      /^\d{8}$/.test(numFacStr)
+    );
+
+    let badgeTipo = esRealmenteFiscal 
       ? `<span class="badge bg-primary fw-bold">🏷️ Fiscal</span>` 
       : `<span class="badge bg-secondary">📄 No Fiscal</span>`;
 
