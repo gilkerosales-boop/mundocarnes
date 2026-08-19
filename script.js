@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Frontend e Interacción Optimizada - Mundocarnes
-   Catálogo Abierto (Todas las Secciones Visibles), Grid 3/6 y Carrito Flotante
+   Catálogo Abierto, Modo Editor con Soporte Fiscal IVA (E / G / R) y Checkout
    ========================================================================== */
 
 const GITHUB_CONFIG = {
@@ -90,7 +90,7 @@ async function subirArchivoAGitHub(path, contentBase64, commitMessage) {
 async function guardarCatalogoEnGitHub() {
   const contentString = JSON.stringify({ categorias: cacheCategorias }, null, 2);
   const base64Content = btoa(unescape(encodeURIComponent(contentString)));
-  await subirArchivoAGitHub("catalog.json", base64Content, "Sincronización automática de catálogo desde el Modo Editor");
+  await subirArchivoAGitHub("catalog.json", base64Content, "Sincronización automática de catálogo con IVA desde el Modo Editor");
 }
 
 // Lectura e inspección de imágenes WebP < 120 KB
@@ -398,11 +398,9 @@ function renderizarCatalogo(resp) {
   cacheCategorias.forEach((cat) => {
     let safeId = "cat-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
     
-    // Botones píldora para salto suave a cada sección
     navPillsHtml += `
       <a href="#${safeId}" class="btn-nav-categoria">${cat.nombre}</a>`;
     
-    // Sección visible completa con su título y grid de productos
     sectionsHtml += `
       <section class="seccion-categoria" id="${safeId}">
         <h4 class="titulo-seccion-categoria">${cat.nombre}</h4>
@@ -426,18 +424,22 @@ function cargarLista(idElemento, datos, nombreCategoria) {
   if (!contenedor) return;
 
   contenedor.innerHTML = datos.map(f => {
+    let nom = f[0];
+    let prec = f[1];
+    let imgPath = f[2];
     let esDisp = f[3]; 
     let cantMin = f[4]; 
     let unidad = f[5]; 
     let pesoProm = f[6] || 0;
     let codigoBalanza = f[7] || "";
+    let tasaIVA = f[8] || "E";
 
     let claseImg = esDisp ? "" : "img-agotado";
     let etiquetaDisp = esDisp ? "" : `<span class="badge bg-danger position-absolute top-0 start-0 m-1">Agotado</span>`;
     let boton = "";
     
     if (cacheUsuario.rol === "ADMIN") {
-      boton = `<button class="btn btn-sm btn-warning fw-bold mt-1 w-100" onclick="abrirModalEdicion('${f[0]}', '${f[1]}', '${nombreCategoria}', ${esDisp}, ${cantMin}, '${unidad}', ${pesoProm}, '${codigoBalanza}')">Editar ⚙️</button>`;
+      boton = `<button class="btn btn-sm btn-warning fw-bold mt-1 w-100" onclick="abrirModalEdicion('${f[0]}', '${f[1]}', '${nombreCategoria}', ${esDisp}, ${cantMin}, '${unidad}', ${pesoProm}, '${codigoBalanza}', '${tasaIVA}')">Editar ⚙️</button>`;
     } else {
       if (esDisp) boton = `<button class="btn btn-sm btn-outline-dark fw-bold mt-1 w-100" onclick="seleccionarProducto('${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">+ Pedir</button>`;
       else boton = `<button class="btn btn-sm btn-secondary fw-bold mt-1 w-100" disabled>Agotado</button>`;
@@ -445,14 +447,13 @@ function cargarLista(idElemento, datos, nombreCategoria) {
     
     let unidadTxt = (unidad === 'gramos') ? 'g' : 'uds';
 
-    // Grid: col-4 (3 columnas en móvil), col-md-3 (4 en tablet), col-lg-2 (6 en PC)
     return `
       <div class="col-4 col-md-3 col-lg-2">
         <div class="card h-100 position-relative">
           ${etiquetaDisp}
-          <img src="${f[2]}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${f[2]}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">
+          <img src="${imgPath}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">
           <h6 class="fw-bold text-truncate">${f[0]}</h6>
-          <p class="text-success fw-bold">$${f[1]}</p>
+          <p class="text-success fw-bold">$${parseFloat(f[1]).toFixed(2)}</p>
           <small class="text-muted">Mín: ${cantMin}${unidadTxt}</small>
           ${boton}
         </div>
@@ -460,8 +461,8 @@ function cargarLista(idElemento, datos, nombreCategoria) {
   }).join('');
 }
 
-// Abrir Modal de Edición del Administrador
-function abrirModalEdicion(nom, prec, cat, disp, min, unidad, pesoProm = 0, codigoBalanza = "") {
+// Abrir Modal de Edición del Administrador con IVA
+function abrirModalEdicion(nom, prec, cat, disp, min, unidad, pesoProm = 0, codigoBalanza = "", tasaIVA = "E") {
   productoTemporal = { nombre: nom, categoria: cat };
   
   document.getElementById('editProductoNuevoNombre').value = nom; 
@@ -470,6 +471,11 @@ function abrirModalEdicion(nom, prec, cat, disp, min, unidad, pesoProm = 0, codi
   document.getElementById('editProductoDisponible').value = disp ? "true" : "false";
   document.getElementById('editProductoMinimo').value = min;
   
+  const selIVA = document.getElementById('editProductoIVA');
+  if (selIVA) {
+    selIVA.value = tasaIVA || "E";
+  }
+
   const selUnidad = document.getElementById('editProductoUnidad');
   selUnidad.value = unidad || "unidades";
   
@@ -479,7 +485,6 @@ function abrirModalEdicion(nom, prec, cat, disp, min, unidad, pesoProm = 0, codi
   }
   alternarCampoPesoPromedio(unidad || "unidades");
 
-  // Asignar Código PLU privado
   const inputCodigo = document.getElementById('editProductoCodigo');
   if (inputCodigo) {
     inputCodigo.value = codigoBalanza || "";
@@ -522,6 +527,7 @@ async function guardarEdicionAdministrador() {
   const unidad = document.getElementById('editProductoUnidad').value;
   const pesoProm = unidad === "mixto" ? parseInt(document.getElementById('editProductoPesoPromedio').value) : 0;
   const nuevoCodigo = document.getElementById('editProductoCodigo').value.trim();
+  const nuevaTasaIVA = document.getElementById('editProductoIVA') ? document.getElementById('editProductoIVA').value : "E";
   const nuevaPosicion = parseInt(document.getElementById('editProductoPosicion').value);
   
   if (!nuevoNombre || isNaN(prec) || isNaN(min) || !unidad || isNaN(nuevaPosicion) || (unidad === "mixto" && (!pesoProm || pesoProm <= 0))) {
@@ -556,6 +562,7 @@ async function guardarEdicionAdministrador() {
         prod[5] = unidad;
         prod[6] = pesoProm;
         prod[7] = nuevoCodigo;
+        prod[8] = nuevaTasaIVA;
 
         if (relativeImgPath) {
           prod[2] = relativeImgPath;
@@ -1038,10 +1045,16 @@ function abrirPanelAdmin() {
   document.getElementById('adminCatProdNombre').value = "";
   document.getElementById('adminCatProdPrecio').value = "";
   document.getElementById('adminCatProdCodigo').value = "";
+  if (document.getElementById('adminCatProdIVA')) {
+    document.getElementById('adminCatProdIVA').value = "E";
+  }
   document.getElementById('adminCatProdArchivoImagen').value = "";
   document.getElementById('adminAddProdNombre').value = "";
   document.getElementById('adminAddProdPrecio').value = "";
   document.getElementById('adminAddProdCodigo').value = "";
+  if (document.getElementById('adminAddProdIVA')) {
+    document.getElementById('adminAddProdIVA').value = "E";
+  }
   document.getElementById('adminAddProdArchivoImagen').value = "";
   
   let addSelect = document.getElementById('adminAddCatSelect');
@@ -1068,6 +1081,7 @@ async function ejecutarCrearCategoria() {
   const prodNombre = document.getElementById('adminCatProdNombre').value.trim();
   const prodPrecio = parseFloat(document.getElementById('adminCatProdPrecio').value.trim());
   const prodCodigo = document.getElementById('adminCatProdCodigo').value.trim();
+  const prodIVA = document.getElementById('adminCatProdIVA') ? document.getElementById('adminCatProdIVA').value : "E";
   
   if (!catNombre || !prodNombre || isNaN(prodPrecio)) {
     return mostrarAviso("Todos los campos obligatorios deben estar llenos.");
@@ -1088,7 +1102,7 @@ async function ejecutarCrearCategoria() {
     cacheCategorias.push({
       nombre: catNombre.toUpperCase(),
       productos: [
-        [prodNombre, prodPrecio, relativePath, true, 1, "unidades", 0, prodCodigo]
+        [prodNombre, prodPrecio, relativePath, true, 1, "unidades", 0, prodCodigo, prodIVA]
       ]
     });
 
@@ -1113,6 +1127,7 @@ async function ejecutarAnexarProducto() {
   const prodNombre = document.getElementById('adminAddProdNombre').value.trim();
   const prodPrecio = parseFloat(document.getElementById('adminAddProdPrecio').value.trim());
   const prodCodigo = document.getElementById('adminAddProdCodigo').value.trim();
+  const prodIVA = document.getElementById('adminAddProdIVA') ? document.getElementById('adminAddProdIVA').value : "E";
   
   if (!catNombre || !prodNombre || isNaN(prodPrecio)) {
     return mostrarAviso("Todos los campos obligatorios deben estar llenos.");
@@ -1135,7 +1150,7 @@ async function ejecutarAnexarProducto() {
       let esCombo = catNombre.toUpperCase().includes("COMBO");
       let defaultUnidad = esCombo ? "unidades" : "gramos";
       let minVal = esCombo ? 1 : 250;
-      cat.productos.push([prodNombre, prodPrecio, relativePath, true, minVal, defaultUnidad, 0, prodCodigo]);
+      cat.productos.push([prodNombre, prodPrecio, relativePath, true, minVal, defaultUnidad, 0, prodCodigo, prodIVA]);
     }
 
     await guardarCatalogoEnGitHub();
