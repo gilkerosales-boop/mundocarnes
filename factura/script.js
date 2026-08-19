@@ -2683,6 +2683,9 @@ async function confirmarEImprimirFactura() {
 
     if (btn) { btn.disabled = false; btn.textContent = "🖨️ Confirmar y Emitir"; }
 
+    const fueFiscal = Boolean(datosFacturaPendiente?.modoFiscal);
+    const tipoDocStr = fueFiscal ? "Factura Fiscal" : "Venta";
+
     itemsFactura = {};
     transaccionActiva = null;
     clienteFacturaActual = null;
@@ -2692,7 +2695,6 @@ async function confirmarEImprimirFactura() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVistaPreviaFactura')).hide();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
 
-    const tipoDocStr = datosFacturaPendiente?.modoFiscal ? "Factura Fiscal" : "Venta";
     mostrarAvisoFactura(`🎉 ${tipoDocStr} N° ${numFactura} emitida exitosamente.`);
     procesarColaSincronizacion();
 
@@ -3430,7 +3432,8 @@ function abrirModalBuscarFacturas() {
 }
 
 async function buscarFacturasHistorial(modo) {
-  const inputVal = document.getElementById('facBusquedaInput').value.trim().toUpperCase();
+  const inputElem = document.getElementById('facBusquedaInput');
+  const inputVal = inputElem ? inputElem.value.trim().toUpperCase() : "";
   const usuarioActivo = obtenerUsuarioActivo();
   const tablaUsuarioActivo = obtenerTablaVentasUsuario(usuarioActivo);
   
@@ -3438,38 +3441,60 @@ async function buscarFacturasHistorial(modo) {
     return mostrarAvisoFactura("Ingrese Cédula, RIF o N° de Factura a buscar.");
   }
 
-  let ventasLocales = await dbGetAll("ventas");
   let mapFacturas = {};
 
-  ventasLocales.forEach(f => {
-    if (f.numFactura && normalizarUsuario(f.usuario) === usuarioActivo) {
-      mapFacturas[f.numFactura] = f;
+  try {
+    let ventasLocales = await dbGetAll("ventas");
+    if (Array.isArray(ventasLocales)) {
+      ventasLocales.forEach(f => {
+        if (f && f.numFactura) {
+          const userFila = normalizarUsuario(f.usuario || usuarioActivo);
+          if (userFila === usuarioActivo || userFila === "admin") {
+            mapFacturas[String(f.numFactura)] = {
+              numFactura: String(f.numFactura),
+              fechaStr: f.fechaStr || "",
+              cedula: f.cedula || "V-00000000",
+              nombre: f.nombre || "CONSUMIDOR FINAL",
+              direccion: f.direccion || null,
+              productosSummary: f.productosSummary || "",
+              formaPagoStr: f.formaPagoStr || "EFECTIVO",
+              montoTotalUSD: parseFloat(f.montoTotalUSD) || 0,
+              usuario: f.usuario || usuarioActivo,
+              esFiscal: Boolean(f.esFiscal || String(f.formaPagoStr || "").includes("FISCAL"))
+            };
+          }
+        }
+      });
     }
-  });
+  } catch (errDb) {
+    console.warn("Aviso al consultar ventas locales en IndexedDB:", errDb);
+  }
 
   if (navigator.onLine) {
     try {
       const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
-      if (ventasSup && ventasSup.length > 0) {
+      if (Array.isArray(ventasSup) && ventasSup.length > 0) {
         ventasSup.forEach(v => {
-          let numFac = v.FACTURA || v["FACTURA N°"];
+          let numFac = v.FACTURA || v["FACTURA N°"] || v.numFactura;
           if (numFac) {
-            mapFacturas[numFac] = {
-              numFactura: numFac,
-              fechaStr: v["FECHA"] || "",
-              cedula: v["CEDULA O RIF"] || "",
-              nombre: v["NOMBRE / RAZON SOCIAL"] || "",
-              direccion: v["UBICACION"] || null,
-              productosSummary: v["PRODUCTOS"] || "",
-              formaPagoStr: v["FORMA DE PAGO"] || "",
-              montoTotalUSD: parseFloat(v["MONTO TOTAL"]) || 0,
+            mapFacturas[String(numFac)] = {
+              numFactura: String(numFac),
+              fechaStr: v["FECHA"] || v.fechaStr || "",
+              cedula: v["CEDULA O RIF"] || v.cedula || "V-00000000",
+              nombre: v["NOMBRE / RAZON SOCIAL"] || v.nombre || "CONSUMIDOR FINAL",
+              direccion: v["UBICACION"] || v.direccion || null,
+              productosSummary: v["PRODUCTOS"] || v.productosSummary || "",
+              formaPagoStr: v["FORMA DE PAGO"] || v.formaPagoStr || "",
+              montoTotalUSD: parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0,
               usuario: usuarioActivo,
-              esFiscal: String(v["FORMA DE PAGO"] || "").includes("FISCAL")
+              esFiscal: Boolean(String(v["FORMA DE PAGO"] || "").includes("FISCAL") || v.esFiscal)
             };
           }
         });
       }
-    } catch (err) {}
+    } catch (err) {
+      console.warn("Aviso al consultar Supabase en historial:", err);
+    }
   }
 
   let todasLasFacturas = Object.values(mapFacturas).sort((a, b) => {
