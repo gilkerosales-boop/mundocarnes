@@ -324,6 +324,7 @@ class FiscalDriverTFHKA {
   }
 
   // 3. Emitir Factura Fiscal Completa con Comandos de Renglón TFHKA (' ', '!', '"')
+// 3. Emitir Factura Fiscal Completa con Comandos de Renglón TFHKA (' ', '!', '"') y Cierre Directo
   async emitirFacturaFiscal(datosFactura) {
     if (!this.conectado) {
       throw new Error(`No hay conexión activa con la impresora fiscal ${this.getNombreModelo()}.`);
@@ -333,11 +334,7 @@ class FiscalDriverTFHKA {
       cliente,
       items,
       formaPago,
-      desglosePagos,
-      totalUSD,
-      totalBs,
-      tasaBCV,
-      monedaVistaModal
+      tasaBCV
     } = datosFactura;
 
     if (!cliente || !cliente.cedula || !cliente.nombre) {
@@ -363,8 +360,6 @@ class FiscalDriverTFHKA {
       if (telefonoCliente) await this.enviarComando(`i04${telefonoCliente}`);
 
       // PASO B: Renglones de Venta con Formato Estricto TFHKA y Desglose de Base Imponible
-      // En impresoras fiscales SENIAT (HKA80 / PP9), el precio enviado con '!' o '"' debe ser la Base Imponible sin IVA en Bolívares.
-      let totalCalculadoImpresoraBs = 0;
       const factorTasa = (parseFloat(tasaBCV) > 0) ? parseFloat(tasaBCV) : 1;
 
       for (let nombreProd in items) {
@@ -383,60 +378,37 @@ class FiscalDriverTFHKA {
           factorIVA = 1.08;
         }
 
-        // Precio unitario convertido a Bolívares (Moneda de curso legal fiscal)
+        // Conversión a Bolívares y extracción de la Base Imponible unitaria
         let precioItemUSD = parseFloat(item.precioBase) || 0;
         let precioItemBs = precioItemUSD * factorTasa;
-
-        // La impresora aplica el IVA automáticamente; enviamos la base imponible unitaria
         let baseImponibleUnitariaBs = precioItemBs / factorIVA;
         let cantidadNumerica = parseFloat(item.cantNumerica) || 1;
-
-        if (item.unidad === "gramos" || item.unidad === "mixto") {
-          let gramos = parseFloat(item.pesoTotalGramos || item.cantNumerica) || 0;
-          let precioTotalRenglonBs = (precioItemBs / 1000) * gramos;
-          totalCalculadoImpresoraBs += precioTotalRenglonBs;
-        } else {
-          totalCalculadoImpresoraBs += (precioItemBs * cantidadNumerica);
-        }
 
         const strPrecio = this.formatearPrecioFiscal(baseImponibleUnitariaBs);
         const strCantidad = this.formatearCantidadFiscal(cantidadNumerica, item.unidad);
 
-        // Estructura oficial: STX + [Tasa] + [Precio 10d] + [Cantidad 8d] + [Descripción] + ETX + LRC
+        // Trama oficial: STX + [Tasa] + [Precio 10d] + [Cantidad 8d] + [Descripción] + ETX + LRC
         const tramaRenglon = `${cmdTasaChar}${strPrecio}${strCantidad}${descProd}`;
         await this.enviarComando(tramaRenglon);
       }
 
-      // PASO C: Formas de Pago y Totalización Exacta
-    // PASO C: Formas de Pago y Cierre Oficial TFHKA
-      // En protocolo TFHKA:
-      // Comandos 1xx (3 caracteres: 101, 109, 114, 120): Pago total directo del saldo restante (sin monto adjunto).
-      // Comandos 2xx (13 caracteres: 201..220 + 10 dígitos de monto): Pago parcial con importe específico.
+      // PASO C: Formas de Pago y Cierre Directo TFHKA (101, 109, 114, 120 sin monto adicional)
       const formaStr = String(formaPago || "").toUpperCase();
-      let codigoMedioDirecto = "101"; // Efectivo (Directo Total) por defecto
+      let cmdCodigoPago = "101"; // Efectivo por defecto
 
       if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO") || formaStr.includes("DÉBITO")) {
-        codigoMedioDirecto = "109"; // Tarjeta de Débito (Directo Total)
+        cmdCodigoPago = "109"; // Tarjeta Débito
       } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
-        codigoMedioDirecto = "114"; // Tarjeta de Crédito (Directo Total)
+        cmdCodigoPago = "114"; // Tarjeta Crédito
       } else if (formaStr.includes("PAGO MOVIL") || formaStr.includes("PAGO MÓVIL") || formaStr.includes("TRANSFERENCIA") || formaStr.includes("BIOPAGO") || formaStr.includes("ZELLE") || formaStr.includes("DIVISAS") || formaStr.includes("PAYPAL") || formaStr.includes("CASHEA")) {
-        codigoMedioDirecto = "120"; // Otros Medios de Pago / Transferencias / Pago Móvil (Directo Total)
+        cmdCodigoPago = "120"; // Otros Medios
       }
 
-      // 1. Emitir el pago total directo (3 caracteres exactos: ej. 101, 109, 120)
-      await this.enviarComando(codigoMedioDirecto);
+      // Enviar comando de pago directo total (3 caracteres)
+      await this.enviarComando(cmdCodigoPago);
 
-      // 2. Pausa para permitir el corte de papel y finalización física del documento
+      // Esperar brevemente a que el hardware termine el corte físico de papel
       await new Promise(r => setTimeout(r, 800));
-
-      // Enviar medio de pago con el monto total exacto
-      await this.enviarComando(`${cmdCodigoPago}${strMontoPago}`);
-
-      // Comando de totalización y corte de papel (Comando 199)
-      await this.enviarComando("199");
-
-      // Esperar brevemente a que el hardware termine el corte físico
-      await new Promise(r => setTimeout(r, 600));
 
       // PASO D: Capturar Número de Factura Fiscal Impreso
       const statusFinal = await this.consultarEstado();
