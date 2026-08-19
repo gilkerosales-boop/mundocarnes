@@ -296,24 +296,63 @@ class FiscalDriverTFHKA {
   // OPERACIONES FISCALES DE ALTO NIVEL
   // ========================================================================
 
-  // 1. Consultar Estado S1
+  // 1. Consultar Estado S1 con Descodificación de Trama Fija TFHKA
   async consultarEstado() {
     this.notificarEstado("CONSULTANDO", `Consultando estado S1 en ${this.getNombreModelo()}...`);
     const resp = await this.enviarComando("S1", true);
     this.ultimoReporteStatus = resp;
 
     let numFacturaDetectado = null;
-    if (resp && resp.length > 5) {
-      const partes = resp.split(/[,;\t]/);
-      if (partes.length > 2) {
-        numFacturaDetectado = partes[2].replace(/\D/g, '').padStart(8, '0');
+    let numZDetectado = null;
+
+    if (resp) {
+      // Limpieza de caracteres de control
+      const cleanResp = String(resp).replace(/[\x00-\x1F\x7F]/g, '');
+
+      // Estructura oficial TFHKA S1:
+      // Bytes 0..2: Estados y banderas (3 bytes)
+      // Bytes 3..11: Nro. Última Factura Emitida (8 dígitos, ej: 00000005)
+      // Bytes 39..43: Nro. Último Reporte Z (4 dígitos, ej: 0001)
+      if (cleanResp.length >= 11) {
+        const subFac8 = cleanResp.substring(3, 11);
+        const subFac7 = cleanResp.substring(2, 10);
+
+        if (/^\d{6,8}$/.test(subFac8)) {
+          numFacturaDetectado = subFac8.padStart(8, '0');
+        } else if (/^\d{6,8}$/.test(subFac7)) {
+          numFacturaDetectado = subFac7.padStart(8, '0');
+        }
+
+        if (cleanResp.length >= 43) {
+          const subZ = cleanResp.substring(39, 43);
+          if (/^\d{1,4}$/.test(subZ)) {
+            numZDetectado = subZ.padStart(4, '0');
+          }
+        }
+      }
+
+      // Caso alternativo por delimitador (Puentes o drivers formateados)
+      if (!numFacturaDetectado && cleanResp.includes(',')) {
+        const partes = cleanResp.split(',');
+        if (partes.length > 2 && /^\d+$/.test(partes[2].trim())) {
+          numFacturaDetectado = partes[2].trim().padStart(8, '0');
+        }
+      }
+
+      // Extracción heurística de seguridad
+      if (!numFacturaDetectado) {
+        const digitos = cleanResp.match(/\d{5,8}/);
+        if (digitos) {
+          numFacturaDetectado = digitos[0].padStart(8, '0');
+        }
       }
     }
 
     return {
       raw: resp,
       enLinea: true,
-      ultimaFactura: numFacturaDetectado
+      ultimaFactura: numFacturaDetectado,
+      ultimoZ: numZDetectado
     };
   }
 
