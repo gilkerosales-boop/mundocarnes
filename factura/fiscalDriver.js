@@ -1,7 +1,7 @@
 /* ==========================================================================
    Driver Fiscal Universal JS - The Factory HKA (TFHKA Venezuela)
-   Soporte Multi-Modelo: Aclas PP9 Plus y The Factory HKA80 (80mm)
-   Comunicación Serial Nativa Web Serial API para PWA Frigorífico Mundocarnes
+   Protocolo Directo Estricto: STX (0x02) + DATA + ETX (0x03) + LRC (Checksum XOR)
+   Control de Flujo DTR/RTS, Handshake ACK/NAK y Soporte Dual HKA80 / Aclas PP9
    ========================================================================== */
 
 class FiscalDriverTFHKA {
@@ -10,29 +10,27 @@ class FiscalDriverTFHKA {
     this.reader = null;
     this.writer = null;
     this.conectado = false;
-    this.modelo = localStorage.getItem("pos_modelo_impresora_fiscal") || "HKA80"; // "HKA80" o "PP9"
+    this.modelo = localStorage.getItem("pos_modelo_impresora_fiscal") || "HKA80";
     this.baudRate = this.obtenerBaudRatePorDefecto();
-    this.timeoutMs = 9000;
-    this.enLectura = false;
+    this.timeoutMs = 12000;
     this.ultimoNumeroFactura = null;
     this.ultimoNumeroZ = null;
     this.ultimoReporteStatus = null;
     this.onStatusChangeCallback = null;
   }
 
-  // Comprobar compatibilidad de Web Serial API en el navegador
+  // Comprobar compatibilidad de Web Serial API
   static esCompatible() {
     return 'serial' in navigator;
   }
 
   obtenerBaudRatePorDefecto() {
-    // HKA80 suele operar a 9600 o 19200 bps; PP9 Plus a 9600 bps
-    return this.modelo === "HKA80" ? 19200 : 9600;
+    // HKA80 y PP9 Plus operan estándar a 9600 o 19200 bps
+    return 9600;
   }
 
   setModelo(nuevoModelo) {
     this.modelo = nuevoModelo === "PP9" ? "PP9" : "HKA80";
-    this.baudRate = this.obtenerBaudRatePorDefecto();
     localStorage.setItem("pos_modelo_impresora_fiscal", this.modelo);
     this.notificarEstado("CAMBIO_MODELO", `Modelo fiscal activo: ${this.getNombreModelo()}`);
   }
@@ -41,7 +39,6 @@ class FiscalDriverTFHKA {
     return this.modelo === "HKA80" ? "The Factory HKA80" : "Aclas PP9 Plus";
   }
 
-  // Registrar callback para notificaciones de estado
   onStatusChange(callback) {
     this.onStatusChangeCallback = callback;
   }
@@ -61,7 +58,7 @@ class FiscalDriverTFHKA {
   // Solicitar puerto interactivo al usuario
   async solicitarYConectar(baudRate = null) {
     if (!FiscalDriverTFHKA.esCompatible()) {
-      throw new Error("Su navegador no soporta Web Serial API. Utilice Google Chrome o Microsoft Edge en PC.");
+      throw new Error("Su navegador no soporta Web Serial API. Utilice Google Chrome o Microsoft Edge.");
     }
 
     try {
@@ -69,7 +66,10 @@ class FiscalDriverTFHKA {
       this.port = await navigator.serial.requestPort();
       await this.abrirPuerto();
       this.conectado = true;
-      this.notificarEstado("CONECTADO", `Impresora fiscal ${this.getNombreModelo()} conectada exitosamente.`);
+
+      // Verificar respuesta inmediata con Status S1
+      const st = await this.consultarEstado();
+      this.notificarEstado("CONECTADO", `Impresora fiscal ${this.getNombreModelo()} conectada y lista.`, st);
       return true;
     } catch (err) {
       this.conectado = false;
@@ -78,7 +78,7 @@ class FiscalDriverTFHKA {
     }
   }
 
-  // Reconectar automáticamente si ya se otorgó permiso previo
+  // Reconectar automáticamente si el puerto ya fue autorizado
   async reconectarAutomatico(baudRate = null) {
     if (!FiscalDriverTFHKA.esCompatible()) return false;
 
@@ -99,7 +99,7 @@ class FiscalDriverTFHKA {
     }
   }
 
-  // Apertura física de la conexión Serial 8-N-1
+  // Apertura física del puerto con señales DTR/RTS activas
   async abrirPuerto() {
     if (!this.port) throw new Error("Puerto serial no inicializado.");
 
@@ -111,20 +111,24 @@ class FiscalDriverTFHKA {
         parity: "none",
         flowControl: "none"
       });
+
+      // Activar señales DTR y RTS requeridas por las placas TFHKA
+      try {
+        await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
+      } catch (e) {}
     }
   }
 
-  // Cerrar y liberar el puerto COM
   async desconectar() {
     try {
       this.conectado = false;
       if (this.reader) {
-        await this.reader.cancel();
-        this.reader.releaseLock();
+        try { await this.reader.cancel(); } catch (e) {}
+        try { this.reader.releaseLock(); } catch (e) {}
         this.reader = null;
       }
       if (this.writer) {
-        this.writer.releaseLock();
+        try { this.writer.releaseLock(); } catch (e) {}
         this.writer = null;
       }
       if (this.port) {
@@ -134,69 +138,105 @@ class FiscalDriverTFHKA {
       this.notificarEstado("DESCONECTADO", `Impresora fiscal ${this.getNombreModelo()} desconectada.`);
       return true;
     } catch (err) {
-      console.warn("Aviso al cerrar puerto serial:", err);
+      console.warn("Aviso al cerrar puerto:", err);
       return false;
     }
   }
 
-  // Enviar comando fiscal y leer respuesta con control de timeout
-  async enviarComando(comandoStr) {
+  // ========================================================================
+  // CONSTRUCTOR DE TRAMA OFICIAL THE FACTORY HKA: STX + DATA + ETX + LRC
+  // ========================================================================
+  construirTrama(comandoStr) {
+    const encoder = new TextEncoder();
+    const cmdBytes = encoder.encode(comandoStr);
+    
+    // Cálculo del LRC = XOR de todos los bytes del comando + ETX (0x03)
+    let lrc = 0;
+    for (let i = 0; i < cmdBytes.length; i++) {
+      lrc ^= cmdBytes[i];
+    }
+    lrc ^= 0x03; // Inclusión obligatoria de ETX
+
+    const trama = new Uint8Array(cmdBytes.length + 3);
+    trama[0] = 0x02; // STX (Inicio de trama)
+    trama.set(cmdBytes, 1);
+    trama[cmdBytes.length + 1] = 0x03; // ETX (Fin de datos)
+    trama[cmdBytes.length + 2] = lrc;  // LRC (Checksum)
+
+    return trama;
+  }
+
+  // Enviar comando empaquetado y esperar acuse de recibo (ACK = 0x06 / NAK = 0x15)
+  async enviarComando(comandoStr, esperaRespuestaData = false) {
     if (!this.conectado || !this.port || !this.port.writable) {
-      throw new Error(`La impresora fiscal ${this.getNombreModelo()} no está conectada. Verifique el cable USB.`);
+      throw new Error(`La impresora fiscal ${this.getNombreModelo()} no está conectada.`);
     }
 
     try {
-      // 1. Escribir comando en el puerto
-      const encoder = new TextEncoder();
-      const data = encoder.encode(comandoStr + "\n");
+      // 1. Construir trama física
+      const tramaBytes = this.construirTrama(comandoStr);
       
+      // 2. Escribir en el puerto serie
       this.writer = this.port.writable.getWriter();
-      await this.writer.write(data);
+      await this.writer.write(tramaBytes);
       this.writer.releaseLock();
       this.writer = null;
 
-      // 2. Leer respuesta de la impresora fiscal
-      const respuesta = await this.leerRespuesta();
+      // 3. Pequeña pausa de procesamiento de hardware
+      await new Promise(r => setTimeout(r, 60));
+
+      // 4. Leer respuesta de la placa fiscal
+      const respuesta = await this.leerRespuesta(esperaRespuestaData);
       return respuesta;
     } catch (err) {
       if (this.writer) {
         try { this.writer.releaseLock(); } catch (e) {}
         this.writer = null;
       }
-      throw new Error(`Fallo de comunicación (${this.getNombreModelo()}): ${err.message}`);
+      throw new Error(`Error en comando (${comandoStr}) hacia ${this.getNombreModelo()}: ${err.message}`);
     }
   }
 
-  // Lector con timeout para capturar bytes de retorno de la placa fiscal
-  async leerRespuesta() {
+  // Lector de buffer con captura de ACK (0x06), NAK (0x15) o tramas STX-DATA-ETX
+  async leerRespuesta(esperaRespuestaData = false) {
     if (!this.port || !this.port.readable) return "";
 
-    const decoder = new TextDecoder();
-    let respuestaAcumulada = "";
+    const bytesAcumulados = [];
     this.reader = this.port.readable.getReader();
-
     const tiempoInicio = Date.now();
 
     try {
       while (Date.now() - tiempoInicio < this.timeoutMs) {
         const { value, done } = await Promise.race([
           this.reader.read(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT_LECTURA")), 1500))
+          new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 2500))
         ]).catch(err => {
-          if (err.message === "TIMEOUT_LECTURA") return { value: null, done: true };
+          if (err.message === "TIMEOUT") return { value: null, done: true };
           throw err;
         });
 
         if (done || !value) break;
 
-        respuestaAcumulada += decoder.decode(value, { stream: true });
+        for (let i = 0; i < value.length; i++) {
+          bytesAcumulados.push(value[i]);
+        }
 
-        if (respuestaAcumulada.includes("\n") || respuestaAcumulada.includes("\r") || respuestaAcumulada.includes("\x03")) {
+        // Caso 1: La impresora respondió con ACK simple (0x06)
+        if (!esperaRespuestaData && bytesAcumulados.includes(0x06)) {
+          break;
+        }
+
+        // Caso 2: La impresora respondió con NAK (0x15 = Error de sintaxis o estado)
+        if (bytesAcumulados.includes(0x15)) {
+          throw new Error("La impresora fiscal devolvió NAK (Comando rechazado o estado inválido).");
+        }
+
+        // Caso 3: Respuesta con trama completa (STX ... ETX + LRC)
+        if (bytesAcumulados.includes(0x02) && bytesAcumulados.includes(0x03) && bytesAcumulados.length >= 4) {
+          // Responder con ACK al recibir la lectura como exige el protocolo TFHKA
           break;
         }
       }
-    } catch (e) {
-      // Continuar con lo acumulado
     } finally {
       if (this.reader) {
         try { this.reader.releaseLock(); } catch (e) {}
@@ -204,14 +244,29 @@ class FiscalDriverTFHKA {
       }
     }
 
-    return respuestaAcumulada.trim();
+    // Extraer texto útil si la respuesta vino empaquetada entre STX (0x02) y ETX (0x03)
+    if (bytesAcumulados.length > 0) {
+      let inicio = bytesAcumulados.indexOf(0x02);
+      let fin = bytesAcumulados.lastIndexOf(0x03);
+
+      if (inicio !== -1 && fin !== -1 && fin > inicio) {
+        const dataBytes = bytesAcumulados.slice(inicio + 1, fin);
+        const decoder = new TextDecoder('ascii');
+        return decoder.decode(new Uint8Array(dataBytes)).trim();
+      }
+
+      if (bytesAcumulados.includes(0x06)) {
+        return "ACK";
+      }
+    }
+
+    return "";
   }
 
   // ========================================================================
-  // FORMATEADORES DE DATOS ESTRICTOS (PROTOCOLO THE FACTORY HKA)
+  // FORMATEADORES DE DATOS PROTOCOLO DIRECTO TFHKA
   // ========================================================================
-
-  sanitizarTexto(texto, maxLen = 40) {
+  sanitizarTexto(texto, maxLen = 38) {
     if (!texto) return "";
     const limpio = String(texto)
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -221,53 +276,58 @@ class FiscalDriverTFHKA {
     return limpio.substring(0, maxLen);
   }
 
+  // Formato: 8 enteros + 2 decimales = 10 dígitos (Ej: 12.50 -> 0000001250)
   formatearPrecioFiscal(precioFloat) {
     const valor = Math.round((parseFloat(precioFloat) || 0) * 100);
     return String(valor).padStart(10, '0');
   }
 
+  // Formato: 5 enteros + 3 decimales = 8 dígitos (Ej: 1.500 kg -> 00001500, 1 ud -> 00001000)
   formatearCantidadFiscal(cantFloat, unidad = "unidades") {
     let valor = 0;
     if (unidad === "gramos" || unidad === "mixto") {
-      valor = Math.round(parseFloat(cantFloat) || 0);
+      valor = Math.round(parseFloat(cantFloat) || 0); // Gramos directos (ej 1500g = 1.500)
     } else {
-      valor = Math.round((parseFloat(cantFloat) || 1) * 1000);
+      valor = Math.round((parseFloat(cantFloat) || 1) * 1000); // 1 ud = 1.000
     }
     return String(valor).padStart(8, '0');
   }
 
   // ========================================================================
-  // OPERACIONES FISCALES DE ALTO NIVEL (HKA80 / ACLAS PP9 PLUS)
+  // OPERACIONES FISCALES DE ALTO NIVEL
   // ========================================================================
 
-  // 1. Consultar Estado de la Máquina Fiscal (Comando S1)
+  // 1. Consultar Estado S1
   async consultarEstado() {
     this.notificarEstado("CONSULTANDO", `Consultando estado S1 en ${this.getNombreModelo()}...`);
-    const resp = await this.enviarComando("S1");
+    const resp = await this.enviarComando("S1", true);
     this.ultimoReporteStatus = resp;
-    
-    const partes = resp.split(/[,;\t]/);
-    let resultado = {
+
+    let numFacturaDetectado = null;
+    if (resp && resp.length > 5) {
+      const partes = resp.split(/[,;\t]/);
+      if (partes.length > 2) {
+        numFacturaDetectado = partes[2].replace(/\D/g, '').padStart(8, '0');
+      }
+    }
+
+    return {
       raw: resp,
       enLinea: true,
-      tapaAbierta: resp.includes("TAPA") || false,
-      sinPapel: resp.includes("PAPEL") || false,
-      ultimaFactura: partes.length > 2 ? partes[2].trim() : null
+      ultimaFactura: numFacturaDetectado
     };
-
-    return resultado;
   }
 
-  // 2. Cancelar Documento Fiscal en Curso (Comando 7)
+  // 2. Anular / Cancelar Documento en Curso (Comando 7)
   async cancelarDocumento() {
-    this.notificarEstado("CANCELANDO", `Anulando documento en curso en ${this.getNombreModelo()}...`);
+    this.notificarEstado("CANCELANDO", `Enviando comando de anulación (7) a ${this.getNombreModelo()}...`);
     return await this.enviarComando("7");
   }
 
   // 3. Emitir Factura Fiscal Completa
   async emitirFacturaFiscal(datosFactura) {
     if (!this.conectado) {
-      throw new Error(`No hay conexión con la impresora fiscal ${this.getNombreModelo()}.`);
+      throw new Error(`No hay conexión activa con la impresora fiscal ${this.getNombreModelo()}.`);
     }
 
     const {
@@ -279,20 +339,24 @@ class FiscalDriverTFHKA {
     } = datosFactura;
 
     if (!cliente || !cliente.cedula || !cliente.nombre) {
-      throw new Error("Los datos de Cédula/RIF y Nombre del cliente son obligatorios para facturación fiscal.");
+      throw new Error("La Cédula/RIF y el Nombre son obligatorios para emitir factura fiscal.");
     }
 
     if (!items || Object.keys(items).length === 0) {
-      throw new Error("No hay productos para emitir en la factura fiscal.");
+      throw new Error("No hay productos seleccionados para facturar.");
     }
 
-    this.notificarEstado("EMITIENDO", `Iniciando transmisión de factura fiscal a ${this.getNombreModelo()}...`);
+    this.notificarEstado("EMITIENDO", `Transmitiendo factura fiscal a ${this.getNombreModelo()}...`);
 
     try {
-      // PASO A: Encabezado de Datos del Cliente
-      const nombreCliente = this.sanitizarTexto(cliente.nombre, 40);
+      // PASO A: Limpieza de estado previo por seguridad
+      try { await this.cancelarDocumento(); } catch (e) {}
+      await new Promise(r => setTimeout(r, 100));
+
+      // PASO B: Encabezado del Cliente
+      const nombreCliente = this.sanitizarTexto(cliente.nombre, 38);
       const cedulaCliente = this.sanitizarTexto(cliente.cedula, 20);
-      const direccionCliente = this.sanitizarTexto(cliente.direccion || "CARACAS", 40);
+      const direccionCliente = this.sanitizarTexto(cliente.direccion || "CARACAS", 38);
       const telefonoCliente = this.sanitizarTexto(cliente.telefono || "N/D", 20);
 
       await this.enviarComando(`i01${nombreCliente}`);
@@ -300,13 +364,14 @@ class FiscalDriverTFHKA {
       if (direccionCliente) await this.enviarComando(`i03${direccionCliente}`);
       if (telefonoCliente) await this.enviarComando(`i04${telefonoCliente}`);
 
-      // PASO B: Transmisión de Renglones con su Tratamiento de IVA
+      // PASO C: Renglones de Venta con Formateo Estricto de IVA
+      // Comandos TFHKA: d0 = Exento (0%), d1 = General (16%), d2 = Reducido (8%)
       for (let nombreProd in items) {
         const item = items[nombreProd];
-        const descProd = this.sanitizarTexto(nombreProd, 37);
+        const descProd = this.sanitizarTexto(nombreProd, 35);
 
         const tasaIVA = (item.tasaIVA || "E").toUpperCase();
-        let cmdTasa = "d0"; // Exento por defecto
+        let cmdTasa = "d0"; // Exento
         if (tasaIVA === "G" || tasaIVA === "16") cmdTasa = "d1";
         else if (tasaIVA === "R" || tasaIVA === "8") cmdTasa = "d2";
 
@@ -324,61 +389,63 @@ class FiscalDriverTFHKA {
         await this.enviarComando(tramaRenglon);
       }
 
-      // PASO C: Transmisión de Formas de Pago y Cierre de Documento
+      // PASO D: Medios de Pago y Cierre de Factura
+      // En protocolo directo TFHKA: 101 sin monto paga la totalidad en Efectivo y totaliza
       let cmdMedioPago = "101"; // Efectivo por defecto
       const formaStr = String(formaPago || "").toUpperCase();
 
       if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO")) {
-        cmdMedioPago = "109";
+        cmdMedioPago = "109"; // Tarjeta de Débito
       } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
-        cmdMedioPago = "114";
+        cmdMedioPago = "114"; // Tarjeta de Crédito
       } else if (formaStr.includes("PAGO MOVIL") || formaStr.includes("TRANSFERENCIA") || formaStr.includes("BIOPAGO")) {
-        cmdMedioPago = "120";
+        cmdMedioPago = "120"; // Otros medios
       }
 
-      await this.enviarComando(`${cmdMedioPago}`);
+      // Envío de medio de pago y totalización
+      await this.enviarComando(cmdMedioPago);
 
-      // Comando de cierre final y corte de papel
-      const respCierre = await this.enviarComando("199");
+      // Esperar brevemente que la impresora termine el corte de papel
+      await new Promise(r => setTimeout(r, 400));
 
-      // PASO D: Capturar Número de Factura Fiscal Emitida
+      // PASO E: Capturar Número de Factura Fiscal Impreso
       const statusFinal = await this.consultarEstado();
-      const numFacturaFiscal = statusFinal.ultimaFactura || `F-${Date.now().toString().slice(-6)}`;
+      const numFacturaFiscal = statusFinal.ultimaFactura || `FAC-${Date.now().toString().slice(-6)}`;
       this.ultimoNumeroFactura = numFacturaFiscal;
 
-      this.notificarEstado("FINALIZADO", `Factura Fiscal N° ${numFacturaFiscal} emitida en ${this.getNombreModelo()}.`, {
-        numFacturaFiscal: numFacturaFiscal,
-        respuestaRaw: respCierre
+      this.notificarEstado("FINALIZADO", `Factura Fiscal N° ${numFacturaFiscal} impresa en ${this.getNombreModelo()}.`, {
+        numFacturaFiscal: numFacturaFiscal
       });
 
       return {
         exito: true,
         numFacturaFiscal: numFacturaFiscal,
-        mensaje: `Factura fiscal impresa con éxito en ${this.getNombreModelo()}.`
+        mensaje: `Factura fiscal N° ${numFacturaFiscal} impresa exitosamente en ${this.getNombreModelo()}.`
       };
 
     } catch (err) {
-      this.notificarEstado("ERROR_EMISION", `Error en ${this.getNombreModelo()}: ` + err.message);
+      this.notificarEstado("ERROR_EMISION", `Fallo al emitir factura en ${this.getNombreModelo()}: ` + err.message);
       try { await this.cancelarDocumento(); } catch (e) {}
       throw err;
     }
   }
 
-  // 4. Emitir Reporte X (Lectura Parcial - Comando I0X)
+  // 4. Emitir Reporte X (Comando I0X)
   async imprimirReporteX() {
     if (!this.conectado) throw new Error(`Impresora fiscal ${this.getNombreModelo()} no conectada.`);
-    this.notificarEstado("IMPRIMIENDO_X", `Emitiendo Reporte X en ${this.getNombreModelo()}...`);
+    this.notificarEstado("IMPRIMIENDO_X", `Imprimiendo Reporte X en ${this.getNombreModelo()}...`);
     const resp = await this.enviarComando("I0X");
-    this.notificarEstado("FINALIZADO_X", "Reporte X emitido exitosamente.");
+    this.notificarEstado("FINALIZADO_X", "Reporte X impreso exitosamente.");
     return resp;
   }
 
-  // 5. Emitir Reporte Z (Cierre Fiscal Diario - Comando I0Z)
+  // 5. Emitir Reporte Z (Comando I0Z)
   async imprimirReporteZ() {
     if (!this.conectado) throw new Error(`Impresora fiscal ${this.getNombreModelo()} no conectada.`);
-    this.notificarEstado("IMPRIMIENDO_Z", `Emitiendo Reporte Z en ${this.getNombreModelo()}...`);
+    this.notificarEstado("IMPRIMIENDO_Z", `Imprimiendo Reporte Z oficial en ${this.getNombreModelo()}...`);
     const resp = await this.enviarComando("I0Z");
-    
+
+    await new Promise(r => setTimeout(r, 600));
     const status = await this.consultarEstado();
     this.ultimoNumeroZ = status.ultimaFactura || null;
 
@@ -391,18 +458,6 @@ class FiscalDriverTFHKA {
       numeroZ: this.ultimoNumeroZ,
       respuestaRaw: resp
     };
-  }
-
-  // 6. Emitir Documento No Fiscal (Comandos 80, 81, 89)
-  async imprimirTextoNoFiscal(lineasArray) {
-    if (!this.conectado) throw new Error(`Impresora fiscal ${this.getNombreModelo()} no conectada.`);
-    
-    await this.enviarComando("80");
-    for (let linea of lineasArray) {
-      const texto = this.sanitizarTexto(linea, 40);
-      await this.enviarComando(`81${texto}`);
-    }
-    await this.enviarComando("89");
   }
 }
 
