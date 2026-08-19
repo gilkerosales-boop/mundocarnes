@@ -1,7 +1,7 @@
 /* ==========================================================================
-   Lógica del Módulo de Ventas / Facturación No Fiscal - Mundocarnes
-   Integración de Tasa de IVA (E / G / R) en Catálogo, Balanza PLU y Editor POS,
-   Cuentas por Cobrar (Créditos y Vales), Sincronización y Doble Guardado
+   Lógica del Módulo de Ventas / Facturación No Fiscal y Fiscal - Mundocarnes
+   Integración Completa con Impresora Fiscal Aclas PP9 Plus (Web Serial API),
+   Liquidación Desglosada de IVA (Exento / 16%), Cuentas por Cobrar y Cierres
    ========================================================================== */
 
 // Configuración de Supabase
@@ -41,6 +41,7 @@ let cacheHistorialCierres = [];
 let cacheHistorialCreditos = [];
 let cacheHistorialVales = [];
 let subTabCXCActual = "creditos";
+let modoFiscalActivo = false;
 let sincronizandoEnProceso = false;
 let accionPendienteGitHub = null;
 
@@ -233,6 +234,199 @@ async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
 }
 
 // ==========================================================================
+// GESTIÓN DEL MODO FISCAL DUAL Y CONEXIÓN CON ACLAS PP9 PLUS
+// ==========================================================================
+function inicializarModoFiscal() {
+  const guardado = localStorage.getItem("pos_modo_fiscal");
+  modoFiscalActivo = (guardado === "true");
+
+  const chk = document.getElementById('chkModoFiscal');
+  if (chk) chk.checked = modoFiscalActivo;
+
+  actualizarInterfazModoFiscal();
+
+  // Escuchar eventos de cambio de estado en el Driver Fiscal
+  if (window.fiscalDriver) {
+    window.fiscalDriver.onStatusChange(({ estado, mensaje }) => {
+      actualizarBotonHardwareFiscal(estado);
+      if (estado === "CONECTADO") {
+        mostrarAvisoFactura("🟢 Impresora Fiscal Aclas PP9 Plus Conectada.");
+      } else if (estado === "ERROR_CONEXION" || estado === "DESCONECTADO") {
+        mostrarAvisoFactura("⚠️ " + mensaje);
+      }
+    });
+
+    // Intentar reconectar si el modo fiscal está activo
+    if (modoFiscalActivo) {
+      window.fiscalDriver.reconectarAutomatico(9600);
+    }
+  }
+}
+
+function alternarModoFiscalPOS(estaActivo) {
+  modoFiscalActivo = estaActivo;
+  localStorage.setItem("pos_modo_fiscal", estaActivo ? "true" : "false");
+  actualizarInterfazModoFiscal();
+
+  if (estaActivo) {
+    mostrarAvisoFactura("🟢 Modo Fiscal ACTIVADO (Aclas PP9 Plus)");
+    if (window.fiscalDriver && !window.fiscalDriver.conectado) {
+      window.fiscalDriver.reconectarAutomatico(9600).then(conectado => {
+        if (!conectado) {
+          mostrarAvisoFactura("ℹ️ Conecte la Aclas PP9 Plus haciendo clic en '🔌 Conectar PP9'.");
+        }
+      });
+    }
+  } else {
+    mostrarAvisoFactura("📄 Modo Control Interno ACTIVADO (Ticketera XP-80C)");
+  }
+}
+
+function actualizarInterfazModoFiscal() {
+  const badgeModo = document.getElementById('badgeModoFiscal');
+  const btnConectar = document.getElementById('btnConectarPP9');
+  const btnHero = document.getElementById('btnEjecutarFacturarHero');
+  const btnModalEmitir = document.getElementById('btnEmitirFacturaFinal');
+  const labelTituloCobro = document.getElementById('labelProcesarFactura');
+
+  if (modoFiscalActivo) {
+    if (badgeModo) {
+      badgeModo.textContent = "🟢 Modo Fiscal";
+      badgeModo.className = "badge-modo-fiscal fiscal-on";
+    }
+    if (btnConectar) btnConectar.classList.remove('hidden');
+    if (btnHero) {
+      btnHero.textContent = "Factura Fiscal (PP9) 🧾";
+      btnHero.className = "btn btn-facturar-hero btn-facturar-fiscal w-100 mb-2 shadow";
+    }
+    if (btnModalEmitir) {
+      btnModalEmitir.textContent = "🧾 Emitir Factura Fiscal (PP9)";
+      btnModalEmitir.className = "btn btn-primary fw-bold px-5 py-2 fs-5 rounded-pill shadow";
+    }
+    if (labelTituloCobro) {
+      labelTituloCobro.textContent = "🧾 Procesar Factura Fiscal (Aclas PP9 Plus)";
+    }
+  } else {
+    if (badgeModo) {
+      badgeModo.textContent = "📄 No Fiscal";
+      badgeModo.className = "badge-modo-fiscal fiscal-off";
+    }
+    if (btnConectar) btnConectar.classList.add('hidden');
+    if (btnHero) {
+      btnHero.textContent = "Facturar 🧾";
+      btnHero.className = "btn btn-facturar-hero w-100 mb-2 shadow";
+    }
+    if (btnModalEmitir) {
+      btnModalEmitir.textContent = "🧾 Emitir Factura No Fiscal";
+      btnModalEmitir.className = "btn btn-success fw-bold px-5 py-2 fs-5 rounded-pill shadow";
+    }
+    if (labelTituloCobro) {
+      labelTituloCobro.textContent = "🧾 Procesar Recibo de Pago (Control Interno)";
+    }
+  }
+
+  if (window.fiscalDriver) {
+    actualizarBotonHardwareFiscal(window.fiscalDriver.conectado ? "CONECTADO" : "DESCONECTADO");
+  }
+}
+
+async function conectarImpresoraFiscalManual() {
+  if (!window.fiscalDriver) {
+    return mostrarAvisoFactura("Driver fiscal no disponible en el sistema.");
+  }
+
+  try {
+    const btn = document.getElementById('btnConectarPP9');
+    if (btn) { btn.disabled = true; btn.textContent = "Conectando..."; }
+    
+    await window.fiscalDriver.solicitarYConectar(9600);
+    
+    if (btn) { btn.disabled = false; }
+    actualizarBotonHardwareFiscal("CONECTADO");
+  } catch (err) {
+    const btn = document.getElementById('btnConectarPP9');
+    if (btn) { btn.disabled = false; }
+    actualizarBotonHardwareFiscal("DESCONECTADO");
+    mostrarAvisoFactura("Error al conectar: " + err.message);
+  }
+}
+
+function actualizarBotonHardwareFiscal(estado) {
+  const btn = document.getElementById('btnConectarPP9');
+  if (!btn) return;
+
+  if (estado === "CONECTADO") {
+    btn.className = "btn btn-sm btn-success fw-bold btn-hardware-fiscal";
+    btn.innerHTML = "🟢 PP9 Lista";
+    btn.title = "Impresora fiscal Aclas PP9 Plus conectada y lista para facturar.";
+  } else {
+    btn.className = "btn btn-sm btn-outline-info text-white fw-bold btn-hardware-fiscal";
+    btn.innerHTML = "🔌 Conectar PP9";
+    btn.title = "Haga clic para seleccionar y abrir el puerto USB/Serial de la Aclas PP9 Plus.";
+  }
+}
+
+async function ejecutarReporteXFiscalDirecto() {
+  if (!window.fiscalDriver || !window.fiscalDriver.conectado) {
+    return mostrarAvisoFactura("Conecte la impresora fiscal Aclas PP9 Plus antes de solicitar el Reporte X.");
+  }
+
+  if (!confirm("¿Desea emitir el Reporte X (Corte Parcial) en la impresora fiscal?")) return;
+
+  try {
+    mostrarAvisoFactura("Emitiendo Reporte X Fiscal...");
+    await window.fiscalDriver.imprimirReporteX();
+    mostrarAvisoFactura("✅ Reporte X emitido exitosamente.");
+  } catch (e) {
+    mostrarAvisoFactura("Error al emitir Reporte X: " + e.message);
+  }
+}
+
+// ==========================================================================
+// CÁLCULO TRIBUTARIO DINÁMICO DE BASES IMPONIBLES E IVA (EXENTO / 16% / 8%)
+// ==========================================================================
+function calcularTotalesTributarios(itemsObj) {
+  let montoExento = 0;
+  let montoBase16 = 0;
+  let montoIVA16 = 0;
+  let montoBase8 = 0;
+  let montoIVA8 = 0;
+  let totalGeneral = 0;
+
+  for (let key in itemsObj) {
+    const item = itemsObj[key];
+    const precioTotal = parseFloat(item.precioTotal) || 0;
+    const tasa = (item.tasaIVA || "E").toUpperCase();
+    totalGeneral += precioTotal;
+
+    if (tasa === "G" || tasa === "16") {
+      // En retail venezolano el precio publicado incluye IVA
+      const base = precioTotal / 1.16;
+      const iva = precioTotal - base;
+      montoBase16 += base;
+      montoIVA16 += iva;
+    } else if (tasa === "R" || tasa === "8") {
+      const base = precioTotal / 1.08;
+      const iva = precioTotal - base;
+      montoBase8 += base;
+      montoIVA8 += iva;
+    } else {
+      montoExento += precioTotal;
+    }
+  }
+
+  const totalIVA = montoIVA16 + montoIVA8;
+  const totalBaseGravable = montoBase16 + montoBase8;
+
+  return {
+    montoExento: parseFloat(montoExento.toFixed(2)),
+    montoBase: parseFloat(totalBaseGravable.toFixed(2)),
+    montoIVA: parseFloat(totalIVA.toFixed(2)),
+    totalGeneral: parseFloat(totalGeneral.toFixed(2))
+  };
+}
+
+// ==========================================================================
 // CONSULTA PAGINADA DE VENTAS SUPABASE
 // ==========================================================================
 async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
@@ -268,7 +462,7 @@ async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
 }
 
 // ==========================================================================
-// ELIMINACIÓN DE FACTURA EN SUPABASE POR COLUMNA ESTÁNDAR 'FACTURA'
+// ELIMINACIÓN DE FACTURA EN SUPABASE
 // ==========================================================================
 async function ejecutarEliminarVentaSupabase(numFactura, tablaPersonalizada) {
   const tabla = tablaPersonalizada || obtenerTablaVentasUsuario();
@@ -287,7 +481,7 @@ async function ejecutarEliminarVentaSupabase(numFactura, tablaPersonalizada) {
 }
 
 // ==========================================================================
-// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO CON TOLERANCIA A ERRORES
+// MOTOR DE SINCRONIZACIÓN Y DOBLE REGISTRO
 // ==========================================================================
 async function actualizarEstadoSyncBadge() {
   const badge = document.getElementById('badgeEstadoSync');
@@ -791,7 +985,7 @@ async function obtenerSiguienteCorrelativoLocal() {
   return "001-" + numPadded;
 }
 
-// IMPRESIÓN TÉRMICA
+// IMPRESIÓN TÉRMICA XP-80C
 function ejecutarImpresionTicket(ticketHtml) {
   const elemImpresion = document.getElementById('contenidoTicketImprimible');
   if (!elemImpresion) return;
@@ -884,15 +1078,13 @@ function alternarMonedaTablaFactura() {
 function renderizarTablaModalFactura() {
   const tasa = obtenerTasaBCV();
   let htmlTabla = "";
-  let totalUSD = 0;
-
   const items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
 
   for (let key in items) {
     let item = items[key];
     let precioTotalUSD = parseFloat(item.precioTotal) || 0;
     let precioBaseUSD = parseFloat(item.precioBase) || 0;
-    totalUSD += precioTotalUSD;
+    let tasaIVA = (item.tasaIVA || "E").toUpperCase();
 
     let precioBaseTxt = "";
     let subtotalTxt = "";
@@ -923,6 +1115,10 @@ function renderizarTablaModalFactura() {
         </div>`;
     }
 
+    let badgeIVA = (tasaIVA === "G" || tasaIVA === "16")
+      ? `<span class="badge bg-danger">G (16%)</span>`
+      : (tasaIVA === "R" || tasaIVA === "8" ? `<span class="badge bg-info text-dark">R (8%)</span>` : `<span class="badge bg-secondary">E (0%)</span>`);
+
     let safeIdKey = key.replace(/[^a-zA-Z0-9]/g, '_');
 
     htmlTabla += `
@@ -931,6 +1127,7 @@ function renderizarTablaModalFactura() {
           <img src="${imgRuta}" class="img-thumb-factura" alt="${key}">
         </td>
         <td class="fw-bold">${key}</td>
+        <td class="text-center">${badgeIVA}</td>
         <td class="text-center num-legible">${precioBaseTxt}</td>
         <td class="text-center fw-bold num-legible">${colCantidadHtml}</td>
         <td class="text-end fw-bold text-success num-legible" id="subtotal-modal-${safeIdKey}">${subtotalTxt}</td>
@@ -942,19 +1139,36 @@ function renderizarTablaModalFactura() {
 
   const tbody = document.getElementById('tablaModalResumenProductos');
   if (tbody) {
-    tbody.innerHTML = htmlTabla || `<tr><td colspan="6" class="text-center text-muted py-3">No hay productos en esta factura.</td></tr>`;
+    tbody.innerHTML = htmlTabla || `<tr><td colspan="7" class="text-center text-muted py-3">No hay productos en esta factura.</td></tr>`;
   }
 
+  // Actualizar desglose tributario en el modal
+  const tributos = calcularTotalesTributarios(items);
+  const elemExento = document.getElementById('modalMontoExento');
+  const elemBase = document.getElementById('modalMontoBase');
+  const elemIVA = document.getElementById('modalMontoIVA');
   const elemEtiquetaTotal = document.getElementById('labelModalTotalFactura');
   const elemMontoTotal = document.getElementById('montoModalTotalFactura');
 
   if (monedaVistaModal === "BS") {
-    let totalBs = totalUSD * tasa;
+    let totalBs = tributos.totalGeneral * tasa;
+    let exentoBs = tributos.montoExento * tasa;
+    let baseBs = tributos.montoBase * tasa;
+    let ivaBs = tributos.montoIVA * tasa;
+
+    if (elemExento) elemExento.textContent = `Bs. ${exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (elemBase) elemBase.textContent = `Bs. ${baseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (elemIVA) elemIVA.textContent = `Bs. ${ivaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
     if (elemEtiquetaTotal) elemEtiquetaTotal.textContent = "TOTAL FACTURA (Bs):";
     if (elemMontoTotal) elemMontoTotal.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   } else {
+    if (elemExento) elemExento.textContent = `$${tributos.montoExento.toFixed(2)}`;
+    if (elemBase) elemBase.textContent = `$${tributos.montoBase.toFixed(2)}`;
+    if (elemIVA) elemIVA.textContent = `$${tributos.montoIVA.toFixed(2)}`;
+
     if (elemEtiquetaTotal) elemEtiquetaTotal.textContent = "TOTAL FACTURA ($):";
-    if (elemMontoTotal) elemMontoTotal.textContent = `$${totalUSD.toFixed(2)}`;
+    if (elemMontoTotal) elemMontoTotal.textContent = `$${tributos.totalGeneral.toFixed(2)}`;
   }
 }
 
@@ -1043,6 +1257,9 @@ function abrirModalProductoManual() {
   document.getElementById('manualKg').value = "";
   document.getElementById('manualGramos').value = "";
   document.getElementById('manualModoVenta').value = "unidades";
+  if (document.getElementById('manualIVA')) {
+    document.getElementById('manualIVA').value = "E";
+  }
 
   alternarCamposManual("unidades");
   document.getElementById('errorModalManual').classList.add('hidden');
@@ -1065,6 +1282,7 @@ function alternarCamposManual(modo) {
 function confirmarAgregarProductoManual() {
   const nombre = document.getElementById('manualNombre').value.trim().toUpperCase();
   const modo = document.getElementById('manualModoVenta').value;
+  const tasaIVA = document.getElementById('manualIVA') ? document.getElementById('manualIVA').value : "E";
   const errorDiv = document.getElementById('errorModalManual');
 
   if (!nombre) {
@@ -1101,7 +1319,7 @@ function confirmarAgregarProductoManual() {
       unidad: "unidades",
       minBase: 1,
       pesoPromedio: 0,
-      tasaIVA: "E",
+      tasaIVA: tasaIVA,
       imgPath: '../img/LOGO-MUNDO123.webp',
       esManual: true
     };
@@ -1130,7 +1348,7 @@ function confirmarAgregarProductoManual() {
       unidad: "gramos",
       minBase: 1,
       pesoPromedio: 0,
-      tasaIVA: "E",
+      tasaIVA: tasaIVA,
       imgPath: '../img/LOGO-MUNDO123.webp',
       esManual: true
     };
@@ -1204,6 +1422,7 @@ function iniciarModuloFacturacion(usuario) {
   
   cargarCatalogoFacturacion();
   cargarMovimientosEfectivoPersistentes();
+  inicializarModoFiscal();
   
   if (navigator.onLine) {
     sincronizarClientesDesdeServidor();
@@ -1492,12 +1711,9 @@ function confirmarAgregarAFactura() {
 
 function renderizarResumenFactura() {
   let html = '<table class="table table-sm align-middle text-start"><tbody>';
-  let totalAcumulado = 0;
 
   for (let key in itemsFactura) {
     let item = itemsFactura[key];
-    totalAcumulado += parseFloat(item.precioTotal);
-
     html += `
       <tr>
         <td class="fw-bold small text-wrap">${key}</td>
@@ -1515,12 +1731,22 @@ function renderizarResumenFactura() {
     ? html 
     : '<p class="text-muted text-center py-4 small">No hay productos seleccionados.</p>';
 
-  document.getElementById('montoTotalFactura').textContent = `$${totalAcumulado.toFixed(2)}`;
+  // Cálculo y renderizado del desglose de IVA (Exento y 16%)
+  const tributos = calcularTotalesTributarios(itemsFactura);
+  const elemExento = document.getElementById('montoResumenExento');
+  const elemBase = document.getElementById('montoResumenBase');
+  const elemIVA = document.getElementById('montoResumenIVA');
+
+  if (elemExento) elemExento.textContent = `$${tributos.montoExento.toFixed(2)}`;
+  if (elemBase) elemBase.textContent = `$${tributos.montoBase.toFixed(2)}`;
+  if (elemIVA) elemIVA.textContent = `$${tributos.montoIVA.toFixed(2)}`;
+
+  document.getElementById('montoTotalFactura').textContent = `$${tributos.totalGeneral.toFixed(2)}`;
 
   const tasa = obtenerTasaBCV();
   const elemBs = document.getElementById('montoTotalFacturaBs');
   if (elemBs) {
-    let totalBs = totalAcumulado * (tasa > 0 ? tasa : 1);
+    let totalBs = tributos.totalGeneral * (tasa > 0 ? tasa : 1);
     elemBs.textContent = `Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 }
@@ -1544,7 +1770,8 @@ function ejecutarFacturar() {
     cliente: null,
     formaPago: "",
     tasaBCV: obtenerTasaBCV(),
-    usuario: usuarioActivo
+    usuario: usuarioActivo,
+    modoFiscal: modoFiscalActivo
   };
 
   itemsFactura = {};
@@ -1575,6 +1802,7 @@ function ejecutarFacturar() {
   clienteFacturaActual = null;
 
   renderizarTablaModalFactura();
+  actualizarInterfazModoFiscal();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).show();
   actualizarCalculosBCV();
 }
@@ -2100,34 +2328,37 @@ function obtenerDetalleFormaPagoFinal() {
   return formaSelect;
 }
 
-// EMITIR FACTURA FINAL
+// EMITIR FACTURA (DUAL: FISCAL PP9 PLUS / NO FISCAL XP-80C)
 async function emitirFacturaFinal() {
   if (!clienteFacturaActual) {
     return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
+  }
+
+  if (modoFiscalActivo && (!clienteFacturaActual.cedula || clienteFacturaActual.cedula === "V-00000000")) {
+    const continuarGenerico = confirm("Emitirá una FACTURA FISCAL a nombre de 'Consumidor Final'. ¿Desea continuar?");
+    if (!continuarGenerico) return;
   }
 
   const formaPagoStr = obtenerDetalleFormaPagoFinal();
   if (!formaPagoStr) return;
 
   const btn = document.getElementById('btnEmitirFacturaFinal');
-  if (btn) { btn.disabled = true; btn.textContent = "Generando Ticket..."; }
+  if (btn) { btn.disabled = true; btn.textContent = "Preparando Emisión..."; }
 
   try {
     let numFactura = await obtenerSiguienteCorrelativoLocal();
 
     const tasa = obtenerTasaBCV();
-    let totalUSD = 0;
     let productosSummaryList = [];
-
     let items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
 
     for (let key in items) {
       let item = items[key];
-      totalUSD += parseFloat(item.precioTotal) || 0;
       productosSummaryList.push(`${key} (${item.cantidadTxt}) - $${item.precioTotal}`);
     }
 
-    let totalBs = totalUSD * (tasa > 0 ? tasa : 1);
+    const tributos = calcularTotalesTributarios(items);
+    let totalBs = tributos.totalGeneral * (tasa > 0 ? tasa : 1);
     const usuarioActivo = obtenerUsuarioActivo();
     const tablaPersonal = obtenerTablaVentasUsuario(usuarioActivo);
 
@@ -2137,24 +2368,36 @@ async function emitirFacturaFinal() {
       cliente: clienteFacturaActual,
       formaPagoStr: formaPagoStr,
       desglosePagos: obtenerObjetoDesgloseMetodos(),
-      totalUSD: totalUSD,
+      totalUSD: tributos.totalGeneral,
       totalBs: totalBs,
+      montoExento: tributos.montoExento,
+      montoBase: tributos.montoBase,
+      montoIVA: tributos.montoIVA,
       tasaBCV: tasa,
       monedaVistaModal: monedaVistaModal,
       productosSummary: productosSummaryList.join(' | '),
       usuario: usuarioActivo,
-      tablaVentas: tablaPersonal
+      tablaVentas: tablaPersonal,
+      modoFiscal: modoFiscalActivo,
+      items: items
     };
 
     renderizarTicketTermicoHTML(datosFacturaPendiente);
-    if (btn) { btn.disabled = false; btn.textContent = "🧾 Emitir Factura"; }
+    if (btn) { btn.disabled = false; btn.textContent = modoFiscalActivo ? "🧾 Emitir Factura Fiscal (PP9)" : "🧾 Emitir Factura"; }
+
+    const alertModal = document.getElementById('mensajeAlertaConfirmacionEmision');
+    if (alertModal) {
+      alertModal.textContent = modoFiscalActivo 
+        ? "⚠️ ¿Está seguro de emitir esta FACTURA FISCAL en la Aclas PP9 Plus?" 
+        : "¿Está seguro de que desea registrar y emitir esta factura de control interno?";
+    }
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVistaPreviaFactura')).show();
 
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = "🧾 Emitir Factura"; }
     console.error("Error al generar venta local:", err);
-    mostrarAvisoFactura("Error al preparar el ticket de venta.");
+    mostrarAvisoFactura("Error al preparar la factura.");
   }
 }
 
@@ -2164,12 +2407,13 @@ function renderizarTicketTermicoHTML(d) {
   let esModoBs = (d.monedaVistaModal === "BS");
   let tasa = d.tasaBCV || 1;
 
-  let items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
+  let items = d.items || ((transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura);
 
   for (let key in items) {
     let item = items[key];
     let precUnit = "";
     let itemTotalTxt = "";
+    let tasaLetra = (item.tasaIVA || "E").toUpperCase();
 
     if (esModoBs) {
       let precBaseBs = (parseFloat(item.precioBase) || 0) * tasa;
@@ -2188,40 +2432,73 @@ function renderizarTicketTermicoHTML(d) {
     filasProductosHtml += `
       <tr>
         <td style="width:6%;">${i++}</td>
-        <td style="width:38%;" class="fw-bold">${key}</td>
+        <td style="width:36%;" class="fw-bold">${key} <span class="small text-muted">(${tasaLetra})</span></td>
         <td style="width:24%;" class="text-center num-legible">${precUnit}</td>
-        <td style="width:14%;" class="text-center num-legible">${item.cantidadTxt}</td>
+        <td style="width:16%;" class="text-center num-legible">${item.cantidadTxt}</td>
         <td style="width:18%;" class="text-end fw-bold num-legible">${itemTotalTxt}</td>
       </tr>`;
   }
 
   let bloqueTotalesHtml = "";
   if (esModoBs) {
+    let exentoBs = (d.montoExento || 0) * tasa;
+    let baseBs = (d.montoBase || 0) * tasa;
+    let ivaBs = (d.montoIVA || 0) * tasa;
+
     bloqueTotalesHtml = `
+      <div class="d-flex justify-content-between small text-muted">
+        <span>EXENTO (0%):</span>
+        <span class="num-legible">Bs. ${exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+      </div>
+      <div class="d-flex justify-content-between small text-muted">
+        <span>BASE GRAVABLE (16%):</span>
+        <span class="num-legible">Bs. ${baseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+      </div>
+      <div class="d-flex justify-content-between small text-danger fw-bold">
+        <span>IVA (16%):</span>
+        <span class="num-legible">Bs. ${ivaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+      </div>
+      <div class="ticket-divider"></div>
       <div class="d-flex justify-content-between">
         <span>TOTAL FACTURA (Bs):</span>
         <strong class="fs-6 num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
       </div>
       <div class="d-flex justify-content-between text-muted">
-        <span>TOTAL FACTURA ($):</span>
+        <span>TOTAL REF ($):</span>
         <span class="num-legible">$${d.totalUSD.toFixed(2)}</span>
       </div>`;
   } else {
     bloqueTotalesHtml = `
+      <div class="d-flex justify-content-between small text-muted">
+        <span>EXENTO (0%):</span>
+        <span class="num-legible">$${(d.montoExento || 0).toFixed(2)}</span>
+      </div>
+      <div class="d-flex justify-content-between small text-muted">
+        <span>BASE GRAVABLE (16%):</span>
+        <span class="num-legible">$${(d.montoBase || 0).toFixed(2)}</span>
+      </div>
+      <div class="d-flex justify-content-between small text-danger fw-bold">
+        <span>IVA (16%):</span>
+        <span class="num-legible">$${(d.montoIVA || 0).toFixed(2)}</span>
+      </div>
+      <div class="ticket-divider"></div>
       <div class="d-flex justify-content-between">
         <span>TOTAL FACTURA ($):</span>
         <strong class="fs-6 num-legible">$${d.totalUSD.toFixed(2)}</strong>
       </div>
       <div class="d-flex justify-content-between text-muted">
-        <span>TOTAL FACTURA (Bs):</span>
+        <span>TOTAL REF (Bs):</span>
         <span class="num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
       </div>`;
   }
+
+  const tipoEncabezado = d.modoFiscal ? "COMPROBANTE FISCAL PREVIO (ACLAS PP9)" : "COMPROBANTE NO FISCAL - NOTA DE ENTREGA";
 
   const ticketHtml = `
     <div class="ticket-container shadow-sm border">
       <div class="ticket-header">
         <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
+        <div class="ticket-title fs-6">${tipoEncabezado}</div>
         <div>RIF: J-505072889 | TELF: 0412-1753275</div>
         <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
         <div>HORARIO: 7:30am - 19:00pm</div>
@@ -2309,12 +2586,35 @@ async function confirmarEImprimirFactura() {
   if (!datosFacturaPendiente) return;
 
   const btn = document.getElementById('btnConfirmarEmisionFinal');
-  if (btn) { btn.disabled = true; btn.textContent = "Guardando e Imprimiendo..."; }
+  if (btn) { btn.disabled = true; btn.textContent = "Procesando Emisión..."; }
 
   try {
     let numFactura = datosFacturaPendiente.numFactura;
+    let numFacturaFiscalEmitida = null;
     const usuarioActivo = obtenerUsuarioActivo();
 
+    // 1. SI EL MODO FISCAL ESTÁ ACTIVADO: Enviar comandos a la Aclas PP9 Plus
+    if (datosFacturaPendiente.modoFiscal) {
+      if (!window.fiscalDriver || !window.fiscalDriver.conectado) {
+        const intentarConectar = confirm("La impresora fiscal Aclas PP9 Plus no está conectada. ¿Desea conectarla ahora?");
+        if (intentarConectar) {
+          await window.fiscalDriver.solicitarYConectar(9600);
+        } else {
+          if (btn) { btn.disabled = false; btn.textContent = "🖨️ Confirmar y Emitir"; }
+          return;
+        }
+      }
+
+      const resFiscal = await window.fiscalDriver.emitirFacturaFiscal(datosFacturaPendiente);
+      numFacturaFiscalEmitida = resFiscal.numFacturaFiscal;
+      numFactura = numFacturaFiscalEmitida || numFactura;
+    } else {
+      // 2. MODO NO FISCAL / CONTROL INTERNO: Imprimir vía ticketera convencional XP-80C
+      const ticketHtml = document.getElementById('vistaPreviaTicketModal').innerHTML;
+      ejecutarImpresionTicket(ticketHtml);
+    }
+
+    // 3. Guardar en IndexedDB local
     await dbPut("ventas", {
       numFactura: numFactura,
       fechaStr: datosFacturaPendiente.fechaStr,
@@ -2324,9 +2624,11 @@ async function confirmarEImprimirFactura() {
       direccion: datosFacturaPendiente.cliente.direccion || null,
       formaPagoStr: datosFacturaPendiente.formaPagoStr,
       productosSummary: datosFacturaPendiente.productosSummary,
-      usuario: usuarioActivo
+      usuario: usuarioActivo,
+      esFiscal: datosFacturaPendiente.modoFiscal
     });
 
+    // 4. Encolar para sincronización con Supabase
     await dbPut("syncQueue", {
       id: "sync_fac_" + Date.now(),
       payload: {
@@ -2343,15 +2645,13 @@ async function confirmarEImprimirFactura() {
           montoTotal: datosFacturaPendiente.totalUSD,
           desglosePagos: datosFacturaPendiente.desglosePagos,
           usuario: usuarioActivo,
-          tablaVentas: datosFacturaPendiente.tablaVentas
+          tablaVentas: datosFacturaPendiente.tablaVentas,
+          esFiscal: datosFacturaPendiente.modoFiscal
         }
       }
     });
 
-    const ticketHtml = document.getElementById('vistaPreviaTicketModal').innerHTML;
-    ejecutarImpresionTicket(ticketHtml);
-
-    if (btn) { btn.disabled = false; btn.textContent = "🖨️ Confirmar y Facturar"; }
+    if (btn) { btn.disabled = false; btn.textContent = "🖨️ Confirmar y Emitir"; }
 
     itemsFactura = {};
     transaccionActiva = null;
@@ -2362,13 +2662,14 @@ async function confirmarEImprimirFactura() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVistaPreviaFactura')).hide();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
 
-    mostrarAvisoFactura(`Venta N° ${numFactura} emitida e impresa con éxito 🎉`);
+    const tipoDocStr = datosFacturaPendiente?.modoFiscal ? "Factura Fiscal" : "Venta";
+    mostrarAvisoFactura(`🎉 ${tipoDocStr} N° ${numFactura} emitida exitosamente.`);
     procesarColaSincronizacion();
 
   } catch (err) {
-    if (btn) { btn.disabled = false; btn.textContent = "🖨️ Confirmar y Facturar"; }
-    console.error("Error al registrar venta local:", err);
-    mostrarAvisoFactura("Error al guardar la venta localmente.");
+    if (btn) { btn.disabled = false; btn.textContent = "🖨️ Confirmar y Emitir"; }
+    console.error("Error al emitir factura:", err);
+    mostrarAvisoFactura("Error durante la emisión: " + err.message);
   }
 }
 
@@ -2610,7 +2911,7 @@ function confirmarAgregarCodigosAFactura() {
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
 }
 
-// CONFIGURACIÓN FULLSCREEN DE PRODUCTOS Y PLU (CON COLUMNA IVA)
+// CONFIGURACIÓN FULLSCREEN DE PRODUCTOS Y PLU
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
   prepararListaProductosCodigos();
@@ -3224,7 +3525,8 @@ function reimprimirFacturaHistorial(numFactura) {
     totalBs: totalBs,
     tasaBCV: tasa,
     monedaVistaModal: "USD",
-    productosSummary: fac.productosSummary
+    productosSummary: fac.productosSummary,
+    modoFiscal: false
   };
 
   renderizarTicketTermicoHistorialHTML(datosFacturaPendiente);
@@ -4100,7 +4402,8 @@ async function procesarSiguienteCierreCaja() {
       resumen: resumen,
       totalCajaUSD: totalCajaUSD,
       totalCajaBS: totalCajaBS,
-      tablaCierres: tablaCierres
+      tablaCierres: tablaCierres,
+      modoFiscal: modoFiscalActivo
     };
 
     renderizarTicketCierreCajaHTML(datosCierreCajaPendiente);
@@ -4147,11 +4450,13 @@ function renderizarTicketCierreCajaHTML(d) {
     `;
   }
 
+  const tituloCierre = d.modoFiscal ? "REPORTE Z (CIERRE FISCAL ACLAS PP9)" : "COMPROBANTE DE CIERRE DE CAJA";
+
   const ticketHtml = `
     <div class="ticket-container shadow-sm border text-start">
       <div class="ticket-header">
         <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
-        <div class="ticket-title fs-6">COMPROBANTE DE CIERRE DE CAJA</div>
+        <div class="ticket-title fs-6">${tituloCierre}</div>
         <div>RIF: J-505072889 | TELF: 0412-1753275</div>
         <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
       </div>
@@ -4277,15 +4582,27 @@ async function confirmarEImprimirCierreCaja() {
   try {
     const d = datosCierreCajaPendiente;
 
+    // Si el modo fiscal está activo, emitir el Reporte Z oficial en la Aclas PP9 Plus
+    if (d.modoFiscal && window.fiscalDriver && window.fiscalDriver.conectado) {
+      try {
+        mostrarAvisoFactura("Transmitiendo Reporte Z a la impresora fiscal...");
+        await window.fiscalDriver.imprimirReporteZ();
+      } catch (errFiscal) {
+        console.warn("Aviso Reporte Z Fiscal:", errFiscal);
+        mostrarAvisoFactura("Aviso: " + errFiscal.message);
+      }
+    } else {
+      // Impresión de cierre convencional
+      const ticketHtml = document.getElementById('vistaPreviaCierreCajaModal').innerHTML;
+      ejecutarImpresionTicket(ticketHtml);
+    }
+
     await dbPut("cierres", d);
 
     await dbPut("syncQueue", {
       id: "sync_cie_" + Date.now(),
       payload: { action: "guardarCierreCaja", datosCierre: d }
     });
-
-    const ticketHtml = document.getElementById('vistaPreviaCierreCajaModal').innerHTML;
-    ejecutarImpresionTicket(ticketHtml);
 
     if (btn) { btn.disabled = false; btn.textContent = "🔒 Realizar Cierre"; }
 
