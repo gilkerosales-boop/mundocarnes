@@ -5534,30 +5534,6 @@ document.addEventListener("DOMContentLoaded", function() {
           if (installingWorker) {
             installingWorker.onstatechange = () => {
               if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('🔄 Nueva versión detectada. Actualizando aplicación...');
-                window.location.reload();
-              }
-            };
-          }
-        };
-      })
-      .catch(err => console.error('Error PWA Ventas:', err));
-
-    let actualizando = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!actualizando) {
-        actualizando = true;
-        window.location.reload();
-      }
-    });
-  }
-});
-
-        reg.onupdatefound = () => {
-          const installingWorker = reg.installing;
-          if (installingWorker) {
-            installingWorker.onstatechange = () => {
-              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
                 console.log('🔄 Nueva versión detectada. Actualizando aplicación automáticamente...');
                 window.location.reload();
               }
@@ -5575,3 +5551,4 @@ document.addEventListener("DOMContentLoaded", function() {
       }
     });
   }
+});
