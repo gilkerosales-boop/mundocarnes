@@ -1,10 +1,12 @@
-// Service Worker para PWA Módulo de Ventas / Facturación - Mundocarnes
-const CACHE_NAME = 'mundocarnes-pwa-v2.0.0';
+// Service Worker PWA Módulo de Ventas / Facturación - Mundocarnes
+// Estrategia Network-First con Auto-Update Inmediato y Fallback Offline
+const CACHE_NAME = 'mundocarnes-pwa-v3.0.0';
 const ASSETS_TO_CACHE = [
   './',
   'index.html',
   'style.css',
   'script.js',
+  'fiscalDriver.js',
   'manifest.json',
   '../catalog.json',
   '../img/LOGOTIPO MUNDOCARNES.jpg',
@@ -27,14 +29,14 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting(); // Forzar activación inmediata sin esperar a cerrar pestañas
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE).catch((err) => {
-        console.warn('Aviso SW: Algunos recursos estáticos no pudieron ser almacenados en caché:', err);
+        console.warn('Aviso SW: Caché inicial parcial:', err);
       });
     })
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -43,49 +45,68 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
+            console.log('🔄 Purgando caché obsoleta de versión anterior:', cache);
             return caches.delete(cache);
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  return self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
-  // Ignorar solicitudes que no sean GET (como las llamadas API POST o REST)
-  if (event.request.method !== 'GET') {
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+  const esRecursoLocal = url.origin === location.origin;
+
+  // 1. REGLA NETWORK-FIRST (Código JS, CSS, HTML, JSON): Prioriza la versión más reciente en línea
+  if (esRecursoLocal && (event.request.mode === 'navigate' || url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname.endsWith('.css') || url.pathname.endsWith('.json'))) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          // Fallback a caché local si el dispositivo está sin internet (Offline a 0ms)
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) return cachedResponse;
+            if (event.request.mode === 'navigate') return caches.match('index.html');
+          });
+        })
+    );
     return;
   }
 
+  // 2. REGLA CACHE-FIRST (Imágenes y librerías CDN): Carga rápida con actualización en segundo plano
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Devuelve la respuesta almacenada en caché e intenta actualizar en segundo plano
         fetch(event.request).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, networkResponse);
             });
           }
-        }).catch(() => {/* Ignorar errores de red offline */});
+        }).catch(() => {});
         return cachedResponse;
       }
 
       return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
-        }
-
+        if (!networkResponse || networkResponse.status !== 200) return networkResponse;
         const responseToCache = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => {
           cache.put(event.request, responseToCache);
         });
-
         return networkResponse;
       }).catch(() => {
-        // Retorno de contingencia offline si es navegación HTML
-        if (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html')) {
+        if (event.request.headers.get('accept')?.includes('text/html')) {
           return caches.match('index.html');
         }
       });
