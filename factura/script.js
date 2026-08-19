@@ -3427,6 +3427,46 @@ async function ejecutarGuardadoConTokenQR() {
   accionPendienteGitHub = null;
 }
 
+// ==========================================================================
+// CONVERSOR GLOBAL DE FECHAS A TIMESTAMP (DISPONIBLE PARA TODO EL SISTEMA)
+// ==========================================================================
+function parsearFechaTimestamp(fStr) {
+  if (!fStr) return 0;
+  try {
+    let t = Date.parse(fStr);
+    if (!isNaN(t)) return t;
+
+    // Procesar formato latino: DD/MM/YYYY, HH:mm:ss (a.m. / p.m.)
+    const partes = String(fStr).trim().split(/[,\s]+/);
+    if (partes.length >= 1) {
+      const fechaPartes = partes[0].split(/[\/\-]/);
+      if (fechaPartes.length === 3) {
+        let dia = parseInt(fechaPartes[0], 10);
+        let mes = parseInt(fechaPartes[1], 10) - 1;
+        let anio = parseInt(fechaPartes[2], 10);
+        if (anio < 100) anio += 2000;
+
+        let horas = 0, minutos = 0, segundos = 0;
+        if (partes.length >= 2) {
+          const horaPartes = partes[1].split(':');
+          horas = parseInt(horaPartes[0], 10) || 0;
+          minutos = parseInt(horaPartes[1], 10) || 0;
+          segundos = parseInt(horaPartes[2], 10) || 0;
+
+          const esPM = /p\.?\s*m\.?/i.test(fStr);
+          const esAM = /a\.?\s*m\.?/i.test(fStr);
+          if (esPM && horas < 12) horas += 12;
+          if (esAM && horas === 12) horas = 0;
+        }
+
+        const d = new Date(anio, mes, dia, horas, minutos, segundos);
+        if (!isNaN(d.getTime())) return d.getTime();
+      }
+    }
+  } catch (e) {}
+  return 0;
+}
+
 // HISTORIAL Y BÚSQUEDA DE FACTURAS (CON IDENTIFICADOR FISCAL)
 function abrirModalBuscarFacturas() {
   document.getElementById('facBusquedaInput').value = "";
@@ -3502,44 +3542,6 @@ async function buscarFacturasHistorial(modo) {
       console.warn("Aviso al consultar Supabase en historial:", err);
     }
   }
-
-  // Conversor de Fechas a Timestamp para orden cronológico estricto
-function parsearFechaTimestamp(fStr) {
-  if (!fStr) return 0;
-  try {
-    let t = Date.parse(fStr);
-    if (!isNaN(t)) return t;
-
-    // Procesar formato latino: DD/MM/YYYY, HH:mm:ss (a.m. / p.m.)
-    const partes = String(fStr).trim().split(/[,\s]+/);
-    if (partes.length >= 1) {
-      const fechaPartes = partes[0].split(/[\/\-]/);
-      if (fechaPartes.length === 3) {
-        let dia = parseInt(fechaPartes[0], 10);
-        let mes = parseInt(fechaPartes[1], 10) - 1;
-        let anio = parseInt(fechaPartes[2], 10);
-        if (anio < 100) anio += 2000;
-
-        let horas = 0, minutos = 0, segundos = 0;
-        if (partes.length >= 2) {
-          const horaPartes = partes[1].split(':');
-          horas = parseInt(horaPartes[0], 10) || 0;
-          minutos = parseInt(horaPartes[1], 10) || 0;
-          segundos = parseInt(horaPartes[2], 10) || 0;
-
-          const esPM = /p\.?\s*m\.?/i.test(fStr);
-          const esAM = /a\.?\s*m\.?/i.test(fStr);
-          if (esPM && horas < 12) horas += 12;
-          if (esAM && horas === 12) horas = 0;
-        }
-
-        const d = new Date(anio, mes, dia, horas, minutos, segundos);
-        if (!isNaN(d.getTime())) return d.getTime();
-      }
-    }
-  } catch (e) {}
-  return 0;
-}
 
   let todasLasFacturas = Object.values(mapFacturas).sort((a, b) => {
     // 1. Orden principal por fecha y hora más reciente
