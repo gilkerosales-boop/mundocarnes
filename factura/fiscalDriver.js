@@ -1,16 +1,17 @@
 /* ==========================================================================
-   Driver Fiscal JS - Aclas PP9 Plus (Protocolo The Factory HKA)
+   Driver Fiscal Universal JS - The Factory HKA (TFHKA Venezuela)
+   Soporte Multi-Modelo: Aclas PP9 Plus y The Factory HKA80 (80mm)
    Comunicación Serial Nativa Web Serial API para PWA Frigorífico Mundocarnes
-   Manejo de Facturación Dual, Reporte X, Reporte Z y Recuperación de Fallas
    ========================================================================== */
 
-class FiscalDriverAclas {
+class FiscalDriverTFHKA {
   constructor() {
     this.port = null;
     this.reader = null;
     this.writer = null;
     this.conectado = false;
-    this.baudRate = 9600;
+    this.modelo = localStorage.getItem("pos_modelo_impresora_fiscal") || "HKA80"; // "HKA80" o "PP9"
+    this.baudRate = this.obtenerBaudRatePorDefecto();
     this.timeoutMs = 9000;
     this.enLectura = false;
     this.ultimoNumeroFactura = null;
@@ -24,6 +25,22 @@ class FiscalDriverAclas {
     return 'serial' in navigator;
   }
 
+  obtenerBaudRatePorDefecto() {
+    // HKA80 suele operar a 9600 o 19200 bps; PP9 Plus a 9600 bps
+    return this.modelo === "HKA80" ? 19200 : 9600;
+  }
+
+  setModelo(nuevoModelo) {
+    this.modelo = nuevoModelo === "PP9" ? "PP9" : "HKA80";
+    this.baudRate = this.obtenerBaudRatePorDefecto();
+    localStorage.setItem("pos_modelo_impresora_fiscal", this.modelo);
+    this.notificarEstado("CAMBIO_MODELO", `Modelo fiscal activo: ${this.getNombreModelo()}`);
+  }
+
+  getNombreModelo() {
+    return this.modelo === "HKA80" ? "The Factory HKA80" : "Aclas PP9 Plus";
+  }
+
   // Registrar callback para notificaciones de estado
   onStatusChange(callback) {
     this.onStatusChangeCallback = callback;
@@ -31,42 +48,48 @@ class FiscalDriverAclas {
 
   notificarEstado(estado, mensaje, datos = null) {
     if (typeof this.onStatusChangeCallback === 'function') {
-      this.onStatusChangeCallback({ estado, mensaje, datos });
+      this.onStatusChangeCallback({ 
+        estado, 
+        mensaje, 
+        datos,
+        modelo: this.modelo,
+        nombreModelo: this.getNombreModelo()
+      });
     }
   }
 
   // Solicitar puerto interactivo al usuario
-  async solicitarYConectar(baudRate = 9600) {
-    if (!FiscalDriverAclas.esCompatible()) {
+  async solicitarYConectar(baudRate = null) {
+    if (!FiscalDriverTFHKA.esCompatible()) {
       throw new Error("Su navegador no soporta Web Serial API. Utilice Google Chrome o Microsoft Edge en PC.");
     }
 
     try {
-      this.baudRate = baudRate;
+      this.baudRate = baudRate || this.obtenerBaudRatePorDefecto();
       this.port = await navigator.serial.requestPort();
       await this.abrirPuerto();
       this.conectado = true;
-      this.notificarEstado("CONECTADO", "Impresora fiscal Aclas PP9 Plus conectada exitosamente.");
+      this.notificarEstado("CONECTADO", `Impresora fiscal ${this.getNombreModelo()} conectada exitosamente.`);
       return true;
     } catch (err) {
       this.conectado = false;
-      this.notificarEstado("ERROR_CONEXION", "No se seleccionó o no se pudo abrir el puerto fiscal: " + err.message);
+      this.notificarEstado("ERROR_CONEXION", `No se pudo conectar con ${this.getNombreModelo()}: ` + err.message);
       throw err;
     }
   }
 
   // Reconectar automáticamente si ya se otorgó permiso previo
-  async reconectarAutomatico(baudRate = 9600) {
-    if (!FiscalDriverAclas.esCompatible()) return false;
+  async reconectarAutomatico(baudRate = null) {
+    if (!FiscalDriverTFHKA.esCompatible()) return false;
 
     try {
       const ports = await navigator.serial.getPorts();
       if (ports.length > 0) {
         this.port = ports[0];
-        this.baudRate = baudRate;
+        this.baudRate = baudRate || this.obtenerBaudRatePorDefecto();
         await this.abrirPuerto();
         this.conectado = true;
-        this.notificarEstado("CONECTADO", "Reconexión automática con impresora fiscal establecida.");
+        this.notificarEstado("CONECTADO", `Reconexión con ${this.getNombreModelo()} establecida.`);
         return true;
       }
       return false;
@@ -108,7 +131,7 @@ class FiscalDriverAclas {
         await this.port.close();
         this.port = null;
       }
-      this.notificarEstado("DESCONECTADO", "Impresora fiscal desconectada.");
+      this.notificarEstado("DESCONECTADO", `Impresora fiscal ${this.getNombreModelo()} desconectada.`);
       return true;
     } catch (err) {
       console.warn("Aviso al cerrar puerto serial:", err);
@@ -119,7 +142,7 @@ class FiscalDriverAclas {
   // Enviar comando fiscal y leer respuesta con control de timeout
   async enviarComando(comandoStr) {
     if (!this.conectado || !this.port || !this.port.writable) {
-      throw new Error("La impresora fiscal no está conectada. Verifique la conexión USB.");
+      throw new Error(`La impresora fiscal ${this.getNombreModelo()} no está conectada. Verifique el cable USB.`);
     }
 
     try {
@@ -140,11 +163,11 @@ class FiscalDriverAclas {
         try { this.writer.releaseLock(); } catch (e) {}
         this.writer = null;
       }
-      throw new Error(`Fallo de comunicación al enviar comando fiscal (${comandoStr}): ${err.message}`);
+      throw new Error(`Fallo de comunicación (${this.getNombreModelo()}): ${err.message}`);
     }
   }
 
-  // Lector con timeout para capturar bytes de retorno de la Aclas PP9 Plus
+  // Lector con timeout para capturar bytes de retorno de la placa fiscal
   async leerRespuesta() {
     if (!this.port || !this.port.readable) return "";
 
@@ -168,7 +191,6 @@ class FiscalDriverAclas {
 
         respuestaAcumulada += decoder.decode(value, { stream: true });
 
-        // Si la respuesta contiene salto de línea o caracteres de fin de trama TFHKA
         if (respuestaAcumulada.includes("\n") || respuestaAcumulada.includes("\r") || respuestaAcumulada.includes("\x03")) {
           break;
         }
@@ -189,7 +211,6 @@ class FiscalDriverAclas {
   // FORMATEADORES DE DATOS ESTRICTOS (PROTOCOLO THE FACTORY HKA)
   // ========================================================================
 
-  // Sanitizar texto: mayúsculas, sin acentos ni caracteres especiales conflictivos
   sanitizarTexto(texto, maxLen = 40) {
     if (!texto) return "";
     const limpio = String(texto)
@@ -200,13 +221,11 @@ class FiscalDriverAclas {
     return limpio.substring(0, maxLen);
   }
 
-  // Formatear precio a 10 dígitos enteros/decimales (Ej: 12.50 -> 0000001250)
   formatearPrecioFiscal(precioFloat) {
     const valor = Math.round((parseFloat(precioFloat) || 0) * 100);
     return String(valor).padStart(10, '0');
   }
 
-  // Formatear cantidad a 8 dígitos con 3 decimales (Ej: 1.500 kg / 1 ud -> 00001500 / 00001000)
   formatearCantidadFiscal(cantFloat, unidad = "unidades") {
     let valor = 0;
     if (unidad === "gramos" || unidad === "mixto") {
@@ -218,16 +237,15 @@ class FiscalDriverAclas {
   }
 
   // ========================================================================
-  // OPERACIONES FISCALES DE ALTO NIVEL
+  // OPERACIONES FISCALES DE ALTO NIVEL (HKA80 / ACLAS PP9 PLUS)
   // ========================================================================
 
   // 1. Consultar Estado de la Máquina Fiscal (Comando S1)
   async consultarEstado() {
-    this.notificarEstado("CONSULTANDO", "Consultando estado de impresora fiscal S1...");
+    this.notificarEstado("CONSULTANDO", `Consultando estado S1 en ${this.getNombreModelo()}...`);
     const resp = await this.enviarComando("S1");
     this.ultimoReporteStatus = resp;
     
-    // Parseo de respuesta S1 (Estado general, banderas de error, última factura)
     const partes = resp.split(/[,;\t]/);
     let resultado = {
       raw: resp,
@@ -242,14 +260,14 @@ class FiscalDriverAclas {
 
   // 2. Cancelar Documento Fiscal en Curso (Comando 7)
   async cancelarDocumento() {
-    this.notificarEstado("CANCELANDO", "Enviando comando de anulación de documento en curso...");
+    this.notificarEstado("CANCELANDO", `Anulando documento en curso en ${this.getNombreModelo()}...`);
     return await this.enviarComando("7");
   }
 
   // 3. Emitir Factura Fiscal Completa
   async emitirFacturaFiscal(datosFactura) {
     if (!this.conectado) {
-      throw new Error("No hay conexión con la impresora fiscal Aclas PP9 Plus.");
+      throw new Error(`No hay conexión con la impresora fiscal ${this.getNombreModelo()}.`);
     }
 
     const {
@@ -268,7 +286,7 @@ class FiscalDriverAclas {
       throw new Error("No hay productos para emitir en la factura fiscal.");
     }
 
-    this.notificarEstado("EMITIENDO", "Iniciando transmisión de factura fiscal a la Aclas PP9 Plus...");
+    this.notificarEstado("EMITIENDO", `Iniciando transmisión de factura fiscal a ${this.getNombreModelo()}...`);
 
     try {
       // PASO A: Encabezado de Datos del Cliente
@@ -282,12 +300,11 @@ class FiscalDriverAclas {
       if (direccionCliente) await this.enviarComando(`i03${direccionCliente}`);
       if (telefonoCliente) await this.enviarComando(`i04${telefonoCliente}`);
 
-      // PASO B: Transmisión de Renglones de Productos con su Tratamiento de IVA
+      // PASO B: Transmisión de Renglones con su Tratamiento de IVA
       for (let nombreProd in items) {
         const item = items[nombreProd];
         const descProd = this.sanitizarTexto(nombreProd, 37);
 
-        // Determinación del comando de impuesto (d0 = Exento, d1 = General 16%, d2 = Reducido 8%)
         const tasaIVA = (item.tasaIVA || "E").toUpperCase();
         let cmdTasa = "d0"; // Exento por defecto
         if (tasaIVA === "G" || tasaIVA === "16") cmdTasa = "d1";
@@ -329,7 +346,7 @@ class FiscalDriverAclas {
       const numFacturaFiscal = statusFinal.ultimaFactura || `F-${Date.now().toString().slice(-6)}`;
       this.ultimoNumeroFactura = numFacturaFiscal;
 
-      this.notificarEstado("FINALIZADO", `Factura Fiscal N° ${numFacturaFiscal} emitida correctamente.`, {
+      this.notificarEstado("FINALIZADO", `Factura Fiscal N° ${numFacturaFiscal} emitida en ${this.getNombreModelo()}.`, {
         numFacturaFiscal: numFacturaFiscal,
         respuestaRaw: respCierre
       });
@@ -337,35 +354,35 @@ class FiscalDriverAclas {
       return {
         exito: true,
         numFacturaFiscal: numFacturaFiscal,
-        mensaje: "Factura fiscal impresa con éxito en Aclas PP9 Plus."
+        mensaje: `Factura fiscal impresa con éxito en ${this.getNombreModelo()}.`
       };
 
     } catch (err) {
-      this.notificarEstado("ERROR_EMISION", "Error durante la emisión fiscal: " + err.message);
+      this.notificarEstado("ERROR_EMISION", `Error en ${this.getNombreModelo()}: ` + err.message);
       try { await this.cancelarDocumento(); } catch (e) {}
       throw err;
     }
   }
 
-  // 4. Emitir Reporte X (Lectura Parcial sin Cierre Diario - Comando I0X)
+  // 4. Emitir Reporte X (Lectura Parcial - Comando I0X)
   async imprimirReporteX() {
-    if (!this.conectado) throw new Error("Impresora fiscal no conectada.");
-    this.notificarEstado("IMPRIMIENDO_X", "Emitiendo Reporte X en la máquina fiscal...");
+    if (!this.conectado) throw new Error(`Impresora fiscal ${this.getNombreModelo()} no conectada.`);
+    this.notificarEstado("IMPRIMIENDO_X", `Emitiendo Reporte X en ${this.getNombreModelo()}...`);
     const resp = await this.enviarComando("I0X");
     this.notificarEstado("FINALIZADO_X", "Reporte X emitido exitosamente.");
     return resp;
   }
 
-  // 5. Emitir Reporte Z (Cierre Fiscal Diario Oficial - Comando I0Z)
+  // 5. Emitir Reporte Z (Cierre Fiscal Diario - Comando I0Z)
   async imprimirReporteZ() {
-    if (!this.conectado) throw new Error("Impresora fiscal no conectada.");
-    this.notificarEstado("IMPRIMIENDO_Z", "Emitiendo Reporte Z oficial en la máquina fiscal...");
+    if (!this.conectado) throw new Error(`Impresora fiscal ${this.getNombreModelo()} no conectada.`);
+    this.notificarEstado("IMPRIMIENDO_Z", `Emitiendo Reporte Z en ${this.getNombreModelo()}...`);
     const resp = await this.enviarComando("I0Z");
     
     const status = await this.consultarEstado();
     this.ultimoNumeroZ = status.ultimaFactura || null;
 
-    this.notificarEstado("FINALIZADO_Z", "Cierre Fiscal Reporte Z emitido y registrado en memoria fiscal.", {
+    this.notificarEstado("FINALIZADO_Z", `Cierre Fiscal Reporte Z completado en ${this.getNombreModelo()}.`, {
       numeroZ: this.ultimoNumeroZ
     });
 
@@ -378,7 +395,7 @@ class FiscalDriverAclas {
 
   // 6. Emitir Documento No Fiscal (Comandos 80, 81, 89)
   async imprimirTextoNoFiscal(lineasArray) {
-    if (!this.conectado) throw new Error("Impresora fiscal no conectada.");
+    if (!this.conectado) throw new Error(`Impresora fiscal ${this.getNombreModelo()} no conectada.`);
     
     await this.enviarComando("80");
     for (let linea of lineasArray) {
@@ -389,5 +406,5 @@ class FiscalDriverAclas {
   }
 }
 
-// Instancia global única del Driver Fiscal
-window.fiscalDriver = new FiscalDriverAclas();
+// Instancia global única del Driver Fiscal TFHKA
+window.fiscalDriver = new FiscalDriverTFHKA();
