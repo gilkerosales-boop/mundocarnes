@@ -408,29 +408,26 @@ class FiscalDriverTFHKA {
       }
 
       // PASO C: Formas de Pago y Totalización Exacta
-      const totalFiscalFinalBs = (parseFloat(totalBs) > 0) ? parseFloat(totalBs) : totalCalculadoImpresoraBs;
-      const strMontoPago = this.formatearPrecioFiscal(totalFiscalFinalBs);
-
-      let cmdCodigoPago = "101"; // Efectivo Bolívares por defecto
+    // PASO C: Formas de Pago y Cierre Oficial TFHKA
+      // En protocolo TFHKA:
+      // Comandos 1xx (3 caracteres: 101, 109, 114, 120): Pago total directo del saldo restante (sin monto adjunto).
+      // Comandos 2xx (13 caracteres: 201..220 + 10 dígitos de monto): Pago parcial con importe específico.
       const formaStr = String(formaPago || "").toUpperCase();
+      let codigoMedioDirecto = "101"; // Efectivo (Directo Total) por defecto
 
-      if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO")) {
-        cmdCodigoPago = "109"; // Tarjeta Débito
+      if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO") || formaStr.includes("DÉBITO")) {
+        codigoMedioDirecto = "109"; // Tarjeta de Débito (Directo Total)
       } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
-        cmdCodigoPago = "114"; // Tarjeta Crédito
-      } else if (formaStr.includes("PAGO MOVIL") || formaStr.includes("PAGO MÓVIL") || formaStr.includes("TRANSFERENCIA") || formaStr.includes("BIOPAGO") || formaStr.includes("ZELLE") || formaStr.includes("DIVISAS")) {
-        cmdCodigoPago = "120"; // Otros Medios de Pago
+        codigoMedioDirecto = "114"; // Tarjeta de Crédito (Directo Total)
+      } else if (formaStr.includes("PAGO MOVIL") || formaStr.includes("PAGO MÓVIL") || formaStr.includes("TRANSFERENCIA") || formaStr.includes("BIOPAGO") || formaStr.includes("ZELLE") || formaStr.includes("DIVISAS") || formaStr.includes("PAYPAL") || formaStr.includes("CASHEA")) {
+        codigoMedioDirecto = "120"; // Otros Medios de Pago / Transferencias / Pago Móvil (Directo Total)
       }
 
-      // Enviar medio de pago con el total exacto en Bolívares para saldar la factura al 100%
-      await this.enviarComando(`${cmdCodigoPago}${strMontoPago}`);
+      // 1. Emitir el pago total directo (3 caracteres exactos: ej. 101, 109, 120)
+      await this.enviarComando(codigoMedioDirecto);
 
-      // Comando de totalización y corte de papel (Comando 199) con captura tolerante
-      try {
-        await this.enviarComando("199");
-      } catch (err199) {
-        console.warn("Aviso de verificación en comando 199:", err199.message);
-      }
+      // 2. Pausa para permitir el corte de papel y finalización física del documento
+      await new Promise(r => setTimeout(r, 800));
 
       // Enviar medio de pago con el monto total exacto
       await this.enviarComando(`${cmdCodigoPago}${strMontoPago}`);
