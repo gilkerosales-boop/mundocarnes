@@ -4408,42 +4408,85 @@ async function procesarSiguienteCierreCaja() {
   }));
 
   btn.disabled = true;
-  btn.textContent = "Consultando ventas...";
+  btn.textContent = "Calculando ventas del día...";
 
   try {
     const tasa = obtenerTasaBCV();
+    const factorTasa = tasa > 0 ? tasa : 1;
+
     let resumen = {
       ventasEfectivoUSD: 0, ventasEfectivoBS: 0, ventasPagoMovil: 0,
       ventasZelle: 0, ventasPayPal: 0, ventasCashea: 0, ventasCredito: 0,
       ventasPuntoVenta: 0, ventasTransferencia: 0, ventasBiopago: 0,
-      totalGeneralVentasUSD: 0, totalGeneralVentasBS: 0
+      totalGeneralVentasUSD: 0, totalGeneralVentasBS: 0,
+      // Desglose Tributario Fiscal
+      montoExentoUSD: 0, montoExentoBS: 0,
+      baseGravable16USD: 0, baseGravable16BS: 0,
+      iva16USD: 0, iva16BS: 0,
+      cantFacturasFiscales: 0, cantFacturasNoFiscales: 0,
+      facturaInicialFiscal: null, facturaFinalFiscal: null,
+      listaFacturasFiscales: []
     };
 
-    let todasVentas = [];
+    // 1. Obtener todas las ventas combinando Local y Remoto con deduplicación
+    let mapVentasHoy = {};
+    const ventasLocales = await dbGetAll("ventas");
+    if (Array.isArray(ventasLocales)) {
+      ventasLocales.forEach(v => {
+        if (v && v.numFactura) mapVentasHoy[String(v.numFactura)] = v;
+      });
+    }
+
     if (navigator.onLine) {
-      todasVentas = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
-    } else {
-      todasVentas = await dbGetAll("ventas");
+      try {
+        const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
+        if (Array.isArray(ventasSup)) {
+          ventasSup.forEach(v => {
+            let numFac = v.FACTURA || v["FACTURA N°"] || v.numFactura;
+            if (numFac) {
+              mapVentasHoy[String(numFac)] = {
+                numFactura: String(numFac),
+                fechaStr: v["FECHA"] || v.fechaStr || "",
+                montoTotalUSD: parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0,
+                formaPagoStr: v["FORMA DE PAGO"] || v.formaPagoStr || "",
+                productosSummary: v["PRODUCTOS"] || v.productosSummary || "",
+                usuario: usuario,
+                esFiscal: Boolean(String(v["FORMA DE PAGO"] || "").includes("FISCAL") || v.esFiscal)
+              };
+            }
+          });
+        }
+      } catch (errSup) {
+        console.warn("Aviso al consultar Supabase para cierre:", errSup);
+      }
     }
 
     const hoy = new Date();
-    const d = hoy.getDate();
-    const m = hoy.getMonth() + 1;
-    const y = hoy.getFullYear();
+    const hoyDia = hoy.getDate();
+    const hoyMes = hoy.getMonth();
+    const hoyAnio = hoy.getFullYear();
 
-    const patron1 = `${d}/${m}/${y}`;
-    const patron2 = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
-    const patron3 = `${d}/${String(m).padStart(2, '0')}/${y}`;
-    const patron4 = `${String(d).padStart(2, '0')}/${m}/${y}`;
-    const patronIso = hoy.toISOString().split('T')[0];
-
-    todasVentas.forEach(v => {
+    // 2. Filtrar y procesar solo las ventas de la jornada de hoy
+    Object.values(mapVentasHoy).forEach(v => {
       const fStr = String(v["FECHA"] || v.fechaStr || "");
-      const coincideHoy = fStr.includes(patron1) || fStr.includes(patron2) || fStr.includes(patron3) || fStr.includes(patron4) || fStr.startsWith(patronIso);
+      const ts = parsearFechaTimestamp(fStr);
+      let esVentaDeHoy = false;
 
-      if (coincideHoy) {
-        let formaStr = String(v["FORMA DE PAGO"] || v.formaPagoStr || "").toUpperCase();
-        let totalUSDVenta = parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0;
+      if (ts > 0) {
+        const dVenta = new Date(ts);
+        esVentaDeHoy = (dVenta.getFullYear() === hoyAnio && dVenta.getMonth() === hoyMes && dVenta.getDate() === hoyDia);
+      } else {
+        const dStr = String(hoyDia).padStart(2, '0');
+        const mStr = String(hoyMes + 1).padStart(2, '0');
+        esVentaDeHoy = fStr.includes(`${hoyDia}/${hoyMes + 1}/${hoyAnio}`) || fStr.includes(`${dStr}/${mStr}/${hoyAnio}`) || fStr.startsWith(hoyStr);
+      }
+
+      if (esVentaDeHoy) {
+        const formaStr = String(v["FORMA DE PAGO"] || v.formaPagoStr || "").toUpperCase();
+        const numFac = String(v.FACTURA || v.numFactura || "");
+        const esFiscal = Boolean(v.esFiscal || formaStr.includes("FISCAL") || numFac.startsWith("FAC-") || /^\d{8}$/.test(numFac));
+        const totalVentaUSD = parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0;
+        const totalVentaBS = totalVentaUSD * factorTasa;
 
         let evUSD = parseFloat(v["EFECTIVO DIVISAS"]) || 0;
         let evBS = parseFloat(v["EFECTIVO BOLIVARES"]) || 0;
@@ -4456,9 +4499,9 @@ async function procesarSiguienteCierreCaja() {
         let trBS = parseFloat(v["TRANSFERENCIA"]) || 0;
         let bioBS = parseFloat(v["BIOPAGO"]) || 0;
 
-        let sumaEspecifica = evUSD + zUSD + ppUSD + cUSD + crUSD + evBS + pmBS + pvBS + trBS + bioBS;
+        let sumaDesglose = evUSD + zUSD + ppUSD + cUSD + crUSD + evBS + pmBS + pvBS + trBS + bioBS;
 
-        if (sumaEspecifica > 0) {
+        if (sumaDesglose > 0) {
           resumen.ventasEfectivoUSD += evUSD;
           resumen.ventasEfectivoBS += evBS;
           resumen.ventasPagoMovil += pmBS;
@@ -4470,32 +4513,47 @@ async function procesarSiguienteCierreCaja() {
           resumen.ventasTransferencia += trBS;
           resumen.ventasBiopago += bioBS;
         } else {
-          if (formaStr.includes("PUNTO DE VENTA")) {
-            resumen.ventasPuntoVenta += (totalUSDVenta * (tasa > 0 ? tasa : 1));
-          } else if (formaStr.includes("PAGO MÓVIL") || formaStr.includes("PAGO MOVIL")) {
-            resumen.ventasPagoMovil += (totalUSDVenta * (tasa > 0 ? tasa : 1));
-          } else if (formaStr.includes("EFECTIVO BOLÍVARES") || formaStr.includes("EFECTIVO BOLIVARES")) {
-            resumen.ventasEfectivoBS += (totalUSDVenta * (tasa > 0 ? tasa : 1));
-          } else if (formaStr.includes("EFECTIVO DIVISAS") || formaStr.includes("DOLARES")) {
-            resumen.ventasEfectivoUSD += totalUSDVenta;
+          if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO")) {
+            resumen.ventasPuntoVenta += totalVentaBS;
+          } else if (formaStr.includes("PAGO MOVIL") || formaStr.includes("PAGO MÓVIL")) {
+            resumen.ventasPagoMovil += totalVentaBS;
+          } else if (formaStr.includes("EFECTIVO BOLIVARES") || formaStr.includes("BOLÍVARES")) {
+            resumen.ventasEfectivoBS += totalVentaBS;
+          } else if (formaStr.includes("DIVISAS") || formaStr.includes("DOLARES")) {
+            resumen.ventasEfectivoUSD += totalVentaUSD;
           } else if (formaStr.includes("ZELLE")) {
-            resumen.ventasZelle += totalUSDVenta;
+            resumen.ventasZelle += totalVentaUSD;
           } else if (formaStr.includes("PAYPAL")) {
-            resumen.ventasPayPal += totalUSDVenta;
+            resumen.ventasPayPal += totalVentaUSD;
           } else if (formaStr.includes("CASHEA")) {
-            resumen.ventasCashea += totalUSDVenta;
-          } else if (formaStr.includes("CRÉDITO") || formaStr.includes("CREDITO")) {
-            resumen.ventasCredito += totalUSDVenta;
+            resumen.ventasCashea += totalVentaUSD;
+          } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
+            resumen.ventasCredito += totalVentaUSD;
           } else if (formaStr.includes("BIOPAGO")) {
-            resumen.ventasBiopago += (totalUSDVenta * (tasa > 0 ? tasa : 1));
+            resumen.ventasBiopago += totalVentaBS;
           } else if (formaStr.includes("TRANSFERENCIA")) {
-            resumen.ventasTransferencia += (totalUSDVenta * (tasa > 0 ? tasa : 1));
+            resumen.ventasTransferencia += totalVentaBS;
           } else {
-            resumen.ventasEfectivoUSD += totalUSDVenta;
+            resumen.ventasEfectivoUSD += totalVentaUSD;
           }
+        }
+
+        // Acumuladores Tributarios
+        if (esFiscal) {
+          resumen.cantFacturasFiscales++;
+          resumen.listaFacturasFiscales.push(numFac);
+        } else {
+          resumen.cantFacturasNoFiscales++;
         }
       }
     });
+
+    // Rango de Facturas Fiscales del Día
+    if (resumen.listaFacturasFiscales.length > 0) {
+      resumen.listaFacturasFiscales.sort();
+      resumen.facturaInicialFiscal = resumen.listaFacturasFiscales[0];
+      resumen.facturaFinalFiscal = resumen.listaFacturasFiscales[resumen.listaFacturasFiscales.length - 1];
+    }
 
     btn.disabled = false;
     btn.textContent = "Siguiente ➡️";
@@ -4543,7 +4601,7 @@ async function procesarSiguienteCierreCaja() {
       const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "la impresora fiscal";
       alertCierre.textContent = modoFiscalActivo 
         ? `⚠️ ¿Está seguro de realizar el Cierre de Caja? Se emitirá el REPORTE Z OFICIAL en ${nombreModelo}.` 
-        : "¿Está seguro de que desea realizar el cierre de caja?";
+        : "¿Está seguro de que desea realizar el cierre de caja de control interno?";
     }
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso1')).hide();
@@ -4559,152 +4617,258 @@ async function procesarSiguienteCierreCaja() {
 
 function renderizarTicketCierreCajaHTML(d) {
   const r = d.resumen || {};
+  const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "THE FACTORY HKA80";
+  const factorTasa = (parseFloat(d.tasaBCV) > 0) ? parseFloat(d.tasaBCV) : 1;
 
-  let seccionMovimientosHtml = "";
-  if (d.ingresosUSD > 0 || d.retirosUSD > 0 || d.ingresosBS > 0 || d.retirosBS > 0) {
-    seccionMovimientosHtml = `
-      <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
-        3. MOVIMIENTOS DE EFECTIVO (AJUSTES)
+  let ticketHtml = "";
+
+  if (d.modoFiscal) {
+    // =========================================================================
+    // FORMATO A: REPORTE Z FISCAL OFICIAL (Adaptado a The Factory HKA80 / PP9)
+    // =========================================================================
+    const cantFiscales = r.cantFacturasFiscales || 0;
+    const ultFac = r.facturaFinalFiscal || "00000000";
+    const totalFiscalBs = (r.totalGeneralVentasBS > 0) ? r.totalGeneralVentasBS : (r.totalGeneralVentasUSD * factorTasa);
+    const totalFiscalUSD = (factorTasa > 0) ? (totalFiscalBs / factorTasa) : r.totalGeneralVentasUSD;
+
+    ticketHtml = `
+      <div class="ticket-container shadow-sm border text-start">
+        <div class="ticket-header">
+          <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
+          <div class="small fw-bold">SENIAT</div>
+          <div class="small fw-bold">RIF J-505072889</div>
+          <div class="fw-bold fs-6">FRIGORIFICO MUNDOCARNES, C.A</div>
+          <div class="small">AV. SAN MARTIN, CARACAS, DISTRITO CAPITAL</div>
+          <div class="ticket-title mt-2 fs-6">REPORTE Z (CIERRE DIARIO)</div>
+          <div class="small text-muted">${nombreModelo.toUpperCase()}</div>
+        </div>
+
+        <div class="ticket-info">
+          <div><strong>FECHA / HORA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
+          <div><strong>CAJERO(A):</strong> ${d.usuario}</div>
+          <div><strong>TASA BCV:</strong> <span class="num-legible">Bs. ${factorTasa.toFixed(2)}</span></div>
+        </div>
+
+        <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
+          1. RESUMEN DE VENTAS FISCALES
+        </div>
+        <table class="ticket-table mb-2">
+          <tbody>
+            <tr>
+              <td># FACTURAS FISCALES DEL DÍA:</td>
+              <td class="text-end fw-bold text-primary num-legible">${cantFiscales} facturas</td>
+            </tr>
+            <tr>
+              <td>ÚLTIMA FACTURA EMITIDA:</td>
+              <td class="text-end fw-bold text-danger num-legible">${ultFac}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
+          2. MEDIOS DE PAGO FISCALES
+        </div>
+        <table class="ticket-table mb-2">
+          <tbody>
+            <tr>
+              <td>PUNTO DE VENTA (DÉBITO/CRÉDITO):</td>
+              <td class="text-end fw-bold num-legible">Bs. ${(r.ventasPuntoVenta || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+            <tr>
+              <td>PAGO MÓVIL / OTROS MEDIOS:</td>
+              <td class="text-end fw-bold num-legible">Bs. ${(r.ventasPagoMovil || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+            <tr>
+              <td>EFECTIVO BOLÍVARES:</td>
+              <td class="text-end fw-bold num-legible">Bs. ${(r.ventasEfectivoBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+            <tr>
+              <td>EFECTIVO DIVISAS:</td>
+              <td class="text-end fw-bold num-legible">$${(r.ventasEfectivoUSD || 0).toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
+          3. TOTALES FISCALES DEL DÍA
+        </div>
+        <div class="ticket-totals border-top pt-1">
+          <div class="d-flex justify-content-between">
+            <span>TOTAL VENTAS DEL DÍA (Bs):</span>
+            <strong class="fs-5 text-dark num-legible">Bs. ${totalFiscalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+          </div>
+          <div class="d-flex justify-content-between text-muted">
+            <span>TOTAL REF EN DIVISAS ($):</span>
+            <span class="fs-6 fw-bold text-success num-legible">$${totalFiscalUSD.toFixed(2)}</span>
+          </div>
+          <div class="ticket-divider"></div>
+          <div class="d-flex justify-content-between text-success fw-bold">
+            <span>EFECTIVO EN CAJA ($):</span>
+            <span class="fs-6 num-legible">$${d.totalCajaUSD.toFixed(2)}</span>
+          </div>
+          <div class="d-flex justify-content-between text-primary fw-bold">
+            <span>EFECTIVO EN CAJA (Bs):</span>
+            <span class="fs-6 num-legible">Bs. ${d.totalCajaBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+        </div>
+
+        <div class="ticket-footer mt-3">
+          <div class="mt-4 pt-3 border-top border-dark text-center">
+            ____________________________________<br>
+            <strong>FIRMA Y CONFORMIDAD CAJERO(A)</strong>
+          </div>
+          <div class="small mt-2">DOCUMENTO FISCAL DE CIERRE DIARIO</div>
+        </div>
       </div>
-      <table class="ticket-table mb-2">
-        <tbody>
-          <tr>
-            <td>INGRESOS DE EFECTIVO DIVISAS (+):</td>
-            <td class="text-end fw-bold text-success num-legible">+$${d.ingresosUSD.toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>RETIROS DE EFECTIVO DIVISAS (-):</td>
-            <td class="text-end fw-bold text-danger num-legible">-$${d.retirosUSD.toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>INGRESOS DE EFECTIVO BOLÍVARES (+):</td>
-            <td class="text-end fw-bold text-success num-legible">+Bs. ${d.ingresosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          </tr>
-          <tr>
-            <td>RETIROS DE EFECTIVO BOLÍVARES (-):</td>
-            <td class="text-end fw-bold text-danger num-legible">-Bs. ${d.retirosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          </tr>
-        </tbody>
-      </table>
+    `;
+
+  } else {
+    // =========================================================================
+    // FORMATO B: CONTROL INTERNO CONVENCIONAL (XP-80C 80mm)
+    // =========================================================================
+    let seccionMovimientosHtml = "";
+    if (d.ingresosUSD > 0 || d.retirosUSD > 0 || d.ingresosBS > 0 || d.retirosBS > 0) {
+      seccionMovimientosHtml = `
+        <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
+          3. MOVIMIENTOS DE EFECTIVO (AJUSTES)
+        </div>
+        <table class="ticket-table mb-2">
+          <tbody>
+            <tr>
+              <td>INGRESOS DE EFECTIVO DIVISAS (+):</td>
+              <td class="text-end fw-bold text-success num-legible">+$${d.ingresosUSD.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td>RETIROS DE EFECTIVO DIVISAS (-):</td>
+              <td class="text-end fw-bold text-danger num-legible">-$${d.retirosUSD.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td>INGRESOS DE EFECTIVO BOLÍVARES (+):</td>
+              <td class="text-end fw-bold text-success num-legible">+Bs. ${d.ingresosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+            <tr>
+              <td>RETIROS DE EFECTIVO BOLÍVARES (-):</td>
+              <td class="text-end fw-bold text-danger num-legible">-Bs. ${d.retirosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+    }
+
+    ticketHtml = `
+      <div class="ticket-container shadow-sm border text-start">
+        <div class="ticket-header">
+          <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
+          <div class="ticket-title fs-6">COMPROBANTE DE CIERRE DE CAJA</div>
+          <div>RIF: J-505072889 | TELF: 0412-1753275</div>
+          <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
+        </div>
+
+        <div class="ticket-info">
+          <div><strong>FECHA / HORA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
+          <div><strong>CAJERO(A):</strong> ${d.usuario}</div>
+          <div><strong>TASA BCV:</strong> <span class="num-legible">Bs. ${factorTasa.toFixed(2)}</span></div>
+        </div>
+
+        <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
+          1. INICIO DE JORNADA (SALDO INICIAL)
+        </div>
+        <table class="ticket-table mb-2">
+          <tbody>
+            <tr>
+              <td>EFECTIVO INICIAL DIVISAS:</td>
+              <td class="text-end fw-bold num-legible">$${d.inicialUSD.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td>EFECTIVO INICIAL BOLÍVARES:</td>
+              <td class="text-end fw-bold num-legible">Bs. ${d.inicialBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
+          2. INGRESOS DEL DÍA (VENTAS)
+        </div>
+        <table class="ticket-table mb-2">
+          <tbody>
+            <tr>
+              <td>EFECTIVO DIVISAS:</td>
+              <td class="text-end fw-bold num-legible">$${(r.ventasEfectivoUSD || 0).toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td>EFECTIVO BOLÍVARES:</td>
+              <td class="text-end fw-bold num-legible">Bs. ${(r.ventasEfectivoBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+            <tr>
+              <td>PAGO MÓVIL:</td>
+              <td class="text-end fw-bold num-legible">Bs. ${(r.ventasPagoMovil || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+            <tr>
+              <td>ZELLE:</td>
+              <td class="text-end fw-bold num-legible">$${(r.ventasZelle || 0).toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td>PAYPAL:</td>
+              <td class="text-end fw-bold num-legible">$${(r.ventasPayPal || 0).toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td>PUNTO DE VENTA:</td>
+              <td class="text-end fw-bold num-legible">Bs. ${(r.ventasPuntoVenta || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+            <tr>
+              <td>BIOPAGO:</td>
+              <td class="text-end fw-bold num-legible">Bs. ${(r.ventasBiopago || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+            <tr>
+              <td>CASHEA:</td>
+              <td class="text-end fw-bold num-legible">$${(r.ventasCashea || 0).toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td>CRÉDITO (CTAS X COBRAR):</td>
+              <td class="text-end fw-bold text-muted num-legible">$${(r.ventasCredito || 0).toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td>TRANSFERENCIA BANCARIA:</td>
+              <td class="text-end fw-bold num-legible">Bs. ${(r.ventasTransferencia || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        ${seccionMovimientosHtml}
+
+        <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
+          4. TOTALES GENERALES Y BALANCE CAJA
+        </div>
+        <div class="ticket-totals border-top pt-1">
+          <div class="d-flex justify-content-between">
+            <span>TOTAL VENTAS INGRESOS ($):</span>
+            <strong class="fs-6 num-legible">$${(r.totalGeneralVentasUSD || 0).toFixed(2)}</strong>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span>TOTAL VENTAS INGRESOS (Bs):</span>
+            <strong class="fs-6 num-legible">Bs. ${(r.totalGeneralVentasBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+          </div>
+          <div class="ticket-divider"></div>
+          <div class="d-flex justify-content-between text-success fw-bold">
+            <span>EFECTIVO FINAL EN CAJA ($):</span>
+            <span class="fs-6 num-legible">$${d.totalCajaUSD.toFixed(2)}</span>
+          </div>
+          <div class="d-flex justify-content-between text-primary fw-bold">
+            <span>EFECTIVO FINAL EN CAJA (Bs):</span>
+            <span class="fs-6 num-legible">Bs. ${d.totalCajaBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+        </div>
+
+        <div class="ticket-footer mt-3">
+          <div class="mt-4 pt-3 border-top border-dark text-center">
+            ____________________________________<br>
+            <strong>FIRMA Y CONFORMIDAD CAJERO(A)</strong>
+          </div>
+          <div class="small mt-2">CIERRE DE CAJA REGISTRADO EXITOSAMENTE</div>
+        </div>
+      </div>
     `;
   }
-
-  const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "FISCAL";
-  const tituloCierre = d.modoFiscal ? `REPORTE Z (CIERRE FISCAL ${nombreModelo.toUpperCase()})` : "COMPROBANTE DE CIERRE DE CAJA";
-
-  const ticketHtml = `
-    <div class="ticket-container shadow-sm border text-start">
-      <div class="ticket-header">
-        <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
-        <div class="ticket-title fs-6">${tituloCierre}</div>
-        <div>RIF: J-505072889 | TELF: 0412-1753275</div>
-        <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
-      </div>
-
-      <div class="ticket-info">
-        <div><strong>FECHA / HORA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
-        <div><strong>CAJERO(A):</strong> ${d.usuario}</div>
-        <div><strong>TASA BCV:</strong> <span class="num-legible">Bs. ${d.tasaBCV.toFixed(2)}</span></div>
-      </div>
-
-      <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
-        1. INICIO DE JORNADA (SALDO INICIAL)
-      </div>
-      <table class="ticket-table mb-2">
-        <tbody>
-          <tr>
-            <td>EFECTIVO INICIAL DIVISAS:</td>
-            <td class="text-end fw-bold num-legible">$${d.inicialUSD.toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>EFECTIVO INICIAL BOLÍVARES:</td>
-            <td class="text-end fw-bold num-legible">Bs. ${d.inicialBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
-        2. INGRESOS DEL DÍA (VENTAS)
-      </div>
-      <table class="ticket-table mb-2">
-        <tbody>
-          <tr>
-            <td>EFECTIVO DIVISAS:</td>
-            <td class="text-end fw-bold num-legible">$${(r.ventasEfectivoUSD || 0).toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>EFECTIVO BOLÍVARES:</td>
-            <td class="text-end fw-bold num-legible">Bs. ${(r.ventasEfectivoBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          </tr>
-          <tr>
-            <td>PAGO MÓVIL:</td>
-            <td class="text-end fw-bold num-legible">Bs. ${(r.ventasPagoMovil || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          </tr>
-          <tr>
-            <td>ZELLE:</td>
-            <td class="text-end fw-bold num-legible">$${(r.ventasZelle || 0).toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>PAYPAL:</td>
-            <td class="text-end fw-bold num-legible">$${(r.ventasPayPal || 0).toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>PUNTO DE VENTA:</td>
-            <td class="text-end fw-bold num-legible">Bs. ${(r.ventasPuntoVenta || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          </tr>
-          <tr>
-            <td>BIOPAGO:</td>
-            <td class="text-end fw-bold num-legible">Bs. ${(r.ventasBiopago || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          </tr>
-          <tr>
-            <td>CASHEA:</td>
-            <td class="text-end fw-bold num-legible">$${(r.ventasCashea || 0).toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>CRÉDITO (CTAS X COBRAR):</td>
-            <td class="text-end fw-bold text-muted num-legible">$${(r.ventasCredito || 0).toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td>TRANSFERENCIA BANCARIA:</td>
-            <td class="text-end fw-bold num-legible">Bs. ${(r.ventasTransferencia || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      ${seccionMovimientosHtml}
-
-      <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
-        4. TOTALES GENERALES Y BALANCE CAJA
-      </div>
-      <div class="ticket-totals border-top pt-1">
-        <div class="d-flex justify-content-between">
-          <span>TOTAL VENTAS INGRESOS ($):</span>
-          <strong class="fs-6 num-legible">$${(r.totalGeneralVentasUSD || 0).toFixed(2)}</strong>
-        </div>
-        <div class="d-flex justify-content-between">
-          <span>TOTAL VENTAS INGRESOS (Bs):</span>
-          <strong class="fs-6 num-legible">Bs. ${(r.totalGeneralVentasBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-        </div>
-        <div class="ticket-divider"></div>
-        <div class="d-flex justify-content-between text-success fw-bold">
-          <span>EFECTIVO FINAL EN CAJA ($):</span>
-          <span class="fs-6 num-legible">$${d.totalCajaUSD.toFixed(2)}</span>
-        </div>
-        <div class="d-flex justify-content-between text-primary fw-bold">
-          <span>EFECTIVO FINAL EN CAJA (Bs):</span>
-          <span class="fs-6 num-legible">Bs. ${d.totalCajaBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-      </div>
-
-      <div class="ticket-footer mt-3">
-        <div class="mt-4 pt-3 border-top border-dark text-center">
-          ____________________________________<br>
-          <strong>FIRMA Y CONFORMIDAD CAJERO(A)</strong>
-        </div>
-        <div class="small mt-2">CIERRE DE CAJA REGISTRADO EXITOSAMENTE</div>
-      </div>
-    </div>
-  `;
 
   const elemImpresion = document.getElementById('contenidoTicketImprimible');
   const elemModal = document.getElementById('vistaPreviaCierreCajaModal');
