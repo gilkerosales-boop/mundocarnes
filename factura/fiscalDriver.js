@@ -1,6 +1,7 @@
 /* ==========================================================================
    Driver Fiscal JS - Aclas PP9 Plus (Protocolo The Factory HKA)
    Comunicación Serial Nativa Web Serial API para PWA Frigorífico Mundocarnes
+   Manejo de Facturación Dual, Reporte X, Reporte Z y Recuperación de Fallas
    ========================================================================== */
 
 class FiscalDriverAclas {
@@ -10,7 +11,7 @@ class FiscalDriverAclas {
     this.writer = null;
     this.conectado = false;
     this.baudRate = 9600;
-    this.timeoutMs = 8000;
+    this.timeoutMs = 9000;
     this.enLectura = false;
     this.ultimoNumeroFactura = null;
     this.ultimoNumeroZ = null;
@@ -209,10 +210,8 @@ class FiscalDriverAclas {
   formatearCantidadFiscal(cantFloat, unidad = "unidades") {
     let valor = 0;
     if (unidad === "gramos" || unidad === "mixto") {
-      // Si la cantidad viene en gramos, convertir a kg con 3 decimales
-      valor = Math.round(parseFloat(cantFloat) || 0); // ej. 1500g -> 1500
+      valor = Math.round(parseFloat(cantFloat) || 0);
     } else {
-      // Unidades estándar (1 ud = 1.000)
       valor = Math.round((parseFloat(cantFloat) || 1) * 1000);
     }
     return String(valor).padStart(8, '0');
@@ -257,7 +256,6 @@ class FiscalDriverAclas {
       cliente,
       items,
       formaPago,
-      desglosePagos,
       tasaBCV,
       monedaVistaModal
     } = datosFactura;
@@ -295,11 +293,9 @@ class FiscalDriverAclas {
         if (tasaIVA === "G" || tasaIVA === "16") cmdTasa = "d1";
         else if (tasaIVA === "R" || tasaIVA === "8") cmdTasa = "d2";
 
-        // Precio unitario en Bolívares o Divisas según moneda fiscal de la máquina
         let precioBase = parseFloat(item.precioBase) || 0;
         let cantidadNumerica = item.cantNumerica || 1;
 
-        // Si la máquina liquida en Bs y la vista está en Bs
         if (monedaVistaModal === "BS" && tasaBCV > 0) {
           precioBase = precioBase * tasaBCV;
         }
@@ -312,7 +308,6 @@ class FiscalDriverAclas {
       }
 
       // PASO C: Transmisión de Formas de Pago y Cierre de Documento
-      // Comandos TFHKA: 101 (Efectivo), 109 (Tarjeta Débito), 114 (Tarjeta Crédito), 120 (Otros/Transferencia)
       let cmdMedioPago = "101"; // Efectivo por defecto
       const formaStr = String(formaPago || "").toUpperCase();
 
@@ -324,7 +319,6 @@ class FiscalDriverAclas {
         cmdMedioPago = "120";
       }
 
-      // Envío de medio de pago y totalización
       await this.enviarComando(`${cmdMedioPago}`);
 
       // Comando de cierre final y corte de papel
@@ -348,7 +342,6 @@ class FiscalDriverAclas {
 
     } catch (err) {
       this.notificarEstado("ERROR_EMISION", "Error durante la emisión fiscal: " + err.message);
-      // Intentar anular documento en caso de interrupción
       try { await this.cancelarDocumento(); } catch (e) {}
       throw err;
     }
@@ -387,12 +380,12 @@ class FiscalDriverAclas {
   async imprimirTextoNoFiscal(lineasArray) {
     if (!this.conectado) throw new Error("Impresora fiscal no conectada.");
     
-    await this.enviarComando("80"); // Abrir DNF
+    await this.enviarComando("80");
     for (let linea of lineasArray) {
       const texto = this.sanitizarTexto(linea, 40);
       await this.enviarComando(`81${texto}`);
     }
-    await this.enviarComando("89"); // Cerrar DNF
+    await this.enviarComando("89");
   }
 }
 
