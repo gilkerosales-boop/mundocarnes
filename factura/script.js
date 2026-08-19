@@ -5520,9 +5520,33 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
+  // Registro de Service Worker con Escucha Activa de Auto-Actualización
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js', { scope: '/factura/' })
-      .then(reg => console.log('App de Ventas Offline-First lista para instalar:', reg.scope))
+      .then(reg => {
+        console.log('App de Ventas Offline-First lista para instalar:', reg.scope);
+        // Forzar verificación de nuevas versiones en el servidor
+        reg.update();
+
+        reg.onupdatefound = () => {
+          const installingWorker = reg.installing;
+          if (installingWorker) {
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('🔄 Nueva versión detectada. Actualizando aplicación automáticamente...');
+                window.location.reload();
+              }
+            };
+          }
+        };
+      })
       .catch(err => console.error('Error PWA Ventas:', err));
+
+    let actualizando = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!actualizando) {
+        actualizando = true;
+        window.location.reload();
+      }
+    });
   }
-});
