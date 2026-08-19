@@ -14,8 +14,8 @@
 
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Estilo Local POS Aislado con Soporte Fiscal -->
-    <link rel="stylesheet" href="style.css?v=3.5.0">
+    <!-- Estilo Local POS Aislado con Soporte Fiscal Dual -->
+    <link rel="stylesheet" href="style.css?v=3.6.0">
     <!-- Configuración de App Instalable PWA -->
     <link rel="manifest" href="manifest.json?v=1.0.3">
     <meta name="theme-color" content="#0f172a">
@@ -1062,6 +1062,7 @@
                     <thead class="table-dark small text-center">
                       <tr>
                         <th>N° Factura</th>
+                        <th>Tipo</th>
                         <th>Fecha y Hora</th>
                         <th>Cédula / RIF</th>
                         <th>Cliente</th>
@@ -1072,7 +1073,7 @@
                     </thead>
                     <tbody id="tablaHistorialFacturas" class="small">
                       <tr>
-                        <td colspan="7" class="text-center text-muted py-4">Ingrese un criterio de búsqueda o seleccione un límite.</td>
+                        <td colspan="8" class="text-center text-muted py-4">Ingrese un criterio de búsqueda o seleccione un límite.</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1087,6 +1088,7 @@
                       <tr>
                         <th>Fecha y Hora</th>
                         <th>Usuario</th>
+                        <th>Tipo Cierre</th>
                         <th>Inicial ($ / Bs)</th>
                         <th>Ventas ($ / Bs)</th>
                         <th>Final Caja ($ / Bs)</th>
@@ -1095,7 +1097,7 @@
                     </thead>
                     <tbody id="tablaHistorialCierresCaja" class="small">
                       <tr>
-                        <td colspan="6" class="text-center text-muted py-4">Cargando cierres de caja...</td>
+                        <td colspan="7" class="text-center text-muted py-4">Cargando cierres de caja...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1361,9 +1363,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- SDK Oficial Supabase v2 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Driver Fiscal Aclas PP9 Plus (Web Serial API / TFHKA) -->
-    <script src="fiscalDriver.js?v=1.0.0"></script>
-    <!-- Lógica POS -->
-    <script src="script.js?v=3.9.0"></script>
+    <!-- Driver Fiscal Aclas PP9 Plus (Web Serial API / The Factory HKA) -->
+    <script src="fiscalDriver.js?v=1.1.0"></script>
+    <!-- Lógica POS Completa -->
+    <script src="script.js?v=4.0.0"></script>
   </body>
 </html>
