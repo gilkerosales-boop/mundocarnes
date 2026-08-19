@@ -362,47 +362,74 @@ class FiscalDriverTFHKA {
       if (direccionCliente) await this.enviarComando(`i03${direccionCliente}`);
       if (telefonoCliente) await this.enviarComando(`i04${telefonoCliente}`);
 
-      // PASO B: Renglones de Venta con Formato Estricto TFHKA:
-      // Exento (0%): Carácter ' ' (Espacio 0x20)
-      // Tasa General (16%): Carácter '!' (0x21)
-      // Tasa Reducida (8%): Carácter '"' (0x22)
+      // PASO B: Renglones de Venta con Formato Estricto TFHKA y Desglose de Base Imponible
+      // En impresoras fiscales SENIAT (HKA80 / PP9), el precio enviado con '!' o '"' debe ser la Base Imponible sin IVA en Bolívares.
+      let totalCalculadoImpresoraBs = 0;
+      const factorTasa = (parseFloat(tasaBCV) > 0) ? parseFloat(tasaBCV) : 1;
+
       for (let nombreProd in items) {
         const item = items[nombreProd];
         const descProd = this.sanitizarTexto(nombreProd, 35);
-
         const tasaIVA = (item.tasaIVA || "E").toUpperCase();
-        let cmdTasaChar = " "; // Exento (espacio) por defecto
-        if (tasaIVA === "G" || tasaIVA === "16") cmdTasaChar = "!";
-        else if (tasaIVA === "R" || tasaIVA === "8") cmdTasaChar = '"';
+        
+        let cmdTasaChar = " "; // Exento (0%)
+        let factorIVA = 1.0;
 
-        let precioBase = parseFloat(item.precioBase) || 0;
-        let cantidadNumerica = item.cantNumerica || 1;
-
-        if (monedaVistaModal === "BS" && tasaBCV > 0) {
-          precioBase = precioBase * tasaBCV;
+        if (tasaIVA === "G" || tasaIVA === "16") {
+          cmdTasaChar = "!"; // General 16%
+          factorIVA = 1.16;
+        } else if (tasaIVA === "R" || tasaIVA === "8") {
+          cmdTasaChar = '"'; // Reducido 8%
+          factorIVA = 1.08;
         }
 
-        const strPrecio = this.formatearPrecioFiscal(precioBase);
+        // Precio unitario convertido a Bolívares (Moneda de curso legal fiscal)
+        let precioItemUSD = parseFloat(item.precioBase) || 0;
+        let precioItemBs = precioItemUSD * factorTasa;
+
+        // La impresora aplica el IVA automáticamente; enviamos la base imponible unitaria
+        let baseImponibleUnitariaBs = precioItemBs / factorIVA;
+        let cantidadNumerica = parseFloat(item.cantNumerica) || 1;
+
+        if (item.unidad === "gramos" || item.unidad === "mixto") {
+          let gramos = parseFloat(item.pesoTotalGramos || item.cantNumerica) || 0;
+          let precioTotalRenglonBs = (precioItemBs / 1000) * gramos;
+          totalCalculadoImpresoraBs += precioTotalRenglonBs;
+        } else {
+          totalCalculadoImpresoraBs += (precioItemBs * cantidadNumerica);
+        }
+
+        const strPrecio = this.formatearPrecioFiscal(baseImponibleUnitariaBs);
         const strCantidad = this.formatearCantidadFiscal(cantidadNumerica, item.unidad);
 
-        // Estructura oficial: STX + [Carácter Tasa] + [Precio 10d] + [Cantidad 8d] + [Descripción] + ETX + LRC
+        // Estructura oficial: STX + [Tasa] + [Precio 10d] + [Cantidad 8d] + [Descripción] + ETX + LRC
         const tramaRenglon = `${cmdTasaChar}${strPrecio}${strCantidad}${descProd}`;
         await this.enviarComando(tramaRenglon);
       }
 
-      // PASO C: Formas de Pago y Cierre Oficial (Comandos 101 - 120 + 199)
-      const montoCobrar = (monedaVistaModal === "BS") ? totalBs : totalUSD;
-      const strMontoPago = this.formatearPrecioFiscal(montoCobrar);
+      // PASO C: Formas de Pago y Totalización Exacta
+      const totalFiscalFinalBs = (parseFloat(totalBs) > 0) ? parseFloat(totalBs) : totalCalculadoImpresoraBs;
+      const strMontoPago = this.formatearPrecioFiscal(totalFiscalFinalBs);
 
-      let cmdCodigoPago = "101"; // Efectivo por defecto
+      let cmdCodigoPago = "101"; // Efectivo Bolívares por defecto
       const formaStr = String(formaPago || "").toUpperCase();
 
       if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO")) {
         cmdCodigoPago = "109"; // Tarjeta Débito
       } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
         cmdCodigoPago = "114"; // Tarjeta Crédito
-      } else if (formaStr.includes("PAGO MOVIL") || formaStr.includes("TRANSFERENCIA") || formaStr.includes("BIOPAGO")) {
-        cmdCodigoPago = "120"; // Otros medios
+      } else if (formaStr.includes("PAGO MOVIL") || formaStr.includes("PAGO MÓVIL") || formaStr.includes("TRANSFERENCIA") || formaStr.includes("BIOPAGO") || formaStr.includes("ZELLE") || formaStr.includes("DIVISAS")) {
+        cmdCodigoPago = "120"; // Otros Medios de Pago
+      }
+
+      // Enviar medio de pago con el total exacto en Bolívares para saldar la factura al 100%
+      await this.enviarComando(`${cmdCodigoPago}${strMontoPago}`);
+
+      // Comando de totalización y corte de papel (Comando 199) con captura tolerante
+      try {
+        await this.enviarComando("199");
+      } catch (err199) {
+        console.warn("Aviso de verificación en comando 199:", err199.message);
       }
 
       // Enviar medio de pago con el monto total exacto
