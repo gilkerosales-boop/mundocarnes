@@ -523,6 +523,7 @@ class FiscalDriverTFHKA {
     }
     return null;
   }
+}
 
 // Instancia global única del Driver Fiscal TFHKA
 window.fiscalDriver = new FiscalDriverTFHKA();
