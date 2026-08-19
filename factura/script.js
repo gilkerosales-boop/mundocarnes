@@ -1,6 +1,6 @@
 /* ==========================================================================
    Lógica del Módulo de Ventas / Facturación No Fiscal y Fiscal - Mundocarnes
-   Integración Completa con Impresora Fiscal Aclas PP9 Plus (Web Serial API),
+   Integración Universal The Factory HKA (HKA80 / Aclas PP9 Plus),
    Emisión Dual, Reportes X / Z, Cuentas por Cobrar (Créditos y Vales) y Sync
    ========================================================================== */
 
@@ -234,7 +234,7 @@ async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
 }
 
 // ==========================================================================
-// GESTIÓN DEL MODO FISCAL DUAL Y CONEXIÓN CON ACLAS PP9 PLUS
+// GESTIÓN DEL MODO FISCAL DUAL Y MODELOS (HKA80 / ACLAS PP9 PLUS)
 // ==========================================================================
 function inicializarModoFiscal() {
   const guardado = localStorage.getItem("pos_modo_fiscal");
@@ -243,22 +243,28 @@ function inicializarModoFiscal() {
   const chk = document.getElementById('chkModoFiscal');
   if (chk) chk.checked = modoFiscalActivo;
 
-  actualizarInterfazModoFiscal();
+  const modeloGuardado = localStorage.getItem("pos_modelo_impresora_fiscal") || "HKA80";
+  const selectModelo = document.getElementById('selectModeloFiscal');
+  if (selectModelo) selectModelo.value = modeloGuardado;
 
   if (window.fiscalDriver) {
+    window.fiscalDriver.setModelo(modeloGuardado);
+
     window.fiscalDriver.onStatusChange(({ estado, mensaje }) => {
       actualizarBotonHardwareFiscal(estado);
       if (estado === "CONECTADO") {
-        mostrarAvisoFactura("🟢 Impresora Fiscal Aclas PP9 Plus Conectada.");
+        mostrarAvisoFactura(`🟢 Impresora Fiscal ${window.fiscalDriver.getNombreModelo()} Conectada.`);
       } else if (estado === "ERROR_CONEXION" || estado === "DESCONECTADO") {
         mostrarAvisoFactura("⚠️ " + mensaje);
       }
     });
 
     if (modoFiscalActivo) {
-      window.fiscalDriver.reconectarAutomatico(9600);
+      window.fiscalDriver.reconectarAutomatico();
     }
   }
+
+  actualizarInterfazModoFiscal();
 }
 
 function alternarModoFiscalPOS(estaActivo) {
@@ -267,11 +273,12 @@ function alternarModoFiscalPOS(estaActivo) {
   actualizarInterfazModoFiscal();
 
   if (estaActivo) {
-    mostrarAvisoFactura("🟢 Modo Fiscal ACTIVADO (Aclas PP9 Plus)");
+    const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "Fiscal";
+    mostrarAvisoFactura(`🟢 Modo Fiscal ACTIVADO (${nombreModelo})`);
     if (window.fiscalDriver && !window.fiscalDriver.conectado) {
-      window.fiscalDriver.reconectarAutomatico(9600).then(conectado => {
+      window.fiscalDriver.reconectarAutomatico().then(conectado => {
         if (!conectado) {
-          mostrarAvisoFactura("ℹ️ Conecte la Aclas PP9 Plus haciendo clic en '🔌 Conectar PP9'.");
+          mostrarAvisoFactura(`ℹ️ Conecte la ${nombreModelo} haciendo clic en '🔌 Conectar Fiscal'.`);
         }
       });
     }
@@ -280,37 +287,51 @@ function alternarModoFiscalPOS(estaActivo) {
   }
 }
 
+function cambiarModeloImpresoraFiscal(nuevoModelo) {
+  if (window.fiscalDriver) {
+    window.fiscalDriver.setModelo(nuevoModelo);
+    actualizarInterfazModoFiscal();
+    mostrarAvisoFactura(`🖨️ Modelo fiscal configurado: ${window.fiscalDriver.getNombreModelo()}`);
+  }
+}
+
 function actualizarInterfazModoFiscal() {
   const badgeModo = document.getElementById('badgeModoFiscal');
-  const btnConectar = document.getElementById('btnConectarPP9');
+  const selectModelo = document.getElementById('selectModeloFiscal');
+  const btnConectar = document.getElementById('btnConectarFiscal');
   const btnHero = document.getElementById('btnEjecutarFacturarHero');
   const btnModalEmitir = document.getElementById('btnEmitirFacturaFinal');
   const labelTituloCobro = document.getElementById('labelProcesarFactura');
   const btnRepX = document.getElementById('btnReporteXFiscal');
 
+  const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "Fiscal";
+  const modeloTag = window.fiscalDriver ? window.fiscalDriver.modelo : "HKA80";
+
   if (modoFiscalActivo) {
     if (badgeModo) {
-      badgeModo.textContent = "🟢 Fiscal";
+      badgeModo.textContent = `🟢 Fiscal`;
       badgeModo.className = "badge-modo-fiscal fiscal-on";
     }
+    if (selectModelo) selectModelo.classList.remove('hidden');
     if (btnConectar) btnConectar.classList.remove('hidden');
     if (btnRepX) btnRepX.classList.remove('hidden');
     if (btnHero) {
-      btnHero.textContent = "Factura Fiscal (PP9) 🧾";
+      btnHero.textContent = `Factura Fiscal (${modeloTag}) 🧾`;
       btnHero.className = "btn btn-facturar-hero btn-facturar-fiscal w-100 mb-2 shadow";
     }
     if (btnModalEmitir) {
-      btnModalEmitir.textContent = "🧾 Emitir Factura Fiscal (PP9)";
+      btnModalEmitir.textContent = `🧾 Emitir Factura Fiscal (${modeloTag})`;
       btnModalEmitir.className = "btn btn-primary fw-bold px-5 py-2 fs-5 rounded-pill shadow";
     }
     if (labelTituloCobro) {
-      labelTituloCobro.textContent = "🧾 Procesar Factura Fiscal (Aclas PP9 Plus)";
+      labelTituloCobro.textContent = `🧾 Procesar Factura Fiscal (${nombreModelo})`;
     }
   } else {
     if (badgeModo) {
       badgeModo.textContent = "📄 No Fiscal";
       badgeModo.className = "badge-modo-fiscal fiscal-off";
     }
+    if (selectModelo) selectModelo.classList.add('hidden');
     if (btnConectar) btnConectar.classList.add('hidden');
     if (btnRepX) btnRepX.classList.add('hidden');
     if (btnHero) {
@@ -337,15 +358,15 @@ async function conectarImpresoraFiscalManual() {
   }
 
   try {
-    const btn = document.getElementById('btnConectarPP9');
+    const btn = document.getElementById('btnConectarFiscal');
     if (btn) { btn.disabled = true; btn.textContent = "Conectando..."; }
     
-    await window.fiscalDriver.solicitarYConectar(9600);
+    await window.fiscalDriver.solicitarYConectar();
     
     if (btn) { btn.disabled = false; }
     actualizarBotonHardwareFiscal("CONECTADO");
   } catch (err) {
-    const btn = document.getElementById('btnConectarPP9');
+    const btn = document.getElementById('btnConectarFiscal');
     if (btn) { btn.disabled = false; }
     actualizarBotonHardwareFiscal("DESCONECTADO");
     mostrarAvisoFactura("Error al conectar: " + err.message);
@@ -353,29 +374,34 @@ async function conectarImpresoraFiscalManual() {
 }
 
 function actualizarBotonHardwareFiscal(estado) {
-  const btn = document.getElementById('btnConectarPP9');
+  const btn = document.getElementById('btnConectarFiscal');
   if (!btn) return;
+
+  const modeloTag = window.fiscalDriver ? window.fiscalDriver.modelo : "Fiscal";
+  const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "Impresora Fiscal";
 
   if (estado === "CONECTADO") {
     btn.className = "btn btn-sm btn-success fw-bold btn-hardware-fiscal";
-    btn.innerHTML = "🟢 PP9 Lista";
-    btn.title = "Impresora fiscal Aclas PP9 Plus conectada y lista para facturar.";
+    btn.innerHTML = `🟢 ${modeloTag} Lista`;
+    btn.title = `Impresora fiscal ${nombreModelo} conectada y lista para facturar.`;
   } else {
     btn.className = "btn btn-sm btn-outline-info text-white fw-bold btn-hardware-fiscal";
-    btn.innerHTML = "🔌 Conectar PP9";
-    btn.title = "Haga clic para seleccionar y abrir el puerto USB/Serial de la Aclas PP9 Plus.";
+    btn.innerHTML = `🔌 Conectar ${modeloTag}`;
+    btn.title = `Haga clic para seleccionar y abrir el puerto USB/Serial de la ${nombreModelo}.`;
   }
 }
 
 async function ejecutarReporteXFiscalDirecto() {
   if (!window.fiscalDriver || !window.fiscalDriver.conectado) {
-    return mostrarAvisoFactura("Conecte la impresora fiscal Aclas PP9 Plus antes de solicitar el Reporte X.");
+    const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "Impresora Fiscal";
+    return mostrarAvisoFactura(`Conecte la ${nombreModelo} antes de solicitar el Reporte X.`);
   }
 
-  if (!confirm("¿Desea emitir el Reporte X (Corte Parcial) en la impresora fiscal Aclas PP9 Plus?")) return;
+  const nombreModelo = window.fiscalDriver.getNombreModelo();
+  if (!confirm(`¿Desea emitir el Reporte X (Corte Parcial) en la ${nombreModelo}?`)) return;
 
   try {
-    mostrarAvisoFactura("Emitiendo Reporte X Fiscal...");
+    mostrarAvisoFactura(`Emitiendo Reporte X en ${nombreModelo}...`);
     await window.fiscalDriver.imprimirReporteX();
     mostrarAvisoFactura("✅ Reporte X emitido exitosamente.");
   } catch (e) {
@@ -2327,7 +2353,7 @@ function obtenerDetalleFormaPagoFinal() {
   return formaSelect;
 }
 
-// EMITIR FACTURA (DUAL: FISCAL PP9 PLUS / NO FISCAL XP-80C)
+// EMITIR FACTURA (DUAL: FISCAL PP9 PLUS/HKA80 VS NO FISCAL XP-80C)
 async function emitirFacturaFinal() {
   if (!clienteFacturaActual) {
     return mostrarAvisoFactura("Debe buscar o registrar un cliente antes de emitir.");
@@ -2382,12 +2408,15 @@ async function emitirFacturaFinal() {
     };
 
     renderizarTicketTermicoHTML(datosFacturaPendiente);
-    if (btn) { btn.disabled = false; btn.textContent = modoFiscalActivo ? "🧾 Emitir Factura Fiscal (PP9)" : "🧾 Emitir Factura"; }
+
+    const modeloTag = window.fiscalDriver ? window.fiscalDriver.modelo : "Fiscal";
+    if (btn) { btn.disabled = false; btn.textContent = modoFiscalActivo ? `🧾 Emitir Factura Fiscal (${modeloTag})` : "🧾 Emitir Factura"; }
 
     const alertModal = document.getElementById('mensajeAlertaConfirmacionEmision');
     if (alertModal) {
+      const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "la impresora fiscal";
       alertModal.textContent = modoFiscalActivo 
-        ? "⚠️ ¿Está seguro de emitir esta FACTURA FISCAL en la Aclas PP9 Plus?" 
+        ? `⚠️ ¿Está seguro de emitir esta FACTURA FISCAL en ${nombreModelo}?` 
         : "¿Está seguro de que desea registrar y emitir esta factura de control interno?";
     }
 
@@ -2491,7 +2520,8 @@ function renderizarTicketTermicoHTML(d) {
       </div>`;
   }
 
-  const tipoEncabezado = d.modoFiscal ? "COMPROBANTE FISCAL PREVIO (ACLAS PP9)" : "COMPROBANTE NO FISCAL - NOTA DE ENTREGA";
+  const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "FISCAL";
+  const tipoEncabezado = d.modoFiscal ? `COMPROBANTE FISCAL PREVIO (${nombreModelo.toUpperCase()})` : "COMPROBANTE NO FISCAL - NOTA DE ENTREGA";
 
   const ticketHtml = `
     <div class="ticket-container shadow-sm border">
@@ -2592,12 +2622,13 @@ async function confirmarEImprimirFactura() {
     let numFacturaFiscalEmitida = null;
     const usuarioActivo = obtenerUsuarioActivo();
 
-    // 1. SI EL MODO FISCAL ESTÁ ACTIVADO: Transmitir a la Aclas PP9 Plus
+    // 1. SI EL MODO FISCAL ESTÁ ACTIVADO: Transmitir a la impresora fiscal seleccionada (HKA80 / PP9)
     if (datosFacturaPendiente.modoFiscal) {
+      const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "Fiscal";
       if (!window.fiscalDriver || !window.fiscalDriver.conectado) {
-        const intentarConectar = confirm("La impresora fiscal Aclas PP9 Plus no está conectada. ¿Desea conectarla ahora?");
+        const intentarConectar = confirm(`La impresora fiscal ${nombreModelo} no está conectada. ¿Desea conectarla ahora?`);
         if (intentarConectar) {
-          await window.fiscalDriver.solicitarYConectar(9600);
+          await window.fiscalDriver.solicitarYConectar();
         } else {
           if (btn) { btn.disabled = false; btn.textContent = "🖨️ Confirmar y Emitir"; }
           return;
@@ -4423,8 +4454,9 @@ async function procesarSiguienteCierreCaja() {
 
     const alertCierre = document.getElementById('mensajeConfirmacionCierreCaja');
     if (alertCierre) {
+      const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "la impresora fiscal";
       alertCierre.textContent = modoFiscalActivo 
-        ? "⚠️ ¿Está seguro de realizar el Cierre de Caja? Se emitirá el REPORTE Z OFICIAL en la Aclas PP9 Plus." 
+        ? `⚠️ ¿Está seguro de realizar el Cierre de Caja? Se emitirá el REPORTE Z OFICIAL en ${nombreModelo}.` 
         : "¿Está seguro de que desea realizar el cierre de caja?";
     }
 
@@ -4471,7 +4503,8 @@ function renderizarTicketCierreCajaHTML(d) {
     `;
   }
 
-  const tituloCierre = d.modoFiscal ? "REPORTE Z (CIERRE FISCAL ACLAS PP9)" : "COMPROBANTE DE CIERRE DE CAJA";
+  const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "FISCAL";
+  const tituloCierre = d.modoFiscal ? `REPORTE Z (CIERRE FISCAL ${nombreModelo.toUpperCase()})` : "COMPROBANTE DE CIERRE DE CAJA";
 
   const ticketHtml = `
     <div class="ticket-container shadow-sm border text-start">
@@ -4604,10 +4637,11 @@ async function confirmarEImprimirCierreCaja() {
     const d = datosCierreCajaPendiente;
     let numeroZGenerado = null;
 
-    // Si el modo fiscal está activo, emitir el Reporte Z oficial en la Aclas PP9 Plus
+    // Si el modo fiscal está activo, emitir el Reporte Z oficial en la impresora fiscal (HKA80 / PP9)
     if (d.modoFiscal && window.fiscalDriver && window.fiscalDriver.conectado) {
       try {
-        mostrarAvisoFactura("Transmitiendo Reporte Z a la impresora fiscal...");
+        const nombreModelo = window.fiscalDriver.getNombreModelo();
+        mostrarAvisoFactura(`Transmitiendo Reporte Z a ${nombreModelo}...`);
         const resZ = await window.fiscalDriver.imprimirReporteZ();
         numeroZGenerado = resZ.numeroZ;
       } catch (errFiscal) {
