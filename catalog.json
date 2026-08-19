@@ -11,7 +11,8 @@
           1,
           "unidades",
           0,
-          "0061"
+          "0061",
+          "E"
         ],
         [
           "COMBO EXPRESS",
@@ -21,7 +22,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "E"
         ],
         [
           "COMBO 2",
@@ -31,7 +33,8 @@
           1,
           "unidades",
           0,
-          "0062"
+          "0062",
+          "E"
         ],
         [
           "COMBO 3",
@@ -41,7 +44,8 @@
           1,
           "unidades",
           0,
-          "0063"
+          "0063",
+          "E"
         ],
         [
           "COMBO 4",
@@ -51,7 +55,8 @@
           1,
           "unidades",
           0,
-          "0064"
+          "0064",
+          "E"
         ],
         [
           "MIX",
@@ -61,7 +66,8 @@
           1,
           "unidades",
           0,
-          "0065"
+          "0065",
+          "E"
         ],
         [
           "MUNDOCARNES",
@@ -71,7 +77,8 @@
           1,
           "unidades",
           0,
-          "0077"
+          "0077",
+          "E"
         ],
         [
           "COMBO SEMANAL",
@@ -81,7 +88,8 @@
           1,
           "unidades",
           0,
-          "0069"
+          "0069",
+          "E"
         ],
         [
           "COMBO MEGA",
@@ -91,7 +99,8 @@
           1,
           "unidades",
           0,
-          "0066"
+          "0066",
+          "E"
         ],
         [
           "COMBO FULL",
@@ -101,7 +110,8 @@
           1,
           "unidades",
           0,
-          "0072"
+          "0072",
+          "E"
         ],
         [
           "PARRILLERO 1",
@@ -111,7 +121,8 @@
           1,
           "unidades",
           0,
-          "0067"
+          "0067",
+          "E"
         ],
         [
           "PARRILLERO 2",
@@ -121,7 +132,8 @@
           1,
           "unidades",
           0,
-          "0068"
+          "0068",
+          "E"
         ],
         [
           "CHICKEN 1",
@@ -131,7 +143,8 @@
           1,
           "unidades",
           0,
-          "0070"
+          "0070",
+          "E"
         ],
         [
           "CHICKEN 2",
@@ -141,7 +154,8 @@
           1,
           "unidades",
           0,
-          "0071"
+          "0071",
+          "E"
         ],
         [
           "DE TODITO",
@@ -151,7 +165,8 @@
           1,
           "unidades",
           0,
-          "0074"
+          "0074",
+          "E"
         ],
         [
           "CHARCUTERO 1",
@@ -161,7 +176,8 @@
           1,
           "unidades",
           0,
-          "0075"
+          "0075",
+          "G"
         ],
         [
           "CHARCUTERO 2",
@@ -171,7 +187,8 @@
           1,
           "unidades",
           0,
-          "0076"
+          "0076",
+          "G"
         ],
         [
           "CHARCUTERO 3",
@@ -181,7 +198,8 @@
           1,
           "unidades",
           0,
-          "0078"
+          "0078",
+          "G"
         ]
       ]
     },
@@ -196,7 +214,8 @@
           100,
           "gramos",
           0,
-          "0002"
+          "0002",
+          "E"
         ],
         [
           "MOLIDA",
@@ -206,7 +225,8 @@
           100,
           "gramos",
           0,
-          ""
+          "",
+          "E"
         ],
         [
           "GUISAR",
@@ -216,7 +236,8 @@
           100,
           "gramos",
           0,
-          ""
+          "",
+          "E"
         ],
         [
           "MECHAR",
@@ -226,7 +247,8 @@
           100,
           "gramos",
           0,
-          ""
+          "",
+          "E"
         ],
         [
           "SOLOMO DE CUERITO",
@@ -236,7 +258,8 @@
           100,
           "gramos",
           0,
-          "0003"
+          "0003",
+          "E"
         ],
         [
           "LOMITO",
@@ -246,7 +269,8 @@
           1,
           "mixto",
           2500,
-          "0025"
+          "0025",
+          "E"
         ],
         [
           "COSTILLA DE RES",
@@ -256,7 +280,8 @@
           100,
           "gramos",
           0,
-          "0021"
+          "0021",
+          "E"
         ],
         [
           "LAGARTO CON HUESO",
@@ -266,7 +291,8 @@
           100,
           "gramos",
           0,
-          "0022"
+          "0022",
+          "E"
         ],
         [
           "LAGARTO SIN HUESO",
@@ -276,7 +302,8 @@
           100,
           "gramos",
           0,
-          ""
+          "",
+          "E"
         ],
         [
           "HIGADO DE RES",
@@ -286,7 +313,8 @@
           100,
           "gramos",
           0,
-          "0023"
+          "0023",
+          "E"
         ],
         [
           "CHULETA AHUMADA",
@@ -296,7 +324,8 @@
           100,
           "gramos",
           0,
-          "0015"
+          "0015",
+          "G"
         ],
         [
           "CHULETA DE COCHINO",
@@ -306,7 +335,8 @@
           100,
           "gramos",
           0,
-          "0017"
+          "0017",
+          "E"
         ],
         [
           "COSTILLA DE COCHINO",
@@ -316,7 +346,8 @@
           100,
           "gramos",
           0,
-          "0019"
+          "0019",
+          "E"
         ],
         [
           "PUNTA TRASERA",
@@ -326,7 +357,8 @@
           250,
           "gramos",
           0,
-          "0001"
+          "0001",
+          "E"
         ],
         [
           "PATA DE RES",
@@ -336,7 +368,8 @@
           1,
           "unidades",
           0,
-          "0124"
+          "0124",
+          "E"
         ],
         [
           "RABO DE RES",
@@ -346,7 +379,8 @@
           1,
           "unidades",
           0,
-          "0149"
+          "0149",
+          "E"
         ],
         [
           "PANZA DE RES",
@@ -356,7 +390,8 @@
           250,
           "gramos",
           0,
-          "0026"
+          "0026",
+          "E"
         ]
       ]
     },
@@ -371,7 +406,8 @@
           1,
           "mixto",
           2000,
-          "0005"
+          "0005",
+          "E"
         ],
         [
           "PECHUGA C/H",
@@ -381,7 +417,8 @@
           300,
           "gramos",
           0,
-          "0014"
+          "0014",
+          "E"
         ],
         [
           "MILANESA",
@@ -391,7 +428,8 @@
           300,
           "gramos",
           0,
-          "0010"
+          "0010",
+          "E"
         ],
         [
           "CHURRASCO DE POLLO",
@@ -401,7 +439,8 @@
           300,
           "gramos",
           0,
-          "0150"
+          "0150",
+          "E"
         ],
         [
           "MUSLO",
@@ -411,7 +450,8 @@
           300,
           "gramos",
           0,
-          "0008"
+          "0008",
+          "E"
         ],
         [
           "POLLO PICADO",
@@ -421,7 +461,8 @@
           250,
           "gramos",
           0,
-          "0007"
+          "0007",
+          "E"
         ],
         [
           "ALAS",
@@ -431,7 +472,8 @@
           100,
           "gramos",
           0,
-          "0012"
+          "0012",
+          "E"
         ],
         [
           "MOLLEJAS",
@@ -441,7 +483,8 @@
           100,
           "gramos",
           0,
-          "0140"
+          "0140",
+          "E"
         ],
         [
           "HIGADO DE POLLO",
@@ -451,7 +494,8 @@
           100,
           "gramos",
           0,
-          "0050"
+          "0050",
+          "E"
         ],
         [
           "BOLSA DE MUSLO 5Kg",
@@ -461,7 +505,8 @@
           1,
           "mixto",
           5000,
-          ""
+          "",
+          "E"
         ],
         [
           "BOLSA DE MILANESA 5Kg",
@@ -471,7 +516,8 @@
           1,
           "mixto",
           5000,
-          ""
+          "",
+          "E"
         ],
         [
           "BOLSA DE ALAS 5Kg",
@@ -481,7 +527,8 @@
           1,
           "mixto",
           5000,
-          ""
+          "",
+          "E"
         ],
         [
           "BOLSA DE PECHUGA 5Kg",
@@ -491,7 +538,8 @@
           1,
           "mixto",
           5000,
-          ""
+          "",
+          "E"
         ],
         [
           "NUGGETS DE POLLO",
@@ -501,7 +549,8 @@
           250,
           "gramos",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "GRANJERO DE POLLO",
@@ -511,7 +560,8 @@
           250,
           "gramos",
           0,
-          "0011"
+          "0011",
+          "G"
         ]
       ]
     },
@@ -526,7 +576,8 @@
           100,
           "gramos",
           0,
-          "0035"
+          "0035",
+          "E"
         ],
         [
           "QUESO GUAYANES",
@@ -536,7 +587,8 @@
           100,
           "gramos",
           0,
-          "0138"
+          "0138",
+          "E"
         ],
         [
           "QUESO AMARILLO",
@@ -546,7 +598,8 @@
           100,
           "gramos",
           0,
-          "0033"
+          "0033",
+          "G"
         ],
         [
           "QUESO PAISA",
@@ -556,7 +609,8 @@
           100,
           "gramos",
           0,
-          "0034"
+          "0034",
+          "G"
         ],
         [
           "QUESO MOZZARELLA",
@@ -566,7 +620,8 @@
           100,
           "gramos",
           0,
-          "0037"
+          "0037",
+          "G"
         ],
         [
           "QUESO PECORINO",
@@ -576,7 +631,8 @@
           100,
           "gramos",
           0,
-          "0031"
+          "0031",
+          "G"
         ],
         [
           "QUESO QUAJADA",
@@ -586,7 +642,8 @@
           100,
           "gramos",
           0,
-          "0139"
+          "0139",
+          "E"
         ],
         [
           "JAMON DE PIERNA",
@@ -596,7 +653,8 @@
           100,
           "gramos",
           0,
-          "0038"
+          "0038",
+          "G"
         ],
         [
           "JAMON DE PAVO",
@@ -606,7 +664,8 @@
           100,
           "gramos",
           0,
-          "0039"
+          "0039",
+          "G"
         ],
         [
           "RECORTES DE CHULETA AHUMADA",
@@ -616,7 +675,8 @@
           100,
           "gramos",
           0,
-          "0020"
+          "0020",
+          "G"
         ],
         [
           "RECORTES DE CHACUTERIA",
@@ -626,7 +686,8 @@
           100,
           "gramos",
           0,
-          "0048"
+          "0048",
+          "G"
         ],
         [
           "SALCHICHA DE POLLO",
@@ -636,7 +697,8 @@
           100,
           "gramos",
           0,
-          "0044"
+          "0044",
+          "G"
         ],
         [
           "SALCHICHA POLACA",
@@ -646,7 +708,8 @@
           100,
           "gramos",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "CHORIZOS (ahumado, ajo, picante)",
@@ -656,7 +719,8 @@
           100,
           "gramos",
           0,
-          "0042"
+          "0042",
+          "G"
         ],
         [
           "MORCILLAS",
@@ -666,7 +730,8 @@
           100,
           "gramos",
           0,
-          "0047"
+          "0047",
+          "G"
         ],
         [
           "MORTADELA DON RAMÓN 400g",
@@ -676,7 +741,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "MORTADELA DON RAMÓN 600g",
@@ -686,7 +752,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "MORTADELA DON RAMÓN 1kg",
@@ -696,7 +763,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "MORTADELA PUNTA DE MONTE 500g",
@@ -706,7 +774,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "MORTADELA PUNTA DE MONTE 1Kg",
@@ -716,7 +785,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "MORTADELA ESPECIAL AHUMADA BIGCERDY",
@@ -726,7 +796,8 @@
           100,
           "gramos",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "SUERO LA CASONA",
@@ -736,7 +807,8 @@
           1,
           "unidades",
           0,
-          "00137"
+          "00137",
+          "G"
         ],
         [
           "SUERO DIVINA PASTORA",
@@ -746,7 +818,8 @@
           1,
           "unidades",
           0,
-          "00137"
+          "00137",
+          "G"
         ],
         [
           "CREMA DE LECHE AGUA LINDA 500g",
@@ -756,7 +829,8 @@
           250,
           "gramos",
           0,
-          ""
+          "",
+          "G"
         ]
       ]
     },
@@ -771,7 +845,8 @@
           1,
           "unidades",
           0,
-          "0060"
+          "0060",
+          "E"
         ],
         [
           "HARINA P.A.M",
@@ -781,7 +856,8 @@
           1,
           "unidades",
           0,
-          "0136"
+          "0136",
+          "E"
         ],
         [
           "HARINA DE TRIGO BLANCA FLOR 1KG",
@@ -791,7 +867,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "E"
         ],
         [
           "ARROZ MARY PREMIUM",
@@ -801,7 +878,8 @@
           1,
           "unidades",
           0,
-          "100"
+          "100",
+          "E"
         ],
         [
           "ARROZ MARY ESMERALDA",
@@ -811,7 +889,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "E"
         ],
         [
           "ARROZ TRADICIONAL AGUA BLANCA",
@@ -821,7 +900,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "E"
         ],
         [
           "PASTA CORTA RONCO RIGATON 500g",
@@ -831,7 +911,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "E"
         ],
         [
           "PASTA CORTA RONCO TORNILLO 500g",
@@ -841,7 +922,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "E"
         ],
         [
           "PASTA CORTA RONCO CARACOL 500g",
@@ -851,7 +933,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "E"
         ],
         [
           "CAFE LA PROTECTORA 200g",
@@ -861,7 +944,8 @@
           1,
           "unidades",
           0,
-          "0112"
+          "0112",
+          "G"
         ],
         [
           "CAFE FLOR DE ARAUCA 200G",
@@ -871,7 +955,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "ACEITE VATEL 1L",
@@ -881,7 +966,8 @@
           1,
           "unidades",
           0,
-          "0106"
+          "0106",
+          "G"
         ],
         [
           "ACEITE LA COMADRE 828ml",
@@ -891,7 +977,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "MAVESA MARGARINA TODO USO 500g",
@@ -901,7 +988,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "MARGARINA NELLY 250g",
@@ -911,7 +999,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "MAYONESA KRAFT 198g",
@@ -921,7 +1010,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "MAYONESA KRAFT 445g",
@@ -931,7 +1021,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "MAYONESA MAVESA 198g",
@@ -941,7 +1032,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "MAYONESA MAVESA 445g",
@@ -951,7 +1043,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "GUT AJO, CEBOLLA Y PEREJIL",
@@ -961,7 +1054,8 @@
           1,
           "unidades",
           0,
-          "0141"
+          "0141",
+          "G"
         ],
         [
           "GUT CALDO DE CARNE",
@@ -971,7 +1065,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "GUT CALDO DE POLLO",
@@ -981,7 +1076,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "GUT SABROSEADOR",
@@ -991,7 +1087,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "GUT SALSA PARA PASTA",
@@ -1001,7 +1098,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "SALSA DE TOMATE HEIZ 198g",
@@ -1011,7 +1109,8 @@
           1,
           "unidades",
           0,
-          "0085"
+          "0085",
+          "G"
         ],
         [
           "SALSA DE TOMATE PAMPERO 397g",
@@ -1021,7 +1120,8 @@
           1,
           "unidades",
           0,
-          "0086"
+          "0086",
+          "G"
         ],
         [
           "MOSTAZA EUREKA 285g",
@@ -1031,7 +1131,8 @@
           1,
           "unidades",
           0,
-          "0087"
+          "0087",
+          "G"
         ],
         [
           "Papel Higienico Rosal Plus 4 Rollos",
@@ -1041,7 +1142,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "7up 2L",
@@ -1051,7 +1153,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "CHINOTTO 1.5 LITROS",
@@ -1061,7 +1164,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "COCA COLA 1.5 LITROS",
@@ -1071,7 +1175,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "COCA COLA 2 LITROS",
@@ -1081,7 +1186,8 @@
           1,
           "unidades",
           0,
-          "0132"
+          "0132",
+          "G"
         ],
         [
           "CORN FAKES KELLOGG´S 230G",
@@ -1091,7 +1197,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "CEREAL KELLOGG´S ZUCARITAS 250g",
@@ -1101,7 +1208,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "FIPS CHOCOLATE 220G",
@@ -1111,7 +1219,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "CEREAL MAIZORITOS FRUTI AROS 250g",
@@ -1121,7 +1230,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "CEREAL MAIZORITOS CHOCO SAFARI 240Gr",
@@ -1131,7 +1241,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "GALLETAS BELVITA HONY 9 UNIDADES",
@@ -1141,7 +1252,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "GALLETAS BELVITA KRAKER 9 UNIDADES",
@@ -1151,7 +1263,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "GALLETAS CLUB SOCIAL 6 UNIDADES",
@@ -1161,7 +1274,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "TRIPAC DE SALSAS (SOYA, AJO, INGLESA) 150cm",
@@ -1171,7 +1285,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "MASA FACIL FROZEN 1kg",
@@ -1181,7 +1296,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "MASA FACIL FROZEN 500g",
@@ -1191,7 +1307,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ],
         [
           "CARBON PARA PARRILLA BOLSA TRANSPARENTE",
@@ -1201,7 +1318,8 @@
           1,
           "unidades",
           0,
-          ""
+          "",
+          "G"
         ]
       ]
     }
