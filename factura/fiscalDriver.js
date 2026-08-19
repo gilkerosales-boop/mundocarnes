@@ -1,7 +1,8 @@
 /* ==========================================================================
    Driver Fiscal Universal JS - The Factory HKA (TFHKA Venezuela)
-   Protocolo Directo Estricto: STX (0x02) + DATA + ETX (0x03) + LRC (Checksum XOR)
-   Control de Flujo DTR/RTS, Handshake ACK/NAK y Soporte Dual HKA80 / Aclas PP9
+   Protocolo Directo Estricto: STX (0x02) + CMD + ETX (0x03) + LRC (Checksum XOR)
+   Comandos de Tasa: ' ' (Exento 0%), '!' (General 16%), '"' (Reducido 8%)
+   Soporte Universal: The Factory HKA80 y Aclas PP9 Plus
    ========================================================================== */
 
 class FiscalDriverTFHKA {
@@ -25,7 +26,6 @@ class FiscalDriverTFHKA {
   }
 
   obtenerBaudRatePorDefecto() {
-    // HKA80 y PP9 Plus operan estándar a 9600 o 19200 bps
     return 9600;
   }
 
@@ -67,7 +67,7 @@ class FiscalDriverTFHKA {
       await this.abrirPuerto();
       this.conectado = true;
 
-      // Verificar respuesta inmediata con Status S1
+      // Verificar comunicación inmediata con Status S1
       const st = await this.consultarEstado();
       this.notificarEstado("CONECTADO", `Impresora fiscal ${this.getNombreModelo()} conectada y lista.`, st);
       return true;
@@ -112,7 +112,7 @@ class FiscalDriverTFHKA {
         flowControl: "none"
       });
 
-      // Activar señales DTR y RTS requeridas por las placas TFHKA
+      // Activar señales DTR y RTS requeridas por las placas fiscales TFHKA
       try {
         await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
       } catch (e) {}
@@ -144,7 +144,7 @@ class FiscalDriverTFHKA {
   }
 
   // ========================================================================
-  // CONSTRUCTOR DE TRAMA OFICIAL THE FACTORY HKA: STX + DATA + ETX + LRC
+  // CONSTRUCTOR DE TRAMA DIRECTA TFHKA: STX (0x02) + DATA + ETX (0x03) + LRC
   // ========================================================================
   construirTrama(comandoStr) {
     const encoder = new TextEncoder();
@@ -166,7 +166,7 @@ class FiscalDriverTFHKA {
     return trama;
   }
 
-  // Enviar comando empaquetado y esperar acuse de recibo (ACK = 0x06 / NAK = 0x15)
+  // Enviar comando empaquetado y esperar acuse de recibo
   async enviarComando(comandoStr, esperaRespuestaData = false) {
     if (!this.conectado || !this.port || !this.port.writable) {
       throw new Error(`La impresora fiscal ${this.getNombreModelo()} no está conectada.`);
@@ -182,8 +182,8 @@ class FiscalDriverTFHKA {
       this.writer.releaseLock();
       this.writer = null;
 
-      // 3. Pequeña pausa de procesamiento de hardware
-      await new Promise(r => setTimeout(r, 60));
+      // 3. Pausa de procesamiento de hardware entre comandos
+      await new Promise(r => setTimeout(r, 80));
 
       // 4. Leer respuesta de la placa fiscal
       const respuesta = await this.leerRespuesta(esperaRespuestaData);
@@ -226,14 +226,13 @@ class FiscalDriverTFHKA {
           break;
         }
 
-        // Caso 2: La impresora respondió con NAK (0x15 = Error de sintaxis o estado)
+        // Caso 2: La impresora respondió con NAK (0x15)
         if (bytesAcumulados.includes(0x15)) {
           throw new Error("La impresora fiscal devolvió NAK (Comando rechazado o estado inválido).");
         }
 
         // Caso 3: Respuesta con trama completa (STX ... ETX + LRC)
         if (bytesAcumulados.includes(0x02) && bytesAcumulados.includes(0x03) && bytesAcumulados.length >= 4) {
-          // Responder con ACK al recibir la lectura como exige el protocolo TFHKA
           break;
         }
       }
@@ -276,13 +275,13 @@ class FiscalDriverTFHKA {
     return limpio.substring(0, maxLen);
   }
 
-  // Formato: 8 enteros + 2 decimales = 10 dígitos (Ej: 12.50 -> 0000001250)
+  // Formato: 8 enteros + 2 decimales = 10 dígitos (Ej: 20.00 -> 0000002000)
   formatearPrecioFiscal(precioFloat) {
     const valor = Math.round((parseFloat(precioFloat) || 0) * 100);
     return String(valor).padStart(10, '0');
   }
 
-  // Formato: 5 enteros + 3 decimales = 8 dígitos (Ej: 1.500 kg -> 00001500, 1 ud -> 00001000)
+  // Formato: 5 enteros + 3 decimales = 8 dígitos (Ej: 1.000 ud -> 00001000, 1.500 kg -> 00001500)
   formatearCantidadFiscal(cantFloat, unidad = "unidades") {
     let valor = 0;
     if (unidad === "gramos" || unidad === "mixto") {
@@ -324,7 +323,7 @@ class FiscalDriverTFHKA {
     return await this.enviarComando("7");
   }
 
-  // 3. Emitir Factura Fiscal Completa
+  // 3. Emitir Factura Fiscal Completa con Comandos de Renglón TFHKA (' ', '!', '"')
   async emitirFacturaFiscal(datosFactura) {
     if (!this.conectado) {
       throw new Error(`No hay conexión activa con la impresora fiscal ${this.getNombreModelo()}.`);
@@ -334,6 +333,9 @@ class FiscalDriverTFHKA {
       cliente,
       items,
       formaPago,
+      desglosePagos,
+      totalUSD,
+      totalBs,
       tasaBCV,
       monedaVistaModal
     } = datosFactura;
@@ -349,11 +351,7 @@ class FiscalDriverTFHKA {
     this.notificarEstado("EMITIENDO", `Transmitiendo factura fiscal a ${this.getNombreModelo()}...`);
 
     try {
-      // PASO A: Limpieza de estado previo por seguridad
-      try { await this.cancelarDocumento(); } catch (e) {}
-      await new Promise(r => setTimeout(r, 100));
-
-      // PASO B: Encabezado del Cliente
+      // PASO A: Encabezado de Datos del Cliente (Comandos i01 - i04)
       const nombreCliente = this.sanitizarTexto(cliente.nombre, 38);
       const cedulaCliente = this.sanitizarTexto(cliente.cedula, 20);
       const direccionCliente = this.sanitizarTexto(cliente.direccion || "CARACAS", 38);
@@ -364,16 +362,18 @@ class FiscalDriverTFHKA {
       if (direccionCliente) await this.enviarComando(`i03${direccionCliente}`);
       if (telefonoCliente) await this.enviarComando(`i04${telefonoCliente}`);
 
-      // PASO C: Renglones de Venta con Formateo Estricto de IVA
-      // Comandos TFHKA: d0 = Exento (0%), d1 = General (16%), d2 = Reducido (8%)
+      // PASO B: Renglones de Venta con Formato Estricto TFHKA:
+      // Exento (0%): Carácter ' ' (Espacio 0x20)
+      // Tasa General (16%): Carácter '!' (0x21)
+      // Tasa Reducida (8%): Carácter '"' (0x22)
       for (let nombreProd in items) {
         const item = items[nombreProd];
         const descProd = this.sanitizarTexto(nombreProd, 35);
 
         const tasaIVA = (item.tasaIVA || "E").toUpperCase();
-        let cmdTasa = "d0"; // Exento
-        if (tasaIVA === "G" || tasaIVA === "16") cmdTasa = "d1";
-        else if (tasaIVA === "R" || tasaIVA === "8") cmdTasa = "d2";
+        let cmdTasaChar = " "; // Exento (espacio) por defecto
+        if (tasaIVA === "G" || tasaIVA === "16") cmdTasaChar = "!";
+        else if (tasaIVA === "R" || tasaIVA === "8") cmdTasaChar = '"';
 
         let precioBase = parseFloat(item.precioBase) || 0;
         let cantidadNumerica = item.cantNumerica || 1;
@@ -385,30 +385,36 @@ class FiscalDriverTFHKA {
         const strPrecio = this.formatearPrecioFiscal(precioBase);
         const strCantidad = this.formatearCantidadFiscal(cantidadNumerica, item.unidad);
 
-        const tramaRenglon = `${cmdTasa}${strPrecio}${strCantidad}${descProd}`;
+        // Estructura oficial: STX + [Carácter Tasa] + [Precio 10d] + [Cantidad 8d] + [Descripción] + ETX + LRC
+        const tramaRenglon = `${cmdTasaChar}${strPrecio}${strCantidad}${descProd}`;
         await this.enviarComando(tramaRenglon);
       }
 
-      // PASO D: Medios de Pago y Cierre de Factura
-      // En protocolo directo TFHKA: 101 sin monto paga la totalidad en Efectivo y totaliza
-      let cmdMedioPago = "101"; // Efectivo por defecto
+      // PASO C: Formas de Pago y Cierre Oficial (Comandos 101 - 120 + 199)
+      const montoCobrar = (monedaVistaModal === "BS") ? totalBs : totalUSD;
+      const strMontoPago = this.formatearPrecioFiscal(montoCobrar);
+
+      let cmdCodigoPago = "101"; // Efectivo por defecto
       const formaStr = String(formaPago || "").toUpperCase();
 
       if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO")) {
-        cmdMedioPago = "109"; // Tarjeta de Débito
+        cmdCodigoPago = "109"; // Tarjeta Débito
       } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
-        cmdMedioPago = "114"; // Tarjeta de Crédito
+        cmdCodigoPago = "114"; // Tarjeta Crédito
       } else if (formaStr.includes("PAGO MOVIL") || formaStr.includes("TRANSFERENCIA") || formaStr.includes("BIOPAGO")) {
-        cmdMedioPago = "120"; // Otros medios
+        cmdCodigoPago = "120"; // Otros medios
       }
 
-      // Envío de medio de pago y totalización
-      await this.enviarComando(cmdMedioPago);
+      // Enviar medio de pago con el monto total exacto
+      await this.enviarComando(`${cmdCodigoPago}${strMontoPago}`);
 
-      // Esperar brevemente que la impresora termine el corte de papel
-      await new Promise(r => setTimeout(r, 400));
+      // Comando de totalización y corte de papel (Comando 199)
+      await this.enviarComando("199");
 
-      // PASO E: Capturar Número de Factura Fiscal Impreso
+      // Esperar brevemente a que el hardware termine el corte físico
+      await new Promise(r => setTimeout(r, 600));
+
+      // PASO D: Capturar Número de Factura Fiscal Impreso
       const statusFinal = await this.consultarEstado();
       const numFacturaFiscal = statusFinal.ultimaFactura || `FAC-${Date.now().toString().slice(-6)}`;
       this.ultimoNumeroFactura = numFacturaFiscal;
@@ -445,7 +451,7 @@ class FiscalDriverTFHKA {
     this.notificarEstado("IMPRIMIENDO_Z", `Imprimiendo Reporte Z oficial en ${this.getNombreModelo()}...`);
     const resp = await this.enviarComando("I0Z");
 
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 800));
     const status = await this.consultarEstado();
     this.ultimoNumeroZ = status.ultimaFactura || null;
 
