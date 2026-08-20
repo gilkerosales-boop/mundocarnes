@@ -4435,12 +4435,12 @@ async function procesarSiguienteCierreCaja() {
       listaFacturasFiscales: []
     };
 
-    // 3. Obtener ventas combinando IndexedDB y Supabase con deduplicación
+    // 3. Obtener ventas combinando IndexedDB y Supabase conservando TODAS las columnas de desglose
     let mapVentasHoy = {};
     const ventasLocales = await dbGetAll("ventas");
     if (Array.isArray(ventasLocales)) {
       ventasLocales.forEach(v => {
-        if (v && v.numFactura) mapVentasHoy[String(v.numFactura)] = v;
+        if (v && v.numFactura) mapVentasHoy[String(v.numFactura)] = { ...v };
       });
     }
 
@@ -4452,13 +4452,24 @@ async function procesarSiguienteCierreCaja() {
             let numFac = v.FACTURA || v["FACTURA N°"] || v.numFactura;
             if (numFac) {
               mapVentasHoy[String(numFac)] = {
+                ...v,
                 numFactura: String(numFac),
                 fechaStr: v["FECHA"] || v.fechaStr || "",
                 montoTotalUSD: parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0,
                 formaPagoStr: v["FORMA DE PAGO"] || v.formaPagoStr || "",
                 productosSummary: v["PRODUCTOS"] || v.productosSummary || "",
                 usuario: usuario,
-                esFiscal: Boolean(String(v["FORMA DE PAGO"] || "").includes("FISCAL") || v.esFiscal)
+                esFiscal: Boolean(String(v["FORMA DE PAGO"] || "").includes("FISCAL") || v.esFiscal),
+                "EFECTIVO DIVISAS": v["EFECTIVO DIVISAS"],
+                "EFECTIVO BOLIVARES": v["EFECTIVO BOLIVARES"],
+                "PAGO MOVIL": v["PAGO MOVIL"],
+                "ZELLE": v["ZELLE"],
+                "PAYPAL": v["PAYPAL"],
+                "CASHEA": v["CASHEA"],
+                "CREDITO": v["CREDITO"],
+                "PUNTO DE VENTA": v["PUNTO DE VENTA"],
+                "TRANSFERENCIA": v["TRANSFERENCIA"] || v["TRANSFERECIA"],
+                "BIOPAGO": v["BIOPAGO"]
               };
             }
           });
@@ -4473,7 +4484,7 @@ async function procesarSiguienteCierreCaja() {
     const hoyMes = hoy.getMonth();
     const hoyAnio = hoy.getFullYear();
 
-    // 4. Procesar ventas de hoy separando las Fiscales de las No Fiscales
+    // 4. Procesar ventas de hoy
     Object.values(mapVentasHoy).forEach(v => {
       const fStr = String(v["FECHA"] || v.fechaStr || "");
       const ts = parsearFechaTimestamp(fStr);
@@ -4493,22 +4504,24 @@ async function procesarSiguienteCierreCaja() {
         const numFac = String(v.FACTURA || v.numFactura || "");
         const esFiscal = Boolean(v.esFiscal || formaStr.includes("FISCAL") || numFac.startsWith("FAC-") || /^\d{8}$/.test(numFac));
         const totalVentaUSD = parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0;
-        const totalVentaBS = totalVentaUSD * factorTasa;
 
-        let evUSD = parseFloat(v["EFECTIVO DIVISAS"]) || 0;
-        let evBS = parseFloat(v["EFECTIVO BOLIVARES"]) || 0;
-        let pmBS = parseFloat(v["PAGO MOVIL"]) || 0;
-        let zUSD = parseFloat(v["ZELLE"]) || 0;
-        let ppUSD = parseFloat(v["PAYPAL"]) || 0;
-        let cUSD = parseFloat(v["CASHEA"]) || 0;
-        let crUSD = parseFloat(v["CREDITO"]) || 0;
-        let pvBS = parseFloat(v["PUNTO DE VENTA"]) || 0;
-        let trBS = parseFloat(v["TRANSFERENCIA"]) || 0;
-        let bioBS = parseFloat(v["BIOPAGO"]) || 0;
+        let evUSD = parseFloat(v["EFECTIVO DIVISAS"] || v.efectivoDivisas) || 0;
+        let evBS = parseFloat(v["EFECTIVO BOLIVARES"] || v.efectivoBolivares) || 0;
+        let pmBS = parseFloat(v["PAGO MOVIL"] || v.pagoMovil) || 0;
+        let zUSD = parseFloat(v["ZELLE"] || v.zelle) || 0;
+        let ppUSD = parseFloat(v["PAYPAL"] || v.paypal) || 0;
+        let cUSD = parseFloat(v["CASHEA"] || v.cashea) || 0;
+        let crUSD = parseFloat(v["CREDITO"] || v.credito) || 0;
+        let pvBS = parseFloat(v["PUNTO DE VENTA"] || v.puntoDeVenta) || 0;
+        let trBS = parseFloat(v["TRANSFERENCIA"] || v["TRANSFERECIA"] || v.transferencia) || 0;
+        let bioBS = parseFloat(v["BIOPAGO"] || v.biopago) || 0;
 
         let sumaDesglose = evUSD + zUSD + ppUSD + cUSD + crUSD + evBS + pmBS + pvBS + trBS + bioBS;
 
-        // A. Acumular en Resumen General (Control Interno - Todas)
+        // Sumar al Gran Total Real del Día
+        resumenGeneral.totalGeneralVentasUSD += totalVentaUSD;
+
+        // A. Acumular Desglose en Resumen General
         if (sumaDesglose > 0) {
           resumenGeneral.ventasEfectivoUSD += evUSD;
           resumenGeneral.ventasEfectivoBS += evBS;
@@ -4521,37 +4534,38 @@ async function procesarSiguienteCierreCaja() {
           resumenGeneral.ventasTransferencia += trBS;
           resumenGeneral.ventasBiopago += bioBS;
         } else {
-          if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO")) {
-            resumenGeneral.ventasPuntoVenta += totalVentaBS;
+          // Fallback por texto si no existiera desglose numérico
+          if (formaStr.includes("CASHEA")) {
+            resumenGeneral.ventasCashea += totalVentaUSD;
+          } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
+            resumenGeneral.ventasCredito += totalVentaUSD;
+          } else if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO")) {
+            resumenGeneral.ventasPuntoVenta += (totalVentaUSD * factorTasa);
           } else if (formaStr.includes("PAGO MOVIL") || formaStr.includes("PAGO MÓVIL")) {
-            resumenGeneral.ventasPagoMovil += totalVentaBS;
+            resumenGeneral.ventasPagoMovil += (totalVentaUSD * factorTasa);
           } else if (formaStr.includes("EFECTIVO BOLIVARES") || formaStr.includes("BOLÍVARES")) {
-            resumenGeneral.ventasEfectivoBS += totalVentaBS;
+            resumenGeneral.ventasEfectivoBS += (totalVentaUSD * factorTasa);
           } else if (formaStr.includes("DIVISAS") || formaStr.includes("DOLARES")) {
             resumenGeneral.ventasEfectivoUSD += totalVentaUSD;
           } else if (formaStr.includes("ZELLE")) {
             resumenGeneral.ventasZelle += totalVentaUSD;
           } else if (formaStr.includes("PAYPAL")) {
             resumenGeneral.ventasPayPal += totalVentaUSD;
-          } else if (formaStr.includes("CASHEA")) {
-            resumenGeneral.ventasCashea += totalVentaUSD;
-          } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
-            resumenGeneral.ventasCredito += totalVentaUSD;
           } else if (formaStr.includes("BIOPAGO")) {
-            resumenGeneral.ventasBiopago += totalVentaBS;
+            resumenGeneral.ventasBiopago += (totalVentaUSD * factorTasa);
           } else if (formaStr.includes("TRANSFERENCIA")) {
-            resumenGeneral.ventasTransferencia += totalVentaBS;
+            resumenGeneral.ventasTransferencia += (totalVentaUSD * factorTasa);
           } else {
             resumenGeneral.ventasEfectivoUSD += totalVentaUSD;
           }
         }
 
-        // B. Acumular ÚNICAMENTE en Resumen Fiscal si la venta fue emitida por la impresora fiscal
+        // B. Acumular ÚNICAMENTE en Resumen Fiscal si es venta fiscal
         if (esFiscal) {
           resumenFiscal.cantFacturasFiscales++;
           resumenFiscal.listaFacturasFiscales.push(numFac);
           resumenFiscal.totalFiscalUSD += totalVentaUSD;
-          resumenFiscal.totalFiscalBS += totalVentaBS;
+          resumenFiscal.totalFiscalBS += (totalVentaUSD * factorTasa);
 
           if (sumaDesglose > 0) {
             resumenFiscal.ventasEfectivoUSD += evUSD;
@@ -4566,11 +4580,11 @@ async function procesarSiguienteCierreCaja() {
             resumenFiscal.ventasBiopago += bioBS;
           } else {
             if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO")) {
-              resumenFiscal.ventasPuntoVenta += totalVentaBS;
+              resumenFiscal.ventasPuntoVenta += (totalVentaUSD * factorTasa);
             } else if (formaStr.includes("PAGO MOVIL") || formaStr.includes("PAGO MÓVIL")) {
-              resumenFiscal.ventasPagoMovil += totalVentaBS;
+              resumenFiscal.ventasPagoMovil += (totalVentaUSD * factorTasa);
             } else if (formaStr.includes("EFECTIVO BOLIVARES") || formaStr.includes("BOLÍVARES")) {
-              resumenFiscal.ventasEfectivoBS += totalVentaBS;
+              resumenFiscal.ventasEfectivoBS += (totalVentaUSD * factorTasa);
             } else if (formaStr.includes("DIVISAS") || formaStr.includes("DOLARES")) {
               resumenFiscal.ventasEfectivoUSD += totalVentaUSD;
             } else if (formaStr.includes("ZELLE")) {
@@ -4582,9 +4596,9 @@ async function procesarSiguienteCierreCaja() {
             } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
               resumenFiscal.ventasCredito += totalVentaUSD;
             } else if (formaStr.includes("BIOPAGO")) {
-              resumenFiscal.ventasBiopago += totalVentaBS;
+              resumenFiscal.ventasBiopago += (totalVentaUSD * factorTasa);
             } else if (formaStr.includes("TRANSFERENCIA")) {
-              resumenFiscal.ventasTransferencia += totalVentaBS;
+              resumenFiscal.ventasTransferencia += (totalVentaUSD * factorTasa);
             } else {
               resumenFiscal.ventasEfectivoUSD += totalVentaUSD;
             }
@@ -4592,6 +4606,9 @@ async function procesarSiguienteCierreCaja() {
         }
       }
     });
+
+    // Gran Total del Día en Bolívares equivalente
+    resumenGeneral.totalGeneralVentasBS = resumenGeneral.totalGeneralVentasUSD * factorTasa;
 
     // Rango de Facturas Fiscales
     if (resumenFiscal.listaFacturasFiscales.length > 0) {
@@ -4615,9 +4632,6 @@ async function procesarSiguienteCierreCaja() {
         else if (m.tipo === "RETIRO") retirosBS += m.monto;
       }
     });
-
-    resumenGeneral.totalGeneralVentasUSD = resumenGeneral.ventasEfectivoUSD + resumenGeneral.ventasZelle + resumenGeneral.ventasPayPal + resumenGeneral.ventasCashea;
-    resumenGeneral.totalGeneralVentasBS = resumenGeneral.ventasEfectivoBS + resumenGeneral.ventasPagoMovil + resumenGeneral.ventasPuntoVenta + resumenGeneral.ventasBiopago + resumenGeneral.ventasTransferencia;
 
     // Arqueo físico de gaveta real
     const totalCajaUSD = inicialUSD + resumenGeneral.ventasEfectivoUSD + ingresosUSD - retirosUSD;
