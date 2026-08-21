@@ -3896,10 +3896,12 @@ async function ejecutarDescargaExcelFacturas() {
   }
 }
 
-// MOVIMIENTOS DE EFECTIVO PERSISTENTES
+// MOVIMIENTOS DE EFECTIVO PERSISTENTES AISLADOS POR USUARIO
 function cargarMovimientosEfectivoPersistentes() {
   const hoy = new Date().toISOString().split('T')[0];
-  const guardado = localStorage.getItem("movimientos_efectivo_" + hoy);
+  const usuario = obtenerUsuarioActivo();
+  const claveMov = `movimientos_efectivo_${usuario}_${hoy}`;
+  const guardado = localStorage.getItem(claveMov);
   if (guardado) {
     try {
       listaMovimientosEfectivo = JSON.parse(guardado) || [];
@@ -4054,7 +4056,8 @@ async function registrarMovimientoEfectivo() {
   await dbPut("movimientos", nuevoMov);
 
   const hoy = new Date().toISOString().split('T')[0];
-  localStorage.setItem("movimientos_efectivo_" + hoy, JSON.stringify(listaMovimientosEfectivo));
+  const usuario = obtenerUsuarioActivo();
+  localStorage.setItem(`movimientos_efectivo_${usuario}_${hoy}`, JSON.stringify(listaMovimientosEfectivo));
 
   document.getElementById('movMontoInput').value = "";
   document.getElementById('movConceptoInput').value = "";
@@ -4184,7 +4187,8 @@ function eliminarMovimientoEfectivo(index) {
     listaMovimientosEfectivo.splice(index, 1);
 
     const hoy = new Date().toISOString().split('T')[0];
-    localStorage.setItem("movimientos_efectivo_" + hoy, JSON.stringify(listaMovimientosEfectivo));
+    const usuario = obtenerUsuarioActivo();
+    localStorage.setItem(`movimientos_efectivo_${usuario}_${hoy}`, JSON.stringify(listaMovimientosEfectivo));
 
     renderizarTablaMovimientosDia();
     mostrarAvisoFactura(`🗑️ Movimiento de ${mov.tipo} (${mov.moneda}) eliminado.`);
@@ -4410,21 +4414,22 @@ async function procesarSiguienteCierreCaja() {
   }));
 
   btn.disabled = true;
-  btn.textContent = "Calculando ventas del día...";
+  btn.textContent = "Calculando ventas del usuario...";
 
   try {
     const tasa = obtenerTasaBCV();
     const factorTasa = tasa > 0 ? tasa : 1;
 
-    // 1. Acumuladores de Control Interno General (100% de las ventas del día)
+    // 1. Acumuladores de Control Interno (Discriminación Estricta por Moneda de Origen)
     let resumenGeneral = {
       ventasEfectivoUSD: 0, ventasEfectivoBS: 0, ventasPagoMovil: 0,
       ventasZelle: 0, ventasPayPal: 0, ventasCashea: 0, ventasCredito: 0,
       ventasPuntoVenta: 0, ventasTransferencia: 0, ventasBiopago: 0,
-      totalGeneralVentasUSD: 0, totalGeneralVentasBS: 0
+      totalGeneralVentasUSD: 0, // Suma exclusiva: Efectivo Divisas + Zelle + PayPal + Cashea
+      totalGeneralVentasBS: 0   // Suma exclusiva: Efectivo Bs + Pago Móvil + Punto de Venta + Biopago + Transferencia
     };
 
-    // 2. Acumuladores Fiscales Exclusivos (Únicamente ventas enviadas a la HKA80)
+    // 2. Acumuladores Fiscales Exclusivos (Únicamente ventas HKA80 del usuario)
     let resumenFiscal = {
       ventasEfectivoUSD: 0, ventasEfectivoBS: 0, ventasPagoMovil: 0,
       ventasZelle: 0, ventasPayPal: 0, ventasCashea: 0, ventasCredito: 0,
@@ -4435,12 +4440,18 @@ async function procesarSiguienteCierreCaja() {
       listaFacturasFiscales: []
     };
 
-    // 3. Obtener ventas combinando IndexedDB y Supabase conservando TODAS las columnas de desglose
+    // 3. Obtener ventas filtrando ESTRICTAMENTE por el usuario activo
     let mapVentasHoy = {};
     const ventasLocales = await dbGetAll("ventas");
     if (Array.isArray(ventasLocales)) {
       ventasLocales.forEach(v => {
-        if (v && v.numFactura) mapVentasHoy[String(v.numFactura)] = { ...v };
+        if (v && v.numFactura) {
+          const userFila = normalizarUsuario(v.usuario);
+          // Aislamiento total: solo incluir si pertenece al usuario activo de la sesión
+          if (userFila === usuario) {
+            mapVentasHoy[String(v.numFactura)] = { ...v };
+          }
+        }
       });
     }
 
@@ -4484,7 +4495,7 @@ async function procesarSiguienteCierreCaja() {
     const hoyMes = hoy.getMonth();
     const hoyAnio = hoy.getFullYear();
 
-    // 4. Procesar ventas de hoy
+    // 4. Procesar ventas de hoy del usuario activo
     Object.values(mapVentasHoy).forEach(v => {
       const fStr = String(v["FECHA"] || v.fechaStr || "");
       const ts = parsearFechaTimestamp(fStr);
@@ -4518,10 +4529,7 @@ async function procesarSiguienteCierreCaja() {
 
         let sumaDesglose = evUSD + zUSD + ppUSD + cUSD + crUSD + evBS + pmBS + pvBS + trBS + bioBS;
 
-        // Sumar al Gran Total Real del Día
-        resumenGeneral.totalGeneralVentasUSD += totalVentaUSD;
-
-        // A. Acumular Desglose en Resumen General
+        // A. Acumular en Resumen General
         if (sumaDesglose > 0) {
           resumenGeneral.ventasEfectivoUSD += evUSD;
           resumenGeneral.ventasEfectivoBS += evBS;
@@ -4534,7 +4542,7 @@ async function procesarSiguienteCierreCaja() {
           resumenGeneral.ventasTransferencia += trBS;
           resumenGeneral.ventasBiopago += bioBS;
         } else {
-          // Fallback por texto si no existiera desglose numérico
+          // Fallback por texto si no existiera desglose en columnas
           if (formaStr.includes("CASHEA")) {
             resumenGeneral.ventasCashea += totalVentaUSD;
           } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
@@ -4560,12 +4568,10 @@ async function procesarSiguienteCierreCaja() {
           }
         }
 
-        // B. Acumular ÚNICAMENTE en Resumen Fiscal si es venta fiscal
+        // B. Acumular en Resumen Fiscal
         if (esFiscal) {
           resumenFiscal.cantFacturasFiscales++;
           resumenFiscal.listaFacturasFiscales.push(numFac);
-          resumenFiscal.totalFiscalUSD += totalVentaUSD;
-          resumenFiscal.totalFiscalBS += (totalVentaUSD * factorTasa);
 
           if (sumaDesglose > 0) {
             resumenFiscal.ventasEfectivoUSD += evUSD;
@@ -4607,8 +4613,35 @@ async function procesarSiguienteCierreCaja() {
       }
     });
 
-    // Gran Total del Día en Bolívares equivalente
-    resumenGeneral.totalGeneralVentasBS = resumenGeneral.totalGeneralVentasUSD * factorTasa;
+    // 5. CÁLCULO ESTRICTO DE TOTALES POR MONEDA PURA (Sin conversión cruzada)
+    // Total en Dólares ($): Sumatoria exacta de ingresos en moneda extranjera
+    resumenGeneral.totalGeneralVentasUSD = 
+      resumenGeneral.ventasEfectivoUSD + 
+      resumenGeneral.ventasZelle + 
+      resumenGeneral.ventasPayPal + 
+      resumenGeneral.ventasCashea;
+
+    // Total en Bolívares (Bs): Sumatoria exacta de ingresos en moneda local
+    resumenGeneral.totalGeneralVentasBS = 
+      resumenGeneral.ventasEfectivoBS + 
+      resumenGeneral.ventasPagoMovil + 
+      resumenGeneral.ventasPuntoVenta + 
+      resumenGeneral.ventasBiopago + 
+      resumenGeneral.ventasTransferencia;
+
+    // Totales Fiscales Puros
+    resumenFiscal.totalFiscalUSD = 
+      resumenFiscal.ventasEfectivoUSD + 
+      resumenFiscal.ventasZelle + 
+      resumenFiscal.ventasPayPal + 
+      resumenFiscal.ventasCashea;
+
+    resumenFiscal.totalFiscalBS = 
+      resumenFiscal.ventasEfectivoBS + 
+      resumenFiscal.ventasPagoMovil + 
+      resumenFiscal.ventasPuntoVenta + 
+      resumenFiscal.ventasBiopago + 
+      resumenFiscal.ventasTransferencia;
 
     // Rango de Facturas Fiscales
     if (resumenFiscal.listaFacturasFiscales.length > 0) {
@@ -4633,7 +4666,7 @@ async function procesarSiguienteCierreCaja() {
       }
     });
 
-    // Arqueo físico de gaveta real
+    // Arqueo físico de gaveta real del usuario activo
     const totalCajaUSD = inicialUSD + resumenGeneral.ventasEfectivoUSD + ingresosUSD - retirosUSD;
     const totalCajaBS = inicialBS + resumenGeneral.ventasEfectivoBS + ingresosBS - retirosBS;
 
@@ -4661,8 +4694,8 @@ async function procesarSiguienteCierreCaja() {
     if (alertCierre) {
       const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "la impresora fiscal";
       alertCierre.textContent = modoFiscalActivo 
-        ? `⚠️ ¿Está seguro de realizar el Cierre de Caja? Se emitirá el REPORTE Z OFICIAL en ${nombreModelo} absorbiendo únicamente las ventas fiscales.` 
-        : "¿Está seguro de que desea realizar el cierre de caja de control interno?";
+        ? `⚠️ ¿Está seguro de realizar el Cierre de Caja? Se emitirá el REPORTE Z OFICIAL en ${nombreModelo} absorbiendo únicamente las ventas fiscales de ${usuario.toUpperCase()}.` 
+        : `¿Está seguro de que desea realizar el cierre de caja de control interno de ${usuario.toUpperCase()}?`;
     }
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso1')).hide();
@@ -4686,12 +4719,10 @@ function renderizarTicketCierreCajaHTML(d) {
 
   if (d.modoFiscal) {
     // =========================================================================
-    // FORMATO A: REPORTE Z FISCAL OFICIAL (AISLADO ÚNICAMENTE A VENTAS FISCALES)
+    // FORMATO A: REPORTE Z FISCAL OFICIAL (AISLADO AL USUARIO Y VENTAS FISCALES)
     // =========================================================================
     const cantFiscales = rFisc.cantFacturasFiscales || 0;
     const ultFac = rFisc.facturaFinalFiscal || "00000000";
-    const totalFiscalBs = rFisc.totalFiscalBS || (rFisc.totalFiscalUSD * factorTasa);
-    const totalFiscalUSD = rFisc.totalFiscalUSD || (factorTasa > 0 ? (totalFiscalBs / factorTasa) : 0);
 
     ticketHtml = `
       <div class="ticket-container shadow-sm border text-start">
@@ -4748,6 +4779,10 @@ function renderizarTicketCierreCajaHTML(d) {
               <td>EFECTIVO DIVISAS:</td>
               <td class="text-end fw-bold num-legible">$${(rFisc.ventasEfectivoUSD || 0).toFixed(2)}</td>
             </tr>
+            <tr>
+              <td>CASHEA:</td>
+              <td class="text-end fw-bold num-legible">$${(rFisc.ventasCashea || 0).toFixed(2)}</td>
+            </tr>
           </tbody>
         </table>
 
@@ -4756,12 +4791,12 @@ function renderizarTicketCierreCajaHTML(d) {
         </div>
         <div class="ticket-totals border-top pt-1">
           <div class="d-flex justify-content-between">
-            <span>TOTAL VENTAS FISCALES (Bs):</span>
-            <strong class="fs-5 text-dark num-legible">Bs. ${totalFiscalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+            <span>TOTAL INGRESOS BOLÍVARES (Bs):</span>
+            <strong class="fs-5 text-dark num-legible">Bs. ${(rFisc.totalFiscalBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
           </div>
-          <div class="d-flex justify-content-between text-muted">
-            <span>TOTAL FISCAL REF ($):</span>
-            <span class="fs-6 fw-bold text-success num-legible">$${totalFiscalUSD.toFixed(2)}</span>
+          <div class="d-flex justify-content-between">
+            <span>TOTAL INGRESOS DIVISAS ($):</span>
+            <strong class="fs-5 text-success num-legible">$${(rFisc.totalFiscalUSD || 0).toFixed(2)}</strong>
           </div>
           <div class="ticket-divider"></div>
           <div class="d-flex justify-content-between text-success fw-bold">
@@ -4786,7 +4821,7 @@ function renderizarTicketCierreCajaHTML(d) {
 
   } else {
     // =========================================================================
-    // FORMATO B: CONTROL INTERNO CONVENCIONAL (XP-80C 80mm - TODAS LAS VENTAS)
+    // FORMATO B: CONTROL INTERNO CONVENCIONAL (XP-80C 80mm - USUARIO ACTIVO)
     // =========================================================================
     let seccionMovimientosHtml = "";
     if (d.ingresosUSD > 0 || d.retirosUSD > 0 || d.ingresosBS > 0 || d.retirosBS > 0) {
@@ -4849,7 +4884,7 @@ function renderizarTicketCierreCajaHTML(d) {
         </table>
 
         <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
-          2. INGRESOS DEL DÍA (VENTAS TOTALES)
+          2. INGRESOS DEL DÍA (VENTAS DE LA CAJA)
         </div>
         <table class="ticket-table mb-2">
           <tbody>
@@ -4903,12 +4938,12 @@ function renderizarTicketCierreCajaHTML(d) {
         </div>
         <div class="ticket-totals border-top pt-1">
           <div class="d-flex justify-content-between">
-            <span>TOTAL VENTAS INGRESOS ($):</span>
-            <strong class="fs-6 num-legible">$${(rGen.totalGeneralVentasUSD || 0).toFixed(2)}</strong>
+            <span>TOTAL INGRESOS BOLÍVARES (Bs):</span>
+            <strong class="fs-5 text-dark num-legible">Bs. ${(rGen.totalGeneralVentasBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
           </div>
           <div class="d-flex justify-content-between">
-            <span>TOTAL VENTAS INGRESOS (Bs):</span>
-            <strong class="fs-6 num-legible">Bs. ${(rGen.totalGeneralVentasBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+            <span>TOTAL INGRESOS DIVISAS ($):</span>
+            <strong class="fs-5 text-success num-legible">$${(rGen.totalGeneralVentasUSD || 0).toFixed(2)}</strong>
           </div>
           <div class="ticket-divider"></div>
           <div class="d-flex justify-content-between text-success fw-bold">
@@ -4947,6 +4982,7 @@ async function confirmarEImprimirCierreCaja() {
 
   try {
     const d = datosCierreCajaPendiente;
+    const usuario = obtenerUsuarioActivo();
     let numeroZGenerado = null;
 
     // Si el modo fiscal está activo, emitir el Reporte Z oficial en la impresora fiscal (HKA80 / PP9)
@@ -4980,8 +5016,9 @@ async function confirmarEImprimirCierreCaja() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso2')).hide();
     datosCierreCajaPendiente = null;
 
+    // Limpieza de movimientos de efectivo de la sesión del usuario activo
     const hoy = new Date().toISOString().split('T')[0];
-    localStorage.removeItem("movimientos_efectivo_" + hoy);
+    localStorage.removeItem(`movimientos_efectivo_${usuario}_${hoy}`);
     listaMovimientosEfectivo = [];
 
     mostrarAvisoFactura("🔒 Cierre de caja registrado e impreso exitosamente. 🎉");
