@@ -3990,8 +3990,23 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       return;
     }
 
-    // Filtrar ventas que caen dentro del período fiscal exacto
+    // Filtrar ÚNICAMENTE las facturas de tipo FISCAL emitidas dentro del período
     const ventasPeriodo = todasLasVentas.filter(v => {
+      const formaStr = String(v["FORMA DE PAGO"] || v.formaPagoStr || "").toUpperCase();
+      const numFac = String(v.FACTURA || v["FACTURA N°"] || v.numFactura || "");
+      
+      // Discriminador estricto de comprobante fiscal SENIAT
+      const esRealmenteFiscal = Boolean(
+        v.esFiscal === true ||
+        v.esFiscal === "true" ||
+        formaStr.includes("FISCAL") ||
+        numFac.startsWith("FAC-") ||
+        /^\d{8}$/.test(numFac)
+      );
+
+      // Excluir notas de entrega y comprobantes no fiscales
+      if (!esRealmenteFiscal) return false;
+
       const fStr = String(v["FECHA"] || v.fechaStr || "");
       const ts = parsearFechaTimestamp(fStr);
       if (ts > 0) {
@@ -4005,7 +4020,7 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
 
     if (ventasPeriodo.length === 0) {
       if (errorDiv) {
-        errorDiv.textContent = `No se encontraron ventas para el período seleccionado (${fechaDesdeStr} al ${fechaHastaStr}).`;
+        errorDiv.textContent = `No se encontraron facturas fiscales registradas para el período seleccionado (${fechaDesdeStr} al ${fechaHastaStr}).`;
         errorDiv.classList.remove('hidden');
       }
       return;
