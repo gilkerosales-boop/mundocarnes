@@ -3604,6 +3604,11 @@ function renderizarTablaHistorialFacturas() {
       ? `<span class="badge bg-primary fw-bold">🏷️ Fiscal</span>` 
       : `<span class="badge bg-secondary">📄 No Fiscal</span>`;
 
+    // Botón de Nota de Crédito: ACTIVO ÚNICA Y EXCLUSIVAMENTE PARA VENTAS FISCALES
+    let botonNotaCredito = esRealmenteFiscal
+      ? `<button type="button" class="btn btn-sm btn-warning text-dark py-0 px-2 fw-bold rounded-pill me-1 shadow-sm" onclick="abrirModalNotaCreditoFiscal('${f.numFactura}')" title="Emitir Nota de Crédito Fiscal en HKA80">↩️ NC</button>`
+      : "";
+
     html += `
       <tr>
         <td class="fw-bold text-center text-danger num-legible">${f.numFactura}</td>
@@ -3614,10 +3619,11 @@ function renderizarTablaHistorialFacturas() {
         <td class="small text-muted">${f.formaPagoStr}</td>
         <td class="text-end fw-bold text-success num-legible">$${parseFloat(f.montoTotalUSD).toFixed(2)}</td>
         <td class="text-center">
+          ${botonNotaCredito}
           <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill me-1" onclick="reimprimirFacturaHistorial('${f.numFactura}')" title="Reimprimir Ticket">
             🖨️ Imprimir
           </button>
-          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarFacturaHistorial('${f.numFactura}')" title="Eliminar Factura">
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarFacturaHistorial('${f.numFactura}')" title="Eliminar Registro">
             🗑️
           </button>
         </td>
@@ -3990,21 +3996,330 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       return;
     }
 
-    // Filtrar ÚNICAMENTE las facturas de tipo FISCAL emitidas dentro del período
+    // ==========================================================================
+// MÓDULO EXCLUSIVO: NOTAS DE CRÉDITO FISCALES (SENIAT)
+// ==========================================================================
+let datosNCPendiente = null;
+let itemsDevueltosNC = {};
+
+function abrirModalNotaCreditoFiscal(numFactura) {
+  const fac = cacheHistorialFacturas.find(f => String(f.numFactura) === String(numFactura));
+  if (!fac) return mostrarAvisoFactura("No se localizó la información de la factura fiscal.");
+
+  const tasa = obtenerTasaBCV();
+  const factorTasa = tasa > 0 ? tasa : 1;
+
+  datosNCPendiente = {
+    facturaAfectada: fac.numFactura,
+    fechaFacturaAfectada: fac.fechaStr,
+    cliente: {
+      cedula: fac.cedula || "V-00000000",
+      nombre: fac.nombre || "CONSUMIDOR FINAL"
+    },
+    totalOriginalUSD: parseFloat(fac.montoTotalUSD) || 0,
+    tasaBCV: factorTasa,
+    serialImpresora: window.fiscalDriver?.ultimoReporteStatus?.serial || "Z7C7044438",
+    itemsOriginales: {}
+  };
+
+  // Poblar cabecera en el modal
+  document.getElementById('ncFacturaAfectada').value = fac.numFactura;
+  document.getElementById('ncFechaAfectada').value = fac.fechaStr;
+  document.getElementById('ncCedulaCliente').value = fac.cedula;
+  document.getElementById('ncNombreCliente').value = fac.nombre;
+  document.getElementById('ncTotalOriginalUSD').value = `$${datosNCPendiente.totalOriginalUSD.toFixed(2)}`;
+  document.getElementById('ncTipoOperacionSelect').value = "TOTAL";
+  document.getElementById('ncMotivoSelect').value = "DEVOLUCION DE MERCANCIA";
+  document.getElementById('errorModalNC').classList.add('hidden');
+
+  // Desglosar productos originales de la factura
+  const prodsStr = String(fac.productosSummary || "");
+  itemsDevueltosNC = {};
+
+  if (prodsStr) {
+    const listaItems = prodsStr.split(' | ');
+    listaItems.forEach((pStr, idx) => {
+      const match = pStr.match(/^(.*?)(?:\s*\((.*?)\))?\s*-\s*\$(.*)$/);
+      let nombre = match ? match[1].trim() : `ITEM ${idx + 1}`;
+      let cantTxt = match && match[2] ? match[2].trim() : "1 uds";
+      let subUSD = match && match[3] ? parseFloat(match[3]) : (datosNCPendiente.totalOriginalUSD / listaItems.length);
+
+      // Detectar tasa IVA desde catálogo
+      let tasaItem = "E";
+      if (pStr.toUpperCase().includes('(G)') || pStr.toUpperCase().includes('(16%)')) tasaItem = "G";
+      else if (pStr.toUpperCase().includes('(R)') || pStr.toUpperCase().includes('(8%)')) tasaItem = "R";
+      else {
+        // Buscar en catálogo cacheado
+        for (let cat of cacheCategoriasFactura) {
+          let pCat = cat.productos.find(p => p[0] === nombre);
+          if (pCat) { tasaItem = (pCat[8] || "E").toUpperCase(); break; }
+        }
+      }
+
+      let cantNumerica = 1;
+      let unidad = "unidades";
+      if (cantTxt.includes('Kg') || cantTxt.includes('g')) {
+        unidad = "gramos";
+        cantNumerica = 1000;
+      }
+
+      let precioBaseUSD = subUSD;
+
+      itemsDevueltosNC[nombre] = {
+        nombre: nombre,
+        cantidadTxt: cantTxt,
+        cantNumerica: cantNumerica,
+        unidad: unidad,
+        precioBase: precioBaseUSD,
+        precioTotal: subUSD.toFixed(2),
+        tasaIVA: tasaItem,
+        incluido: true
+      };
+    });
+  } else {
+    // Si no hay resumen de texto, cargar producto genérico con el total
+    itemsDevueltosNC["PRODUCTOS FACTURA FISCAL"] = {
+      nombre: "PRODUCTOS FACTURA FISCAL",
+      cantidadTxt: "1 uds",
+      cantNumerica: 1,
+      unidad: "unidades",
+      precioBase: datosNCPendiente.totalOriginalUSD,
+      precioTotal: datosNCPendiente.totalOriginalUSD.toFixed(2),
+      tasaIVA: "E",
+      incluido: true
+    };
+  }
+
+  datosNCPendiente.itemsOriginales = { ...itemsDevueltosNC };
+  renderizarTablaItemsNC();
+  recalcularTotalesNC();
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNotaCreditoFiscal')).show();
+}
+
+function alternarTipoOperacionNC(tipo) {
+  const esTotal = (tipo === "TOTAL");
+  for (let key in itemsDevueltosNC) {
+    itemsDevueltosNC[key].incluido = esTotal ? true : itemsDevueltosNC[key].incluido;
+  }
+  renderizarTablaItemsNC(esTotal);
+  recalcularTotalesNC();
+}
+
+function renderizarTablaItemsNC(bloquearChecks = true) {
+  const tbody = document.getElementById('tablaItemsNotaCredito');
+  if (!tbody) return;
+
+  let html = "";
+  for (let key in itemsDevueltosNC) {
+    const it = itemsDevueltosNC[key];
+    const checkedAttr = it.incluido ? "checked" : "";
+    const disabledAttr = bloquearChecks ? "disabled" : "";
+    const tasaBadge = (it.tasaIVA === "G" || it.tasaIVA === "16") 
+      ? `<span class="badge bg-danger">G (16%)</span>` 
+      : `<span class="badge bg-secondary">E (0%)</span>`;
+
+    html += `
+      <tr>
+        <td class="text-center">
+          <input class="form-check-input check-item-nc" type="checkbox" ${checkedAttr} ${disabledAttr} onchange="alternarCheckItemNC('${key}', this.checked)">
+        </td>
+        <td class="fw-bold">${it.nombre}</td>
+        <td class="text-center">${tasaBadge}</td>
+        <td class="text-center num-legible">$${parseFloat(it.precioBase).toFixed(2)}</td>
+        <td class="text-center small num-legible">${it.cantidadTxt}</td>
+        <td class="text-end fw-bold text-danger num-legible">$${it.precioTotal}</td>
+      </tr>`;
+  }
+
+  tbody.innerHTML = html || `<tr><td colspan="6" class="text-center text-muted py-3">No hay renglones.</td></tr>`;
+}
+
+function alternarCheckItemNC(key, marcado) {
+  if (itemsDevueltosNC[key]) {
+    itemsDevueltosNC[key].incluido = marcado;
+    recalcularTotalesNC();
+  }
+}
+
+function recalcularTotalesNC() {
+  const tasa = datosNCPendiente?.tasaBCV || obtenerTasaBCV() || 1;
+  let totalUSD = 0;
+  let exentoUSD = 0;
+  let base16USD = 0;
+  let iva16USD = 0;
+
+  for (let key in itemsDevueltosNC) {
+    const it = itemsDevueltosNC[key];
+    if (it.incluido) {
+      const sub = parseFloat(it.precioTotal) || 0;
+      totalUSD += sub;
+
+      if (it.tasaIVA === "G" || it.tasaIVA === "16") {
+        let base = sub / 1.16;
+        let iva = sub - base;
+        base16USD += base;
+        iva16USD += iva;
+      } else {
+        exentoUSD += sub;
+      }
+    }
+  }
+
+  const totalBS = totalUSD * tasa;
+  const exentoBS = exentoUSD * tasa;
+  const base16BS = base16USD * tasa;
+  const iva16BS = iva16USD * tasa;
+
+  document.getElementById('ncMontoTotalUSD').textContent = `-$${totalUSD.toFixed(2)}`;
+  document.getElementById('ncMontoTotalBS').textContent = `-Bs. ${totalBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  document.getElementById('ncExentoBS').textContent = `Bs. ${exentoBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  document.getElementById('ncBase16BS').textContent = `Bs. ${base16BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  document.getElementById('ncIVA16BS').textContent = `Bs. ${iva16BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  if (datosNCPendiente) {
+    datosNCPendiente.totalReversarUSD = totalUSD;
+    datosNCPendiente.totalReversarBS = totalBS;
+    datosNCPendiente.exentoBS = exentoBS;
+    datosNCPendiente.base16BS = base16BS;
+    datosNCPendiente.iva16BS = iva16BS;
+  }
+}
+
+async function confirmarEmisionNotaCreditoFiscal() {
+  if (!datosNCPendiente) return;
+
+  const errorDiv = document.getElementById('errorModalNC');
+  const btn = document.getElementById('btnConfirmarEmisionNC');
+  const motivo = document.getElementById('ncMotivoSelect').value;
+
+  // Filtrar solo los ítems marcados para la NC
+  let itemsFinalesNC = {};
+  for (let key in itemsDevueltosNC) {
+    if (itemsDevueltosNC[key].incluido) {
+      itemsFinalesNC[key] = itemsDevueltosNC[key];
+    }
+  }
+
+  if (Object.keys(itemsFinalesNC).length === 0 || datosNCPendiente.totalReversarUSD <= 0) {
+    if (errorDiv) {
+      errorDiv.textContent = "Debe seleccionar al menos un producto a reversar.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (errorDiv) errorDiv.classList.add('hidden');
+
+  btn.disabled = true;
+  btn.textContent = "Transmitiendo Nota de Crédito a HKA80...";
+
+  try {
+    // 1. Verificar conexión con la impresora fiscal
+    if (!window.fiscalDriver || !window.fiscalDriver.conectado) {
+      const conectar = confirm("La impresora fiscal no está conectada. ¿Desea conectarla ahora para emitir la Nota de Crédito?");
+      if (conectar) {
+        await window.fiscalDriver.solicitarYConectar();
+      } else {
+        btn.disabled = false;
+        btn.textContent = "🧾 Emitir Nota de Crédito Fiscal en HKA80";
+        return;
+      }
+    }
+
+    // 2. Transmitir Nota de Crédito oficial a la máquina fiscal
+    const datosPayloadNC = {
+      cliente: datosNCPendiente.cliente,
+      facturaAfectada: datosNCPendiente.facturaAfectada,
+      fechaFacturaAfectada: datosNCPendiente.fechaFacturaAfectada,
+      serialImpresoraAfectada: datosNCPendiente.serialImpresora,
+      itemsDevueltos: itemsFinalesNC,
+      motivo: motivo,
+      tasaBCV: datosNCPendiente.tasaBCV
+    };
+
+    const resNC = await window.fiscalDriver.emitirNotaCreditoFiscal(datosPayloadNC);
+    const numNCGenerado = resNC.numNotaCredito || `NC-${Date.now().toString().slice(-6)}`;
+    const usuarioActivo = obtenerUsuarioActivo();
+    const tablaUsuarioActivo = obtenerTablaVentasUsuario();
+
+    // 3. Guardar la Nota de Crédito en IndexedDB
+    const registroNCLocal = {
+      numFactura: String(numNCGenerado),
+      facturaAfectada: datosNCPendiente.facturaAfectada,
+      fechaStr: new Date().toLocaleString('es-VE'),
+      montoTotalUSD: -Math.abs(datosNCPendiente.totalReversarUSD),
+      cedula: datosNCPendiente.cliente.cedula,
+      nombre: datosNCPendiente.cliente.nombre,
+      direccion: null,
+      formaPagoStr: `NOTA DE CREDITO (AFECTA FACT ${datosNCPendiente.facturaAfectada})`,
+      productosSummary: `NOTA DE CREDITO POR: ${motivo}`,
+      usuario: usuarioActivo,
+      esFiscal: true,
+      esNotaCredito: true
+    };
+
+    await dbPut("ventas", registroNCLocal);
+
+    // 4. Encolar sincronización a Supabase
+    await dbPut("syncQueue", {
+      id: "sync_nc_" + Date.now(),
+      payload: {
+        action: "guardarFacturaFinal",
+        datosFactura: {
+          numFactura: String(numNCGenerado),
+          fechaStr: registroNCLocal.fechaStr,
+          cedula: registroNCLocal.cedula,
+          nombre: registroNCLocal.nombre,
+          telefono: 'N/D',
+          direccion: `NC AFECTA FACTURA: ${datosNCPendiente.facturaAfectada}`,
+          productosSummary: registroNCLocal.productosSummary,
+          formaPago: registroNCLocal.formaPagoStr,
+          montoTotal: -Math.abs(datosNCPendiente.totalReversarUSD),
+          desglosePagos: {},
+          usuario: usuarioActivo,
+          tablaVentas: tablaUsuarioActivo,
+          esFiscal: true
+        }
+      }
+    });
+
+    btn.disabled = false;
+    btn.textContent = "🧾 Emitir Nota de Crédito Fiscal en HKA80";
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNotaCreditoFiscal')).hide();
+    mostrarAvisoFactura(`🎉 Nota de Crédito Fiscal N° ${numNCGenerado} emitida exitosamente en la máquina fiscal.`);
+
+    // Recargar historial para visualizar la nueva transacción
+    buscarFacturasHistorial('ultimas');
+    procesarColaSincronizacion();
+
+  } catch (errNC) {
+    btn.disabled = false;
+    btn.textContent = "🧾 Emitir Nota de Crédito Fiscal en HKA80";
+    console.error("Error al emitir NC:", errNC);
+    if (errorDiv) {
+      errorDiv.textContent = "Error durante la emisión de la Nota de Crédito: " + errNC.message;
+      errorDiv.classList.remove('hidden');
+    }
+  }
+}
+
+    // Filtrar ÚNICAMENTE las facturas y Notas de Crédito de tipo FISCAL emitidas en el período
     const ventasPeriodo = todasLasVentas.filter(v => {
       const formaStr = String(v["FORMA DE PAGO"] || v.formaPagoStr || "").toUpperCase();
       const numFac = String(v.FACTURA || v["FACTURA N°"] || v.numFactura || "");
       
-      // Discriminador estricto de comprobante fiscal SENIAT
       const esRealmenteFiscal = Boolean(
         v.esFiscal === true ||
         v.esFiscal === "true" ||
         formaStr.includes("FISCAL") ||
-        numFac.startsWith("FAC-") ||
+        formaStr.includes("NOTA DE CREDITO") ||
+        numFac.startsWith("FAC-") || 
+        numFac.startsWith("NC-") ||
         /^\d{8}$/.test(numFac)
       );
 
-      // Excluir notas de entrega y comprobantes no fiscales
       if (!esRealmenteFiscal) return false;
 
       const fStr = String(v["FECHA"] || v.fechaStr || "");
