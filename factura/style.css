@@ -421,8 +421,9 @@ body {
   white-space: nowrap;
 }
 
-/* Acciones en Línea en Tablas CXC */
-.acciones-cxc-group {
+/* Acciones en Línea en Tablas (Historial y CXC) */
+.acciones-cxc-group,
+.acciones-historial-group {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -430,18 +431,21 @@ body {
   white-space: nowrap;
 }
 
-.acciones-cxc-group .btn {
+.acciones-cxc-group .btn,
+.acciones-historial-group .btn {
   height: 28px;
   padding: 0 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   font-weight: 700;
   border-radius: var(--pos-radius-pill);
+  white-space: nowrap;
 }
 
-.acciones-cxc-group .btn-icon-only {
+.acciones-cxc-group .btn-icon-only,
+.acciones-historial-group .btn-icon-only {
   width: 28px;
   padding: 0;
 }
