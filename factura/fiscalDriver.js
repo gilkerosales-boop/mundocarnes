@@ -477,8 +477,139 @@ class FiscalDriverTFHKA {
     }
   }
 
+  // 3.1. Emitir Nota de Crédito Fiscal Oficial TFHKA (Protocolo Directo de Anulación / Devolución)
+  async emitirNotaCreditoFiscal(datosNC) {
+    if (!this.conectado) {
+      throw new Error(`No hay conexión activa con la impresora fiscal ${this.getNombreModelo()}.`);
+    }
+
+    const {
+      cliente,
+      facturaAfectada,
+      fechaFacturaAfectada,
+      serialImpresoraAfectada,
+      itemsDevueltos,
+      motivo,
+      tasaBCV
+    } = datosNC;
+
+    if (!facturaAfectada) {
+      throw new Error("El número de factura fiscal afectada es obligatorio para emitir Nota de Crédito.");
+    }
+
+    if (!itemsDevueltos || Object.keys(itemsDevueltos).length === 0) {
+      throw new Error("Debe seleccionar al menos un producto a devolver en la Nota de Crédito.");
+    }
+
+    this.notificarEstado("EMITIENDO_NC", `Transmitiendo Nota de Crédito Fiscal a ${this.getNombreModelo()}...`);
+
+    try {
+      // PASO A: Encabezado de Cliente
+      const nombreCliente = this.sanitizarTexto(cliente?.nombre || "CONSUMIDOR FINAL", 38);
+      const cedulaCliente = this.sanitizarTexto(cliente?.cedula || "V-00000000", 20);
+
+      await this.enviarComando(`i01${nombreCliente}`);
+      await this.enviarComando(`i02${cedulaCliente}`);
+
+      // PASO B: Vinculación Obligatoria a Factura Afectada (Comandos iF, iD, iS)
+      const numFacFormateado = String(facturaAfectada).replace(/\D/g, '').padStart(8, '0');
+      const serialFiscal = this.sanitizarTexto(serialImpresoraAfectada || this.ultimoReporteStatus?.serial || "Z7C7044438", 12);
+      
+      // Formato fecha: DD-MM-YYYY
+      let fechaAfectadaFormateada = "";
+      if (fechaFacturaAfectada) {
+        const partesF = String(fechaFacturaAfectada).split(/[,\s]+/)[0].split(/[\/\-]/);
+        if (partesF.length === 3) {
+          fechaAfectadaFormateada = `${String(partesF[0]).padStart(2, '0')}-${String(partesF[1]).padStart(2, '0')}-${partesF[2]}`;
+        }
+      }
+      if (!fechaAfectadaFormateada) {
+        const hoy = new Date();
+        fechaAfectadaFormateada = `${String(hoy.getDate()).padStart(2, '0')}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${hoy.getFullYear()}`;
+      }
+
+      await this.enviarComando(`iF${numFacFormateado}`);
+      await this.enviarComando(`iD${fechaAfectadaFormateada}`);
+      if (serialFiscal) await this.enviarComando(`iS${serialFiscal}`);
+      if (motivo) await this.enviarComando(`i03MOTIVO: ${this.sanitizarTexto(motivo, 30)}`);
+
+      // PASO C: Renglones de Devolución en Nota de Crédito (Comandos d0, d1, d2)
+      // d0: Devolución Exenta (0%)
+      // d1: Devolución Tasa General (16%)
+      // d2: Devolución Tasa Reducida (8%)
+      const factorTasa = (parseFloat(tasaBCV) > 0) ? parseFloat(tasaBCV) : 1;
+
+      for (let nombreProd in itemsDevueltos) {
+        const item = itemsDevueltos[nombreProd];
+        const descProd = this.sanitizarTexto(nombreProd, 35);
+        const tasaIVA = (item.tasaIVA || "E").toUpperCase();
+
+        let cmdDevolucionChar = "d0"; // Exento por defecto
+        let factorIVA = 1.0;
+
+        if (tasaIVA === "G" || tasaIVA === "16") {
+          cmdDevolucionChar = "d1"; // General 16%
+          factorIVA = 1.16;
+        } else if (tasaIVA === "R" || tasaIVA === "8") {
+          cmdDevolucionChar = "d2"; // Reducido 8%
+          factorIVA = 1.08;
+        }
+
+        let precioItemUSD = parseFloat(item.precioBase) || 0;
+        let precioItemBs = precioItemUSD * factorTasa;
+        let baseImponibleUnitariaBs = precioItemBs / factorIVA;
+        let cantidadNumerica = parseFloat(item.cantNumerica) || 1;
+
+        const strPrecio = this.formatearPrecioFiscal(baseImponibleUnitariaBs);
+        const strCantidad = this.formatearCantidadFiscal(cantidadNumerica, item.unidad);
+
+        // Trama: STX + [d0/d1/d2] + [Precio 10d] + [Cantidad 8d] + [Descripción] + ETX + LRC
+        const tramaRenglonNC = `${cmdDevolucionChar}${strPrecio}${strCantidad}${descProd}`;
+        await this.enviarComando(tramaRenglonNC);
+      }
+
+      // PASO D: Totalización y Cierre de Nota de Crédito (Comando 101 directo)
+      await this.enviarComando("101");
+
+      // Pausa para corte físico de papel
+      await new Promise(r => setTimeout(r, 1000));
+
+      // PASO E: Captura de Estado y Número de Nota de Crédito
+      const statusFinal = await this.consultarEstado();
+      const numNC = statusFinal.raw ? this.extraerNumeroNCDeRespuesta(statusFinal.raw) : `NC-${Date.now().toString().slice(-6)}`;
+
+      this.notificarEstado("FINALIZADO_NC", `Nota de Crédito Fiscal N° ${numNC} emitida con éxito en ${this.getNombreModelo()}.`, {
+        numNotaCredito: numNC,
+        facturaAfectada: numFacFormateado
+      });
+
+      return {
+        exito: true,
+        numNotaCredito: numNC,
+        facturaAfectada: numFacFormateado,
+        mensaje: `Nota de Crédito Fiscal N° ${numNC} emitida exitosamente.`
+      };
+
+    } catch (err) {
+      this.notificarEstado("ERROR_EMISION_NC", `Fallo al emitir Nota de Crédito en ${this.getNombreModelo()}: ` + err.message);
+      try { await this.cancelarDocumento(); } catch (e) {}
+      throw err;
+    }
+  }
+
+  // Extractor auxiliar de correlativo de Nota de Crédito en S1
+  extraerNumeroNCDeRespuesta(rawStr) {
+    if (!rawStr) return `NC-${Date.now().toString().slice(-6)}`;
+    const lineas = String(rawStr).split(/\x0A|\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    // En TFHKA S1: lineas[4] o búsqueda numérica de NC
+    if (lineas.length >= 5 && /^\d+$/.test(lineas[4]) && parseInt(lineas[4], 10) > 0) {
+      return lineas[4].padStart(8, '0');
+    }
+    return `NC-${Date.now().toString().slice(-6)}`;
+  }
+
   // 4. Emitir Reporte X (Comando I0X)
-  async imprimirReporteX() {
+   async imprimirReporteX() {
     if (!this.conectado) throw new Error(`Impresora fiscal ${this.getNombreModelo()} no conectada.`);
     this.notificarEstado("IMPRIMIENDO_X", `Imprimiendo Reporte X en ${this.getNombreModelo()}...`);
     const resp = await this.enviarComando("I0X");
