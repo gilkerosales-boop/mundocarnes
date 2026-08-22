@@ -3591,41 +3591,43 @@ function renderizarTablaHistorialFacturas() {
   let html = "";
   cacheHistorialFacturas.forEach(f => {
     const numFacStr = String(f.numFactura || "");
-    const formaStr = String(f.formaPagoStr || "").toUpperCase();
+    const formaStr = String(f.formaPagoStr || "");
     const esRealmenteFiscal = Boolean(
       f.esFiscal === true || 
       f.esFiscal === "true" || 
-      formaStr.includes("FISCAL") || 
+      formaStr.toUpperCase().includes("FISCAL") || 
       numFacStr.startsWith("FAC-") || 
       /^\d{8}$/.test(numFacStr)
     );
 
     let badgeTipo = esRealmenteFiscal 
-      ? `<span class="badge bg-primary fw-bold">🏷️ Fiscal</span>` 
-      : `<span class="badge bg-secondary">📄 No Fiscal</span>`;
+      ? `<span class="badge bg-primary fw-bold px-2 py-1">🏷️ Fiscal</span>` 
+      : `<span class="badge bg-secondary px-2 py-1">📄 No Fiscal</span>`;
 
     // Botón de Nota de Crédito: ACTIVO ÚNICA Y EXCLUSIVAMENTE PARA VENTAS FISCALES
     let botonNotaCredito = esRealmenteFiscal
-      ? `<button type="button" class="btn btn-sm btn-warning text-dark py-0 px-2 fw-bold rounded-pill me-1 shadow-sm" onclick="abrirModalNotaCreditoFiscal('${f.numFactura}')" title="Emitir Nota de Crédito Fiscal en HKA80">↩️ NC</button>`
+      ? `<button type="button" class="btn btn-sm btn-warning text-dark py-0 px-2 fw-bold rounded-pill shadow-sm" onclick="abrirModalNotaCreditoFiscal('${f.numFactura}')" title="Emitir Nota de Crédito Fiscal en HKA80">↩️ NC</button>`
       : "";
 
     html += `
       <tr>
-        <td class="fw-bold text-center text-danger num-legible">${f.numFactura}</td>
-        <td class="text-center">${badgeTipo}</td>
-        <td class="text-center small num-legible">${f.fechaStr}</td>
-        <td class="fw-bold text-center num-legible">${f.cedula}</td>
-        <td class="fw-bold text-wrap">${f.nombre}</td>
-        <td class="small text-muted">${f.formaPagoStr}</td>
-        <td class="text-end fw-bold text-success num-legible">$${parseFloat(f.montoTotalUSD).toFixed(2)}</td>
-        <td class="text-center">
-          ${botonNotaCredito}
-          <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill me-1" onclick="reimprimirFacturaHistorial('${f.numFactura}')" title="Reimprimir Ticket">
-            🖨️ Imprimir
-          </button>
-          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarFacturaHistorial('${f.numFactura}')" title="Eliminar Registro">
-            🗑️
-          </button>
+        <td class="fw-bold text-center text-danger num-legible text-nowrap">${f.numFactura}</td>
+        <td class="text-center text-nowrap">${badgeTipo}</td>
+        <td class="text-center small num-legible text-nowrap">${f.fechaStr}</td>
+        <td class="fw-bold text-center num-legible text-nowrap">${f.cedula}</td>
+        <td class="fw-bold text-truncate" style="max-width: 140px;" title="${f.nombre}">${f.nombre}</td>
+        <td class="small text-muted text-truncate" style="max-width: 170px;" title="${formaStr}">${formaStr}</td>
+        <td class="text-end fw-bold text-success num-legible text-nowrap">$${parseFloat(f.montoTotalUSD).toFixed(2)}</td>
+        <td class="text-center text-nowrap">
+          <div class="acciones-historial-group">
+            ${botonNotaCredito}
+            <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill" onclick="reimprimirFacturaHistorial('${f.numFactura}')" title="Reimprimir Ticket">
+              🖨️ Imprimir
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarFacturaHistorial('${f.numFactura}')" title="Eliminar Registro">
+              🗑️
+            </button>
+          </div>
         </td>
       </tr>`;
   });
