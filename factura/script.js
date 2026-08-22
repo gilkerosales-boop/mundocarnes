@@ -3957,55 +3957,13 @@ async function ejecutarDescargaExcelFacturas() {
   }
 }
 
-// 2. GENERADOR Y EXPORTADOR OFICIAL DEL LIBRO DE VENTAS FISCAL SENIAT (.xlsx y .pdf)
-async function ejecutarDescargaLibroSeniat(formato = 'excel') {
-  const errorDiv = document.getElementById('errorModalDescarga');
-  const fechaDesdeStr = document.getElementById('seniatFechaDesde')?.value;
-  const fechaHastaStr = document.getElementById('seniatFechaHasta')?.value;
-  const mesNombre = document.getElementById('seniatMesSelect')?.selectedOptions[0]?.text || "Mes";
-  const anioFiscal = document.getElementById('seniatAnioInput')?.value || "2026";
-  const periodoTexto = document.getElementById('seniatPeriodoSelect')?.selectedOptions[0]?.text || "Período";
-
-  if (!fechaDesdeStr || !fechaHastaStr) {
-    if (errorDiv) {
-      errorDiv.textContent = "Indique el rango de fechas para el Libro de Ventas Fiscal.";
-      errorDiv.classList.remove('hidden');
-    }
-    return;
-  }
-
-  if (errorDiv) errorDiv.classList.add('hidden');
-  mostrarAvisoFactura(`🔄 Generando Libro de Ventas SENIAT (${formato.toUpperCase()})...`);
-
-  try {
-    const dDesde = new Date(`${fechaDesdeStr}T00:00:00`);
-    const dHasta = new Date(`${fechaHastaStr}T23:59:59`);
-    const tasaActual = obtenerTasaBCV() || 778.00;
-
-    // Obtener ventas globales de la empresa
-    let todasLasVentas = [];
-    if (navigator.onLine) {
-      todasLasVentas = await obtenerTodasLasVentasSupabase('ventas');
-    } else {
-      todasLasVentas = await dbGetAll("ventas");
-    }
-
-    if (!todasLasVentas || todasLasVentas.length === 0) {
-      if (errorDiv) {
-        errorDiv.textContent = "No se encontraron registros de ventas en la base de datos.";
-        errorDiv.classList.remove('hidden');
-      }
-      return;
-    }
-
-  // ==========================================================================
+// ==========================================================================
 // MÓDULO EXCLUSIVO: NOTAS DE CRÉDITO FISCALES (SENIAT)
 // ==========================================================================
 let datosNCPendiente = null;
 let itemsDevueltosNC = {};
 
 function abrirModalNotaCreditoFiscal(numFactura) {
-  // Buscar en el historial de facturas en memoria o en IndexedDB
   const fac = cacheHistorialFacturas.find(f => String(f.numFactura) === String(numFactura));
   if (!fac) return mostrarAvisoFactura("No se localizó la información de la factura fiscal.");
 
@@ -4025,7 +3983,6 @@ function abrirModalNotaCreditoFiscal(numFactura) {
     itemsOriginales: {}
   };
 
-  // Poblar campos de cabecera en el modal
   const elemFacAf = document.getElementById('ncFacturaAfectada');
   const elemFecAf = document.getElementById('ncFechaAfectada');
   const elemCed = document.getElementById('ncCedulaCliente');
@@ -4044,7 +4001,6 @@ function abrirModalNotaCreditoFiscal(numFactura) {
   if (elemMot) elemMot.value = "DEVOLUCION DE MERCANCIA";
   if (errDiv) errDiv.classList.add('hidden');
 
-  // Desglosar productos originales de la factura
   const prodsStr = String(fac.productosSummary || "");
   itemsDevueltosNC = {};
 
@@ -4099,103 +4055,6 @@ function abrirModalNotaCreditoFiscal(numFactura) {
 
   datosNCPendiente.itemsOriginales = { ...itemsDevueltosNC };
   renderizarTablaItemsNC(true);
-  recalcularTotalesNC();
-
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNotaCreditoFiscal')).show();
-}
-
-// Exposición global para que el HTML onclick lo ejecute siempre
-window.abrirModalNotaCreditoFiscal = abrirModalNotaCreditoFiscal;
-window.alternarTipoOperacionNC = alternarTipoOperacionNC;
-window.alternarCheckItemNC = alternarCheckItemNC;
-window.confirmarEmisionNotaCreditoFiscal = confirmarEmisionNotaCreditoFiscal;
-
-  const tasa = obtenerTasaBCV();
-  const factorTasa = tasa > 0 ? tasa : 1;
-
-  datosNCPendiente = {
-    facturaAfectada: fac.numFactura,
-    fechaFacturaAfectada: fac.fechaStr,
-    cliente: {
-      cedula: fac.cedula || "V-00000000",
-      nombre: fac.nombre || "CONSUMIDOR FINAL"
-    },
-    totalOriginalUSD: parseFloat(fac.montoTotalUSD) || 0,
-    tasaBCV: factorTasa,
-    serialImpresora: window.fiscalDriver?.ultimoReporteStatus?.serial || "Z7C7044438",
-    itemsOriginales: {}
-  };
-
-  // Poblar cabecera en el modal
-  document.getElementById('ncFacturaAfectada').value = fac.numFactura;
-  document.getElementById('ncFechaAfectada').value = fac.fechaStr;
-  document.getElementById('ncCedulaCliente').value = fac.cedula;
-  document.getElementById('ncNombreCliente').value = fac.nombre;
-  document.getElementById('ncTotalOriginalUSD').value = `$${datosNCPendiente.totalOriginalUSD.toFixed(2)}`;
-  document.getElementById('ncTipoOperacionSelect').value = "TOTAL";
-  document.getElementById('ncMotivoSelect').value = "DEVOLUCION DE MERCANCIA";
-  document.getElementById('errorModalNC').classList.add('hidden');
-
-  // Desglosar productos originales de la factura
-  const prodsStr = String(fac.productosSummary || "");
-  itemsDevueltosNC = {};
-
-  if (prodsStr) {
-    const listaItems = prodsStr.split(' | ');
-    listaItems.forEach((pStr, idx) => {
-      const match = pStr.match(/^(.*?)(?:\s*\((.*?)\))?\s*-\s*\$(.*)$/);
-      let nombre = match ? match[1].trim() : `ITEM ${idx + 1}`;
-      let cantTxt = match && match[2] ? match[2].trim() : "1 uds";
-      let subUSD = match && match[3] ? parseFloat(match[3]) : (datosNCPendiente.totalOriginalUSD / listaItems.length);
-
-      // Detectar tasa IVA desde catálogo
-      let tasaItem = "E";
-      if (pStr.toUpperCase().includes('(G)') || pStr.toUpperCase().includes('(16%)')) tasaItem = "G";
-      else if (pStr.toUpperCase().includes('(R)') || pStr.toUpperCase().includes('(8%)')) tasaItem = "R";
-      else {
-        // Buscar en catálogo cacheado
-        for (let cat of cacheCategoriasFactura) {
-          let pCat = cat.productos.find(p => p[0] === nombre);
-          if (pCat) { tasaItem = (pCat[8] || "E").toUpperCase(); break; }
-        }
-      }
-
-      let cantNumerica = 1;
-      let unidad = "unidades";
-      if (cantTxt.includes('Kg') || cantTxt.includes('g')) {
-        unidad = "gramos";
-        cantNumerica = 1000;
-      }
-
-      let precioBaseUSD = subUSD;
-
-      itemsDevueltosNC[nombre] = {
-        nombre: nombre,
-        cantidadTxt: cantTxt,
-        cantNumerica: cantNumerica,
-        unidad: unidad,
-        precioBase: precioBaseUSD,
-        precioTotal: subUSD.toFixed(2),
-        tasaIVA: tasaItem,
-        incluido: true
-      };
-    });
-  } else {
-    // Si no hay resumen de texto, cargar producto genérico con el total
-    itemsDevueltosNC["PRODUCTOS FACTURA FISCAL"] = {
-      nombre: "PRODUCTOS FACTURA FISCAL",
-      cantidadTxt: "1 uds",
-      cantNumerica: 1,
-      unidad: "unidades",
-      precioBase: datosNCPendiente.totalOriginalUSD,
-      precioTotal: datosNCPendiente.totalOriginalUSD.toFixed(2),
-      tasaIVA: "E",
-      incluido: true
-    };
-  }
-
-  datosNCPendiente.itemsOriginales = { ...itemsDevueltosNC };
-  renderizarTablaItemsNC();
   recalcularTotalesNC();
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNotaCreditoFiscal')).show();
@@ -4297,7 +4156,6 @@ async function confirmarEmisionNotaCreditoFiscal() {
   const btn = document.getElementById('btnConfirmarEmisionNC');
   const motivo = document.getElementById('ncMotivoSelect').value;
 
-  // Filtrar solo los ítems marcados para la NC
   let itemsFinalesNC = {};
   for (let key in itemsDevueltosNC) {
     if (itemsDevueltosNC[key].incluido) {
@@ -4319,7 +4177,6 @@ async function confirmarEmisionNotaCreditoFiscal() {
   btn.textContent = "Transmitiendo Nota de Crédito a HKA80...";
 
   try {
-    // 1. Verificar conexión con la impresora fiscal
     if (!window.fiscalDriver || !window.fiscalDriver.conectado) {
       const conectar = confirm("La impresora fiscal no está conectada. ¿Desea conectarla ahora para emitir la Nota de Crédito?");
       if (conectar) {
@@ -4331,7 +4188,6 @@ async function confirmarEmisionNotaCreditoFiscal() {
       }
     }
 
-    // 2. Transmitir Nota de Crédito oficial a la máquina fiscal
     const datosPayloadNC = {
       cliente: datosNCPendiente.cliente,
       facturaAfectada: datosNCPendiente.facturaAfectada,
@@ -4347,7 +4203,6 @@ async function confirmarEmisionNotaCreditoFiscal() {
     const usuarioActivo = obtenerUsuarioActivo();
     const tablaUsuarioActivo = obtenerTablaVentasUsuario();
 
-    // 3. Guardar la Nota de Crédito en IndexedDB
     const registroNCLocal = {
       numFactura: String(numNCGenerado),
       facturaAfectada: datosNCPendiente.facturaAfectada,
@@ -4365,7 +4220,6 @@ async function confirmarEmisionNotaCreditoFiscal() {
 
     await dbPut("ventas", registroNCLocal);
 
-    // 4. Encolar sincronización a Supabase
     await dbPut("syncQueue", {
       id: "sync_nc_" + Date.now(),
       payload: {
@@ -4394,7 +4248,6 @@ async function confirmarEmisionNotaCreditoFiscal() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNotaCreditoFiscal')).hide();
     mostrarAvisoFactura(`🎉 Nota de Crédito Fiscal N° ${numNCGenerado} emitida exitosamente en la máquina fiscal.`);
 
-    // Recargar historial para visualizar la nueva transacción
     buscarFacturasHistorial('ultimas');
     procesarColaSincronizacion();
 
@@ -4409,7 +4262,51 @@ async function confirmarEmisionNotaCreditoFiscal() {
   }
 }
 
-    // Filtrar ÚNICAMENTE las facturas y Notas de Crédito de tipo FISCAL emitidas en el período
+window.abrirModalNotaCreditoFiscal = abrirModalNotaCreditoFiscal;
+window.alternarTipoOperacionNC = alternarTipoOperacionNC;
+window.alternarCheckItemNC = alternarCheckItemNC;
+window.confirmarEmisionNotaCreditoFiscal = confirmarEmisionNotaCreditoFiscal;
+
+// 2. GENERADOR Y EXPORTADOR OFICIAL DEL LIBRO DE VENTAS FISCAL SENIAT (.xlsx y .pdf)
+async function ejecutarDescargaLibroSeniat(formato = 'excel') {
+  const errorDiv = document.getElementById('errorModalDescarga');
+  const fechaDesdeStr = document.getElementById('seniatFechaDesde')?.value;
+  const fechaHastaStr = document.getElementById('seniatFechaHasta')?.value;
+  const mesNombre = document.getElementById('seniatMesSelect')?.selectedOptions[0]?.text || "Mes";
+  const anioFiscal = document.getElementById('seniatAnioInput')?.value || "2026";
+  const periodoTexto = document.getElementById('seniatPeriodoSelect')?.selectedOptions[0]?.text || "Período";
+
+  if (!fechaDesdeStr || !fechaHastaStr) {
+    if (errorDiv) {
+      errorDiv.textContent = "Indique el rango de fechas para el Libro de Ventas Fiscal.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (errorDiv) errorDiv.classList.add('hidden');
+  mostrarAvisoFactura(`🔄 Generando Libro de Ventas SENIAT (${formato.toUpperCase()})...`);
+
+  try {
+    const dDesde = new Date(`${fechaDesdeStr}T00:00:00`);
+    const dHasta = new Date(`${fechaHastaStr}T23:59:59`);
+    const tasaActual = obtenerTasaBCV() || 778.00;
+
+    let todasLasVentas = [];
+    if (navigator.onLine) {
+      todasLasVentas = await obtenerTodasLasVentasSupabase('ventas');
+    } else {
+      todasLasVentas = await dbGetAll("ventas");
+    }
+
+    if (!todasLasVentas || todasLasVentas.length === 0) {
+      if (errorDiv) {
+        errorDiv.textContent = "No se encontraron registros de ventas en la base de datos.";
+        errorDiv.classList.remove('hidden');
+      }
+      return;
+    }
+
     const ventasPeriodo = todasLasVentas.filter(v => {
       const formaStr = String(v["FORMA DE PAGO"] || v.formaPagoStr || "").toUpperCase();
       const numFac = String(v.FACTURA || v["FACTURA N°"] || v.numFactura || "");
@@ -4445,7 +4342,6 @@ async function confirmarEmisionNotaCreditoFiscal() {
       return;
     }
 
-    // Procesar cada renglón fiscal del Libro de Ventas
     let filasSeniat = [];
     let totVentasBs = 0;
     let totExentoBs = 0;
@@ -4461,8 +4357,8 @@ async function confirmarEmisionNotaCreditoFiscal() {
       const cedulaRIF = String(v["CEDULA O RIF"] || v.cedula || "V-00000000").trim();
       const clienteNombre = String(v["NOMBRE / RAZON SOCIAL"] || v.nombre || "CONSUMIDOR FINAL").trim();
       const montoTotalUSD = parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0;
+      const esNC = Boolean(v.esNotaCredito || numFac.startsWith("NC-") || String(v["FORMA DE PAGO"] || "").includes("NOTA DE CREDITO"));
 
-      // Cálculo de bases e impuestos en Bolívares
       let totalVentaBs = 0;
       let evBS = parseFloat(v["EFECTIVO BOLIVARES"]) || 0;
       let pmBS = parseFloat(v["PAGO MOVIL"]) || 0;
@@ -4479,10 +4375,9 @@ async function confirmarEmisionNotaCreditoFiscal() {
         let crUSD = parseFloat(v["CREDITO"]) || 0;
         totalVentaBs = sumaBolivares + ((evUSD + zUSD + ppUSD + cUSD + crUSD) * tasaActual);
       } else {
-        totalVentaBs = montoTotalUSD * tasaActual;
+        totalVentaBs = Math.abs(montoTotalUSD) * tasaActual;
       }
 
-      // Desglose Tributario de Productos
       const prodsStr = String(v["PRODUCTOS"] || v.productosSummary || "").toUpperCase();
       let exentoBs = 0;
       let base16Bs = 0;
@@ -4511,46 +4406,50 @@ async function confirmarEmisionNotaCreditoFiscal() {
         }
       });
 
-      // Si no hubo desglose específico en el texto, clasificar por el total
       if ((exentoBs + base16Bs + base8Bs) === 0 && totalVentaBs > 0) {
         exentoBs = totalVentaBs;
       }
 
-      totVentasBs += totalVentaBs;
-      totExentoBs += exentoBs;
-      totBase16Bs += base16Bs;
-      totIVA16Bs += iva16Bs;
-      totBase8Bs += base8Bs;
-      totIVA8Bs += iva8Bs;
+      let factorSigno = esNC ? -1 : 1;
+      let finalTotalBs = totalVentaBs * factorSigno;
+      let finalExentoBs = exentoBs * factorSigno;
+      let finalBase16Bs = base16Bs * factorSigno;
+      let finalIVA16Bs = iva16Bs * factorSigno;
+      let finalBase8Bs = base8Bs * factorSigno;
+      let finalIVA8Bs = iva8Bs * factorSigno;
+
+      totVentasBs += finalTotalBs;
+      totExentoBs += finalExentoBs;
+      totBase16Bs += finalBase16Bs;
+      totIVA16Bs += finalIVA16Bs;
+      totBase8Bs += finalBase8Bs;
+      totIVA8Bs += finalIVA8Bs;
 
       filasSeniat.push({
         nroOperacion: operacionNro++,
         fecha: fechaStr,
         cedulaRIF: cedulaRIF,
         cliente: clienteNombre,
-        numFactura: numFac,
+        numFactura: esNC ? "" : numFac,
         numControl: "N/A",
         notaDebito: "",
-        notaCredito: "",
-        tipoTransaccion: "01-REG",
-        facturaAfectada: "",
-        totalVentaBs: totalVentaBs,
-        exentoBs: exentoBs,
-        base16Bs: base16Bs,
+        notaCredito: esNC ? numFac : "",
+        tipoTransaccion: esNC ? "02-NC" : "01-REG",
+        facturaAfectada: esNC ? (v.facturaAfectada || String(v.direccion || "").replace(/\D/g, '') || "") : "",
+        totalVentaBs: finalTotalBs,
+        exentoBs: finalExentoBs,
+        base16Bs: finalBase16Bs,
         alicuota16: "16%",
-        iva16Bs: iva16Bs,
-        base8Bs: base8Bs,
+        iva16Bs: finalIVA16Bs,
+        base8Bs: finalBase8Bs,
         alicuota8: "8%",
-        iva8Bs: iva8Bs,
+        iva8Bs: finalIVA8Bs,
         igtfBs: 0.00,
         compRetencion: "",
         ivaRetenidoBs: 0.00
       });
     });
 
-    // =========================================================================
-    // MODALIDAD A: EXPORTACIÓN EN EXCEL (Formato Legal SENIAT)
-    // =========================================================================
     if (formato === 'excel') {
       const filasExcel = [
         ["FRIGORIFICO MUNDOCARNES, C.A."],
@@ -4578,7 +4477,6 @@ async function confirmarEmisionNotaCreditoFiscal() {
         ]);
       });
 
-      // Fila de Totales
       filasExcel.push([]);
       filasExcel.push([
         "TOTALES:", "", "", "", "", "", "", "", "", "",
@@ -4599,13 +4497,9 @@ async function confirmarEmisionNotaCreditoFiscal() {
       mostrarAvisoFactura("🎉 Libro de Ventas Fiscal SENIAT (.xlsx) generado con éxito.");
 
     } else {
-      // =========================================================================
-      // MODALIDAD B: EXPORTACIÓN EN PDF APAISADO (Landscape SENIAT)
-      // =========================================================================
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
-      // Encabezado Fiscal Oficial
       doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.text("FRIGORIFICO MUNDOCARNES, C.A.", 14, 12);
@@ -4617,36 +4511,32 @@ async function confirmarEmisionNotaCreditoFiscal() {
       doc.setFont("helvetica", "normal");
       doc.text(`Período de Imposición: ${mesNombre.toUpperCase()} ${anioFiscal} (${fechaDesdeStr} al ${fechaHastaStr}) | Tasa Ref: Bs. ${tasaActual.toFixed(2)}`, 14, 24);
 
-      // Tabla Formateada con AutoTable
       const columnasPDF = [
-        "#", "Fecha", "RIF / C.I.", "Cliente / Razón Social", "N° Factura", "Tipo", 
-        "Total Ventas (Bs)", "Exento (Bs)", "Base 16% (Bs)", "IVA 16% (Bs)", "Base 8% (Bs)", "IVA 8% (Bs)"
+        "#", "Fecha", "RIF / C.I.", "Cliente / Razón Social", "N° Factura", "N° NC", "Tipo", "Fact. Afect.",
+        "Total Ventas (Bs)", "Exento (Bs)", "Base 16% (Bs)", "IVA 16% (Bs)"
       ];
 
       const filasPDF = filasSeniat.map(f => [
         f.nroOperacion,
         f.fecha,
         f.cedulaRIF,
-        f.cliente.length > 22 ? f.cliente.substring(0, 22) + "..." : f.cliente,
-        f.numFactura,
+        f.cliente.length > 20 ? f.cliente.substring(0, 20) + "..." : f.cliente,
+        f.numFactura || "-",
+        f.notaCredito || "-",
         f.tipoTransaccion,
+        f.facturaAfectada || "-",
         f.totalVentaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         f.exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         f.base16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        f.iva16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        f.base8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        f.iva8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        f.iva16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       ]);
 
-      // Fila de Totales en PDF
       filasPDF.push([
-        "TOTAL", "", "", "RESUMEN DEL PERÍODO", "", "",
+        "TOTAL", "", "", "RESUMEN DEL PERÍODO", "", "", "", "",
         totVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         totExentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         totBase16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        totIVA16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        totBase8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        totIVA8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        totIVA16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       ]);
 
       doc.autoTable({
@@ -4654,16 +4544,14 @@ async function confirmarEmisionNotaCreditoFiscal() {
         body: filasPDF,
         startY: 27,
         theme: "grid",
-        styles: { fontSize: 6.8, cellPadding: 1.2, halign: "center", lineColor: [200, 200, 200], lineWidth: 0.1 },
-        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 6.8 },
+        styles: { fontSize: 6.5, cellPadding: 1.2, halign: "center", lineColor: [200, 200, 200], lineWidth: 0.1 },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 6.5 },
         columnStyles: {
-          3: { halign: "left", cellWidth: 38 },
-          6: { halign: "right", fontStyle: "bold" },
-          7: { halign: "right" },
-          8: { halign: "right" },
-          9: { halign: "right", textColor: [180, 0, 0] },
+          3: { halign: "left", cellWidth: 35 },
+          8: { halign: "right", fontStyle: "bold" },
+          9: { halign: "right" },
           10: { halign: "right" },
-          11: { halign: "right" }
+          11: { halign: "right", textColor: [180, 0, 0] }
         },
         footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" }
       });
