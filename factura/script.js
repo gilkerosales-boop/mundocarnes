@@ -3767,8 +3767,10 @@ async function eliminarFacturaHistorial(numFactura) {
   procesarColaSincronizacion();
 }
 
-// DESCARGA DE EXCEL
-function abrirModalFiltroDescarga() {
+// ==========================================================================
+// CENTRO DE DESCARGAS: REPORTE OPERATIVO Y LIBRO DE VENTAS FISCAL SENIAT
+// ==========================================================================
+function abrirModalSeleccionDescargas() {
   const inputFecha = document.getElementById('descargaFechaInput');
   const selectForma = document.getElementById('descargaFormaPagoSelect');
   const errorDiv = document.getElementById('errorModalDescarga');
@@ -3780,9 +3782,60 @@ function abrirModalFiltroDescarga() {
   if (selectForma) selectForma.value = "TODOS";
   if (errorDiv) errorDiv.classList.add('hidden');
 
+  // Configurar mes y año fiscal por defecto (Mes actual)
+  const fechaHoy = new Date();
+  const mesActual = fechaHoy.getMonth() + 1;
+  const anioActual = fechaHoy.getFullYear();
+
+  const selMes = document.getElementById('seniatMesSelect');
+  const inpAnio = document.getElementById('seniatAnioInput');
+  const selPeriodo = document.getElementById('seniatPeriodoSelect');
+
+  if (selMes) selMes.value = String(mesActual);
+  if (inpAnio) inpAnio.value = String(anioActual);
+  if (selPeriodo) selPeriodo.value = (fechaHoy.getDate() <= 15) ? "Q1" : "Q2";
+
+  actualizarFechasPeriodoSeniat();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiltroDescarga')).show();
 }
 
+function abrirModalFiltroDescarga() {
+  abrirModalSeleccionDescargas();
+}
+
+function actualizarFechasPeriodoSeniat() {
+  const selPeriodo = document.getElementById('seniatPeriodoSelect')?.value || "Q2";
+  const mes = parseInt(document.getElementById('seniatMesSelect')?.value || "8", 10);
+  const anio = parseInt(document.getElementById('seniatAnioInput')?.value || "2026", 10);
+  const contRango = document.getElementById('contenedorRangoFechasSeniat');
+  const inpDesde = document.getElementById('seniatFechaDesde');
+  const inpHasta = document.getElementById('seniatFechaHasta');
+
+  if (!contRango || !inpDesde || !inpHasta) return;
+
+  const ultimoDiaMes = new Date(anio, mes, 0).getDate();
+  const mesStr = String(mes).padStart(2, '0');
+
+  if (selPeriodo === "Q1") {
+    contRango.classList.add('hidden');
+    inpDesde.value = `${anio}-${mesStr}-01`;
+    inpHasta.value = `${anio}-${mesStr}-15`;
+  } else if (selPeriodo === "Q2") {
+    contRango.classList.add('hidden');
+    inpDesde.value = `${anio}-${mesStr}-16`;
+    inpHasta.value = `${anio}-${mesStr}-${String(ultimoDiaMes).padStart(2, '0')}`;
+  } else if (selPeriodo === "MES") {
+    contRango.classList.add('hidden');
+    inpDesde.value = `${anio}-${mesStr}-01`;
+    inpHasta.value = `${anio}-${mesStr}-${String(ultimoDiaMes).padStart(2, '0')}`;
+  } else {
+    contRango.classList.remove('hidden');
+    if (!inpDesde.value) inpDesde.value = `${anio}-${mesStr}-01`;
+    if (!inpHasta.value) inpHasta.value = `${anio}-${mesStr}-${String(ultimoDiaMes).padStart(2, '0')}`;
+  }
+}
+
+// 1. REPORTE OPERATIVO DE VENTAS EN EXCEL (FUNCIONAMIENTO ACTUAL INTACTO)
 async function ejecutarDescargaExcelFacturas() {
   const fechaVal = document.getElementById('descargaFechaInput').value;
   const formaPagoVal = document.getElementById('descargaFormaPagoSelect').value;
@@ -3811,7 +3864,7 @@ async function ejecutarDescargaExcelFacturas() {
     const todosRegistros = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
 
     btn.disabled = false;
-    btn.textContent = "📊 Descargar Excel (.xlsx)";
+    btn.textContent = "📊 Descargar Reporte Operativo (.xlsx)";
 
     if (todosRegistros && todosRegistros.length > 0) {
       const registrosFiltrados = todosRegistros.filter(r => {
@@ -3859,7 +3912,7 @@ async function ejecutarDescargaExcelFacturas() {
         "Cashea ($)": parseFloat(r["CASHEA"]) || 0,
         "Crédito ($)": parseFloat(r["CREDITO"]) || 0,
         "Punto de Venta (Bs)": parseFloat(r["PUNTO DE VENTA"]) || 0,
-        "Transferencia (Bs)": parseFloat(r["TRANSFERENCIA"]) || 0,
+        "Transferencia (Bs)": parseFloat(r["TRANSFERENCIA"] || r["TRANSFERECIA"]) || 0,
         "Biopago (Bs)": parseFloat(r["BIOPAGO"]) || 0
       }));
 
@@ -3872,11 +3925,11 @@ async function ejecutarDescargaExcelFacturas() {
       }));
       worksheet['!cols'] = maxCols;
 
-      const nombreArchivo = `Reporte_${tablaUsuarioActivo}_${fechaVal}_${formaPagoVal.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+      const nombreArchivo = `Reporte_Operativo_${tablaUsuarioActivo}_${fechaVal}_${formaPagoVal.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
       XLSX.writeFile(workbook, nombreArchivo);
 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiltroDescarga')).hide();
-      mostrarAvisoFactura("🎉 Reporte Excel generado y descargado exitosamente.");
+      mostrarAvisoFactura("🎉 Reporte operativo generado y descargado exitosamente.");
 
     } else {
       if (errorDiv) {
@@ -3887,10 +3940,311 @@ async function ejecutarDescargaExcelFacturas() {
 
   } catch (err) {
     btn.disabled = false;
-    btn.textContent = "📊 Descargar Excel (.xlsx)";
+    btn.textContent = "📊 Descargar Reporte Operativo (.xlsx)";
     console.error("Error al descargar reporte Excel:", err);
     if (errorDiv) {
       errorDiv.textContent = "Error de conexión al obtener el reporte Excel.";
+      errorDiv.classList.remove('hidden');
+    }
+  }
+}
+
+// 2. GENERADOR Y EXPORTADOR OFICIAL DEL LIBRO DE VENTAS FISCAL SENIAT (.xlsx y .pdf)
+async function ejecutarDescargaLibroSeniat(formato = 'excel') {
+  const errorDiv = document.getElementById('errorModalDescarga');
+  const fechaDesdeStr = document.getElementById('seniatFechaDesde')?.value;
+  const fechaHastaStr = document.getElementById('seniatFechaHasta')?.value;
+  const mesNombre = document.getElementById('seniatMesSelect')?.selectedOptions[0]?.text || "Mes";
+  const anioFiscal = document.getElementById('seniatAnioInput')?.value || "2026";
+  const periodoTexto = document.getElementById('seniatPeriodoSelect')?.selectedOptions[0]?.text || "Período";
+
+  if (!fechaDesdeStr || !fechaHastaStr) {
+    if (errorDiv) {
+      errorDiv.textContent = "Indique el rango de fechas para el Libro de Ventas Fiscal.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (errorDiv) errorDiv.classList.add('hidden');
+  mostrarAvisoFactura(`🔄 Generando Libro de Ventas SENIAT (${formato.toUpperCase()})...`);
+
+  try {
+    const dDesde = new Date(`${fechaDesdeStr}T00:00:00`);
+    const dHasta = new Date(`${fechaHastaStr}T23:59:59`);
+    const tasaActual = obtenerTasaBCV() || 778.00;
+
+    // Obtener ventas globales de la empresa
+    let todasLasVentas = [];
+    if (navigator.onLine) {
+      todasLasVentas = await obtenerTodasLasVentasSupabase('ventas');
+    } else {
+      todasLasVentas = await dbGetAll("ventas");
+    }
+
+    if (!todasLasVentas || todasLasVentas.length === 0) {
+      if (errorDiv) {
+        errorDiv.textContent = "No se encontraron registros de ventas en la base de datos.";
+        errorDiv.classList.remove('hidden');
+      }
+      return;
+    }
+
+    // Filtrar ventas que caen dentro del período fiscal exacto
+    const ventasPeriodo = todasLasVentas.filter(v => {
+      const fStr = String(v["FECHA"] || v.fechaStr || "");
+      const ts = parsearFechaTimestamp(fStr);
+      if (ts > 0) {
+        const dVenta = new Date(ts);
+        return dVenta >= dDesde && dVenta <= dHasta;
+      }
+      return false;
+    }).sort((a, b) => {
+      return parsearFechaTimestamp(a["FECHA"] || a.fechaStr) - parsearFechaTimestamp(b["FECHA"] || b.fechaStr);
+    });
+
+    if (ventasPeriodo.length === 0) {
+      if (errorDiv) {
+        errorDiv.textContent = `No se encontraron ventas para el período seleccionado (${fechaDesdeStr} al ${fechaHastaStr}).`;
+        errorDiv.classList.remove('hidden');
+      }
+      return;
+    }
+
+    // Procesar cada renglón fiscal del Libro de Ventas
+    let filasSeniat = [];
+    let totVentasBs = 0;
+    let totExentoBs = 0;
+    let totBase16Bs = 0;
+    let totIVA16Bs = 0;
+    let totBase8Bs = 0;
+    let totIVA8Bs = 0;
+    let operacionNro = 1;
+
+    ventasPeriodo.forEach(v => {
+      const numFac = String(v.FACTURA || v["FACTURA N°"] || v.numFactura || "");
+      const fechaStr = String(v["FECHA"] || v.fechaStr || "").split(',')[0].trim();
+      const cedulaRIF = String(v["CEDULA O RIF"] || v.cedula || "V-00000000").trim();
+      const clienteNombre = String(v["NOMBRE / RAZON SOCIAL"] || v.nombre || "CONSUMIDOR FINAL").trim();
+      const montoTotalUSD = parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0;
+
+      // Cálculo de bases e impuestos en Bolívares
+      let totalVentaBs = 0;
+      let evBS = parseFloat(v["EFECTIVO BOLIVARES"]) || 0;
+      let pmBS = parseFloat(v["PAGO MOVIL"]) || 0;
+      let pvBS = parseFloat(v["PUNTO DE VENTA"]) || 0;
+      let trBS = parseFloat(v["TRANSFERENCIA"] || v["TRANSFERECIA"]) || 0;
+      let bioBS = parseFloat(v["BIOPAGO"]) || 0;
+      let sumaBolivares = evBS + pmBS + pvBS + trBS + bioBS;
+
+      if (sumaBolivares > 0) {
+        let evUSD = parseFloat(v["EFECTIVO DIVISAS"]) || 0;
+        let zUSD = parseFloat(v["ZELLE"]) || 0;
+        let ppUSD = parseFloat(v["PAYPAL"]) || 0;
+        let cUSD = parseFloat(v["CASHEA"]) || 0;
+        let crUSD = parseFloat(v["CREDITO"]) || 0;
+        totalVentaBs = sumaBolivares + ((evUSD + zUSD + ppUSD + cUSD + crUSD) * tasaActual);
+      } else {
+        totalVentaBs = montoTotalUSD * tasaActual;
+      }
+
+      // Desglose Tributario de Productos
+      const prodsStr = String(v["PRODUCTOS"] || v.productosSummary || "").toUpperCase();
+      let exentoBs = 0;
+      let base16Bs = 0;
+      let iva16Bs = 0;
+      let base8Bs = 0;
+      let iva8Bs = 0;
+
+      const itemsLista = prodsStr.split(' | ');
+      itemsLista.forEach(itemTxt => {
+        const matchUSD = itemTxt.match(/\$([0-9.]+)/);
+        let montoItemUSD = matchUSD ? parseFloat(matchUSD[1]) : 0;
+        let montoItemBs = montoItemUSD * tasaActual;
+
+        if (itemTxt.includes('(G)') || itemTxt.includes('(16%)')) {
+          let base = montoItemBs / 1.16;
+          let iva = montoItemBs - base;
+          base16Bs += base;
+          iva16Bs += iva;
+        } else if (itemTxt.includes('(R)') || itemTxt.includes('(8%)')) {
+          let base = montoItemBs / 1.08;
+          let iva = montoItemBs - base;
+          base8Bs += base;
+          iva8Bs += iva;
+        } else {
+          exentoBs += montoItemBs;
+        }
+      });
+
+      // Si no hubo desglose específico en el texto, clasificar por el total
+      if ((exentoBs + base16Bs + base8Bs) === 0 && totalVentaBs > 0) {
+        exentoBs = totalVentaBs;
+      }
+
+      totVentasBs += totalVentaBs;
+      totExentoBs += exentoBs;
+      totBase16Bs += base16Bs;
+      totIVA16Bs += iva16Bs;
+      totBase8Bs += base8Bs;
+      totIVA8Bs += iva8Bs;
+
+      filasSeniat.push({
+        nroOperacion: operacionNro++,
+        fecha: fechaStr,
+        cedulaRIF: cedulaRIF,
+        cliente: clienteNombre,
+        numFactura: numFac,
+        numControl: "N/A",
+        notaDebito: "",
+        notaCredito: "",
+        tipoTransaccion: "01-REG",
+        facturaAfectada: "",
+        totalVentaBs: totalVentaBs,
+        exentoBs: exentoBs,
+        base16Bs: base16Bs,
+        alicuota16: "16%",
+        iva16Bs: iva16Bs,
+        base8Bs: base8Bs,
+        alicuota8: "8%",
+        iva8Bs: iva8Bs,
+        igtfBs: 0.00,
+        compRetencion: "",
+        ivaRetenidoBs: 0.00
+      });
+    });
+
+    // =========================================================================
+    // MODALIDAD A: EXPORTACIÓN EN EXCEL (Formato Legal SENIAT)
+    // =========================================================================
+    if (formato === 'excel') {
+      const filasExcel = [
+        ["FRIGORIFICO MUNDOCARNES, C.A."],
+        ["RIF: J-505072889"],
+        [`LIBRO DE VENTAS FISCAL - SENIAT (Providencia N° SNAT/2014/0032)`],
+        [`Período de Imposición: ${mesNombre.toUpperCase()} ${anioFiscal} - (${periodoTexto}) | Tasa Ref: Bs. ${tasaActual.toFixed(2)}`],
+        [],
+        [
+          "N° Oper.", "Fecha", "RIF / C.I.", "Nombre / Razón Social", "N° Factura", 
+          "N° Control", "N° Nota Déb.", "N° Nota Créd.", "Tipo Trans.", "Fact. Afectada",
+          "Total Ventas Incl. IVA (Bs.)", "Ventas Exentas (Bs.)", "Base Imponible 16% (Bs.)", 
+          "% Alic. 16%", "Impuesto IVA 16% (Bs.)", "Base Imponible 8% (Bs.)", "% Alic. 8%", 
+          "Impuesto IVA 8% (Bs.)", "IGTF Percibido 3% (Bs.)", "N° Comprobante Ret.", "IVA Retenido (Bs.)"
+        ]
+      ];
+
+      filasSeniat.forEach(f => {
+        filasExcel.push([
+          f.nroOperacion, f.fecha, f.cedulaRIF, f.cliente, f.numFactura,
+          f.numControl, f.notaDebito, f.notaCredito, f.tipoTransaccion, f.facturaAfectada,
+          parseFloat(f.totalVentaBs.toFixed(2)), parseFloat(f.exentoBs.toFixed(2)), 
+          parseFloat(f.base16Bs.toFixed(2)), f.alicuota16, parseFloat(f.iva16Bs.toFixed(2)),
+          parseFloat(f.base8Bs.toFixed(2)), f.alicuota8, parseFloat(f.iva8Bs.toFixed(2)),
+          f.igtfBs, f.compRetencion, f.ivaRetenidoBs
+        ]);
+      });
+
+      // Fila de Totales
+      filasExcel.push([]);
+      filasExcel.push([
+        "TOTALES:", "", "", "", "", "", "", "", "", "",
+        parseFloat(totVentasBs.toFixed(2)), parseFloat(totExentoBs.toFixed(2)), 
+        parseFloat(totBase16Bs.toFixed(2)), "", parseFloat(totIVA16Bs.toFixed(2)),
+        parseFloat(totBase8Bs.toFixed(2)), "", parseFloat(totIVA8Bs.toFixed(2)),
+        0.00, "", 0.00
+      ]);
+
+      const worksheet = XLSX.utils.aoa_to_sheet(filasExcel);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Libro_Ventas_SENIAT");
+
+      const nombreArchivo = `Libro_Ventas_SENIAT_${mesNombre}_${anioFiscal}_${fechaDesdeStr}_al_${fechaHastaStr}.xlsx`;
+      XLSX.writeFile(workbook, nombreArchivo);
+
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiltroDescarga')).hide();
+      mostrarAvisoFactura("🎉 Libro de Ventas Fiscal SENIAT (.xlsx) generado con éxito.");
+
+    } else {
+      // =========================================================================
+      // MODALIDAD B: EXPORTACIÓN EN PDF APAISADO (Landscape SENIAT)
+      // =========================================================================
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+      // Encabezado Fiscal Oficial
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text("FRIGORIFICO MUNDOCARNES, C.A.", 14, 12);
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica", "normal");
+      doc.text("RIF: J-505072889 | Dirección: Av. San Martín, Caracas, Distrito Capital", 14, 16);
+      doc.setFont("helvetica", "bold");
+      doc.text(`LIBRO DE VENTAS FISCAL - SENIAT (Providencia N° SNAT/2014/0032)`, 14, 20);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Período de Imposición: ${mesNombre.toUpperCase()} ${anioFiscal} (${fechaDesdeStr} al ${fechaHastaStr}) | Tasa Ref: Bs. ${tasaActual.toFixed(2)}`, 14, 24);
+
+      // Tabla Formateada con AutoTable
+      const columnasPDF = [
+        "#", "Fecha", "RIF / C.I.", "Cliente / Razón Social", "N° Factura", "Tipo", 
+        "Total Ventas (Bs)", "Exento (Bs)", "Base 16% (Bs)", "IVA 16% (Bs)", "Base 8% (Bs)", "IVA 8% (Bs)"
+      ];
+
+      const filasPDF = filasSeniat.map(f => [
+        f.nroOperacion,
+        f.fecha,
+        f.cedulaRIF,
+        f.cliente.length > 22 ? f.cliente.substring(0, 22) + "..." : f.cliente,
+        f.numFactura,
+        f.tipoTransaccion,
+        f.totalVentaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.base16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.iva16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.base8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.iva8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ]);
+
+      // Fila de Totales en PDF
+      filasPDF.push([
+        "TOTAL", "", "", "RESUMEN DEL PERÍODO", "", "",
+        totVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totExentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totBase16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totIVA16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totBase8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totIVA8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ]);
+
+      doc.autoTable({
+        head: [columnasPDF],
+        body: filasPDF,
+        startY: 27,
+        theme: "grid",
+        styles: { fontSize: 6.8, cellPadding: 1.2, halign: "center", lineColor: [200, 200, 200], lineWidth: 0.1 },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 6.8 },
+        columnStyles: {
+          3: { halign: "left", cellWidth: 38 },
+          6: { halign: "right", fontStyle: "bold" },
+          7: { halign: "right" },
+          8: { halign: "right" },
+          9: { halign: "right", textColor: [180, 0, 0] },
+          10: { halign: "right" },
+          11: { halign: "right" }
+        },
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" }
+      });
+
+      const nombreArchivoPDF = `Libro_Ventas_SENIAT_${mesNombre}_${anioFiscal}_${fechaDesdeStr}_al_${fechaHastaStr}.pdf`;
+      doc.save(nombreArchivoPDF);
+
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiltroDescarga')).hide();
+      mostrarAvisoFactura("🎉 Libro de Ventas Fiscal SENIAT (.pdf) exportado con éxito.");
+    }
+
+  } catch (errSeniat) {
+    console.error("Error al generar Libro SENIAT:", errSeniat);
+    if (errorDiv) {
+      errorDiv.textContent = "Error al generar el Libro SENIAT: " + errSeniat.message;
       errorDiv.classList.remove('hidden');
     }
   }
