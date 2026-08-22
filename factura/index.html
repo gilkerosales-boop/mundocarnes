@@ -14,8 +14,11 @@
 
    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Librerías de Exportación PDF para Libro de Ventas SENIAT -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <!-- Estilo Local POS Aislado con Soporte Fiscal Dual -->
-    <link rel="stylesheet" href="style.css?v=3.7.0">
+    <link rel="stylesheet" href="style.css?v=3.8.0">
     <!-- Configuración de App Instalable PWA -->
     <link rel="manifest" href="manifest.json?v=1.0.4">
     <meta name="theme-color" content="#0f172a">
@@ -1057,8 +1060,8 @@
                     </select>
                   </div>
                   <div class="col-md-3 col-lg-3">
-                    <button type="button" class="btn btn-success w-100 fw-bold rounded-pill" onclick="abrirModalFiltroDescarga()">
-                      📥 Descargar Excel
+                    <button type="button" class="btn btn-success w-100 fw-bold rounded-pill shadow-sm" onclick="abrirModalSeleccionDescargas()">
+                      📥 Descargar
                     </button>
                   </div>
                 </div>
@@ -1224,44 +1227,131 @@
       </div>
     </div>
 
-    <!-- MODAL DESCARGA EXCEL -->
+   <!-- MODAL DE DESCARGAS: REPORTE OPERATIVO Y LIBRO DE VENTAS SENIAT -->
     <div class="modal fade" id="modalFiltroDescarga" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title fw-bold">📥 Descargar Registro en Excel (.xlsx)</h5>
+            <h5 class="modal-title fw-bold">📥 Centro de Descargas y Reportes</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-body p-4">
-            <div class="mb-3">
-              <label for="descargaFechaInput" class="form-label fw-bold">📅 Fecha Requerida *:</label>
-              <input type="date" id="descargaFechaInput" class="form-control fw-bold fs-5 text-center num-legible">
+          <div class="modal-body p-4 bg-light">
+            
+            <!-- Píldoras de Selección de Reporte -->
+            <ul class="nav nav-pills nav-pills-historial justify-content-center mb-4 gap-2" id="pillsDescargasTab" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-bold" id="tab-reporte-operativo" data-bs-toggle="pill" data-bs-target="#panel-reporte-operativo" type="button" role="tab">
+                  📊 Reporte de Ventas Operativo
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link fw-bold" id="tab-libro-seniat" data-bs-toggle="pill" data-bs-target="#panel-libro-seniat" type="button" role="tab">
+                  🏛️ Libro de Ventas Fiscal SENIAT
+                </button>
+              </li>
+            </ul>
+
+            <div class="tab-content" id="pillsDescargasTabContent">
+              
+              <!-- OPCIÓN A: Reporte Operativo de Ventas (Intacto) -->
+              <div class="tab-pane fade show active p-3 bg-white border rounded-3 shadow-sm" id="panel-reporte-operativo" role="tabpanel">
+                <div class="alert alert-info py-2 small fw-bold mb-3">
+                  📋 Exporta el detalle operativo de las ventas diarias desglosado por cada método de pago.
+                </div>
+                <div class="mb-3">
+                  <label for="descargaFechaInput" class="form-label fw-bold small">📅 Fecha Requerida *:</label>
+                  <input type="date" id="descargaFechaInput" class="form-control fw-bold text-center num-legible">
+                </div>
+                <div class="mb-3">
+                  <label for="descargaFormaPagoSelect" class="form-label fw-bold small">💳 Filtrar Método de Pago:</label>
+                  <select id="descargaFormaPagoSelect" class="form-select fw-bold">
+                    <option value="TODOS" selected>-- Todos los Métodos de Pago --</option>
+                    <option value="Efectivo Divisas">Efectivo Divisas</option>
+                    <option value="Efectivo Bolívares">Efectivo Bolívares</option>
+                    <option value="Pago Móvil">Pago Móvil</option>
+                    <option value="Zelle">Zelle</option>
+                    <option value="PayPal">PayPal</option>
+                    <option value="Punto de Venta">Punto de Venta</option>
+                    <option value="Biopago">Biopago</option>
+                    <option value="Cashea">Cashea</option>
+                    <option value="Crédito">Crédito</option>
+                    <option value="Pago Mixto">Pago Mixto</option>
+                  </select>
+                </div>
+                <div class="text-end">
+                  <button type="button" id="btnProcesarDescargaExcel" class="btn btn-success fw-bold px-4 rounded-pill shadow-sm" onclick="ejecutarDescargaExcelFacturas()">
+                    📊 Descargar Reporte Operativo (.xlsx)
+                  </button>
+                </div>
+              </div>
+
+              <!-- OPCIÓN B: Libro de Ventas Fiscal SENIAT -->
+              <div class="tab-pane fade p-3 bg-white border rounded-3 shadow-sm" id="panel-libro-seniat" role="tabpanel">
+                <div class="alert alert-dark py-2 small fw-bold mb-3" style="border-left: 4px solid #dc3545;">
+                  🏛️ Formato Legal SENIAT (Providencia N° SNAT/2014/0032): Incluye RIF, bases imponibles 16%, exenciones e impuestos en Bolívares.
+                </div>
+                
+                <div class="row g-2 mb-3">
+                  <div class="col-md-6">
+                    <label for="seniatMesSelect" class="form-label fw-bold small">🗓️ Mes Fiscal *:</label>
+                    <select id="seniatMesSelect" class="form-select fw-bold" onchange="actualizarFechasPeriodoSeniat()">
+                      <option value="1">Enero</option>
+                      <option value="2">Febrero</option>
+                      <option value="3">Marzo</option>
+                      <option value="4">Abril</option>
+                      <option value="5">Mayo</option>
+                      <option value="6">Junio</option>
+                      <option value="7">Julio</option>
+                      <option value="8" selected>Agosto</option>
+                      <option value="9">Septiembre</option>
+                      <option value="10">Octubre</option>
+                      <option value="11">Noviembre</option>
+                      <option value="12">Diciembre</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="seniatAnioInput" class="form-label fw-bold small">📅 Año Fiscal *:</label>
+                    <input type="number" id="seniatAnioInput" class="form-control fw-bold text-center num-legible" value="2026" min="2024" max="2030" onchange="actualizarFechasPeriodoSeniat()">
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label for="seniatPeriodoSelect" class="form-label fw-bold small">⏱️ Período de Imposición SENIAT *:</label>
+                  <select id="seniatPeriodoSelect" class="form-select fw-bold" onchange="actualizarFechasPeriodoSeniat()">
+                    <option value="Q1">1ra Quincena (Del 01 al 15)</option>
+                    <option value="Q2" selected>2da Quincena (Del 16 al fin de mes)</option>
+                    <option value="MES">Mes Completo (Del 01 al último día)</option>
+                    <option value="PERSONALIZADO">Rango de Fechas Personalizado</option>
+                  </select>
+                </div>
+
+                <div class="row g-2 mb-3 hidden" id="contenedorRangoFechasSeniat">
+                  <div class="col-6">
+                    <label for="seniatFechaDesde" class="form-label fw-bold small">Desde:</label>
+                    <input type="date" id="seniatFechaDesde" class="form-control fw-bold num-legible">
+                  </div>
+                  <div class="col-6">
+                    <label for="seniatFechaHasta" class="form-label fw-bold small">Hasta:</label>
+                    <input type="date" id="seniatFechaHasta" class="form-control fw-bold num-legible">
+                  </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2 mt-4 pt-2 border-top">
+                  <button type="button" class="btn btn-outline-danger fw-bold rounded-pill px-4 shadow-sm" onclick="ejecutarDescargaLibroSeniat('pdf')">
+                    📄 Exportar Libro en PDF
+                  </button>
+                  <button type="button" class="btn btn-success fw-bold rounded-pill px-4 shadow-sm" onclick="ejecutarDescargaLibroSeniat('excel')">
+                    📊 Exportar Libro en Excel (.xlsx)
+                  </button>
+                </div>
+              </div>
+
             </div>
 
-            <div class="mb-3">
-              <label for="descargaFormaPagoSelect" class="form-label fw-bold">💳 Método de Pago (Filtro):</label>
-              <select id="descargaFormaPagoSelect" class="form-select fw-bold">
-                <option value="TODOS" selected>-- Todos los Métodos de Pago --</option>
-                <option value="Efectivo Divisas">Efectivo Divisas</option>
-                <option value="Efectivo Bolívares">Efectivo Bolívares</option>
-                <option value="Pago Móvil">Pago Móvil</option>
-                <option value="Zelle">Zelle</option>
-                <option value="PayPal">PayPal</option>
-                <option value="Punto de Venta">Punto de Venta</option>
-                <option value="Biopago">Biopago</option>
-                <option value="Cashea">Cashea</option>
-                <option value="Crédito">Crédito</option>
-                <option value="Pago Mixto">Pago Mixto</option>
-              </select>
-            </div>
-
-            <div id="errorModalDescarga" class="text-danger small fw-bold mt-2 hidden"></div>
+            <div id="errorModalDescarga" class="text-danger small fw-bold mt-3 hidden"></div>
           </div>
-          <div class="modal-footer justify-content-between p-3">
-            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" id="btnProcesarDescargaExcel" class="btn btn-success fw-bold px-4 rounded-pill shadow-sm" onclick="ejecutarDescargaExcelFacturas()">
-              📊 Descargar Excel (.xlsx)
-            </button>
+          <div class="modal-footer justify-content-between p-3 bg-white">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cerrar</button>
           </div>
         </div>
       </div>
