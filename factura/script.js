@@ -619,7 +619,16 @@ async function procesarColaSincronizacion() {
           "CREDITO": parseFloat(desgl["Crédito"]) || 0,
           "PUNTO DE VENTA": parseFloat(desgl["Punto de Venta"]) || 0,
           "TRANSFERENCIA": parseFloat(desgl["Transferencia Bancaria"]) || 0,
-          "BIOPAGO": parseFloat(desgl["Biopago"]) || 0
+          "BIOPAGO": parseFloat(desgl["Biopago"]) || 0,
+          // Columnas Fiscales SENIAT
+          "ES_FISCAL": Boolean(d.esFiscal),
+          "COMPROBANTE_RETENCION": d.comprobanteRetencion || null,
+          "MONTO_RETENCION_BS": parseFloat(d.montoRetencionBS) || 0,
+          "MONTO_RETENCION_USD": parseFloat(d.montoRetencionUSD) || 0,
+          "MONTO_IGTF_BS": parseFloat(d.montoIGTF_BS) || 0,
+          "MONTO_IGTF_USD": parseFloat(d.montoIGTF_USD) || 0,
+          "TOTAL_NETO_COBRADO_BS": parseFloat(d.totalNetoCobradoBS) || 0,
+          "TOTAL_NETO_COBRADO_USD": parseFloat(d.totalNetoCobradoUSD) || 0
         };
 
         const { error: errGlobal } = await supabaseClient.from('ventas').insert([registroVenta]);
@@ -2583,12 +2592,14 @@ async function emitirFacturaFinal() {
     let numFactura = await obtenerSiguienteCorrelativoLocal();
 
     const tasa = obtenerTasaBCV();
+    const factorTasa = tasa > 0 ? tasa : 1;
     let productosSummaryList = [];
     let items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
 
     for (let key in items) {
       let item = items[key];
-      productosSummaryList.push(`${key} (${item.cantidadTxt}) - $${item.precioTotal}`);
+      const tasaTag = modoFiscalActivo ? ` (${(item.tasaIVA || "E").toUpperCase()})` : "";
+      productosSummaryList.push(`${key}${tasaTag} (${item.cantidadTxt}) - $${item.precioTotal}`);
     }
 
     const tributos = calcularTotalesTributarios(items, modoFiscalActivo);
@@ -2820,54 +2831,110 @@ function renderizarTicketTermicoHTML(d) {
     }
   }
 
-  const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "FISCAL";
-  const tipoEncabezado = d.modoFiscal ? `COMPROBANTE FISCAL PREVIO (${nombreModelo.toUpperCase()})` : "COMPROBANTE NO FISCAL - NOTA DE ENTREGA";
+  let ticketHtml = "";
 
-  const ticketHtml = `
-    <div class="ticket-container shadow-sm border">
-      <div class="ticket-header">
-        <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
-        <div class="ticket-title fs-6">${tipoEncabezado}</div>
-        <div>RIF: J-505072889 | TELF: 0412-1753275</div>
-        <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
-        <div>HORARIO: 7:30am - 19:00pm</div>
+  if (d.modoFiscal) {
+    // =========================================================================
+    // VISTA PREVIA EXACTA: FORMATO FISCAL THE FACTORY HKA80 (SENIAT)
+    // =========================================================================
+    const serialFiscal = window.fiscalDriver?.ultimoReporteStatus?.serial || "Z7C7044438";
+    
+    ticketHtml = `
+      <div class="ticket-container shadow-sm border text-start">
+        <div class="ticket-header">
+          <div class="small fw-bold text-center">SENIAT</div>
+          <div class="small fw-bold text-center">RIF J-505072889</div>
+          <div class="fw-bold fs-6 text-center">FRIGORIFICO MUNDOCARNES, C.A</div>
+          <div class="small text-center">AV. SAN MARTIN, CARACAS, DISTRITO CAPITAL</div>
+          <div class="ticket-title mt-2 fs-6 text-center">FACTURA FISCAL</div>
+        </div>
+
+        <div class="ticket-info">
+          <div><strong>CLIENTE:</strong> ${d.cliente.nombre}</div>
+          <div><strong>CI / RIF:</strong> <span class="num-legible">${d.cliente.cedula}</span></div>
+          <div><strong>DIR:</strong> ${d.cliente.direccion || 'CIUDAD'} | <strong>TELF:</strong> ${d.cliente.telefono || 'N/D'}</div>
+          <div class="ticket-divider"></div>
+          <div><strong>FACTURA FISCAL:</strong> <span class="fs-6 fw-bold num-legible">${d.numFactura.replace('001-', 'FAC-')}</span></div>
+          <div><strong>FECHA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
+        </div>
+
+        <table class="ticket-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>PRODUCTO</th>
+              <th class="text-center">PRECIO</th>
+              <th class="text-center">CANT</th>
+              <th class="text-end">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filasProductosHtml}
+          </tbody>
+        </table>
+
+        <div class="ticket-totals border-top pt-1">
+          ${bloqueTotalesHtml}
+          <div class="ticket-divider"></div>
+          <div><strong>FORMA DE PAGO:</strong></div>
+          <div class="small fw-bold">${d.formaPagoStr}</div>
+        </div>
+
+        <div class="ticket-footer mt-3 d-flex justify-content-between align-items-center">
+          <span class="fw-bold">MH</span>
+          <span class="num-legible fw-bold">${serialFiscal}</span>
+        </div>
       </div>
+    `;
+  } else {
+    // =========================================================================
+    // VISTA PREVIA: CONTROL INTERNO CONVENCIONAL (XP-80C NOTA DE ENTREGA)
+    // =========================================================================
+    ticketHtml = `
+      <div class="ticket-container shadow-sm border text-start">
+        <div class="ticket-header text-center">
+          <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
+          <div class="ticket-title fs-6">COMPROBANTE NO FISCAL - NOTA DE ENTREGA</div>
+          <div>RIF: J-505072889 | TELF: 0412-1753275</div>
+          <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
+        </div>
 
-      <div class="ticket-info">
-        <div><strong>FACTURA N°:</strong> <span class="fs-6 num-legible">${d.numFactura}</span></div>
-        <div><strong>FECHA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
-        <div><strong>CLIENTE:</strong> ${d.cliente.nombre}</div>
-        <div><strong>CI/RIF:</strong> <span class="num-legible">${d.cliente.cedula}</span> | <strong>TELF:</strong> <span class="num-legible">${d.cliente.telefono || 'N/D'}</span></div>
-        <div><strong>DIR:</strong> ${d.cliente.direccion || 'N/D'}</div>
+        <div class="ticket-info">
+          <div><strong>NRO CONTROL:</strong> <span class="fs-6 num-legible">${d.numFactura}</span></div>
+          <div><strong>FECHA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
+          <div><strong>CLIENTE:</strong> ${d.cliente.nombre}</div>
+          <div><strong>CI/RIF:</strong> <span class="num-legible">${d.cliente.cedula}</span> | <strong>TELF:</strong> <span class="num-legible">${d.cliente.telefono || 'N/D'}</span></div>
+          <div><strong>DIR:</strong> ${d.cliente.direccion || 'N/D'}</div>
+        </div>
+
+        <table class="ticket-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>PRODUCTO</th>
+              <th class="text-center">PRECIO</th>
+              <th class="text-center">CANT/PESO</th>
+              <th class="text-end">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filasProductosHtml}
+          </tbody>
+        </table>
+
+        <div class="ticket-totals border-top pt-1">
+          ${bloqueTotalesHtml}
+          <div class="ticket-divider"></div>
+          <div><strong>FORMA DE PAGO:</strong></div>
+          <div class="small">${d.formaPagoStr}</div>
+        </div>
+
+        <div class="ticket-footer text-center mt-3">
+          <div>¡Gracias por su preferencia!</div>
+        </div>
       </div>
-
-      <table class="ticket-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>PRODUCTO</th>
-            <th class="text-center">PRECIO</th>
-            <th class="text-center">CANT/PESO</th>
-            <th class="text-end">TOTAL</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filasProductosHtml}
-        </tbody>
-      </table>
-
-      <div class="ticket-totals border-top pt-1">
-        ${bloqueTotalesHtml}
-        <div class="ticket-divider"></div>
-        <div><strong>FORMA DE PAGO:</strong></div>
-        <div class="small">${d.formaPagoStr}</div>
-      </div>
-
-      <div class="ticket-footer">
-        <div>¡Gracias por su preferencia!</div>
-      </div>
-    </div>
-  `;
+    `;
+  }
 
   const elemModal = document.getElementById('vistaPreviaTicketModal');
   if (elemModal) elemModal.innerHTML = ticketHtml;
@@ -4658,6 +4725,7 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       return;
     }
 
+    // Procesar cada renglón fiscal del Libro de Ventas con Desglose Real de IVA, IGTF y Retenciones
     let filasSeniat = [];
     let totVentasBs = 0;
     let totExentoBs = 0;
@@ -4665,6 +4733,8 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
     let totIVA16Bs = 0;
     let totBase8Bs = 0;
     let totIVA8Bs = 0;
+    let totIgtfBs = 0;
+    let totRetenidoBs = 0;
     let operacionNro = 1;
 
     ventasPeriodo.forEach(v => {
@@ -4675,56 +4745,65 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       const montoTotalUSD = parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0;
       const esNC = Boolean(v.esNotaCredito || numFac.startsWith("NC-") || String(v["FORMA DE PAGO"] || "").includes("NOTA DE CREDITO"));
 
-      let totalVentaBs = 0;
-      let evBS = parseFloat(v["EFECTIVO BOLIVARES"]) || 0;
-      let pmBS = parseFloat(v["PAGO MOVIL"]) || 0;
-      let pvBS = parseFloat(v["PUNTO DE VENTA"]) || 0;
-      let trBS = parseFloat(v["TRANSFERENCIA"] || v["TRANSFERECIA"]) || 0;
-      let bioBS = parseFloat(v["BIOPAGO"]) || 0;
-      let sumaBolivares = evBS + pmBS + pvBS + trBS + bioBS;
-
-      if (sumaBolivares > 0) {
-        let evUSD = parseFloat(v["EFECTIVO DIVISAS"]) || 0;
-        let zUSD = parseFloat(v["ZELLE"]) || 0;
-        let ppUSD = parseFloat(v["PAYPAL"]) || 0;
-        let cUSD = parseFloat(v["CASHEA"]) || 0;
-        let crUSD = parseFloat(v["CREDITO"]) || 0;
-        totalVentaBs = sumaBolivares + ((evUSD + zUSD + ppUSD + cUSD + crUSD) * tasaActual);
-      } else {
-        totalVentaBs = Math.abs(montoTotalUSD) * tasaActual;
-      }
-
-      const prodsStr = String(v["PRODUCTOS"] || v.productosSummary || "").toUpperCase();
+      let totalVentaBs = Math.abs(montoTotalUSD) * tasaActual;
+      const prodsStr = String(v["PRODUCTOS"] || v.productosSummary || "");
+      
       let exentoBs = 0;
       let base16Bs = 0;
       let iva16Bs = 0;
       let base8Bs = 0;
       let iva8Bs = 0;
 
-      const itemsLista = prodsStr.split(' | ');
-      itemsLista.forEach(itemTxt => {
-        const matchUSD = itemTxt.match(/\$([0-9.]+)/);
-        let montoItemUSD = matchUSD ? parseFloat(matchUSD[1]) : 0;
-        let montoItemBs = montoItemUSD * tasaActual;
+      // Desglosar renglones identificando alícuotas desde el resumen o catálogo
+      if (prodsStr) {
+        const itemsLista = prodsStr.split(' | ');
+        itemsLista.forEach(itemTxt => {
+          const matchUSD = itemTxt.match(/\$([0-9.]+)/);
+          let montoItemUSD = matchUSD ? parseFloat(matchUSD[1]) : 0;
+          let montoItemBs = montoItemUSD * tasaActual;
+          const txtUpper = itemTxt.toUpperCase();
 
-        if (itemTxt.includes('(G)') || itemTxt.includes('(16%)')) {
-          let base = montoItemBs / 1.16;
-          let iva = montoItemBs - base;
-          base16Bs += base;
-          iva16Bs += iva;
-        } else if (itemTxt.includes('(R)') || itemTxt.includes('(8%)')) {
-          let base = montoItemBs / 1.08;
-          let iva = montoItemBs - base;
-          base8Bs += base;
-          iva8Bs += iva;
-        } else {
-          exentoBs += montoItemBs;
-        }
-      });
+          let tasaItem = "E";
+          if (txtUpper.includes('(G)') || txtUpper.includes('(16%)')) {
+            tasaItem = "G";
+          } else if (txtUpper.includes('(R)') || txtUpper.includes('(8%)')) {
+            tasaItem = "R";
+          } else {
+            // Búsqueda en catálogo cacheado por nombre
+            const matchNom = itemTxt.match(/^(.*?)(?:\s*\((.*?)\))?\s*-\s*\$/);
+            const nomLimpio = matchNom ? matchNom[1].trim() : itemTxt.split('-')[0].trim();
+            for (let cat of cacheCategoriasFactura) {
+              let pCat = cat.productos.find(p => p[0] === nomLimpio);
+              if (pCat) { tasaItem = (pCat[8] || "E").toUpperCase(); break; }
+            }
+          }
 
-      if ((exentoBs + base16Bs + base8Bs) === 0 && totalVentaBs > 0) {
-        exentoBs = totalVentaBs;
+          if (tasaItem === "G" || tasaItem === "16") {
+            let base = montoItemBs / 1.16;
+            let iva = montoItemBs - base;
+            base16Bs += base;
+            iva16Bs += iva;
+          } else if (tasaItem === "R" || tasaItem === "8") {
+            let base = montoItemBs / 1.08;
+            let iva = montoItemBs - base;
+            base8Bs += base;
+            iva8Bs += iva;
+          } else {
+            exentoBs += montoItemBs;
+          }
+        });
       }
+
+      // Si no hubo desglose, asignar como gravable general por defecto si es fiscal
+      if ((exentoBs + base16Bs + base8Bs) === 0 && totalVentaBs > 0) {
+        base16Bs = totalVentaBs / 1.16;
+        iva16Bs = totalVentaBs - base16Bs;
+      }
+
+      // Captura de IGTF y Retenciones
+      let igtfBs = parseFloat(v.montoIGTF_BS || v["MONTO_IGTF_BS"] || v["IGTF"]) || 0;
+      let compRet = String(v.comprobanteRetencion || v["COMPROBANTE_RETENCION"] || "").trim();
+      let retencionBs = parseFloat(v.montoRetencionBS || v["MONTO_RETENCION_BS"] || v["IVA RETENIDO"]) || 0;
 
       let factorSigno = esNC ? -1 : 1;
       let finalTotalBs = totalVentaBs * factorSigno;
@@ -4733,6 +4812,8 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       let finalIVA16Bs = iva16Bs * factorSigno;
       let finalBase8Bs = base8Bs * factorSigno;
       let finalIVA8Bs = iva8Bs * factorSigno;
+      let finalIgtfBs = igtfBs * factorSigno;
+      let finalRetencionBs = retencionBs * factorSigno;
 
       totVentasBs += finalTotalBs;
       totExentoBs += finalExentoBs;
@@ -4740,6 +4821,8 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       totIVA16Bs += finalIVA16Bs;
       totBase8Bs += finalBase8Bs;
       totIVA8Bs += finalIVA8Bs;
+      totIgtfBs += finalIgtfBs;
+      totRetenidoBs += finalRetencionBs;
 
       filasSeniat.push({
         nroOperacion: operacionNro++,
@@ -4755,14 +4838,14 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
         totalVentaBs: finalTotalBs,
         exentoBs: finalExentoBs,
         base16Bs: finalBase16Bs,
-        alicuota16: "16%",
+        alicuota16: base16Bs > 0 ? "16%" : "",
         iva16Bs: finalIVA16Bs,
         base8Bs: finalBase8Bs,
-        alicuota8: "8%",
+        alicuota8: base8Bs > 0 ? "8%" : "",
         iva8Bs: finalIVA8Bs,
-        igtfBs: 0.00,
-        compRetencion: "",
-        ivaRetenidoBs: 0.00
+        igtfBs: finalIgtfBs,
+        compRetencion: compRet,
+        ivaRetenidoBs: finalRetencionBs
       });
     });
 
@@ -4827,32 +4910,43 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       doc.setFont("helvetica", "normal");
       doc.text(`Período de Imposición: ${mesNombre.toUpperCase()} ${anioFiscal} (${fechaDesdeStr} al ${fechaHastaStr}) | Tasa Ref: Bs. ${tasaActual.toFixed(2)}`, 14, 24);
 
+     // Columnas Oficiales SENIAT en PDF (Idénticas al archivo Excel)
       const columnasPDF = [
-        "#", "Fecha", "RIF / C.I.", "Cliente / Razón Social", "N° Factura", "N° NC", "Tipo", "Fact. Afect.",
-        "Total Ventas (Bs)", "Exento (Bs)", "Base 16% (Bs)", "IVA 16% (Bs)"
+        "#", "Fecha", "RIF / C.I.", "Cliente", "N° Fact.", "N° NC", "Tipo",
+        "Total Ventas (Bs)", "Exento (Bs)", "Base 16% (Bs)", "IVA 16% (Bs)", 
+        "Base 8% (Bs)", "IVA 8% (Bs)", "IGTF 3% (Bs)", "N° Comp. Ret.", "IVA Retenido (Bs)"
       ];
 
       const filasPDF = filasSeniat.map(f => [
         f.nroOperacion,
         f.fecha,
         f.cedulaRIF,
-        f.cliente.length > 20 ? f.cliente.substring(0, 20) + "..." : f.cliente,
+        f.cliente.length > 18 ? f.cliente.substring(0, 18) + "..." : f.cliente,
         f.numFactura || "-",
         f.notaCredito || "-",
         f.tipoTransaccion,
-        f.facturaAfectada || "-",
         f.totalVentaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         f.exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         f.base16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        f.iva16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        f.iva16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.base8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.iva8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.igtfBs > 0 ? f.igtfBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-",
+        f.compRetencion || "-",
+        f.ivaRetenidoBs > 0 ? f.ivaRetenidoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"
       ]);
 
       filasPDF.push([
-        "TOTAL", "", "", "RESUMEN DEL PERÍODO", "", "", "", "",
+        "TOTAL", "", "", "RESUMEN DEL PERÍODO", "", "", "",
         totVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         totExentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         totBase16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        totIVA16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        totIVA16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totBase8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totIVA8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totIgtfBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        "",
+        totRetenidoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       ]);
 
       doc.autoTable({
