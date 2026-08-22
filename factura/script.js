@@ -620,8 +620,10 @@ async function procesarColaSincronizacion() {
           "PUNTO DE VENTA": parseFloat(desgl["Punto de Venta"]) || 0,
           "TRANSFERENCIA": parseFloat(desgl["Transferencia Bancaria"]) || 0,
           "BIOPAGO": parseFloat(desgl["Biopago"]) || 0,
-          // Columnas Fiscales SENIAT
+          // Columnas Fiscales SENIAT y Trazabilidad de Nota de Crédito
           "ES_FISCAL": Boolean(d.esFiscal),
+          "ES_NOTA_CREDITO": Boolean(d.esNotaCredito || String(d.numFactura || "").startsWith("NC-") || String(d.formaPago || "").includes("NOTA DE CREDITO")),
+          "FACTURA_AFECTADA": d.facturaAfectada || null,
           "COMPROBANTE_RETENCION": d.comprobanteRetencion || null,
           "MONTO_RETENCION_BS": parseFloat(d.montoRetencionBS) || 0,
           "MONTO_RETENCION_USD": parseFloat(d.montoRetencionUSD) || 0,
@@ -4603,12 +4605,14 @@ async function confirmarEmisionNotaCreditoFiscal() {
 
     await dbPut("ventas", registroNCLocal);
 
+   // 4. Encolar sincronización a Supabase con referencia de Factura Afectada
     await dbPut("syncQueue", {
       id: "sync_nc_" + Date.now(),
       payload: {
         action: "guardarFacturaFinal",
         datosFactura: {
           numFactura: String(numNCGenerado),
+          facturaAfectada: String(datosNCPendiente.facturaAfectada),
           fechaStr: registroNCLocal.fechaStr,
           cedula: registroNCLocal.cedula,
           nombre: registroNCLocal.nombre,
@@ -4620,7 +4624,8 @@ async function confirmarEmisionNotaCreditoFiscal() {
           desglosePagos: {},
           usuario: usuarioActivo,
           tablaVentas: tablaUsuarioActivo,
-          esFiscal: true
+          esFiscal: true,
+          esNotaCredito: true
         }
       }
     });
@@ -4824,6 +4829,28 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       totIgtfBs += finalIgtfBs;
       totRetenidoBs += finalRetencionBs;
 
+      // Extracción de la Factura Afectada con búsqueda en campos y en el texto de pago
+      let facAfectadaFinal = "";
+      if (esNC) {
+        facAfectadaFinal = v.facturaAfectada || v["FACTURA_AFECTADA"] || v["FACTURA AFECTADA"] || "";
+        
+        // Si no vino en campo directo, extraerla mediante expresión regular del texto
+        if (!facAfectadaFinal) {
+          const textoPago = String(v["FORMA DE PAGO"] || v.formaPagoStr || "");
+          const matchPago = textoPago.match(/AFECTA\s+(?:FACTURA|FACT)?\s*:?\s*([A-Za-z0-9\-_]+)/i);
+          if (matchPago && matchPago[1]) {
+            facAfectadaFinal = matchPago[1].trim();
+          }
+        }
+
+        if (!facAfectadaFinal && v.direccion) {
+          const matchDir = String(v.direccion).match(/AFECTA\s+(?:FACTURA|FACT)?\s*:?\s*([A-Za-z0-9\-_]+)/i);
+          if (matchDir && matchDir[1]) {
+            facAfectadaFinal = matchDir[1].trim();
+          }
+        }
+      }
+
       filasSeniat.push({
         nroOperacion: operacionNro++,
         fecha: fechaStr,
@@ -4834,7 +4861,7 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
         notaDebito: "",
         notaCredito: esNC ? numFac : "",
         tipoTransaccion: esNC ? "02-NC" : "01-REG",
-        facturaAfectada: esNC ? (v.facturaAfectada || String(v.direccion || "").replace(/\D/g, '') || "") : "",
+        facturaAfectada: facAfectadaFinal,
         totalVentaBs: finalTotalBs,
         exentoBs: finalExentoBs,
         base16Bs: finalBase16Bs,
@@ -4847,7 +4874,6 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
         compRetencion: compRet,
         ivaRetenidoBs: finalRetencionBs
       });
-    });
 
     if (formato === 'excel') {
       const filasExcel = [
