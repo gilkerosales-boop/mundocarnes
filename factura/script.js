@@ -2694,63 +2694,76 @@ function renderizarTicketTermicoHTML(d) {
 
   let bloqueTotalesHtml = "";
 
-  if (d.modoFiscal) {
+ if (d.modoFiscal) {
     // =========================================================================
-    // DESGLOSE FISCAL SENIAT COMPLETO (Solo cuando modoFiscalActivo === true)
+    // DESGLOSE FISCAL SENIAT COMPLETO (Soporte Dual $ y Bs con Retenciones e IGTF)
     // =========================================================================
+    let seccionRetencionHtml = "";
+    if (d.esContribuyenteEspecial && (d.montoRetencionBS > 0 || d.montoRetencionUSD > 0)) {
+      const txtMontoRet = esModoBs 
+        ? `-Bs. ${(d.montoRetencionBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+        : `-$${(d.montoRetencionUSD || 0).toFixed(2)}`;
+
+      seccionRetencionHtml = `
+        <div class="d-flex justify-content-between small text-danger fw-bold">
+          <span>(-) RETENCIÓN IVA (${d.porcentajeRetencion}%):</span>
+          <span class="num-legible">${txtMontoRet}</span>
+        </div>
+        <div class="small text-muted text-end" style="font-size: 8.5px;">COMPROBANTE SENIAT: ${d.comprobanteRetencion || 'PENDIENTE'}</div>`;
+    }
+
+    let seccionIGTFHtml = "";
+    if (d.montoIGTF_BS > 0 || d.montoIGTF_USD > 0) {
+      const txtMontoIGTF = esModoBs 
+        ? `+Bs. ${(d.montoIGTF_BS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+        : `+$${(d.montoIGTF_USD || 0).toFixed(2)}`;
+
+      seccionIGTFHtml = `
+        <div class="d-flex justify-content-between small text-primary fw-bold">
+          <span>(+) IGTF PERCIBIDO (3.00%):</span>
+          <span class="num-legible">${txtMontoIGTF}</span>
+        </div>`;
+    }
+
     if (esModoBs) {
       let exentoBs = (d.montoExento || 0) * tasa;
       let baseBs = (d.montoBase || 0) * tasa;
       let ivaBs = (d.montoIVA || 0) * tasa;
+      let netoCobrarBs = d.totalNetoCobradoBS || d.totalBs;
+      let netoCobrarUSD = d.totalNetoCobradoUSD || d.totalUSD;
 
-      let seccionRetencionHtml = "";
-        if (d.esContribuyenteEspecial && d.montoRetencionBS > 0) {
-          seccionRetencionHtml = `
-            <div class="d-flex justify-content-between small text-danger fw-bold">
-              <span>(-) RETENCIÓN IVA (${d.porcentajeRetencion}%):</span>
-              <span class="num-legible">-Bs. ${d.montoRetencionBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
-            <div class="small text-muted text-end" style="font-size: 8px;">COMP: ${d.comprobanteRetencion || 'PENDIENTE'}</div>`;
-        }
-
-        let seccionIGTFHtml = "";
-        if (d.montoIGTF_BS > 0) {
-          seccionIGTFHtml = `
-            <div class="d-flex justify-content-between small text-primary fw-bold">
-              <span>(+) IGTF PERCIBIDO (3.00%):</span>
-              <span class="num-legible">+Bs. ${d.montoIGTF_BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>`;
-        }
-
-        bloqueTotalesHtml = `
-          <div class="d-flex justify-content-between small text-muted">
-            <span>EXENTO (0%):</span>
-            <span class="num-legible">Bs. ${exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-          </div>
-          <div class="d-flex justify-content-between small text-muted">
-            <span>BASE GRAVABLE (16%):</span>
-            <span class="num-legible">Bs. ${baseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-          </div>
-          <div class="d-flex justify-content-between small text-danger fw-bold">
-            <span>IVA (16%):</span>
-            <span class="num-legible">Bs. ${ivaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-          </div>
-          ${seccionRetencionHtml}
-          ${seccionIGTFHtml}
-          <div class="ticket-divider"></div>
-          <div class="d-flex justify-content-between">
-            <span>TOTAL OPERACIÓN (Bs):</span>
-            <strong class="fs-6 num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-          </div>
-          <div class="d-flex justify-content-between text-success fw-bold">
-            <span>NETO A COBRAR (Bs):</span>
-            <strong class="fs-6 num-legible">Bs. ${(d.totalNetoCobradoBS || d.totalBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-          </div>
-          <div class="d-flex justify-content-between text-muted">
-            <span>NETO REF ($):</span>
-            <span class="num-legible">$${(d.totalNetoCobradoUSD || d.totalUSD).toFixed(2)}</span>
-          </div>`;
+      bloqueTotalesHtml = `
+        <div class="d-flex justify-content-between small text-muted">
+          <span>EXENTO (0%):</span>
+          <span class="num-legible">Bs. ${exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="d-flex justify-content-between small text-muted">
+          <span>BASE GRAVABLE (16%):</span>
+          <span class="num-legible">Bs. ${baseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="d-flex justify-content-between small text-danger fw-bold">
+          <span>IVA (16%):</span>
+          <span class="num-legible">Bs. ${ivaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        ${seccionRetencionHtml}
+        ${seccionIGTFHtml}
+        <div class="ticket-divider"></div>
+        <div class="d-flex justify-content-between text-muted">
+          <span>SUBTOTAL OPERACIÓN:</span>
+          <span class="num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="d-flex justify-content-between text-success fw-bold">
+          <span>TOTAL A COBRAR (Bs):</span>
+          <strong class="fs-5 num-legible">Bs. ${netoCobrarBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+        </div>
+        <div class="d-flex justify-content-between text-muted">
+          <span>TOTAL REF ($):</span>
+          <span class="num-legible">$${netoCobrarUSD.toFixed(2)}</span>
+        </div>`;
     } else {
+      let netoCobrarUSD = d.totalNetoCobradoUSD || d.totalUSD;
+      let netoCobrarBs = d.totalNetoCobradoBS || d.totalBs;
+
       bloqueTotalesHtml = `
         <div class="d-flex justify-content-between small text-muted">
           <span>EXENTO (0%):</span>
@@ -2764,14 +2777,20 @@ function renderizarTicketTermicoHTML(d) {
           <span>IVA (16%):</span>
           <span class="num-legible">$${(d.montoIVA || 0).toFixed(2)}</span>
         </div>
+        ${seccionRetencionHtml}
+        ${seccionIGTFHtml}
         <div class="ticket-divider"></div>
-        <div class="d-flex justify-content-between">
-          <span>TOTAL FACTURA ($):</span>
-          <strong class="fs-6 num-legible">$${d.totalUSD.toFixed(2)}</strong>
+        <div class="d-flex justify-content-between text-muted">
+          <span>SUBTOTAL OPERACIÓN:</span>
+          <span class="num-legible">$${d.totalUSD.toFixed(2)}</span>
+        </div>
+        <div class="d-flex justify-content-between text-success fw-bold">
+          <span>TOTAL A COBRAR ($):</span>
+          <strong class="fs-5 num-legible">$${netoCobrarUSD.toFixed(2)}</strong>
         </div>
         <div class="d-flex justify-content-between text-muted">
           <span>TOTAL REF (Bs):</span>
-          <span class="num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span class="num-legible">Bs. ${netoCobrarBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>`;
     }
   } else {
