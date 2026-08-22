@@ -3998,15 +3998,117 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       return;
     }
 
-    // ==========================================================================
+  // ==========================================================================
 // MÓDULO EXCLUSIVO: NOTAS DE CRÉDITO FISCALES (SENIAT)
 // ==========================================================================
 let datosNCPendiente = null;
 let itemsDevueltosNC = {};
 
 function abrirModalNotaCreditoFiscal(numFactura) {
+  // Buscar en el historial de facturas en memoria o en IndexedDB
   const fac = cacheHistorialFacturas.find(f => String(f.numFactura) === String(numFactura));
   if (!fac) return mostrarAvisoFactura("No se localizó la información de la factura fiscal.");
+
+  const tasa = obtenerTasaBCV();
+  const factorTasa = tasa > 0 ? tasa : 1;
+
+  datosNCPendiente = {
+    facturaAfectada: fac.numFactura,
+    fechaFacturaAfectada: fac.fechaStr,
+    cliente: {
+      cedula: fac.cedula || "V-00000000",
+      nombre: fac.nombre || "CONSUMIDOR FINAL"
+    },
+    totalOriginalUSD: parseFloat(fac.montoTotalUSD) || 0,
+    tasaBCV: factorTasa,
+    serialImpresora: window.fiscalDriver?.ultimoReporteStatus?.serial || "Z7C7044438",
+    itemsOriginales: {}
+  };
+
+  // Poblar campos de cabecera en el modal
+  const elemFacAf = document.getElementById('ncFacturaAfectada');
+  const elemFecAf = document.getElementById('ncFechaAfectada');
+  const elemCed = document.getElementById('ncCedulaCliente');
+  const elemNom = document.getElementById('ncNombreCliente');
+  const elemTot = document.getElementById('ncTotalOriginalUSD');
+  const elemTipo = document.getElementById('ncTipoOperacionSelect');
+  const elemMot = document.getElementById('ncMotivoSelect');
+  const errDiv = document.getElementById('errorModalNC');
+
+  if (elemFacAf) elemFacAf.value = fac.numFactura;
+  if (elemFecAf) elemFecAf.value = fac.fechaStr;
+  if (elemCed) elemCed.value = fac.cedula;
+  if (elemNom) elemNom.value = fac.nombre;
+  if (elemTot) elemTot.value = `$${datosNCPendiente.totalOriginalUSD.toFixed(2)}`;
+  if (elemTipo) elemTipo.value = "TOTAL";
+  if (elemMot) elemMot.value = "DEVOLUCION DE MERCANCIA";
+  if (errDiv) errDiv.classList.add('hidden');
+
+  // Desglosar productos originales de la factura
+  const prodsStr = String(fac.productosSummary || "");
+  itemsDevueltosNC = {};
+
+  if (prodsStr) {
+    const listaItems = prodsStr.split(' | ');
+    listaItems.forEach((pStr, idx) => {
+      const match = pStr.match(/^(.*?)(?:\s*\((.*?)\))?\s*-\s*\$(.*)$/);
+      let nombre = match ? match[1].trim() : `ITEM ${idx + 1}`;
+      let cantTxt = match && match[2] ? match[2].trim() : "1 uds";
+      let subUSD = match && match[3] ? parseFloat(match[3]) : (datosNCPendiente.totalOriginalUSD / listaItems.length);
+
+      let tasaItem = "E";
+      if (pStr.toUpperCase().includes('(G)') || pStr.toUpperCase().includes('(16%)')) tasaItem = "G";
+      else if (pStr.toUpperCase().includes('(R)') || pStr.toUpperCase().includes('(8%)')) tasaItem = "R";
+      else {
+        for (let cat of cacheCategoriasFactura) {
+          let pCat = cat.productos.find(p => p[0] === nombre);
+          if (pCat) { tasaItem = (pCat[8] || "E").toUpperCase(); break; }
+        }
+      }
+
+      let cantNumerica = 1;
+      let unidad = "unidades";
+      if (cantTxt.includes('Kg') || cantTxt.includes('g')) {
+        unidad = "gramos";
+        cantNumerica = 1000;
+      }
+
+      itemsDevueltosNC[nombre] = {
+        nombre: nombre,
+        cantidadTxt: cantTxt,
+        cantNumerica: cantNumerica,
+        unidad: unidad,
+        precioBase: subUSD,
+        precioTotal: subUSD.toFixed(2),
+        tasaIVA: tasaItem,
+        incluido: true
+      };
+    });
+  } else {
+    itemsDevueltosNC["PRODUCTOS FACTURA FISCAL"] = {
+      nombre: "PRODUCTOS FACTURA FISCAL",
+      cantidadTxt: "1 uds",
+      cantNumerica: 1,
+      unidad: "unidades",
+      precioBase: datosNCPendiente.totalOriginalUSD,
+      precioTotal: datosNCPendiente.totalOriginalUSD.toFixed(2),
+      tasaIVA: "E",
+      incluido: true
+    };
+  }
+
+  datosNCPendiente.itemsOriginales = { ...itemsDevueltosNC };
+  renderizarTablaItemsNC(true);
+  recalcularTotalesNC();
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNotaCreditoFiscal')).show();
+}
+
+// Exposición global para que el HTML onclick lo ejecute siempre
+window.abrirModalNotaCreditoFiscal = abrirModalNotaCreditoFiscal;
+window.alternarTipoOperacionNC = alternarTipoOperacionNC;
+window.alternarCheckItemNC = alternarCheckItemNC;
+window.confirmarEmisionNotaCreditoFiscal = confirmarEmisionNotaCreditoFiscal;
 
   const tasa = obtenerTasaBCV();
   const factorTasa = tasa > 0 ? tasa : 1;
