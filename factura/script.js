@@ -4874,6 +4874,7 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
         compRetencion: compRet,
         ivaRetenidoBs: finalRetencionBs
       });
+    });
 
     if (formato === 'excel') {
       const filasExcel = [
