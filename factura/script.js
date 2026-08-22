@@ -350,6 +350,11 @@ function actualizarInterfazModoFiscal() {
   // Control de visibilidad de desglose tributario en pantalla según el modo
   const boxIVAPanel = document.getElementById('contenedorDesgloseIVA');
   const boxIVAModal = document.getElementById('contenedorDesgloseIVAModal');
+  const contCheckEspecial = document.getElementById('contCheckContribuyenteEspecial');
+  const contToggleIGTF = document.getElementById('contToggleIGTF3');
+  const panelRetencion = document.getElementById('panelConfiguracionRetencionIVA');
+  const contInfoFiscal = document.getElementById('contenedorLiquidacionFiscalInfo');
+
   if (boxIVAPanel) {
     if (modoFiscalActivo) boxIVAPanel.classList.remove('hidden');
     else boxIVAPanel.classList.add('hidden');
@@ -357,6 +362,32 @@ function actualizarInterfazModoFiscal() {
   if (boxIVAModal) {
     if (modoFiscalActivo) boxIVAModal.classList.remove('hidden');
     else boxIVAModal.classList.add('hidden');
+  }
+
+  // Activar o neutralizar interruptores de Retención SENIAT e IGTF según el Modo Fiscal
+  if (contCheckEspecial) {
+    if (modoFiscalActivo) contCheckEspecial.classList.remove('hidden');
+    else {
+      contCheckEspecial.classList.add('hidden');
+      if (panelRetencion) panelRetencion.classList.add('hidden');
+      const chkEsp = document.getElementById('chkEsContribuyenteEspecial');
+      if (chkEsp) chkEsp.checked = false;
+    }
+  }
+  if (contToggleIGTF) {
+    if (modoFiscalActivo) contToggleIGTF.classList.remove('hidden');
+    else {
+      contToggleIGTF.classList.add('hidden');
+      const chkIGTF = document.getElementById('chkPercibirIGTF3');
+      if (chkIGTF) chkIGTF.checked = false;
+    }
+  }
+  if (contInfoFiscal && !modoFiscalActivo) {
+    contInfoFiscal.classList.add('hidden');
+  }
+
+  if (typeof recalcularTotalesRetencionEIGTF === "function") {
+    recalcularTotalesRetencionEIGTF();
   }
 
   if (window.fiscalDriver) {
@@ -2034,16 +2065,28 @@ function poblarClienteEnVista(cli) {
   const elemNombre = document.getElementById('facClienteNombreRead');
   const elemTel = document.getElementById('facClienteTelefonoRead');
   const elemDir = document.getElementById('facClienteDireccionRead');
+  const chkEsp = document.getElementById('chkEsContribuyenteEspecial');
+  const selPorc = document.getElementById('selectPorcentajeRetencion');
 
   if (elemCedula) elemCedula.value = cli.cedula || '';
   if (elemNombre) elemNombre.value = cli.nombre || 'N/D';
   if (elemTel) elemTel.value = cli.telefono || 'N/D';
   if (elemDir) elemDir.value = cli.direccion || '';
 
+  const esEspecial = Boolean(cli.esContribuyenteEspecial || cli.ES_CONTRIBUYENTE_ESPECIAL);
+  if (chkEsp) chkEsp.checked = esEspecial;
+  if (selPorc) selPorc.value = String(cli.porcentajeRetencion || 75);
+
   const boxEncontrado = document.getElementById('boxClienteEncontrado');
   const boxNuevo = document.getElementById('boxClienteNuevo');
   if (boxEncontrado) boxEncontrado.classList.remove('hidden');
   if (boxNuevo) boxNuevo.classList.add('hidden');
+
+  if (modoFiscalActivo) {
+    alternarModuloRetencionIVA(esEspecial);
+  } else {
+    alternarModuloRetencionIVA(false);
+  }
 }
 
 function prepararNuevoClienteEnVista(cedula) {
@@ -2051,16 +2094,20 @@ function prepararNuevoClienteEnVista(cedula) {
   const elemRegNombre = document.getElementById('facRegNombre');
   const elemRegTel = document.getElementById('facRegTelefono');
   const elemRegDir = document.getElementById('facRegDireccion');
+  const chkRegEsp = document.getElementById('chkRegEsContribuyenteEspecial');
 
   if (elemRegCedula) elemRegCedula.value = cedula.toUpperCase();
   if (elemRegNombre) elemRegNombre.value = "";
   if (elemRegTel) elemRegTel.value = "";
   if (elemRegDir) elemRegDir.value = "";
+  if (chkRegEsp) chkRegEsp.checked = false;
 
   const boxEncontrado = document.getElementById('boxClienteEncontrado');
   const boxNuevo = document.getElementById('boxClienteNuevo');
   if (boxEncontrado) boxEncontrado.classList.add('hidden');
   if (boxNuevo) boxNuevo.classList.remove('hidden');
+
+  alternarModuloRetencionIVA(false);
 }
 
 async function registrarClienteFactura() {
@@ -2068,6 +2115,7 @@ async function registrarClienteFactura() {
   const nombre = document.getElementById('facRegNombre').value.trim().toUpperCase();
   const telefono = document.getElementById('facRegTelefono').value.trim();
   const direccion = document.getElementById('facRegDireccion').value.trim() || null;
+  const esEspecial = Boolean(document.getElementById('chkRegEsContribuyenteEspecial')?.checked);
   const btn = document.getElementById('btnRegistrarClienteFac');
 
   if (!cedula || !nombre) {
@@ -2076,7 +2124,14 @@ async function registrarClienteFactura() {
 
   if (btn) { btn.disabled = true; btn.textContent = "Registrando..."; }
 
-  const clienteNuevo = { cedula, nombre, telefono, direccion };
+  const clienteNuevo = { 
+    cedula, 
+    nombre, 
+    telefono, 
+    direccion,
+    esContribuyenteEspecial: esEspecial,
+    porcentajeRetencion: 75
+  };
   clienteFacturaActual = clienteNuevo;
 
   await dbPut("clientes", clienteNuevo);
@@ -2089,7 +2144,9 @@ async function registrarClienteFactura() {
       cedula: cedula,
       nombre: nombre,
       telefono: telefono,
-      direccion: direccion
+      direccion: direccion,
+      esContribuyenteEspecial: esEspecial,
+      porcentajeRetencion: 75
     }
   });
 
@@ -2098,6 +2155,136 @@ async function registrarClienteFactura() {
   mostrarAvisoFactura("Cliente registrado exitosamente ⚡");
   procesarColaSincronizacion();
 }
+
+// ==========================================================================
+// MOTOR DE CÁLCULO DE RETENCIONES DE IVA E IGTF 3% (EXCLUSIVO MODO FISCAL)
+// ==========================================================================
+function alternarModuloRetencionIVA(activo) {
+  const panel = document.getElementById('panelConfiguracionRetencionIVA');
+  if (panel) {
+    if (activo && modoFiscalActivo) panel.classList.remove('hidden');
+    else panel.classList.add('hidden');
+  }
+  recalcularTotalesRetencionEIGTF();
+}
+window.alternarModuloRetencionIVA = alternarModuloRetencionIVA;
+
+function validarLongitudComprobante(input) {
+  input.value = input.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+}
+window.validarLongitudComprobante = validarLongitudComprobante;
+
+function recalcularTotalesRetencionEIGTF() {
+  const contInfo = document.getElementById('contenedorLiquidacionFiscalInfo');
+  const lblRet = document.getElementById('lblInfoRetencionIVA');
+  const lblIGTF = document.getElementById('lblInfoIGTF3');
+
+  if (!modoFiscalActivo) {
+    if (contInfo) contInfo.classList.add('hidden');
+    return { retencionUSD: 0, retencionBS: 0, igtfUSD: 0, igtfBS: 0, netoUSD: 0, netoBS: 0 };
+  }
+
+  const items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
+  const tributos = calcularTotalesTributarios(items, true);
+  const factorTasa = obtenerTasaBCV() || 1;
+
+  // 1. CÁLCULO DE RETENCIÓN DE IVA (75% / 100%)
+  const chkEsp = document.getElementById('chkEsContribuyenteEspecial');
+  const esEspecial = Boolean(chkEsp && chkEsp.checked);
+  const porcRet = parseInt(document.getElementById('selectPorcentajeRetencion')?.value || "75", 10);
+
+  let retencionIVA_USD = 0;
+  let retencionIVA_BS = 0;
+
+  if (esEspecial && tributos.montoIVA > 0) {
+    retencionIVA_USD = parseFloat((tributos.montoIVA * (porcRet / 100)).toFixed(2));
+    retencionIVA_BS = parseFloat((retencionIVA_USD * factorTasa).toFixed(2));
+  }
+
+  // 2. CÁLCULO DE PERCEPCIÓN DE IGTF (3% SOBRE MEDIOS EN DIVISAS)
+  const chkIGTF = document.getElementById('chkPercibirIGTF3');
+  const aplicaIGTF = Boolean(chkIGTF && chkIGTF.checked);
+  const formaSelect = document.getElementById('facFormaPagoSelect')?.value || "";
+
+  let baseImponibleIGTF_USD = 0;
+
+  if (aplicaIGTF) {
+    if (formaSelect === 'Efectivo Divisas' || formaSelect === 'Zelle' || formaSelect === 'PayPal') {
+      baseImponibleIGTF_USD = tributos.totalGeneral - retencionIVA_USD;
+    } else if (formaSelect === 'Pago Mixto' || formaSelect === 'Cashea') {
+      const filas = document.querySelectorAll('.fila-pago-mixto');
+      filas.forEach(f => {
+        let met = f.querySelector('.select-metodo-mixto')?.value || "";
+        let mto = parseFloat(f.querySelector('.input-monto-mixto')?.value) || 0;
+        if (METODOS_USD.includes(met) && met !== 'Crédito' && met !== 'Cashea') {
+          baseImponibleIGTF_USD += mto;
+        }
+      });
+    }
+  }
+
+  let montoIGTF_USD = 0;
+  let montoIGTF_BS = 0;
+
+  if (baseImponibleIGTF_USD > 0) {
+    montoIGTF_USD = parseFloat((baseImponibleIGTF_USD * 0.03).toFixed(2));
+    montoIGTF_BS = parseFloat((montoIGTF_USD * factorTasa).toFixed(2));
+  }
+
+  // 3. TOTAL NETO A PERCIBIR EN CAJA
+  const totalNetoUSD = parseFloat((tributos.totalGeneral - retencionIVA_USD + montoIGTF_USD).toFixed(2));
+  const totalNetoBS = parseFloat(((tributos.totalGeneral * factorTasa) - retencionIVA_BS + montoIGTF_BS).toFixed(2));
+
+  // Actualización visual
+  if (retencionIVA_USD > 0 || montoIGTF_USD > 0) {
+    if (contInfo) contInfo.classList.remove('hidden');
+
+    if (lblRet) {
+      if (retencionIVA_USD > 0) {
+        lblRet.classList.remove('hidden');
+        const elemPorc = document.getElementById('txtPorcRetencion');
+        const elemRetUSD = document.getElementById('txtMontoRetenidoUSD');
+        const elemRetBS = document.getElementById('txtMontoRetenidoBS');
+        if (elemPorc) elemPorc.textContent = porcRet;
+        if (elemRetUSD) elemRetUSD.textContent = `$${retencionIVA_USD.toFixed(2)}`;
+        if (elemRetBS) elemRetBS.textContent = `Bs. ${retencionIVA_BS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
+      } else {
+        lblRet.classList.add('hidden');
+      }
+    }
+
+    if (lblIGTF) {
+      if (montoIGTF_USD > 0) {
+        lblIGTF.classList.remove('hidden');
+        const elemIgtfUSD = document.getElementById('txtMontoIGTFUSD');
+        const elemIgtfBS = document.getElementById('txtMontoIGTFBS');
+        if (elemIgtfUSD) elemIgtfUSD.textContent = `$${montoIGTF_USD.toFixed(2)}`;
+        if (elemIgtfBS) elemIgtfBS.textContent = `Bs. ${montoIGTF_BS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
+      } else {
+        lblIGTF.classList.add('hidden');
+      }
+    }
+
+    const elemNetoUSD = document.getElementById('txtMontoNetoAPagarUSD');
+    const elemNetoBS = document.getElementById('txtMontoNetoAPagarBS');
+    if (elemNetoUSD) elemNetoUSD.textContent = `$${totalNetoUSD.toFixed(2)}`;
+    if (elemNetoBS) elemNetoBS.textContent = `Bs. ${totalNetoBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
+  } else {
+    if (contInfo) contInfo.classList.add('hidden');
+  }
+
+  return {
+    retencionUSD: retencionIVA_USD,
+    retencionBS: retencionIVA_BS,
+    porcentajeRetencion: porcRet,
+    esEspecial: esEspecial,
+    igtfUSD: montoIGTF_USD,
+    igtfBS: montoIGTF_BS,
+    netoUSD: totalNetoUSD,
+    netoBS: totalNetoBS
+  };
+}
+window.recalcularTotalesRetencionEIGTF = recalcularTotalesRetencionEIGTF;
 
 // SELECCIÓN DE FORMA DE PAGO
 function seleccionarMetodoPagoBoton(metodo, btnElem) {
@@ -2404,10 +2591,14 @@ async function emitirFacturaFinal() {
       productosSummaryList.push(`${key} (${item.cantidadTxt}) - $${item.precioTotal}`);
     }
 
-    const tributos = calcularTotalesTributarios(items);
+    const tributos = calcularTotalesTributarios(items, modoFiscalActivo);
     let totalBs = tributos.totalGeneral * (tasa > 0 ? tasa : 1);
     const usuarioActivo = obtenerUsuarioActivo();
     const tablaPersonal = obtenerTablaVentasUsuario(usuarioActivo);
+
+    // Liquidación fiscal de retenciones e IGTF (solo si modoFiscalActivo === true)
+    const liquidacionFiscal = recalcularTotalesRetencionEIGTF();
+    const nroCompRet = document.getElementById('inputNroComprobanteRetencion')?.value.trim() || "";
 
     datosFacturaPendiente = {
       numFactura: numFactura,
@@ -2426,7 +2617,17 @@ async function emitirFacturaFinal() {
       usuario: usuarioActivo,
       tablaVentas: tablaPersonal,
       modoFiscal: modoFiscalActivo,
-      items: items
+      items: items,
+      // Metadata Fiscal Especial
+      esContribuyenteEspecial: Boolean(liquidacionFiscal.esEspecial && modoFiscalActivo),
+      porcentajeRetencion: liquidacionFiscal.esEspecial ? liquidacionFiscal.porcentajeRetencion : 0,
+      comprobanteRetencion: nroCompRet,
+      montoRetencionUSD: liquidacionFiscal.retencionUSD,
+      montoRetencionBS: liquidacionFiscal.retencionBS,
+      montoIGTF_USD: liquidacionFiscal.igtfUSD,
+      montoIGTF_BS: liquidacionFiscal.igtfBS,
+      totalNetoCobradoUSD: liquidacionFiscal.netoUSD > 0 ? liquidacionFiscal.netoUSD : tributos.totalGeneral,
+      totalNetoCobradoBS: liquidacionFiscal.netoBS > 0 ? liquidacionFiscal.netoBS : totalBs
     };
 
     renderizarTicketTermicoHTML(datosFacturaPendiente);
@@ -2502,28 +2703,53 @@ function renderizarTicketTermicoHTML(d) {
       let baseBs = (d.montoBase || 0) * tasa;
       let ivaBs = (d.montoIVA || 0) * tasa;
 
-      bloqueTotalesHtml = `
-        <div class="d-flex justify-content-between small text-muted">
-          <span>EXENTO (0%):</span>
-          <span class="num-legible">Bs. ${exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="d-flex justify-content-between small text-muted">
-          <span>BASE GRAVABLE (16%):</span>
-          <span class="num-legible">Bs. ${baseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="d-flex justify-content-between small text-danger fw-bold">
-          <span>IVA (16%):</span>
-          <span class="num-legible">Bs. ${ivaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="ticket-divider"></div>
-        <div class="d-flex justify-content-between">
-          <span>TOTAL FACTURA (Bs):</span>
-          <strong class="fs-6 num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-        </div>
-        <div class="d-flex justify-content-between text-muted">
-          <span>TOTAL REF ($):</span>
-          <span class="num-legible">$${d.totalUSD.toFixed(2)}</span>
-        </div>`;
+      let seccionRetencionHtml = "";
+        if (d.esContribuyenteEspecial && d.montoRetencionBS > 0) {
+          seccionRetencionHtml = `
+            <div class="d-flex justify-content-between small text-danger fw-bold">
+              <span>(-) RETENCIÓN IVA (${d.porcentajeRetencion}%):</span>
+              <span class="num-legible">-Bs. ${d.montoRetencionBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>
+            <div class="small text-muted text-end" style="font-size: 8px;">COMP: ${d.comprobanteRetencion || 'PENDIENTE'}</div>`;
+        }
+
+        let seccionIGTFHtml = "";
+        if (d.montoIGTF_BS > 0) {
+          seccionIGTFHtml = `
+            <div class="d-flex justify-content-between small text-primary fw-bold">
+              <span>(+) IGTF PERCIBIDO (3.00%):</span>
+              <span class="num-legible">+Bs. ${d.montoIGTF_BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>`;
+        }
+
+        bloqueTotalesHtml = `
+          <div class="d-flex justify-content-between small text-muted">
+            <span>EXENTO (0%):</span>
+            <span class="num-legible">Bs. ${exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+          <div class="d-flex justify-content-between small text-muted">
+            <span>BASE GRAVABLE (16%):</span>
+            <span class="num-legible">Bs. ${baseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+          <div class="d-flex justify-content-between small text-danger fw-bold">
+            <span>IVA (16%):</span>
+            <span class="num-legible">Bs. ${ivaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+          ${seccionRetencionHtml}
+          ${seccionIGTFHtml}
+          <div class="ticket-divider"></div>
+          <div class="d-flex justify-content-between">
+            <span>TOTAL OPERACIÓN (Bs):</span>
+            <strong class="fs-6 num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+          </div>
+          <div class="d-flex justify-content-between text-success fw-bold">
+            <span>NETO A COBRAR (Bs):</span>
+            <strong class="fs-6 num-legible">Bs. ${(d.totalNetoCobradoBS || d.totalBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+          </div>
+          <div class="d-flex justify-content-between text-muted">
+            <span>NETO REF ($):</span>
+            <span class="num-legible">$${(d.totalNetoCobradoUSD || d.totalUSD).toFixed(2)}</span>
+          </div>`;
     } else {
       bloqueTotalesHtml = `
         <div class="d-flex justify-content-between small text-muted">
@@ -2705,7 +2931,7 @@ async function confirmarEImprimirFactura() {
       formaPagoFinalStr = `${formaPagoFinalStr} (FISCAL)`;
     }
 
-    // 3. Guardar en IndexedDB local
+    // 3. Guardar en IndexedDB local con liquidación de Retenciones e IGTF
     await dbPut("ventas", {
       numFactura: String(numFactura),
       fechaStr: datosFacturaPendiente.fechaStr,
@@ -2716,7 +2942,15 @@ async function confirmarEImprimirFactura() {
       formaPagoStr: formaPagoFinalStr,
       productosSummary: datosFacturaPendiente.productosSummary,
       usuario: usuarioActivo,
-      esFiscal: esFiscalActivo
+      esFiscal: esFiscalActivo,
+      esContribuyenteEspecial: datosFacturaPendiente.esContribuyenteEspecial,
+      comprobanteRetencion: datosFacturaPendiente.comprobanteRetencion,
+      montoRetencionBS: datosFacturaPendiente.montoRetencionBS,
+      montoRetencionUSD: datosFacturaPendiente.montoRetencionUSD,
+      montoIGTF_BS: datosFacturaPendiente.montoIGTF_BS,
+      montoIGTF_USD: datosFacturaPendiente.montoIGTF_USD,
+      totalNetoCobradoBS: datosFacturaPendiente.totalNetoCobradoBS,
+      totalNetoCobradoUSD: datosFacturaPendiente.totalNetoCobradoUSD
     });
 
     // 4. Encolar para sincronización con Supabase
@@ -2737,7 +2971,15 @@ async function confirmarEImprimirFactura() {
           desglosePagos: datosFacturaPendiente.desglosePagos,
           usuario: usuarioActivo,
           tablaVentas: datosFacturaPendiente.tablaVentas,
-          esFiscal: esFiscalActivo
+          esFiscal: esFiscalActivo,
+          esContribuyenteEspecial: datosFacturaPendiente.esContribuyenteEspecial,
+          comprobanteRetencion: datosFacturaPendiente.comprobanteRetencion,
+          montoRetencionBS: datosFacturaPendiente.montoRetencionBS,
+          montoRetencionUSD: datosFacturaPendiente.montoRetencionUSD,
+          montoIGTF_BS: datosFacturaPendiente.montoIGTF_BS,
+          montoIGTF_USD: datosFacturaPendiente.montoIGTF_USD,
+          totalNetoCobradoBS: datosFacturaPendiente.totalNetoCobradoBS,
+          totalNetoCobradoUSD: datosFacturaPendiente.totalNetoCobradoUSD
         }
       }
     });
