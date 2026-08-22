@@ -1357,6 +1357,128 @@
       </div>
     </div>
 
+    <!-- MODAL EMISIÓN DE NOTA DE CRÉDITO FISCAL (SENIAT) -->
+    <div class="modal fade" id="modalNotaCreditoFiscal" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-warning shadow-lg">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title fw-bold text-warning">↩️ Emitir Nota de Crédito Fiscal (SENIAT)</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            
+            <div class="alert alert-warning border-dark small fw-bold mb-3 shadow-sm">
+              ⚠️ <strong>Documento Fiscal Oficial:</strong> Se emitirá una Nota de Crédito en la impresora fiscal para anular o reversar los montos de la factura seleccionada, registrándose en el Reporte Z y Libro de Ventas SENIAT.
+            </div>
+
+            <!-- Ficha de la Factura Fiscal Afectada -->
+            <div class="p-3 bg-white border rounded-3 mb-3 shadow-sm">
+              <div class="row g-2">
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold mb-0 text-muted">Factura Afectada:</label>
+                  <input type="text" id="ncFacturaAfectada" class="form-control form-control-sm fw-bold text-danger num-legible bg-light" readonly>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold mb-0 text-muted">Fecha Original:</label>
+                  <input type="text" id="ncFechaAfectada" class="form-control form-control-sm num-legible bg-light" readonly>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold mb-0 text-muted">Cédula / RIF:</label>
+                  <input type="text" id="ncCedulaCliente" class="form-control form-control-sm fw-bold num-legible bg-light" readonly>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold mb-0 text-muted">Total Original ($):</label>
+                  <input type="text" id="ncTotalOriginalUSD" class="form-control form-control-sm fw-bold text-success num-legible bg-light" readonly>
+                </div>
+                <div class="col-12 mt-1">
+                  <label class="form-label small fw-bold mb-0 text-muted">Cliente / Razón Social:</label>
+                  <input type="text" id="ncNombreCliente" class="form-control form-control-sm fw-bold bg-light" readonly>
+                </div>
+              </div>
+            </div>
+
+            <!-- Opciones de Operación y Motivo -->
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">
+                <label for="ncTipoOperacionSelect" class="form-label fw-bold small">Tipo de Nota de Crédito *:</label>
+                <select id="ncTipoOperacionSelect" class="form-select form-select-sm fw-bold" onchange="alternarTipoOperacionNC(this.value)">
+                  <option value="TOTAL" selected>🔴 Anulación Total (100% de la Factura)</option>
+                  <option value="PARCIAL">🟡 Devolución Parcial de Productos</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="ncMotivoSelect" class="form-label fw-bold small">Motivo de Emisión *:</label>
+                <select id="ncMotivoSelect" class="form-select form-select-sm fw-bold">
+                  <option value="DEVOLUCION DE MERCANCIA" selected>Devolución de Mercancía</option>
+                  <option value="ERROR EN FACTURACION">Error en Facturación</option>
+                  <option value="PRODUCTO DEFECTUOSO">Producto Defectuoso / Inconforme</option>
+                  <option value="DESCUENTO POST-VENTA">Descuento o Ajuste de Precio</option>
+                  <option value="ANULACION DE OPERACION">Anulación de Operación</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Tabla de Renglones Devueltos -->
+            <div class="mb-3">
+              <label class="form-label fw-bold small">📦 Renglones a Reversar en la Nota de Crédito:</label>
+              <div class="table-responsive bg-white border rounded-3 shadow-sm" style="max-height: 220px; overflow-y: auto;">
+                <table class="table table-sm table-hover align-middle mb-0">
+                  <thead class="table-dark small text-center">
+                    <tr>
+                      <th style="width: 45px;">Dev.</th>
+                      <th>Producto</th>
+                      <th style="width: 75px;">IVA</th>
+                      <th style="width: 105px;">Precio Unit.</th>
+                      <th style="width: 120px;">Cantidad/Peso</th>
+                      <th style="width: 110px;">Subtotal Dev.</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tablaItemsNotaCredito" class="small">
+                    <!-- Inyectado Dinámicamente -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Resumen Totalizador de la Nota de Crédito -->
+            <div class="p-3 bg-white border border-danger rounded-3 shadow-sm">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="small fw-bold text-muted">Total a Reversar en Divisas ($):</span>
+                <span id="ncMontoTotalUSD" class="fw-bold text-danger fs-5 num-legible">-$0.00</span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-bold text-muted">Total a Reversar en Bolívares (Bs):</span>
+                <span id="ncMontoTotalBS" class="fw-bold text-danger fs-5 num-legible">-Bs. 0.00</span>
+              </div>
+              <hr class="my-1">
+              <div class="row g-1 text-center small pt-1">
+                <div class="col-4">
+                  <span class="text-muted">Exento:</span>
+                  <div id="ncExentoBS" class="fw-bold num-legible">Bs. 0.00</div>
+                </div>
+                <div class="col-4">
+                  <span class="text-muted">Base 16%:</span>
+                  <div id="ncBase16BS" class="fw-bold num-legible">Bs. 0.00</div>
+                </div>
+                <div class="col-4">
+                  <span class="text-muted">IVA 16%:</span>
+                  <div id="ncIVA16BS" class="fw-bold text-danger num-legible">Bs. 0.00</div>
+                </div>
+              </div>
+            </div>
+
+            <div id="errorModalNC" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer justify-content-between p-3 bg-white">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnConfirmarEmisionNC" class="btn btn-danger fw-bold px-4 rounded-pill shadow-sm" onclick="confirmarEmisionNotaCreditoFiscal()">
+              🧾 Emitir Nota de Crédito Fiscal en HKA80
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- MODAL LECTOR DE CÓDIGOS DE BALANZA -->
     <div class="modal fade" id="modalLectorCodigos" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-centered">
