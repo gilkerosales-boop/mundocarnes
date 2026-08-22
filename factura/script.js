@@ -339,12 +339,24 @@ function actualizarInterfazModoFiscal() {
       btnHero.className = "btn btn-facturar-hero w-100 mb-2 shadow";
     }
     if (btnModalEmitir) {
-      btnModalEmitir.textContent = "🧾 Emitir Factura No Fiscal";
+      btnModalEmitir.textContent = "🧾 Emitir Recibo No Fiscal";
       btnModalEmitir.className = "btn btn-success fw-bold px-5 py-2 fs-5 rounded-pill shadow";
     }
     if (labelTituloCobro) {
       labelTituloCobro.textContent = "🧾 Procesar Recibo de Pago (Control Interno)";
     }
+  }
+
+  // Control de visibilidad de desglose tributario en pantalla según el modo
+  const boxIVAPanel = document.getElementById('contenedorDesgloseIVA');
+  const boxIVAModal = document.getElementById('contenedorDesgloseIVAModal');
+  if (boxIVAPanel) {
+    if (modoFiscalActivo) boxIVAPanel.classList.remove('hidden');
+    else boxIVAPanel.classList.add('hidden');
+  }
+  if (boxIVAModal) {
+    if (modoFiscalActivo) boxIVAModal.classList.remove('hidden');
+    else boxIVAModal.classList.add('hidden');
   }
 
   if (window.fiscalDriver) {
@@ -410,9 +422,10 @@ async function ejecutarReporteXFiscalDirecto() {
 }
 
 // ==========================================================================
-// CÁLCULO TRIBUTARIO DINÁMICO DE BASES IMPONIBLES E IVA (EXENTO / 16% / 8%)
+// CÁLCULO TRIBUTARIO CONDICIONADO ESTRICTAMENTE AL MODO FISCAL
 // ==========================================================================
-function calcularTotalesTributarios(itemsObj) {
+function calcularTotalesTributarios(itemsObj, forzarModoFiscal = null) {
+  const esFiscal = (forzarModoFiscal !== null) ? forzarModoFiscal : modoFiscalActivo;
   let montoExento = 0;
   let montoBase16 = 0;
   let montoIVA16 = 0;
@@ -426,23 +439,28 @@ function calcularTotalesTributarios(itemsObj) {
     const tasa = (item.tasaIVA || "E").toUpperCase();
     totalGeneral += precioTotal;
 
-    if (tasa === "G" || tasa === "16") {
-      const base = precioTotal / 1.16;
-      const iva = precioTotal - base;
-      montoBase16 += base;
-      montoIVA16 += iva;
-    } else if (tasa === "R" || tasa === "8") {
-      const base = precioTotal / 1.08;
-      const iva = precioTotal - base;
-      montoBase8 += base;
-      montoIVA8 += iva;
-    } else {
+    // SI NO ES MODO FISCAL: CERO IVA (Todo se trata como importe directo sin impuestos)
+    if (!esFiscal) {
       montoExento += precioTotal;
+    } else {
+      if (tasa === "G" || tasa === "16") {
+        const base = precioTotal / 1.16;
+        const iva = precioTotal - base;
+        montoBase16 += base;
+        montoIVA16 += iva;
+      } else if (tasa === "R" || tasa === "8") {
+        const base = precioTotal / 1.08;
+        const iva = precioTotal - base;
+        montoBase8 += base;
+        montoIVA8 += iva;
+      } else {
+        montoExento += precioTotal;
+      }
     }
   }
 
-  const totalIVA = montoIVA16 + montoIVA8;
-  const totalBaseGravable = montoBase16 + montoBase8;
+  const totalIVA = esFiscal ? (montoIVA16 + montoIVA8) : 0;
+  const totalBaseGravable = esFiscal ? (montoBase16 + montoBase8) : 0;
 
   return {
     montoExento: parseFloat(montoExento.toFixed(2)),
@@ -1142,10 +1160,14 @@ function renderizarTablaModalFactura() {
         </div>`;
     }
 
-    let badgeIVA = (tasaIVA === "G" || tasaIVA === "16")
-      ? `<span class="badge bg-danger">G (16%)</span>`
-      : (tasaIVA === "R" || tasaIVA === "8" ? `<span class="badge bg-info text-dark">R (8%)</span>` : `<span class="badge bg-secondary">E (0%)</span>`);
-
+   let badgeIVA = "-";
+    if (modoFiscalActivo) {
+      badgeIVA = (tasaIVA === "G" || tasaIVA === "16")
+        ? `<span class="badge bg-danger">G (16%)</span>`
+        : (tasaIVA === "R" || tasaIVA === "8" ? `<span class="badge bg-info text-dark">R (8%)</span>` : `<span class="badge bg-secondary">E (0%)</span>`);
+    } else {
+      badgeIVA = `<span class="badge bg-light text-muted border">No Fiscal</span>`;
+    }
     let safeIdKey = key.replace(/[^a-zA-Z0-9]/g, '_');
 
     htmlTabla += `
@@ -2457,10 +2479,12 @@ function renderizarTicketTermicoHTML(d) {
       itemTotalTxt = `$${item.precioTotal}`;
     }
 
+    const tagFiscalProd = d.modoFiscal ? ` <span class="small text-muted">(${tasaLetra})</span>` : "";
+
     filasProductosHtml += `
       <tr>
         <td style="width:6%;">${i++}</td>
-        <td style="width:36%;" class="fw-bold">${key} <span class="small text-muted">(${tasaLetra})</span></td>
+        <td style="width:36%;" class="fw-bold">${key}${tagFiscalProd}</td>
         <td style="width:24%;" class="text-center num-legible">${precUnit}</td>
         <td style="width:16%;" class="text-center num-legible">${item.cantidadTxt}</td>
         <td style="width:18%;" class="text-end fw-bold num-legible">${itemTotalTxt}</td>
@@ -2468,56 +2492,87 @@ function renderizarTicketTermicoHTML(d) {
   }
 
   let bloqueTotalesHtml = "";
-  if (esModoBs) {
-    let exentoBs = (d.montoExento || 0) * tasa;
-    let baseBs = (d.montoBase || 0) * tasa;
-    let ivaBs = (d.montoIVA || 0) * tasa;
 
-    bloqueTotalesHtml = `
-      <div class="d-flex justify-content-between small text-muted">
-        <span>EXENTO (0%):</span>
-        <span class="num-legible">Bs. ${exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-      </div>
-      <div class="d-flex justify-content-between small text-muted">
-        <span>BASE GRAVABLE (16%):</span>
-        <span class="num-legible">Bs. ${baseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-      </div>
-      <div class="d-flex justify-content-between small text-danger fw-bold">
-        <span>IVA (16%):</span>
-        <span class="num-legible">Bs. ${ivaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-      </div>
-      <div class="ticket-divider"></div>
-      <div class="d-flex justify-content-between">
-        <span>TOTAL FACTURA (Bs):</span>
-        <strong class="fs-6 num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-      </div>
-      <div class="d-flex justify-content-between text-muted">
-        <span>TOTAL REF ($):</span>
-        <span class="num-legible">$${d.totalUSD.toFixed(2)}</span>
-      </div>`;
+  if (d.modoFiscal) {
+    // =========================================================================
+    // DESGLOSE FISCAL SENIAT COMPLETO (Solo cuando modoFiscalActivo === true)
+    // =========================================================================
+    if (esModoBs) {
+      let exentoBs = (d.montoExento || 0) * tasa;
+      let baseBs = (d.montoBase || 0) * tasa;
+      let ivaBs = (d.montoIVA || 0) * tasa;
+
+      bloqueTotalesHtml = `
+        <div class="d-flex justify-content-between small text-muted">
+          <span>EXENTO (0%):</span>
+          <span class="num-legible">Bs. ${exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="d-flex justify-content-between small text-muted">
+          <span>BASE GRAVABLE (16%):</span>
+          <span class="num-legible">Bs. ${baseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="d-flex justify-content-between small text-danger fw-bold">
+          <span>IVA (16%):</span>
+          <span class="num-legible">Bs. ${ivaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="ticket-divider"></div>
+        <div class="d-flex justify-content-between">
+          <span>TOTAL FACTURA (Bs):</span>
+          <strong class="fs-6 num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+        </div>
+        <div class="d-flex justify-content-between text-muted">
+          <span>TOTAL REF ($):</span>
+          <span class="num-legible">$${d.totalUSD.toFixed(2)}</span>
+        </div>`;
+    } else {
+      bloqueTotalesHtml = `
+        <div class="d-flex justify-content-between small text-muted">
+          <span>EXENTO (0%):</span>
+          <span class="num-legible">$${(d.montoExento || 0).toFixed(2)}</span>
+        </div>
+        <div class="d-flex justify-content-between small text-muted">
+          <span>BASE GRAVABLE (16%):</span>
+          <span class="num-legible">$${(d.montoBase || 0).toFixed(2)}</span>
+        </div>
+        <div class="d-flex justify-content-between small text-danger fw-bold">
+          <span>IVA (16%):</span>
+          <span class="num-legible">$${(d.montoIVA || 0).toFixed(2)}</span>
+        </div>
+        <div class="ticket-divider"></div>
+        <div class="d-flex justify-content-between">
+          <span>TOTAL FACTURA ($):</span>
+          <strong class="fs-6 num-legible">$${d.totalUSD.toFixed(2)}</strong>
+        </div>
+        <div class="d-flex justify-content-between text-muted">
+          <span>TOTAL REF (Bs):</span>
+          <span class="num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>`;
+    }
   } else {
-    bloqueTotalesHtml = `
-      <div class="d-flex justify-content-between small text-muted">
-        <span>EXENTO (0%):</span>
-        <span class="num-legible">$${(d.montoExento || 0).toFixed(2)}</span>
-      </div>
-      <div class="d-flex justify-content-between small text-muted">
-        <span>BASE GRAVABLE (16%):</span>
-        <span class="num-legible">$${(d.montoBase || 0).toFixed(2)}</span>
-      </div>
-      <div class="d-flex justify-content-between small text-danger fw-bold">
-        <span>IVA (16%):</span>
-        <span class="num-legible">$${(d.montoIVA || 0).toFixed(2)}</span>
-      </div>
-      <div class="ticket-divider"></div>
-      <div class="d-flex justify-content-between">
-        <span>TOTAL FACTURA ($):</span>
-        <strong class="fs-6 num-legible">$${d.totalUSD.toFixed(2)}</strong>
-      </div>
-      <div class="d-flex justify-content-between text-muted">
-        <span>TOTAL REF (Bs):</span>
-        <span class="num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-      </div>`;
+    // =========================================================================
+    // COMPROBANTE NO FISCAL / CONTROL INTERNO LIMPIO (CERO RENGLONES DE IVA)
+    // =========================================================================
+    if (esModoBs) {
+      bloqueTotalesHtml = `
+        <div class="d-flex justify-content-between">
+          <span>TOTAL A PAGAR (Bs):</span>
+          <strong class="fs-6 num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+        </div>
+        <div class="d-flex justify-content-between text-muted">
+          <span>TOTAL REF ($):</span>
+          <span class="num-legible">$${d.totalUSD.toFixed(2)}</span>
+        </div>`;
+    } else {
+      bloqueTotalesHtml = `
+        <div class="d-flex justify-content-between">
+          <span>TOTAL A PAGAR ($):</span>
+          <strong class="fs-6 num-legible">$${d.totalUSD.toFixed(2)}</strong>
+        </div>
+        <div class="d-flex justify-content-between text-muted">
+          <span>TOTAL REF (Bs):</span>
+          <span class="num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>`;
+    }
   }
 
   const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "FISCAL";
