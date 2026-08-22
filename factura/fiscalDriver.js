@@ -393,7 +393,7 @@ class FiscalDriverTFHKA {
     this.notificarEstado("EMITIENDO", `Transmitiendo factura fiscal a ${this.getNombreModelo()}...`);
 
     try {
-      // PASO A: Encabezado de Datos del Cliente (Comandos i01 - i04)
+      // PASO A: Encabezado de Datos del Cliente y Metadatos Fiscales (Comandos i01 - i04)
       const nombreCliente = this.sanitizarTexto(cliente.nombre, 38);
       const cedulaCliente = this.sanitizarTexto(cliente.cedula, 20);
       const direccionCliente = this.sanitizarTexto(cliente.direccion || "CARACAS", 38);
@@ -401,8 +401,22 @@ class FiscalDriverTFHKA {
 
       await this.enviarComando(`i01${nombreCliente}`);
       await this.enviarComando(`i02${cedulaCliente}`);
-      if (direccionCliente) await this.enviarComando(`i03${direccionCliente}`);
-      if (telefonoCliente) await this.enviarComando(`i04${telefonoCliente}`);
+
+      // Transmisión de Comprobante de Retención SENIAT si el cliente es Contribuyente Especial
+      if (datosFactura.esContribuyenteEspecial && datosFactura.comprobanteRetencion) {
+        const compTxt = this.sanitizarTexto(`COMP RET: ${datosFactura.comprobanteRetencion}`, 38);
+        await this.enviarComando(`i03${compTxt}`);
+      } else if (direccionCliente) {
+        await this.enviarComando(`i03${direccionCliente}`);
+      }
+
+      // Transmisión de Percepción IGTF 3% en ticket fiscal
+      if (datosFactura.montoIGTF_BS > 0) {
+        const igtfTxt = this.sanitizarTexto(`IGTF 3%: BS ${datosFactura.montoIGTF_BS.toFixed(2)}`, 38);
+        await this.enviarComando(`i04${igtfTxt}`);
+      } else if (telefonoCliente) {
+        await this.enviarComando(`i04${telefonoCliente}`);
+      }
 
       // PASO B: Renglones de Venta con Formato Estricto TFHKA y Desglose de Base Imponible
       const factorTasa = (parseFloat(tasaBCV) > 0) ? parseFloat(tasaBCV) : 1;
