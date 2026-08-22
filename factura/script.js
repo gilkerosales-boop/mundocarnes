@@ -4910,39 +4910,48 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       doc.setFont("helvetica", "normal");
       doc.text(`Período de Imposición: ${mesNombre.toUpperCase()} ${anioFiscal} (${fechaDesdeStr} al ${fechaHastaStr}) | Tasa Ref: Bs. ${tasaActual.toFixed(2)}`, 14, 24);
 
-     // Columnas Oficiales SENIAT en PDF (Idénticas al archivo Excel)
+     // Unificación Total: 21 Columnas Oficiales SENIAT en PDF (Idénticas al archivo Excel)
       const columnasPDF = [
-        "#", "Fecha", "RIF / C.I.", "Cliente", "N° Fact.", "N° NC", "Tipo",
-        "Total Ventas (Bs)", "Exento (Bs)", "Base 16% (Bs)", "IVA 16% (Bs)", 
-        "Base 8% (Bs)", "IVA 8% (Bs)", "IGTF 3% (Bs)", "N° Comp. Ret.", "IVA Retenido (Bs)"
+        "N° Oper.", "Fecha", "RIF / C.I.", "Nombre / Razón Social", "N° Factura", "N° Control",
+        "N° N.Déb.", "N° N.Créd.", "Tipo", "Fact. Afect.", "Total Ventas (Bs)", "Ventas Exentas (Bs)",
+        "Base 16% (Bs)", "% 16%", "IVA 16% (Bs)", "Base 8% (Bs)", "% 8%", "IVA 8% (Bs)",
+        "IGTF 3% (Bs)", "N° Comp. Ret.", "IVA Retenido (Bs)"
       ];
 
       const filasPDF = filasSeniat.map(f => [
         f.nroOperacion,
         f.fecha,
         f.cedulaRIF,
-        f.cliente.length > 18 ? f.cliente.substring(0, 18) + "..." : f.cliente,
+        f.cliente.length > 17 ? f.cliente.substring(0, 17) + "..." : f.cliente,
         f.numFactura || "-",
+        f.numControl || "N/A",
+        f.notaDebito || "-",
         f.notaCredito || "-",
         f.tipoTransaccion,
+        f.facturaAfectada || "-",
         f.totalVentaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         f.exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         f.base16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.alicuota16 || "-",
         f.iva16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         f.base8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.alicuota8 || "-",
         f.iva8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         f.igtfBs > 0 ? f.igtfBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-",
         f.compRetencion || "-",
         f.ivaRetenidoBs > 0 ? f.ivaRetenidoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"
       ]);
 
+      // Fila de Totales Generales en PDF (21 columnas)
       filasPDF.push([
-        "TOTAL", "", "", "RESUMEN DEL PERÍODO", "", "", "",
+        "TOTAL", "", "", "RESUMEN DEL PERÍODO", "", "", "", "", "", "",
         totVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         totExentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         totBase16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        "",
         totIVA16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         totBase8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        "",
         totIVA8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         totIgtfBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         "",
@@ -4952,16 +4961,35 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       doc.autoTable({
         head: [columnasPDF],
         body: filasPDF,
-        startY: 27,
+        startY: 26,
+        margin: { left: 5, right: 5 },
         theme: "grid",
-        styles: { fontSize: 6.5, cellPadding: 1.2, halign: "center", lineColor: [200, 200, 200], lineWidth: 0.1 },
-        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 6.5 },
+        styles: { 
+          fontSize: 5.1, 
+          cellPadding: 0.7, 
+          halign: "center", 
+          lineColor: [200, 200, 200], 
+          lineWidth: 0.1,
+          overflow: 'linebreak'
+        },
+        headStyles: { 
+          fillColor: [15, 23, 42], 
+          textColor: [255, 255, 255], 
+          fontStyle: "bold", 
+          fontSize: 5.1,
+          halign: "center"
+        },
         columnStyles: {
-          3: { halign: "left", cellWidth: 35 },
-          8: { halign: "right", fontStyle: "bold" },
-          9: { halign: "right" },
-          10: { halign: "right" },
-          11: { halign: "right", textColor: [180, 0, 0] }
+          3: { halign: "left", cellWidth: 23 },  // Nombre / Razón Social
+          10: { halign: "right", fontStyle: "bold" }, // Total Ventas
+          11: { halign: "right" }, // Exento
+          12: { halign: "right" }, // Base 16%
+          14: { halign: "right", textColor: [180, 0, 0] }, // IVA 16%
+          15: { halign: "right" }, // Base 8%
+          17: { halign: "right" }, // IVA 8%
+          18: { halign: "right" }, // IGTF 3%
+          19: { halign: "center", cellWidth: 18 }, // N° Comp. Ret.
+          20: { halign: "right" }  // IVA Retenido
         },
         footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" }
       });
