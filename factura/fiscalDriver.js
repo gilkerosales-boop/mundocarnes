@@ -508,14 +508,9 @@ class FiscalDriverTFHKA {
         await this.enviarComando(tramaRenglon);
       }
 
-      // PASO C: Subtotal obligatorio en PP9 Plus antes del pago
-      if (this.modelo === "PP9") {
-        await this.enviarComando("3");
-      }
-
-      // PASO D: Forma de Pago y Totalización
+      // PASO C: Forma de Pago y Cierre Directo (101 Efectivo, 109 Débito, 114 Crédito, 120 Otros)
       const formaStr = String(formaPago || "").toUpperCase();
-      let cmdCodigoPago = "101"; // Efectivo por defecto
+      let cmdCodigoPago = "101"; // Pago Directo Efectivo
 
       if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO") || formaStr.includes("DÉBITO")) {
         cmdCodigoPago = "109";
@@ -525,6 +520,7 @@ class FiscalDriverTFHKA {
         cmdCodigoPago = "120";
       }
 
+      // Enviar comando directo de totalización y cierre sin subtotal previo
       await this.enviarComando(cmdCodigoPago);
 
       // Esperar corte de papel
@@ -638,10 +634,6 @@ class FiscalDriverTFHKA {
 
         const tramaRenglonNC = `${cmdDevolucionChar}${strPrecio}${strCantidad}${descProd}`;
         await this.enviarComando(tramaRenglonNC);
-      }
-
-      if (this.modelo === "PP9") {
-        await this.enviarComando("3");
       }
 
       await this.enviarComando("101");
