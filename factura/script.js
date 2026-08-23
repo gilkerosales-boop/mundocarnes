@@ -4663,7 +4663,7 @@ window.alternarTipoOperacionNC = alternarTipoOperacionNC;
 window.alternarCheckItemNC = alternarCheckItemNC;
 window.confirmarEmisionNotaCreditoFiscal = confirmarEmisionNotaCreditoFiscal;
 
-// 2. GENERADOR Y EXPORTADOR OFICIAL DEL LIBRO DE VENTAS FISCAL SENIAT (.xlsx y .pdf)
+// 2. GENERADOR Y EXPORTADOR OFICIAL DEL LIBRO DE VENTAS FISCAL SENIAT (.xlsx y .pdf) CON HOJA DE REPORTES Z
 async function ejecutarDescargaLibroSeniat(formato = 'excel') {
   const errorDiv = document.getElementById('errorModalDescarga');
   const fechaDesdeStr = document.getElementById('seniatFechaDesde')?.value;
@@ -4687,7 +4687,9 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
     const dDesde = new Date(`${fechaDesdeStr}T00:00:00`);
     const dHasta = new Date(`${fechaHastaStr}T23:59:59`);
     const tasaActual = obtenerTasaBCV() || 778.00;
+    const serialFiscalPredeterminado = window.fiscalDriver?.ultimoReporteStatus?.serial || "Z7C7044438";
 
+    // 1. OBTENER VENTAS FISCALES
     let todasLasVentas = [];
     if (navigator.onLine) {
       todasLasVentas = await obtenerTodasLasVentasSupabase('ventas');
@@ -4695,15 +4697,20 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       todasLasVentas = await dbGetAll("ventas");
     }
 
-    if (!todasLasVentas || todasLasVentas.length === 0) {
-      if (errorDiv) {
-        errorDiv.textContent = "No se encontraron registros de ventas en la base de datos.";
-        errorDiv.classList.remove('hidden');
-      }
-      return;
+    // 2. OBTENER CIERRES / REPORTES Z
+    let todosLosCierres = [];
+    if (navigator.onLine) {
+      try {
+        const { data: cierresSup } = await supabaseClient.from('cierres').select('*');
+        if (cierresSup) todosLosCierres = cierresSup;
+      } catch (e) {}
+    }
+    if (!todosLosCierres || todosLosCierres.length === 0) {
+      todosLosCierres = await dbGetAll("cierres");
     }
 
-    const ventasPeriodo = todasLasVentas.filter(v => {
+    // Filtrar facturas fiscales del período
+    const ventasPeriodo = (todasLasVentas || []).filter(v => {
       const formaStr = String(v["FORMA DE PAGO"] || v.formaPagoStr || "").toUpperCase();
       const numFac = String(v.FACTURA || v["FACTURA N°"] || v.numFactura || "");
       
@@ -4730,25 +4737,34 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       return parsearFechaTimestamp(a["FECHA"] || a.fechaStr) - parsearFechaTimestamp(b["FECHA"] || b.fechaStr);
     });
 
-    if (ventasPeriodo.length === 0) {
+    // Filtrar reportes Z del período
+    const cierresPeriodo = (todosLosCierres || []).filter(c => {
+      const fStr = String(c["FECHA"] || c.fechaStr || "");
+      const ts = parsearFechaTimestamp(fStr);
+      if (ts > 0) {
+        const dCierre = new Date(ts);
+        return dCierre >= dDesde && dCierre <= dHasta;
+      }
+      return false;
+    }).sort((a, b) => {
+      return parsearFechaTimestamp(a["FECHA"] || a.fechaStr) - parsearFechaTimestamp(b["FECHA"] || b.fechaStr);
+    });
+
+    if (ventasPeriodo.length === 0 && cierresPeriodo.length === 0) {
       if (errorDiv) {
-        errorDiv.textContent = `No se encontraron facturas fiscales registradas para el período seleccionado (${fechaDesdeStr} al ${fechaHastaStr}).`;
+        errorDiv.textContent = `No se encontraron registros fiscales para el período seleccionado (${fechaDesdeStr} al ${fechaHastaStr}).`;
         errorDiv.classList.remove('hidden');
       }
       return;
     }
 
-    // Procesar cada renglón fiscal del Libro de Ventas con Desglose Real de IVA, IGTF y Retenciones
-    let filasSeniat = [];
-    let totVentasBs = 0;
-    let totExentoBs = 0;
-    let totBase16Bs = 0;
-    let totIVA16Bs = 0;
-    let totBase8Bs = 0;
-    let totIVA8Bs = 0;
-    let totIgtfBs = 0;
-    let totRetenidoBs = 0;
-    let operacionNro = 1;
+    // =========================================================================
+    // SECCIÓN A: PROCESAMIENTO DE FACTURAS FISCALES
+    // =========================================================================
+    let filasSeniatFac = [];
+    let totVentasBsFac = 0, totExentoBsFac = 0, totBase16BsFac = 0, totIVA16BsFac = 0;
+    let totBase8BsFac = 0, totIVA8BsFac = 0, totIgtfBsFac = 0, totRetenidoBsFac = 0;
+    let operacionNroFac = 1;
 
     ventasPeriodo.forEach(v => {
       const numFac = String(v.FACTURA || v["FACTURA N°"] || v.numFactura || "");
@@ -4761,13 +4777,8 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       let totalVentaBs = Math.abs(montoTotalUSD) * tasaActual;
       const prodsStr = String(v["PRODUCTOS"] || v.productosSummary || "");
       
-      let exentoBs = 0;
-      let base16Bs = 0;
-      let iva16Bs = 0;
-      let base8Bs = 0;
-      let iva8Bs = 0;
+      let exentoBs = 0, base16Bs = 0, iva16Bs = 0, base8Bs = 0, iva8Bs = 0;
 
-      // Desglosar renglones identificando alícuotas desde el resumen o catálogo
       if (prodsStr) {
         const itemsLista = prodsStr.split(' | ');
         itemsLista.forEach(itemTxt => {
@@ -4782,7 +4793,6 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
           } else if (txtUpper.includes('(R)') || txtUpper.includes('(8%)')) {
             tasaItem = "R";
           } else {
-            // Búsqueda en catálogo cacheado por nombre
             const matchNom = itemTxt.match(/^(.*?)(?:\s*\((.*?)\))?\s*-\s*\$/);
             const nomLimpio = matchNom ? matchNom[1].trim() : itemTxt.split('-')[0].trim();
             for (let cat of cacheCategoriasFactura) {
@@ -4807,13 +4817,11 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
         });
       }
 
-      // Si no hubo desglose, asignar como gravable general por defecto si es fiscal
       if ((exentoBs + base16Bs + base8Bs) === 0 && totalVentaBs > 0) {
         base16Bs = totalVentaBs / 1.16;
         iva16Bs = totalVentaBs - base16Bs;
       }
 
-      // Captura de IGTF y Retenciones
       let igtfBs = parseFloat(v.montoIGTF_BS || v["MONTO_IGTF_BS"] || v["IGTF"]) || 0;
       let compRet = String(v.comprobanteRetencion || v["COMPROBANTE_RETENCION"] || "").trim();
       let retencionBs = parseFloat(v.montoRetencionBS || v["MONTO_RETENCION_BS"] || v["IVA RETENIDO"]) || 0;
@@ -4828,39 +4836,31 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       let finalIgtfBs = igtfBs * factorSigno;
       let finalRetencionBs = retencionBs * factorSigno;
 
-      totVentasBs += finalTotalBs;
-      totExentoBs += finalExentoBs;
-      totBase16Bs += finalBase16Bs;
-      totIVA16Bs += finalIVA16Bs;
-      totBase8Bs += finalBase8Bs;
-      totIVA8Bs += finalIVA8Bs;
-      totIgtfBs += finalIgtfBs;
-      totRetenidoBs += finalRetencionBs;
+      totVentasBsFac += finalTotalBs;
+      totExentoBsFac += finalExentoBs;
+      totBase16BsFac += finalBase16Bs;
+      totIVA16BsFac += finalIVA16Bs;
+      totBase8BsFac += finalBase8Bs;
+      totIVA8BsFac += finalIVA8Bs;
+      totIgtfBsFac += finalIgtfBs;
+      totRetenidoBsFac += finalRetencionBs;
 
-      // Extracción de la Factura Afectada con búsqueda en campos y en el texto de pago
       let facAfectadaFinal = "";
       if (esNC) {
         facAfectadaFinal = v.facturaAfectada || v["FACTURA_AFECTADA"] || v["FACTURA AFECTADA"] || "";
-        
-        // Si no vino en campo directo, extraerla mediante expresión regular del texto
         if (!facAfectadaFinal) {
           const textoPago = String(v["FORMA DE PAGO"] || v.formaPagoStr || "");
           const matchPago = textoPago.match(/AFECTA\s+(?:FACTURA|FACT)?\s*:?\s*([A-Za-z0-9\-_]+)/i);
-          if (matchPago && matchPago[1]) {
-            facAfectadaFinal = matchPago[1].trim();
-          }
+          if (matchPago && matchPago[1]) facAfectadaFinal = matchPago[1].trim();
         }
-
         if (!facAfectadaFinal && v.direccion) {
           const matchDir = String(v.direccion).match(/AFECTA\s+(?:FACTURA|FACT)?\s*:?\s*([A-Za-z0-9\-_]+)/i);
-          if (matchDir && matchDir[1]) {
-            facAfectadaFinal = matchDir[1].trim();
-          }
+          if (matchDir && matchDir[1]) facAfectadaFinal = matchDir[1].trim();
         }
       }
 
-      filasSeniat.push({
-        nroOperacion: operacionNro++,
+      filasSeniatFac.push({
+        nroOperacion: operacionNroFac++,
         fecha: fechaStr,
         cedulaRIF: cedulaRIF,
         cliente: clienteNombre,
@@ -4884,24 +4884,92 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       });
     });
 
+    // =========================================================================
+    // SECCIÓN B: PROCESAMIENTO DE REPORTES Z (HOJA Y SECCIÓN ADICIONAL)
+    // =========================================================================
+    let filasSeniatZ = [];
+    let totVentasBsZ = 0, totExentoBsZ = 0, totBase16BsZ = 0, totIVA16BsZ = 0;
+    let totBase8BsZ = 0, totIVA8BsZ = 0, totIgtfBsZ = 0, totRetenidoBsZ = 0;
+    let operacionNroZ = 1;
+
+    cierresPeriodo.forEach(c => {
+      const fechaStr = String(c["FECHA"] || c.fechaStr || "").split(',')[0].trim();
+      const numReporteZ = String(c["NUMERO Z"] || c.numeroZ || (c.id ? `Z-${String(c.id).padStart(4, '0')}` : `Z-${String(operacionNroZ).padStart(4, '0')}`));
+      const serialMaquina = String(c["SERIAL"] || c.serial || serialFiscalPredeterminado);
+      
+      // Totales del Cierre Z
+      const r = c.resumen || {};
+      let totalVentaUSD = parseFloat(c["TOTAL 1"] || c.totalVentasUSD || r.totalGeneralVentasUSD) || 0;
+      let totalVentaBs = parseFloat(c["TOTAL 2"] || c.totalVentasBS || r.totalGeneralVentasBS) || 0;
+
+      if (totalVentaBs === 0 && totalVentaUSD > 0) {
+        totalVentaBs = totalVentaUSD * tasaActual;
+      }
+
+      // Base Imponible estimada / IVA del cierre
+      let base16Bs = totalVentaBs > 0 ? (totalVentaBs / 1.16) : 0;
+      let iva16Bs = totalVentaBs - base16Bs;
+      let exentoBs = 0;
+      let base8Bs = 0, iva8Bs = 0, igtfBs = 0, retenidoBs = 0;
+
+      totVentasBsZ += totalVentaBs;
+      totExentoBsZ += exentoBs;
+      totBase16BsZ += base16Bs;
+      totIVA16BsZ += iva16Bs;
+      totBase8BsZ += base8Bs;
+      totIVA8BsZ += iva8Bs;
+      totIgtfBsZ += igtfBs;
+      totRetenidoBsZ += retenidoBs;
+
+      filasSeniatZ.push({
+        nroOperacion: operacionNroZ++,
+        fecha: fechaStr,
+        cedulaRIF: "-",
+        cliente: "Ventas del día",
+        numFactura: numReporteZ,
+        numControl: serialMaquina,
+        notaDebito: "-",
+        notaCredito: "-",
+        tipoTransaccion: "01-REG",
+        facturaAfectada: "-",
+        totalVentaBs: totalVentaBs,
+        exentoBs: exentoBs,
+        base16Bs: base16Bs,
+        alicuota16: base16Bs > 0 ? "16%" : "",
+        iva16Bs: iva16Bs,
+        base8Bs: base8Bs,
+        alicuota8: "",
+        iva8Bs: iva8Bs,
+        igtfBs: igtfBs,
+        compRetencion: "-",
+        ivaRetenidoBs: retenidoBs
+      });
+    });
+
+    const encabezadoColumnas = [
+      "N° Oper.", "Fecha", "RIF / C.I.", "Nombre / Razón Social", "N° Factura", 
+      "N° Control", "N° Nota Déb.", "N° Nota Créd.", "Tipo Trans.", "Fact. Afectada",
+      "Total Ventas Incl. IVA (Bs.)", "Ventas Exentas (Bs.)", "Base Imponible 16% (Bs.)", 
+      "% Alic. 16%", "Impuesto IVA 16% (Bs.)", "Base Imponible 8% (Bs.)", "% Alic. 8%", 
+      "Impuesto IVA 8% (Bs.)", "IGTF Percibido 3% (Bs.)", "N° Comprobante Ret.", "IVA Retenido (Bs.)"
+    ];
+
+    // =========================================================================
+    // EXPORTACIÓN A EXCEL (.xlsx) CON 2 HOJAS
+    // =========================================================================
     if (formato === 'excel') {
-      const filasExcel = [
+      // 1. Hoja 1: Facturas Fiscales
+      const filasExcelFac = [
         ["FRIGORIFICO MUNDOCARNES, C.A."],
         ["RIF: J-505072889"],
-        [`LIBRO DE VENTAS FISCAL - SENIAT (Providencia N° SNAT/2014/0032)`],
+        [`LIBRO DE VENTAS FISCAL - SENIAT (DETALLE DE FACTURAS EMITIDAS)`],
         [`Período de Imposición: ${mesNombre.toUpperCase()} ${anioFiscal} - (${periodoTexto}) | Tasa Ref: Bs. ${tasaActual.toFixed(2)}`],
         [],
-        [
-          "N° Oper.", "Fecha", "RIF / C.I.", "Nombre / Razón Social", "N° Factura", 
-          "N° Control", "N° Nota Déb.", "N° Nota Créd.", "Tipo Trans.", "Fact. Afectada",
-          "Total Ventas Incl. IVA (Bs.)", "Ventas Exentas (Bs.)", "Base Imponible 16% (Bs.)", 
-          "% Alic. 16%", "Impuesto IVA 16% (Bs.)", "Base Imponible 8% (Bs.)", "% Alic. 8%", 
-          "Impuesto IVA 8% (Bs.)", "IGTF Percibido 3% (Bs.)", "N° Comprobante Ret.", "IVA Retenido (Bs.)"
-        ]
+        encabezadoColumnas
       ];
 
-      filasSeniat.forEach(f => {
-        filasExcel.push([
+      filasSeniatFac.forEach(f => {
+        filasExcelFac.push([
           f.nroOperacion, f.fecha, f.cedulaRIF, f.cliente, f.numFactura,
           f.numControl, f.notaDebito, f.notaCredito, f.tipoTransaccion, f.facturaAfectada,
           parseFloat(f.totalVentaBs.toFixed(2)), parseFloat(f.exentoBs.toFixed(2)), 
@@ -4911,41 +4979,65 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
         ]);
       });
 
-      filasExcel.push([]);
-      filasExcel.push([
+      filasExcelFac.push([]);
+      filasExcelFac.push([
         "TOTALES:", "", "", "", "", "", "", "", "", "",
-        parseFloat(totVentasBs.toFixed(2)), parseFloat(totExentoBs.toFixed(2)), 
-        parseFloat(totBase16Bs.toFixed(2)), "", parseFloat(totIVA16Bs.toFixed(2)),
-        parseFloat(totBase8Bs.toFixed(2)), "", parseFloat(totIVA8Bs.toFixed(2)),
-        0.00, "", 0.00
+        parseFloat(totVentasBsFac.toFixed(2)), parseFloat(totExentoBsFac.toFixed(2)), 
+        parseFloat(totBase16BsFac.toFixed(2)), "", parseFloat(totIVA16BsFac.toFixed(2)),
+        parseFloat(totBase8BsFac.toFixed(2)), "", parseFloat(totIVA8BsFac.toFixed(2)),
+        parseFloat(totIgtfBsFac.toFixed(2)), "", parseFloat(totRetenidoBsFac.toFixed(2))
       ]);
 
-      const worksheet = XLSX.utils.aoa_to_sheet(filasExcel);
+      // 2. Hoja 2: Reportes Z
+      const filasExcelZ = [
+        ["FRIGORIFICO MUNDOCARNES, C.A."],
+        ["RIF: J-505072889"],
+        [`LIBRO DE VENTAS FISCAL - SENIAT (RESUMEN DE REPORTES Z)`],
+        [`Período de Imposición: ${mesNombre.toUpperCase()} ${anioFiscal} - (${periodoTexto}) | Serial Fiscal: ${serialFiscalPredeterminado}`],
+        [],
+        encabezadoColumnas
+      ];
+
+      filasSeniatZ.forEach(f => {
+        filasExcelZ.push([
+          f.nroOperacion, f.fecha, f.cedulaRIF, f.cliente, f.numFactura,
+          f.numControl, f.notaDebito, f.notaCredito, f.tipoTransaccion, f.facturaAfectada,
+          parseFloat(f.totalVentaBs.toFixed(2)), parseFloat(f.exentoBs.toFixed(2)), 
+          parseFloat(f.base16Bs.toFixed(2)), f.alicuota16, parseFloat(f.iva16Bs.toFixed(2)),
+          parseFloat(f.base8Bs.toFixed(2)), f.alicuota8, parseFloat(f.iva8Bs.toFixed(2)),
+          f.igtfBs, f.compRetencion, f.ivaRetenidoBs
+        ]);
+      });
+
+      filasExcelZ.push([]);
+      filasExcelZ.push([
+        "TOTALES:", "", "", "", "", "", "", "", "", "",
+        parseFloat(totVentasBsZ.toFixed(2)), parseFloat(totExentoBsZ.toFixed(2)), 
+        parseFloat(totBase16BsZ.toFixed(2)), "", parseFloat(totIVA16BsZ.toFixed(2)),
+        parseFloat(totBase8BsZ.toFixed(2)), "", parseFloat(totIVA8BsZ.toFixed(2)),
+        parseFloat(totIgtfBsZ.toFixed(2)), "", parseFloat(totRetenidoBsZ.toFixed(2))
+      ]);
+
+      const worksheetFac = XLSX.utils.aoa_to_sheet(filasExcelFac);
+      const worksheetZ = XLSX.utils.aoa_to_sheet(filasExcelZ);
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Libro_Ventas_SENIAT");
+
+      XLSX.utils.book_append_sheet(workbook, worksheetFac, "Facturas_Fiscales");
+      XLSX.utils.book_append_sheet(workbook, worksheetZ, "Reportes_Z");
 
       const nombreArchivo = `Libro_Ventas_SENIAT_${mesNombre}_${anioFiscal}_${fechaDesdeStr}_al_${fechaHastaStr}.xlsx`;
       XLSX.writeFile(workbook, nombreArchivo);
 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiltroDescarga')).hide();
-      mostrarAvisoFactura("🎉 Libro de Ventas Fiscal SENIAT (.xlsx) generado con éxito.");
+      mostrarAvisoFactura("🎉 Libro de Ventas Fiscal SENIAT con Hoja de Reportes Z (.xlsx) generado con éxito.");
 
     } else {
+      // =========================================================================
+      // EXPORTACIÓN A PDF (LANDSCAPE CON SECCIÓN DE FACTURAS Y REPORTES Z)
+      // =========================================================================
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "bold");
-      doc.text("FRIGORIFICO MUNDOCARNES, C.A.", 14, 12);
-      doc.setFontSize(8.5);
-      doc.setFont("helvetica", "normal");
-      doc.text("RIF: J-505072889 | Dirección: Av. San Martín, Caracas, Distrito Capital", 14, 16);
-      doc.setFont("helvetica", "bold");
-      doc.text(`LIBRO DE VENTAS FISCAL - SENIAT (Providencia N° SNAT/2014/0032)`, 14, 20);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Período de Imposición: ${mesNombre.toUpperCase()} ${anioFiscal} (${fechaDesdeStr} al ${fechaHastaStr}) | Tasa Ref: Bs. ${tasaActual.toFixed(2)}`, 14, 24);
-
-     // Unificación Total: 21 Columnas Oficiales SENIAT en PDF (Idénticas al archivo Excel)
       const columnasPDF = [
         "N° Oper.", "Fecha", "RIF / C.I.", "Nombre / Razón Social", "N° Factura", "N° Control",
         "N° N.Déb.", "N° N.Créd.", "Tipo", "Fact. Afect.", "Total Ventas (Bs)", "Ventas Exentas (Bs)",
@@ -4953,7 +5045,19 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
         "IGTF 3% (Bs)", "N° Comp. Ret.", "IVA Retenido (Bs)"
       ];
 
-      const filasPDF = filasSeniat.map(f => [
+      // TABLA 1: FACTURAS FISCALES
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text("FRIGORIFICO MUNDOCARNES, C.A.", 14, 12);
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica", "normal");
+      doc.text("RIF: J-505072889 | Dirección: Av. San Martín, Caracas, Distrito Capital", 14, 16);
+      doc.setFont("helvetica", "bold");
+      doc.text(`LIBRO DE VENTAS FISCAL - SENIAT (DETALLE DE FACTURAS EMITIDAS)`, 14, 20);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Período de Imposición: ${mesNombre.toUpperCase()} ${anioFiscal} (${fechaDesdeStr} al ${fechaHastaStr}) | Tasa Ref: Bs. ${tasaActual.toFixed(2)}`, 14, 24);
+
+      const filasPDFFac = filasSeniatFac.map(f => [
         f.nroOperacion,
         f.fecha,
         f.cedulaRIF,
@@ -4977,63 +5081,126 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
         f.ivaRetenidoBs > 0 ? f.ivaRetenidoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"
       ]);
 
-      // Fila de Totales Generales en PDF (21 columnas)
-      filasPDF.push([
-        "TOTAL", "", "", "RESUMEN DEL PERÍODO", "", "", "", "", "", "",
-        totVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        totExentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        totBase16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      filasPDFFac.push([
+        "TOTAL", "", "", "RESUMEN FACTURAS", "", "", "", "", "", "",
+        totVentasBsFac.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totExentoBsFac.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totBase16BsFac.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         "",
-        totIVA16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        totBase8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totIVA16BsFac.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totBase8BsFac.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         "",
-        totIVA8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        totIgtfBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totIVA8BsFac.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        totIgtfBsFac.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         "",
-        totRetenidoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        totRetenidoBsFac.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       ]);
 
       doc.autoTable({
         head: [columnasPDF],
-        body: filasPDF,
+        body: filasPDFFac,
         startY: 26,
         margin: { left: 5, right: 5 },
         theme: "grid",
-        styles: { 
-          fontSize: 5.1, 
-          cellPadding: 0.7, 
-          halign: "center", 
-          lineColor: [200, 200, 200], 
-          lineWidth: 0.1,
-          overflow: 'linebreak'
-        },
-        headStyles: { 
-          fillColor: [15, 23, 42], 
-          textColor: [255, 255, 255], 
-          fontStyle: "bold", 
-          fontSize: 5.1,
-          halign: "center"
-        },
+        styles: { fontSize: 5.1, cellPadding: 0.7, halign: "center", lineColor: [200, 200, 200], lineWidth: 0.1, overflow: 'linebreak' },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 5.1, halign: "center" },
         columnStyles: {
-          3: { halign: "left", cellWidth: 23 },  // Nombre / Razón Social
-          10: { halign: "right", fontStyle: "bold" }, // Total Ventas
-          11: { halign: "right" }, // Exento
-          12: { halign: "right" }, // Base 16%
-          14: { halign: "right", textColor: [180, 0, 0] }, // IVA 16%
-          15: { halign: "right" }, // Base 8%
-          17: { halign: "right" }, // IVA 8%
-          18: { halign: "right" }, // IGTF 3%
-          19: { halign: "center", cellWidth: 18 }, // N° Comp. Ret.
-          20: { halign: "right" }  // IVA Retenido
+          3: { halign: "left", cellWidth: 23 },
+          10: { halign: "right", fontStyle: "bold" },
+          11: { halign: "right" },
+          12: { halign: "right" },
+          14: { halign: "right", textColor: [180, 0, 0] },
+          15: { halign: "right" },
+          17: { halign: "right" },
+          18: { halign: "right" },
+          19: { halign: "center", cellWidth: 18 },
+          20: { halign: "right" }
         },
         footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" }
       });
+
+      // TABLA 2: REPORTES Z (EN NUEVA PÁGINA)
+      if (filasSeniatZ.length > 0) {
+        doc.addPage();
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text("FRIGORIFICO MUNDOCARNES, C.A.", 14, 12);
+        doc.setFontSize(8.5);
+        doc.setFont("helvetica", "normal");
+        doc.text("RIF: J-505072889 | Dirección: Av. San Martín, Caracas, Distrito Capital", 14, 16);
+        doc.setFont("helvetica", "bold");
+        doc.text(`LIBRO DE VENTAS FISCAL - SENIAT (RESUMEN DE REPORTES Z)`, 14, 20);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Período de Imposición: ${mesNombre.toUpperCase()} ${anioFiscal} (${fechaDesdeStr} al ${fechaHastaStr}) | Serial Fiscal: ${serialFiscalPredeterminado}`, 14, 24);
+
+        const filasPDFZ = filasSeniatZ.map(f => [
+          f.nroOperacion,
+          f.fecha,
+          f.cedulaRIF,
+          f.cliente,
+          f.numFactura,
+          f.numControl,
+          f.notaDebito,
+          f.notaCredito,
+          f.tipoTransaccion,
+          f.facturaAfectada,
+          f.totalVentaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          f.exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          f.base16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          f.alicuota16 || "-",
+          f.iva16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          f.base8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          f.alicuota8 || "-",
+          f.iva8Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          f.igtfBs > 0 ? f.igtfBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-",
+          f.compRetencion || "-",
+          f.ivaRetenidoBs > 0 ? f.ivaRetenidoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "-"
+        ]);
+
+        filasPDFZ.push([
+          "TOTAL", "", "", "RESUMEN REPORTES Z", "", "", "", "", "", "",
+          totVentasBsZ.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          totExentoBsZ.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          totBase16BsZ.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          "",
+          totIVA16BsZ.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          totBase8BsZ.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          "",
+          totIVA8BsZ.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          totIgtfBsZ.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          "",
+          totRetenidoBsZ.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        ]);
+
+        doc.autoTable({
+          head: [columnasPDF],
+          body: filasPDFZ,
+          startY: 26,
+          margin: { left: 5, right: 5 },
+          theme: "grid",
+          styles: { fontSize: 5.1, cellPadding: 0.7, halign: "center", lineColor: [200, 200, 200], lineWidth: 0.1, overflow: 'linebreak' },
+          headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 5.1, halign: "center" },
+          columnStyles: {
+            3: { halign: "left", cellWidth: 23 },
+            10: { halign: "right", fontStyle: "bold" },
+            11: { halign: "right" },
+            12: { halign: "right" },
+            14: { halign: "right", textColor: [180, 0, 0] },
+            15: { halign: "right" },
+            17: { halign: "right" },
+            18: { halign: "right" },
+            19: { halign: "center", cellWidth: 18 },
+            20: { halign: "right" }
+          },
+          footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" }
+        });
+      }
 
       const nombreArchivoPDF = `Libro_Ventas_SENIAT_${mesNombre}_${anioFiscal}_${fechaDesdeStr}_al_${fechaHastaStr}.pdf`;
       doc.save(nombreArchivoPDF);
 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiltroDescarga')).hide();
-      mostrarAvisoFactura("🎉 Libro de Ventas Fiscal SENIAT (.pdf) exportado con éxito.");
+      mostrarAvisoFactura("🎉 Libro de Ventas Fiscal SENIAT con Reportes Z (.pdf) exportado con éxito.");
     }
 
   } catch (errSeniat) {
