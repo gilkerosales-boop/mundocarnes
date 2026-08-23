@@ -147,39 +147,6 @@ class FiscalDriverTFHKA {
     }
   }
 
-    for (let cfg of configuraciones) {
-      try {
-        await this.abrirPuertoConConfig(cfg.baud, cfg.parity);
-        this.conectado = true;
-        this.baudRate = cfg.baud;
-        this.paridad = cfg.parity;
-
-        // Probar si la máquina responde al comando de estado S1
-        const st = await this.consultarEstadoSilencioso();
-        if (st && (st.raw || st.ultimaFactura || st.serial)) {
-          this.notificarEstado("CONECTADO", `Impresora fiscal ${this.getNombreModelo()} conectada (${cfg.baud}bps, ${cfg.parity}).`, st);
-          return true;
-        }
-      } catch (e) {
-        this.conectado = false;
-      }
-    }
-
-    // Si no hubo respuesta con S1 pero el puerto abrió en la configuración inicial
-    try {
-      const cfgDefecto = configuraciones[0];
-      await this.abrirPuertoConConfig(cfgDefecto.baud, cfgDefecto.parity);
-      this.conectado = true;
-      this.baudRate = cfgDefecto.baud;
-      this.paridad = cfgDefecto.parity;
-      this.notificarEstado("CONECTADO", `Impresora fiscal ${this.getNombreModelo()} vinculada en puerto COM.`);
-      return true;
-    } catch (e) {
-      this.conectado = false;
-      return false;
-    }
-  }
-
   async desconectar() {
     try {
       this.conectado = false;
