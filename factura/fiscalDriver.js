@@ -19,7 +19,7 @@ class FiscalDriverTFHKA {
     return 'serial' in navigator;
   }
 
-  obtenerParidadPorDefecto() {
+ obtenerParidadPorDefecto() {
     // Tanto HKA80 como Aclas PP9 Plus operan de fábrica en 9600 bps sin paridad (None)
     return "none";
   }
@@ -134,7 +134,6 @@ class FiscalDriverTFHKA {
       }
     }
 
-    // Si abre el puerto pero está a la espera de comando
     try {
       await this.abrirPuertoConConfig(9600, "none");
       this.conectado = true;
