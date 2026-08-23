@@ -20,8 +20,8 @@ class FiscalDriverTFHKA {
   }
 
   obtenerParidadPorDefecto() {
-    // HKA80 usa paridad None (ninguna); Aclas PP9 Plus usa paridad Even (par) de fábrica
-    return this.modelo === "PP9" ? "even" : "none";
+    // Tanto HKA80 como Aclas PP9 Plus operan de fábrica en 9600 bps sin paridad (None)
+    return "none";
   }
 
   setModelo(nuevoModelo) {
@@ -51,7 +51,7 @@ class FiscalDriverTFHKA {
     }
   }
 
-  // Apertura física con combinación de Paridad (None vs Even) y Baudrate (9600 / 19200)
+  // Apertura física del puerto COM
   async abrirPuertoConConfig(baudRate, parity) {
     if (!this.port) throw new Error("Puerto serial no inicializado.");
 
@@ -76,7 +76,7 @@ class FiscalDriverTFHKA {
     } catch (e) {}
   }
 
-  // Solicitar puerto interactivo al usuario con Auto-Detección de Comunicación Real
+  // Solicitar puerto interactivo al usuario y verificar comunicación
   async solicitarYConectar() {
     if (!FiscalDriverTFHKA.esCompatible()) {
       throw new Error("Su navegador no soporta Web Serial API. Utilice Google Chrome o Microsoft Edge.");
@@ -84,11 +84,7 @@ class FiscalDriverTFHKA {
 
     try {
       this.port = await navigator.serial.requestPort();
-      const exito = await this.autodetectarParametrosYConectar();
-      if (!exito) {
-        throw new Error(`La impresora ${this.getNombreModelo()} no respondió a la consulta de estado S1. Verifique que esté encendida y conectada.`);
-      }
-      return true;
+      return await this.autodetectarParametrosYConectar();
     } catch (err) {
       this.conectado = false;
       this.notificarEstado("ERROR_CONEXION", `No se pudo conectar con ${this.getNombreModelo()}: ` + err.message);
@@ -96,7 +92,7 @@ class FiscalDriverTFHKA {
     }
   }
 
-  // Reconectar automáticamente si el puerto ya fue autorizado
+  // Reconectar automáticamente si el puerto ya fue autorizado previamente
   async reconectarAutomatico() {
     if (!FiscalDriverTFHKA.esCompatible()) return false;
 
@@ -113,20 +109,44 @@ class FiscalDriverTFHKA {
     }
   }
 
-  // Probar combinaciones de comunicación (Paridad Even/None, 9600/19200) para garantizar respuesta
+  // Conectar a 9600 bps sin paridad (estándar oficial TFHKA / Aclas)
   async autodetectarParametrosYConectar() {
-    const configuraciones = this.modelo === "PP9"
-      ? [
-          { baud: 9600, parity: "even" },
-          { baud: 9600, parity: "none" },
-          { baud: 19200, parity: "even" },
-          { baud: 19200, parity: "none" }
-        ]
-      : [
-          { baud: 9600, parity: "none" },
-          { baud: 9600, parity: "even" },
-          { baud: 19200, parity: "none" }
-        ];
+    const configuraciones = [
+      { baud: 9600, parity: "none" },
+      { baud: 19200, parity: "none" },
+      { baud: 9600, parity: "even" }
+    ];
+
+    for (let cfg of configuraciones) {
+      try {
+        await this.abrirPuertoConConfig(cfg.baud, cfg.parity);
+        this.conectado = true;
+        this.baudRate = cfg.baud;
+        this.paridad = cfg.parity;
+
+        const st = await this.consultarEstadoSilencioso();
+        if (st) {
+          this.notificarEstado("CONECTADO", `Impresora fiscal ${this.getNombreModelo()} conectada y lista.`, st);
+          return true;
+        }
+      } catch (e) {
+        this.conectado = false;
+      }
+    }
+
+    // Si abre el puerto pero está a la espera de comando
+    try {
+      await this.abrirPuertoConConfig(9600, "none");
+      this.conectado = true;
+      this.baudRate = 9600;
+      this.paridad = "none";
+      this.notificarEstado("CONECTADO", `Impresora fiscal ${this.getNombreModelo()} conectada en puerto COM.`);
+      return true;
+    } catch (e) {
+      this.conectado = false;
+      return false;
+    }
+  }
 
     for (let cfg of configuraciones) {
       try {
