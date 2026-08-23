@@ -133,6 +133,12 @@ async function dbPut(storeName, item) {
       try {
         const tx = db.transaction(storeName, "readwrite");
         const store = tx.objectStore(storeName);
+        
+        // Si el objeto no tiene ID válido en un almacén autoincremental, retirar propiedad vacía
+        if (storeName === "cierres" && (item.id === undefined || item.id === null)) {
+          delete item.id;
+        }
+
         const req = store.put(item);
         req.onsuccess = () => resolve(req.result);
         req.onerror = (e) => {
@@ -5580,10 +5586,12 @@ async function cargarHistorialCierresCaja() {
     try {
       const { data: cierresSup, error } = await supabaseClient.from(tablaCierresUsuario).select('*');
       if (!error && cierresSup && cierresSup.length > 0) {
-        cacheHistorialCierres = cierresSup.map(c => ({
-          id: c.id,
-          fechaStr: c["FECHA"] || "",
-          usuario: usuarioActivo,
+        cacheHistorialCierres = cierresSup.map((c, idx) => {
+          const idSeguro = c.id || (c["FECHA"] ? parsearFechaTimestamp(c["FECHA"]) : null) || (Date.now() + idx);
+          return {
+            id: idSeguro,
+            fechaStr: c["FECHA"] || "",
+            usuario: usuarioActivo,
           inicialUSD: parseFloat(c["INICIAL $"]) || 0,
           inicialBS: parseFloat(c["INICIAL Bs"]) || 0,
           cajaFinalUSD: parseFloat(c["TOTAL 3"]) || 0,
