@@ -5592,30 +5592,31 @@ async function cargarHistorialCierresCaja() {
             id: idSeguro,
             fechaStr: c["FECHA"] || "",
             usuario: usuarioActivo,
-          inicialUSD: parseFloat(c["INICIAL $"]) || 0,
-          inicialBS: parseFloat(c["INICIAL Bs"]) || 0,
-          cajaFinalUSD: parseFloat(c["TOTAL 3"]) || 0,
-          cajaFinalBS: parseFloat(c["TOTAL 4"]) || 0,
-          totalVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
-          totalVentasBS: parseFloat(c["TOTAL 2"]) || 0,
-          esFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ),
-          modoFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ),
-          numeroZ: c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ || null,
-          resumen: {
-            ventasEfectivoUSD: parseFloat(c["DIVISAS"]) || 0,
-            ventasEfectivoBS: parseFloat(c["BOLIVARES"]) || 0,
-            ventasPagoMovil: parseFloat(c["PAGO MOVIL"]) || 0,
-            ventasZelle: parseFloat(c["ZELLE"]) || 0,
-            ventasPayPal: parseFloat(c["PAYPAL"]) || 0,
-            ventasPuntoVenta: parseFloat(c["PUNTO DE VENTA"]) || 0,
-            ventasBiopago: parseFloat(c["BIOPAGO"]) || 0,
-            ventasCashea: parseFloat(c["CASHEA"]) || 0,
-            ventasCredito: parseFloat(c["CREDITO"]) || 0,
-            ventasTransferencia: parseFloat(c["TRANSFERENCIA"] || c["TRANSFERECIA"]) || 0,
-            totalGeneralVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
-            totalGeneralVentasBS: parseFloat(c["TOTAL 2"]) || 0
-          }
-        })).sort((a, b) => (b.id || 0) - (a.id || 0));
+            inicialUSD: parseFloat(c["INICIAL $"]) || 0,
+            inicialBS: parseFloat(c["INICIAL Bs"]) || 0,
+            cajaFinalUSD: parseFloat(c["TOTAL 3"]) || 0,
+            cajaFinalBS: parseFloat(c["TOTAL 4"]) || 0,
+            totalVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
+            totalVentasBS: parseFloat(c["TOTAL 2"]) || 0,
+            esFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ),
+            modoFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ),
+            numeroZ: c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ || null,
+            resumen: {
+              ventasEfectivoUSD: parseFloat(c["DIVISAS"]) || 0,
+              ventasEfectivoBS: parseFloat(c["BOLIVARES"]) || 0,
+              ventasPagoMovil: parseFloat(c["PAGO MOVIL"]) || 0,
+              ventasZelle: parseFloat(c["ZELLE"]) || 0,
+              ventasPayPal: parseFloat(c["PAYPAL"]) || 0,
+              ventasPuntoVenta: parseFloat(c["PUNTO DE VENTA"]) || 0,
+              ventasBiopago: parseFloat(c["BIOPAGO"]) || 0,
+              ventasCashea: parseFloat(c["CASHEA"]) || 0,
+              ventasCredito: parseFloat(c["CREDITO"]) || 0,
+              ventasTransferencia: parseFloat(c["TRANSFERENCIA"] || c["TRANSFERECIA"]) || 0,
+              totalGeneralVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
+              totalGeneralVentasBS: parseFloat(c["TOTAL 2"]) || 0
+            }
+          };
+        }).sort((a, b) => (b.id || 0) - (a.id || 0));
 
         for (let c of cacheHistorialCierres) {
           await dbPut("cierres", c);
