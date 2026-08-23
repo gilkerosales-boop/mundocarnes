@@ -360,10 +360,21 @@ class FiscalDriverTFHKA {
     }
   }
 
-  // 1. Consultar Estado S1
+  // 1. Consultar Estado S1 con reintento inteligente ante estado ocupado
   async consultarEstado() {
     this.notificarEstado("CONSULTANDO", `Consultando estado S1 en ${this.getNombreModelo()}...`);
-    const resp = await this.enviarComando("S1", true);
+    
+    let resp = null;
+    for (let intento = 0; intento < 3; intento++) {
+      try {
+        resp = await this.enviarComando("S1", true);
+        if (resp) break;
+      } catch (errIntento) {
+        if (intento < 2) {
+          await new Promise(r => setTimeout(r, 800));
+        }
+      }
+    }
     this.ultimoReporteStatus = resp;
 
     let numFacturaDetectado = null;
@@ -523,12 +534,22 @@ class FiscalDriverTFHKA {
       // Enviar comando directo de totalización y cierre sin subtotal previo
       await this.enviarComando(cmdCodigoPago);
 
-      // Esperar corte de papel
-      await new Promise(r => setTimeout(r, 1000));
+      // Esperar a que el mecanismo térmico termine la impresión y el corte físico
+      const pausaCorteMs = this.modelo === "PP9" ? 2400 : 1200;
+      await new Promise(r => setTimeout(r, pausaCorteMs));
 
-      // PASO E: Capturar Número de Factura Fiscal Impreso
-      const statusFinal = await this.consultarEstado();
-      const numFacturaFiscal = statusFinal.ultimaFactura || `FAC-${Date.now().toString().slice(-6)}`;
+      // PASO E: Capturar Número de Factura Fiscal Impreso sin interrumpir la venta
+      let numFacturaFiscal = null;
+      try {
+        const statusFinal = await this.consultarEstado();
+        numFacturaFiscal = statusFinal?.ultimaFactura;
+      } catch (eStatus) {
+        console.warn("Aviso: No se pudo leer S1 post-impresión:", eStatus);
+      }
+
+      if (!numFacturaFiscal) {
+        numFacturaFiscal = `FAC-${Date.now().toString().slice(-6)}`;
+      }
       this.ultimoNumeroFactura = numFacturaFiscal;
 
       this.notificarEstado("FINALIZADO", `Factura Fiscal N° ${numFacturaFiscal} impresa en ${this.getNombreModelo()}.`, {
@@ -546,7 +567,6 @@ class FiscalDriverTFHKA {
       try { await this.cancelarDocumento(); } catch (e) {}
       throw err;
     }
-  }
 
   // 3.1. Emitir Nota de Crédito Fiscal Oficial TFHKA
   async emitirNotaCreditoFiscal(datosNC) {
