@@ -409,38 +409,25 @@ class FiscalDriverTFHKA {
       const direccionCliente = this.sanitizarTexto(cliente.direccion || "CARACAS", 38);
       const telefonoCliente = this.sanitizarTexto(cliente.telefono || "N/D", 20);
 
-      // Asegurar prefijo legal obligatorio en Cédula / RIF (V-, J-, E-, G-, P-)
+      // Asegurar prefijo legal en Cédula / RIF (V-, J-, E-, G-, P-)
       if (!/^[VJEGPvjegp]/i.test(cedulaCliente)) {
         cedulaCliente = "V-" + cedulaCliente;
       }
 
-      // PASO A: Encabezado de Cliente con auto-desbloqueo de documento previo
-      if (this.modelo === "PP9") {
-        try {
-          await this.enviarComando(`iS*${nombreCliente}`);
-          await this.enviarComando(`iR*${cedulaCliente}`);
-        } catch (errInicio) {
-          // Si había un documento previo abierto en la impresora, anularlo (7) y reintentar
-          try { await this.enviarComando("7"); } catch (e) {}
-          await new Promise(r => setTimeout(r, 600));
-          await this.enviarComando(`iS*${nombreCliente}`);
-          await this.enviarComando(`iR*${cedulaCliente}`);
-        }
-        if (direccionCliente) await this.enviarComando(`i00${direccionCliente}`);
-        if (telefonoCliente) await this.enviarComando(`i01${telefonoCliente}`);
-      } else {
-        try {
-          await this.enviarComando(`i01${nombreCliente}`);
-          await this.enviarComando(`i02${cedulaCliente}`);
-        } catch (errInicio) {
-          try { await this.enviarComando("7"); } catch (e) {}
-          await new Promise(r => setTimeout(r, 600));
-          await this.enviarComando(`i01${nombreCliente}`);
-          await this.enviarComando(`i02${cedulaCliente}`);
-        }
-        if (direccionCliente) await this.enviarComando(`i03${direccionCliente}`);
-        if (telefonoCliente) await this.enviarComando(`i04${telefonoCliente}`);
+      // PASO A: Encabezado de Cliente Universal TFHKA (i01 Nombre, i02 Cédula/RIF)
+      try {
+        await this.enviarComando(`i01${nombreCliente}`);
+        await this.enviarComando(`i02${cedulaCliente}`);
+      } catch (errInicio) {
+        // Si había una factura previa trabada en la memoria, cancelarla (7) y reintentar
+        try { await this.enviarComando("7"); } catch (e) {}
+        await new Promise(r => setTimeout(r, 600));
+        await this.enviarComando(`i01${nombreCliente}`);
+        await this.enviarComando(`i02${cedulaCliente}`);
       }
+
+      if (direccionCliente) await this.enviarComando(`i03${direccionCliente}`);
+      if (telefonoCliente) await this.enviarComando(`i04${telefonoCliente}`);
 
       // Transmisión de Comprobante de Retención SENIAT si aplica
       if (datosFactura.esContribuyenteEspecial && datosFactura.comprobanteRetencion) {
