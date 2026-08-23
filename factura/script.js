@@ -713,7 +713,7 @@ async function procesarColaSincronizacion() {
           "TOTAL 3": parseFloat(d.totalCajaUSD) || 0,
           "TOTAL 4": parseFloat(d.totalCajaBS) || 0,
           "ES_FISCAL": Boolean(d.modoFiscal || d.esFiscal),
-          "NUMERO Z": d.numeroZ || null
+          "NUMERO_Z": d.numeroZ || null
         };
 
         const { error: errCieGlobal } = await supabaseClient.from('cierres').insert([registroCierre]);
@@ -919,6 +919,9 @@ async function forzarSincronizacionManual() {
           cajaFinalBS: parseFloat(cie["TOTAL 4"]) || 0,
           totalVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
           totalVentasBS: parseFloat(cie["TOTAL 2"]) || 0,
+          esFiscal: Boolean(cie["ES_FISCAL"] || cie.esFiscal || cie.modoFiscal || cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ),
+          modoFiscal: Boolean(cie["ES_FISCAL"] || cie.esFiscal || cie.modoFiscal || cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ),
+          numeroZ: cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ || null,
           resumen: {
             ventasEfectivoUSD: parseFloat(cie["DIVISAS"]) || 0,
             ventasEfectivoBS: parseFloat(cie["BOLIVARES"]) || 0,
@@ -5587,9 +5590,9 @@ async function cargarHistorialCierresCaja() {
           cajaFinalBS: parseFloat(c["TOTAL 4"]) || 0,
           totalVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
           totalVentasBS: parseFloat(c["TOTAL 2"]) || 0,
-          esFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || c["NUMERO Z"] || c.numeroZ),
-          modoFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || c["NUMERO Z"] || c.numeroZ),
-          numeroZ: c["NUMERO Z"] || c.numeroZ || null,
+          esFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ),
+          modoFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ),
+          numeroZ: c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ || null,
           resumen: {
             ventasEfectivoUSD: parseFloat(c["DIVISAS"]) || 0,
             ventasEfectivoBS: parseFloat(c["BOLIVARES"]) || 0,
