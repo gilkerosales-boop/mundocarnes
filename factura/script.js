@@ -287,11 +287,19 @@ function alternarModoFiscalPOS(estaActivo) {
   }
 }
 
-function cambiarModeloImpresoraFiscal(nuevoModelo) {
+async function cambiarModeloImpresoraFiscal(nuevoModelo) {
   if (window.fiscalDriver) {
     window.fiscalDriver.setModelo(nuevoModelo);
     actualizarInterfazModoFiscal();
-    mostrarAvisoFactura(`🖨️ Modelo fiscal configurado: ${window.fiscalDriver.getNombreModelo()}`);
+    
+    const nombreModelo = window.fiscalDriver.getNombreModelo();
+    mostrarAvisoFactura(`🖨️ Modelo fiscal configurado: ${nombreModelo}`);
+
+    // Si el modo fiscal está encendido, intentar reconexión inmediata con los parámetros del modelo seleccionado
+    if (modoFiscalActivo) {
+      const reconectado = await window.fiscalDriver.reconectarAutomatico();
+      actualizarBotonHardwareFiscal(reconectado ? "CONECTADO" : "DESCONECTADO");
+    }
   }
 }
 
