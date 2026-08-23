@@ -711,7 +711,9 @@ async function procesarColaSincronizacion() {
           "TOTAL 1": parseFloat(r.totalGeneralVentasUSD) || 0,
           "TOTAL 2": parseFloat(r.totalGeneralVentasBS) || 0,
           "TOTAL 3": parseFloat(d.totalCajaUSD) || 0,
-          "TOTAL 4": parseFloat(d.totalCajaBS) || 0
+          "TOTAL 4": parseFloat(d.totalCajaBS) || 0,
+          "ES_FISCAL": Boolean(d.modoFiscal || d.esFiscal),
+          "NUMERO Z": d.numeroZ || null
         };
 
         const { error: errCieGlobal } = await supabaseClient.from('cierres').insert([registroCierre]);
@@ -4737,8 +4739,21 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       return parsearFechaTimestamp(a["FECHA"] || a.fechaStr) - parsearFechaTimestamp(b["FECHA"] || b.fechaStr);
     });
 
-    // Filtrar reportes Z del período
+    // Filtrar EXCLUSIVAMENTE reportes Z FISCALES del período
     const cierresPeriodo = (todosLosCierres || []).filter(c => {
+      const esRealmenteFiscal = Boolean(
+        c.esFiscal === true ||
+        c.esFiscal === "true" ||
+        c.modoFiscal === true ||
+        c.modoFiscal === "true" ||
+        c["ES_FISCAL"] === true ||
+        c["ES_FISCAL"] === "true" ||
+        c["NUMERO Z"] ||
+        c.numeroZ
+      );
+
+      if (!esRealmenteFiscal) return false;
+
       const fStr = String(c["FECHA"] || c.fechaStr || "");
       const ts = parsearFechaTimestamp(fStr);
       if (ts > 0) {
@@ -5572,8 +5587,9 @@ async function cargarHistorialCierresCaja() {
           cajaFinalBS: parseFloat(c["TOTAL 4"]) || 0,
           totalVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
           totalVentasBS: parseFloat(c["TOTAL 2"]) || 0,
-          esFiscal: c["FORMA DE PAGO"] ? c["FORMA DE PAGO"].includes("FISCAL") : false,
-          numeroZ: c["NUMERO Z"] || null,
+          esFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || c["NUMERO Z"] || c.numeroZ),
+          modoFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || c["NUMERO Z"] || c.numeroZ),
+          numeroZ: c["NUMERO Z"] || c.numeroZ || null,
           resumen: {
             ventasEfectivoUSD: parseFloat(c["DIVISAS"]) || 0,
             ventasEfectivoBS: parseFloat(c["BOLIVARES"]) || 0,
@@ -5615,9 +5631,10 @@ function renderizarTablaHistorialCierres() {
   cacheHistorialCierres.forEach((c, idx) => {
     let fStr = c.fechaStr || 'N/D';
     let uStr = c.usuario || 'CAJERO';
-    let badgeTipoCierre = c.numeroZ || c.esFiscal 
-      ? `<span class="badge bg-primary fw-bold">Z Fiscal ${c.numeroZ ? '#' + c.numeroZ : ''}</span>` 
-      : `<span class="badge bg-secondary">Z Interno</span>`;
+    const esFiscalCierre = Boolean(c.esFiscal === true || c.esFiscal === "true" || c.modoFiscal === true || c.modoFiscal === "true" || c.numeroZ || c["ES_FISCAL"] || c["NUMERO Z"]);
+    let badgeTipoCierre = esFiscalCierre 
+      ? `<span class="badge bg-primary fw-bold">🏷️ Z Fiscal ${c.numeroZ ? '#' + c.numeroZ : ''}</span>` 
+      : `<span class="badge bg-secondary">📄 Z Interno</span>`;
 
     let iniUSD = (parseFloat(c.inicialUSD) || 0).toFixed(2);
     let iniBS = (parseFloat(c.inicialBS) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
