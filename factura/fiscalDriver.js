@@ -457,21 +457,39 @@ class FiscalDriverTFHKA {
 
     try {
       const nombreCliente = this.sanitizarTexto(cliente.nombre, 38);
-      const cedulaCliente = this.sanitizarTexto(cliente.cedula, 20);
+      let cedulaCliente = this.sanitizarTexto(cliente.cedula, 20);
       const direccionCliente = this.sanitizarTexto(cliente.direccion || "CARACAS", 38);
       const telefonoCliente = this.sanitizarTexto(cliente.telefono || "N/D", 20);
 
-      // PASO A: Encabezado de Cliente según Modelo
+      // Asegurar prefijo legal obligatorio en Cédula / RIF (V-, J-, E-, G-, P-)
+      if (!/^[VJEGPvjegp]/i.test(cedulaCliente)) {
+        cedulaCliente = "V-" + cedulaCliente;
+      }
+
+      // PASO A: Encabezado de Cliente con auto-desbloqueo de documento previo
       if (this.modelo === "PP9") {
-        // Formato nativo estricto Aclas PP9 Plus: iR* (RIF) + iS* (Razón Social)
-        await this.enviarComando(`iR*${cedulaCliente}`);
-        await this.enviarComando(`iS*${nombreCliente}`);
+        try {
+          await this.enviarComando(`iS*${nombreCliente}`);
+          await this.enviarComando(`iR*${cedulaCliente}`);
+        } catch (errInicio) {
+          // Si había un documento previo abierto en la impresora, anularlo (7) y reintentar
+          try { await this.enviarComando("7"); } catch (e) {}
+          await new Promise(r => setTimeout(r, 600));
+          await this.enviarComando(`iS*${nombreCliente}`);
+          await this.enviarComando(`iR*${cedulaCliente}`);
+        }
         if (direccionCliente) await this.enviarComando(`i00${direccionCliente}`);
         if (telefonoCliente) await this.enviarComando(`i01${telefonoCliente}`);
       } else {
-        // Formato HKA80
-        await this.enviarComando(`i01${nombreCliente}`);
-        await this.enviarComando(`i02${cedulaCliente}`);
+        try {
+          await this.enviarComando(`i01${nombreCliente}`);
+          await this.enviarComando(`i02${cedulaCliente}`);
+        } catch (errInicio) {
+          try { await this.enviarComando("7"); } catch (e) {}
+          await new Promise(r => setTimeout(r, 600));
+          await this.enviarComando(`i01${nombreCliente}`);
+          await this.enviarComando(`i02${cedulaCliente}`);
+        }
         if (direccionCliente) await this.enviarComando(`i03${direccionCliente}`);
         if (telefonoCliente) await this.enviarComando(`i04${telefonoCliente}`);
       }
