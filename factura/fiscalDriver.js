@@ -567,6 +567,7 @@ class FiscalDriverTFHKA {
       try { await this.cancelarDocumento(); } catch (e) {}
       throw err;
     }
+  }
 
   // 3.1. Emitir Nota de Crédito Fiscal Oficial TFHKA
   async emitirNotaCreditoFiscal(datosNC) {
