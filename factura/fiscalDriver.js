@@ -51,32 +51,26 @@ class FiscalDriverTFHKA {
     }
   }
 
-  // Apertura física del puerto COM
-  async abrirPuertoConConfig(baudRate, parity) {
+  // Apertura física del puerto serie estable y directo
+  async abrirPuerto() {
     if (!this.port) throw new Error("Puerto serial no inicializado.");
 
-    if (this.port.readable || this.port.writable) {
+    if (!this.port.readable || !this.port.writable) {
+      await this.port.open({
+        baudRate: 9600,
+        dataBits: 8,
+        stopBits: 1,
+        parity: "none",
+        flowControl: "none"
+      });
+
       try {
-        if (this.reader) { try { await this.reader.cancel(); } catch (e) {} try { this.reader.releaseLock(); } catch (e) {} this.reader = null; }
-        if (this.writer) { try { this.writer.releaseLock(); } catch (e) {} this.writer = null; }
-        await this.port.close();
+        await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
       } catch (e) {}
     }
-
-    await this.port.open({
-      baudRate: baudRate,
-      dataBits: 8,
-      stopBits: 1,
-      parity: parity,
-      flowControl: "none"
-    });
-
-    try {
-      await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
-    } catch (e) {}
   }
 
-  // Solicitar puerto interactivo al usuario y verificar comunicación
+  // Solicitar puerto interactivo al usuario
   async solicitarYConectar() {
     if (!FiscalDriverTFHKA.esCompatible()) {
       throw new Error("Su navegador no soporta Web Serial API. Utilice Google Chrome o Microsoft Edge.");
@@ -84,7 +78,10 @@ class FiscalDriverTFHKA {
 
     try {
       this.port = await navigator.serial.requestPort();
-      return await this.autodetectarParametrosYConectar();
+      await this.abrirPuerto();
+      this.conectado = true;
+      this.notificarEstado("CONECTADO", `Impresora fiscal ${this.getNombreModelo()} conectada y lista.`);
+      return true;
     } catch (err) {
       this.conectado = false;
       this.notificarEstado("ERROR_CONEXION", `No se pudo conectar con ${this.getNombreModelo()}: ` + err.message);
@@ -92,7 +89,7 @@ class FiscalDriverTFHKA {
     }
   }
 
-  // Reconectar automáticamente si el puerto ya fue autorizado previamente
+  // Reconectar automáticamente si el puerto ya fue autorizado
   async reconectarAutomatico() {
     if (!FiscalDriverTFHKA.esCompatible()) return false;
 
@@ -100,48 +97,13 @@ class FiscalDriverTFHKA {
       const ports = await navigator.serial.getPorts();
       if (ports.length > 0) {
         this.port = ports[0];
-        return await this.autodetectarParametrosYConectar();
+        await this.abrirPuerto();
+        this.conectado = true;
+        this.notificarEstado("CONECTADO", `Reconexión con ${this.getNombreModelo()} establecida.`);
+        return true;
       }
       return false;
     } catch (err) {
-      this.conectado = false;
-      return false;
-    }
-  }
-
-  // Conectar a 9600 bps sin paridad (estándar oficial TFHKA / Aclas)
-  async autodetectarParametrosYConectar() {
-    const configuraciones = [
-      { baud: 9600, parity: "none" },
-      { baud: 19200, parity: "none" },
-      { baud: 9600, parity: "even" }
-    ];
-
-    for (let cfg of configuraciones) {
-      try {
-        await this.abrirPuertoConConfig(cfg.baud, cfg.parity);
-        this.conectado = true;
-        this.baudRate = cfg.baud;
-        this.paridad = cfg.parity;
-
-        const st = await this.consultarEstadoSilencioso();
-        if (st) {
-          this.notificarEstado("CONECTADO", `Impresora fiscal ${this.getNombreModelo()} conectada y lista.`, st);
-          return true;
-        }
-      } catch (e) {
-        this.conectado = false;
-      }
-    }
-
-    try {
-      await this.abrirPuertoConConfig(9600, "none");
-      this.conectado = true;
-      this.baudRate = 9600;
-      this.paridad = "none";
-      this.notificarEstado("CONECTADO", `Impresora fiscal ${this.getNombreModelo()} conectada en puerto COM.`);
-      return true;
-    } catch (e) {
       this.conectado = false;
       return false;
     }
