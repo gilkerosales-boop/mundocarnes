@@ -437,7 +437,7 @@ class FiscalDriverTFHKA {
         await this.enviarComando(`i04${igtfTxt}`);
       }
 
-      // PASO B: Renglones de Venta
+      // PASO B: Renglones de Venta con cadencia de impresión térmica
       const factorTasa = (parseFloat(tasaBCV) > 0) ? parseFloat(tasaBCV) : 1;
 
       for (let nombreProd in items) {
@@ -466,11 +466,17 @@ class FiscalDriverTFHKA {
 
         const tramaRenglon = `${cmdTasaChar}${strPrecio}${strCantidad}${descProd}`;
         await this.enviarComando(tramaRenglon);
+
+        // Pausa necesaria para que el cabezal imprima el renglón antes del siguiente comando
+        await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
       }
 
-      // PASO C: Forma de Pago y Cierre Directo (101 Efectivo, 109 Débito, 114 Crédito, 120 Otros)
+      // Pausa previa a la totalización para asegurar cabezal libre
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 600 : 250));
+
+      // PASO C: Forma de Pago y Cierre Total Inmediato
       const formaStr = String(formaPago || "").toUpperCase();
-      let cmdCodigoPago = "101"; // Pago Directo Efectivo
+      let cmdCodigoPago = "101"; // Efectivo por defecto
 
       if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO") || formaStr.includes("DÉBITO")) {
         cmdCodigoPago = "109";
@@ -480,16 +486,15 @@ class FiscalDriverTFHKA {
         cmdCodigoPago = "120";
       }
 
-      // Transmitir comando de pago y tolerar estado ocupado mientras la guillotina física corta el papel
+      // Enviar comando de pago
       try {
         await this.enviarComando(cmdCodigoPago);
       } catch (errPago) {
-        // En Aclas PP9 la placa emite estado ocupado durante el avance físico de papel
-        console.log("Comando de cierre enviado, esperando finalización del corte mecánico...", errPago);
+        console.log("Comando de cierre transmitido, esperando finalización del corte mecánico...", errPago);
       }
 
-      // Esperar a que el mecanismo térmico termine la impresión completa y el corte
-      const pausaCorteMs = this.modelo === "PP9" ? 3500 : 1500;
+      // Esperar a que el mecanismo térmico termine la impresión del total y corte el papel
+      const pausaCorteMs = this.modelo === "PP9" ? 3800 : 1800;
       await new Promise(r => setTimeout(r, pausaCorteMs));
 
       // PASO D: Capturar Número de Factura Fiscal Real Impreso por la máquina
@@ -503,7 +508,7 @@ class FiscalDriverTFHKA {
 
       if (!numFacturaFiscal) {
         try {
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise(r => setTimeout(r, 1200));
           const statusReintento = await this.consultarEstado();
           numFacturaFiscal = statusReintento?.ultimaFactura;
         } catch (e2) {}
