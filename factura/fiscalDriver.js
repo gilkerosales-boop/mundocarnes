@@ -434,10 +434,12 @@ class FiscalDriverTFHKA {
     } = datosFactura;
 
     if (!cliente || !cliente.cedula || !cliente.nombre) {
+      this.ocupadoTransmision = false;
       throw new Error("La Cédula/RIF y el Nombre son obligatorios para emitir factura fiscal.");
     }
 
     if (!items || Object.keys(items).length === 0) {
+      this.ocupadoTransmision = false;
       throw new Error("No hay productos seleccionados para facturar.");
     }
 
@@ -511,11 +513,10 @@ class FiscalDriverTFHKA {
         const tramaRenglon = `${cmdTasaChar}${strPrecio}${strCantidad}${descProd}`;
         await this.enviarComando(tramaRenglon);
 
-        // Pausa necesaria para que el cabezal imprima el renglón antes del siguiente comando
+        // Pausa para que el cabezal imprima el renglón
         await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
       }
 
-      // Pausa previa a la totalización para asegurar cabezal libre
       await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 600 : 250));
 
       // PASO C: Forma de Pago y Cierre Definitivo de Factura Fiscal (101 Pago + 199 Cierre)
@@ -579,7 +580,15 @@ class FiscalDriverTFHKA {
         mensaje: `Factura fiscal N° ${numFacturaFiscal} impresa exitosamente en ${this.getNombreModelo()}.`
       };
 
-    } catch (err) {// 3.1. Emitir Nota de Crédito Fiscal Oficial TFHKA (Protocolo Directo de Anulación / Devolución)
+    } catch (err) {
+      this.ocupadoTransmision = false; // Liberar puerto ante error
+      this.notificarEstado("ERROR_EMISION", `Fallo al emitir factura en ${this.getNombreModelo()}: ` + err.message);
+      try { await this.cancelarDocumento(); } catch (e) {}
+      throw err;
+    }
+  }
+
+  // 3.1. Emitir Nota de Crédito Fiscal Oficial TFHKA (Protocolo Directo de Anulación / Devolución)
   async emitirNotaCreditoFiscal(datosNC) {
     if (!this.conectado) {
       throw new Error(`No hay conexión activa con la impresora fiscal ${this.getNombreModelo()}.`);
@@ -598,10 +607,12 @@ class FiscalDriverTFHKA {
     } = datosNC;
 
     if (!facturaAfectada) {
+      this.ocupadoTransmision = false;
       throw new Error("El número de factura fiscal afectada es obligatorio para emitir Nota de Crédito.");
     }
 
     if (!itemsDevueltos || Object.keys(itemsDevueltos).length === 0) {
+      this.ocupadoTransmision = false;
       throw new Error("Debe seleccionar al menos un producto a devolver en la Nota de Crédito.");
     }
 
