@@ -474,7 +474,7 @@ class FiscalDriverTFHKA {
       // Pausa previa a la totalización para asegurar cabezal libre
       await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 600 : 250));
 
-      // PASO C: Forma de Pago y Cierre Total Inmediato
+      // PASO C: Forma de Pago y Cierre Definitivo de Factura Fiscal (101 Pago + 199 Cierre)
       const formaStr = String(formaPago || "").toUpperCase();
       let cmdCodigoPago = "101"; // Efectivo por defecto
 
@@ -486,15 +486,20 @@ class FiscalDriverTFHKA {
         cmdCodigoPago = "120";
       }
 
-      // Enviar comando de pago
+      // 1. Asignar forma de pago
       try {
         await this.enviarComando(cmdCodigoPago);
-      } catch (errPago) {
-        console.log("Comando de cierre transmitido, esperando finalización del corte mecánico...", errPago);
-      }
+      } catch (errPago) {}
 
-      // Esperar a que el mecanismo térmico termine la impresión del total y corte el papel
-      const pausaCorteMs = this.modelo === "PP9" ? 3800 : 1800;
+      await new Promise(r => setTimeout(r, 400));
+
+      // 2. Enviar comando 199 para forzar la impresión inmediata del Total, IVA, MH y Corte de Papel
+      try {
+        await this.enviarComando("199");
+      } catch (err199) {}
+
+      // 3. Esperar a que la guillotina termine el corte físico
+      const pausaCorteMs = this.modelo === "PP9" ? 3500 : 1500;
       await new Promise(r => setTimeout(r, pausaCorteMs));
 
       // PASO D: Capturar Número de Factura Fiscal Real Impreso por la máquina
@@ -626,7 +631,14 @@ class FiscalDriverTFHKA {
 
       try {
         await this.enviarComando("101");
-      } catch (eNC) {}
+      } catch (eNC1) {}
+
+      await new Promise(r => setTimeout(r, 400));
+
+      try {
+        await this.enviarComando("199");
+      } catch (eNC2) {}
+
       await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 3500 : 1500));
 
       const statusFinal = await this.consultarEstado();
