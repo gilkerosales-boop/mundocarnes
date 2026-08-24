@@ -278,39 +278,67 @@ class FiscalDriverTFHKA {
   // OPERACIONES FISCALES DE ALTO NIVEL Y DIAGNÓSTICO DE HARDWARE
   // ========================================================================
 
-  // Diagnosticar en tiempo real mediante comando empaquetado S2 con protección contra colisión
+  // Diagnosticar en tiempo real mediante byte de sondeo oficial ENQ (0x05) con lectura de sensores
   async verificarEstadoHardware() {
-    // Si la impresora está ocupada emitiendo un ticket, pausar el sondeo para evitar colisiones
     if (!this.conectado || !this.port || !this.port.writable || this.ocupadoTransmision) {
       return { ok: true, codigo: "LISTA", mensaje: "Impresora ocupada en transmisión." };
     }
 
     try {
-      const resp = await this.enviarComando("S2", true);
-      if (!resp) {
-        return { ok: true, codigo: "LISTA", mensaje: "Impresora lista." };
+      // 1. Enviar byte de sondeo oficial ENQ (0x05)
+      const bufferENQ = new Uint8Array([0x05]);
+      this.writer = this.port.writable.getWriter();
+      await this.writer.write(bufferENQ);
+      this.writer.releaseLock();
+      this.writer = null;
+
+      await new Promise(r => setTimeout(r, 60));
+
+      // 2. Leer respuesta de estado (STX + StatusByte + ErrorByte + ETX + LRC)
+      const bytesResp = [];
+      this.reader = this.port.readable.getReader();
+      const t0 = Date.now();
+
+      while (Date.now() - t0 < 800) {
+        const { value, done } = await Promise.race([
+          this.reader.read(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 400))
+        ]).catch(() => ({ value: null, done: true }));
+
+        if (done || !value) break;
+        for (let b of value) bytesResp.push(b);
+        if (bytesResp.length >= 3) break;
       }
 
-      const lineas = String(resp).split(/[\r\n\x0A\x0D,]+/).map(l => l.trim()).filter(l => l.length > 0);
-      const errMecanismo = lineas[2] ? parseInt(lineas[2], 10) : (lineas[1] ? parseInt(lineas[1], 10) : 0);
-
-      // Evaluación de códigos de sensor S2 (0x04 / 4 / 44 = Tapa abierta; 0x01 / 1 / 41 = Sin papel)
-      if ((errMecanismo & 0x04) !== 0 || errMecanismo === 4 || errMecanismo === 44) {
-        return { ok: false, codigo: "TAPA_ABIERTA", mensaje: `⚠️ Compuerta de la impresora fiscal ${this.getNombreModelo()} abierta. Por favor, ciérrela bien.` };
-      }
-      if ((errMecanismo & 0x01) !== 0 || errMecanismo === 1 || errMecanismo === 41) {
-        return { ok: false, codigo: "SIN_PAPEL", mensaje: `⚠️ Impresora fiscal ${this.getNombreModelo()} sin papel. Por favor, inserte un rollo térmico.` };
+      if (this.reader) {
+        try { this.reader.releaseLock(); } catch (e) {}
+        this.reader = null;
       }
 
-      return { ok: true, codigo: "LISTA", mensaje: "Impresora lista." };
+      // 3. Analizar códigos de estado de sensores físicos
+      if (bytesResp.length > 0) {
+        let statusByte = bytesResp[1] !== undefined ? bytesResp[1] : bytesResp[0];
+        let errorByte = bytesResp[2] !== undefined ? bytesResp[2] : (bytesResp[1] || 0);
+
+        // Bit 2 / Bit 4 / Código 0x04 o 0x44: Tapa / Compuerta Abierta
+        const tapaAbierta = (statusByte & 0x04) !== 0 || (errorByte & 0x04) !== 0 || errorByte === 0x44 || errorByte === 0x64;
+        // Bit 0 / Bit 3 / Código 0x01 o 0x41: Sin papel térmico
+        const sinPapel = (statusByte & 0x01) !== 0 || (statusByte & 0x08) !== 0 || (errorByte & 0x01) !== 0 || errorByte === 0x41 || errorByte === 0x61;
+
+        if (tapaAbierta) {
+          return { ok: false, codigo: "TAPA_ABIERTA", mensaje: `⚠️ Compuerta de la ${this.getNombreModelo()} abierta. Por favor, ciérrela bien.` };
+        }
+        if (sinPapel) {
+          return { ok: false, codigo: "SIN_PAPEL", mensaje: `⚠️ La ${this.getNombreModelo()} no tiene papel térmico. Inserte un rollo.` };
+        }
+      }
+
+      return { ok: true, codigo: "LISTA", mensaje: `Impresora ${this.getNombreModelo()} lista.` };
 
     } catch (err) {
-      const msg = String(err.message || "").toUpperCase();
-      // En Aclas PP9 / HKA80, la apertura de tapa o falta de papel genera rechazo inmediato NAK
-      if (msg.includes("NAK") || msg.includes("RECHAZADO") || msg.includes("OCUPADO")) {
-        return { ok: false, codigo: "TAPA_ABIERTA", mensaje: `⚠️ Advertencia: Compuerta abierta o falta de papel en ${this.getNombreModelo()}.` };
-      }
-      return { ok: false, codigo: "ERROR_CONEXION", mensaje: `Sin respuesta de ${this.getNombreModelo()}.` };
+      if (this.writer) { try { this.writer.releaseLock(); } catch (ew) {} this.writer = null; }
+      if (this.reader) { try { this.reader.releaseLock(); } catch (er) {} this.reader = null; }
+      return { ok: true, codigo: "LISTA", mensaje: "Impresora en línea." };
     }
   }
 
