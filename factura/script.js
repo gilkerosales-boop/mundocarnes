@@ -4461,6 +4461,12 @@ function abrirModalNotaCreditoFiscal(numFactura) {
   renderizarTablaItemsNC(true);
   recalcularTotalesNC();
 
+  const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "Impresora Fiscal";
+  const btnEmitirNC = document.getElementById('btnConfirmarEmisionNC');
+  if (btnEmitirNC) {
+    btnEmitirNC.textContent = `🧾 Emitir Nota de Crédito Fiscal en ${nombreModelo}`;
+  }
+
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNotaCreditoFiscal')).show();
 }
 
@@ -4559,6 +4565,7 @@ async function confirmarEmisionNotaCreditoFiscal() {
   const errorDiv = document.getElementById('errorModalNC');
   const btn = document.getElementById('btnConfirmarEmisionNC');
   const motivo = document.getElementById('ncMotivoSelect').value;
+  const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "Impresora Fiscal";
 
   let itemsFinalesNC = {};
   for (let key in itemsDevueltosNC) {
@@ -4578,7 +4585,7 @@ async function confirmarEmisionNotaCreditoFiscal() {
   if (errorDiv) errorDiv.classList.add('hidden');
 
   btn.disabled = true;
-  btn.textContent = "Transmitiendo Nota de Crédito a HKA80...";
+  btn.textContent = `Transmitiendo Nota de Crédito a ${nombreModelo}...`;
 
   try {
     if (!window.fiscalDriver || !window.fiscalDriver.conectado) {
