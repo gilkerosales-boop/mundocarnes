@@ -920,23 +920,25 @@
 
     <!-- MODAL CIERRE PASO 2 (DUAL: REPORTE Z FISCAL / NO FISCAL) -->
     <div class="modal fade" id="modalCierreCajaPaso2" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-          <div class="modal-header">
+      <div class="modal-dialog modal-dialog-centered" style="max-width: 520px;">
+        <div class="modal-content border-0 shadow-lg" style="max-height: 92vh; display: flex; flex-direction: column;">
+          <div class="modal-header bg-dark text-white py-3">
             <h5 class="modal-title fw-bold" id="tituloModalCierrePaso2">🧾 Previsualización de Reporte Z</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-body p-3 text-center">
-            <div class="alert alert-warning border-dark text-center fw-bold mb-3 fs-5" id="mensajeConfirmacionCierreCaja">
+          <div class="modal-body p-3 bg-light d-flex flex-column" style="overflow: hidden;">
+            <!-- Banner de Alerta Fijo -->
+            <div class="alert alert-warning border-dark text-center fw-bold py-2 px-3 mb-2 small shadow-sm flex-shrink-0" id="mensajeConfirmacionCierreCaja">
               ¿Está seguro de que desea realizar el cierre de caja?
             </div>
-            <div id="vistaPreviaCierreCajaModal" class="d-flex justify-content-center"></div>
+            <!-- Visor del Rollo Continuo con Scroll Independiente -->
+            <div id="vistaPreviaCierreCajaModal" class="flex-grow-1 d-flex justify-content-center"></div>
           </div>
-          <div class="modal-footer justify-content-between p-3">
+          <div class="modal-footer justify-content-between p-3 bg-white border-top flex-shrink-0">
             <button type="button" class="btn btn-outline-secondary fw-bold px-4 rounded-pill" data-bs-dismiss="modal">
               🚫 Cancelar
             </button>
-            <button type="button" id="btnConfirmarCierreFinal" class="btn btn-danger fw-bold px-4 fs-5 rounded-pill shadow-sm" onclick="confirmarEImprimirCierreCaja()">
+            <button type="button" id="btnConfirmarCierreFinal" class="btn btn-danger fw-bold px-4 fs-5 rounded-pill shadow" onclick="confirmarEImprimirCierreCaja()">
               🔒 Realizar Cierre
             </button>
           </div>
