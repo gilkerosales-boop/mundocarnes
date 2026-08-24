@@ -275,8 +275,71 @@ class FiscalDriverTFHKA {
   }
 
   // ========================================================================
-  // OPERACIONES FISCALES DE ALTO NIVEL
+  // OPERACIONES FISCALES DE ALTO NIVEL Y DIAGNÓSTICO DE HARDWARE
   // ========================================================================
+
+  // Diagnosticar en tiempo real el estado físico de la impresora (Tapa abierta, Sin papel, Error)
+  async verificarEstadoHardware() {
+    if (!this.conectado || !this.port || !this.port.writable) {
+      return { ok: false, codigo: "DESCONECTADA", mensaje: `La impresora fiscal ${this.getNombreModelo()} no está conectada.` };
+    }
+
+    try {
+      // Enviar byte de sondeo ENQ (0x05)
+      const bufferENQ = new Uint8Array([0x05]);
+      this.writer = this.port.writable.getWriter();
+      await this.writer.write(bufferENQ);
+      this.writer.releaseLock();
+      this.writer = null;
+
+      await new Promise(r => setTimeout(r, 80));
+
+      const bytesResp = [];
+      this.reader = this.port.readable.getReader();
+      const t0 = Date.now();
+
+      while (Date.now() - t0 < 1200) {
+        const { value, done } = await Promise.race([
+          this.reader.read(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 800))
+        ]).catch(() => ({ value: null, done: true }));
+
+        if (done || !value) break;
+        for (let b of value) bytesResp.push(b);
+        if (bytesResp.length >= 3) break;
+      }
+
+      if (this.reader) {
+        try { this.reader.releaseLock(); } catch (e) {}
+        this.reader = null;
+      }
+
+      if (bytesResp.length > 0) {
+        // Analizar bytes de Status y Error
+        let statusByte = bytesResp[1] !== undefined ? bytesResp[1] : bytesResp[0];
+        let errorByte = bytesResp[2] !== undefined ? bytesResp[2] : (bytesResp[1] || 0);
+
+        // Bit 4 o 0x04: Tapa / Compuerta Abierta
+        const tapaAbierta = (statusByte & 0x04) !== 0 || (statusByte & 0x10) !== 0 || (errorByte === 0x44);
+        // Bit 3 o 0x08 / 0x41: Fin de papel / Sin papel
+        const sinPapel = (statusByte & 0x08) !== 0 || (statusByte & 0x01) !== 0 || (errorByte === 0x41);
+
+        if (tapaAbierta) {
+          return { ok: false, codigo: "TAPA_ABIERTA", mensaje: `⚠️ Compuerta de la impresora fiscal ${this.getNombreModelo()} abierta. Por favor, ciérrela bien.` };
+        }
+        if (sinPapel) {
+          return { ok: false, codigo: "SIN_PAPEL", mensaje: `⚠️ Impresora fiscal ${this.getNombreModelo()} sin papel. Por favor, inserte un rollo térmico.` };
+        }
+      }
+
+      return { ok: true, codigo: "LISTA", mensaje: `Impresora fiscal ${this.getNombreModelo()} lista.` };
+
+    } catch (e) {
+      if (this.writer) { try { this.writer.releaseLock(); } catch (ew) {} this.writer = null; }
+      if (this.reader) { try { this.reader.releaseLock(); } catch (er) {} this.reader = null; }
+      return { ok: true, codigo: "LISTA", mensaje: "Impresora en línea." };
+    }
+  }
 
   async consultarEstadoSilencioso() {
     try {
@@ -386,6 +449,12 @@ class FiscalDriverTFHKA {
   async emitirFacturaFiscal(datosFactura) {
     if (!this.conectado) {
       throw new Error(`No hay conexión activa con la impresora fiscal ${this.getNombreModelo()}.`);
+    }
+
+    // Comprobación preventiva de compuerta abierta o fin de papel antes de enviar datos
+    const estadoHw = await this.verificarEstadoHardware();
+    if (!estadoHw.ok && (estadoHw.codigo === "TAPA_ABIERTA" || estadoHw.codigo === "SIN_PAPEL")) {
+      throw new Error(estadoHw.mensaje);
     }
 
     const {
