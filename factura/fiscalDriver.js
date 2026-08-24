@@ -480,16 +480,19 @@ class FiscalDriverTFHKA {
         cmdCodigoPago = "120";
       }
 
-      // Enviar comando directo de totalización y cierre sin subtotal previo
-      await this.enviarComando(cmdCodigoPago);
+      // Transmitir comando de pago y tolerar estado ocupado mientras la guillotina física corta el papel
+      try {
+        await this.enviarComando(cmdCodigoPago);
+      } catch (errPago) {
+        // En Aclas PP9 la placa emite estado ocupado durante el avance físico de papel
+        console.log("Comando de cierre enviado, esperando finalización del corte mecánico...", errPago);
+      }
 
-      await this.enviarComando(cmdCodigoPago);
-
-      // Esperar a que el mecanismo térmico termine la impresión y el corte físico de papel
-      const pausaCorteMs = this.modelo === "PP9" ? 3800 : 1800;
+      // Esperar a que el mecanismo térmico termine la impresión completa y el corte
+      const pausaCorteMs = this.modelo === "PP9" ? 3500 : 1500;
       await new Promise(r => setTimeout(r, pausaCorteMs));
 
-      // PASO E: Capturar Número de Factura Fiscal Real Impreso por la máquina
+      // PASO D: Capturar Número de Factura Fiscal Real Impreso por la máquina
       let numFacturaFiscal = null;
       try {
         const statusFinal = await this.consultarEstado();
@@ -500,7 +503,7 @@ class FiscalDriverTFHKA {
 
       if (!numFacturaFiscal) {
         try {
-          await new Promise(r => setTimeout(r, 1200));
+          await new Promise(r => setTimeout(r, 1000));
           const statusReintento = await this.consultarEstado();
           numFacturaFiscal = statusReintento?.ultimaFactura;
         } catch (e2) {}
@@ -616,8 +619,10 @@ class FiscalDriverTFHKA {
         await this.enviarComando(tramaRenglonNC);
       }
 
-      await this.enviarComando("101");
-      await new Promise(r => setTimeout(r, 1200));
+      try {
+        await this.enviarComando("101");
+      } catch (eNC) {}
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 3500 : 1500));
 
       const statusFinal = await this.consultarEstado();
       const numNC = statusFinal.raw ? this.extraerNumeroNCDeRespuesta(statusFinal.raw) : `NC-${Date.now().toString().slice(-6)}`;
