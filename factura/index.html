@@ -90,10 +90,25 @@
           <button type="button" class="btn btn-nav-custom btn-nav-red" onclick="abrirModalCierreCaja()">
             🔒 Cierre Caja
           </button>
-          <!-- Botón 3: Configuración de Productos -->
-          <button type="button" class="btn btn-nav-custom btn-nav-blue me-2" onclick="abrirModalGestionCodigos()">
-            ⚙️ Productos / PLU
-          </button>
+          <!-- Botón 3: Menú Desplegable de Configuración -->
+          <div class="dropdown me-2">
+            <button class="btn btn-nav-custom btn-nav-blue dropdown-toggle" type="button" id="dropdownMenuConfig" data-bs-toggle="dropdown" aria-expanded="false">
+              ⚙️ Configuración
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0" aria-labelledby="dropdownMenuConfig" style="border-radius: 12px; min-width: 240px;">
+              <li>
+                <button class="dropdown-item fw-bold py-2" type="button" onclick="abrirModalDatosEmpresa()">
+                  🏢 Datos de la Empresa y Logos
+                </button>
+              </li>
+              <li><hr class="dropdown-divider my-1"></li>
+              <li>
+                <button class="dropdown-item fw-bold py-2 text-primary" type="button" onclick="abrirModalGestionCodigos()">
+                  📟 Productos / Balanza PLU
+                </button>
+              </li>
+            </ul>
+          </div>
           <span id="usuarioActivo" class="me-2 small fw-bold text-light"></span>
           <button type="button" class="btn btn-sm btn-outline-light fw-bold rounded-pill px-3" onclick="cerrarSesionFacturacion()">Salir 🚪</button>
         </div>
@@ -923,6 +938,128 @@
             </button>
             <button type="button" id="btnConfirmarCierreFinal" class="btn btn-danger fw-bold px-4 fs-5 rounded-pill shadow-sm" onclick="confirmarEImprimirCierreCaja()">
               🔒 Realizar Cierre
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CONFIGURACIÓN DE DATOS DE LA EMPRESA Y LOGOS -->
+    <div class="modal fade" id="modalDatosEmpresa" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h5 class="modal-title fw-bold">🏢 Configuración de Datos de la Empresa y Logos</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            
+            <!-- SECCIÓN 1: DATOS FISCALES DE LA EMPRESA -->
+            <div class="p-3 bg-white border rounded-3 mb-4 shadow-sm">
+              <h6 class="fw-bold text-danger border-bottom pb-2 mb-3">📋 Información Fiscal y Comercial (Membrete de Tickets)</h6>
+              
+              <div class="row g-2 mb-2">
+                <div class="col-md-8">
+                  <label for="cfgEmpresaNombre" class="form-label small fw-bold mb-1">Razón Social / Nombre de la Empresa *:</label>
+                  <input type="text" id="cfgEmpresaNombre" class="form-control form-control-sm fw-bold text-uppercase" placeholder="Ej: FRIGORIFICO MUNDOCARNES, C.A.">
+                </div>
+                <div class="col-md-4">
+                  <label for="cfgEmpresaRIF" class="form-label small fw-bold mb-1">RIF Fiscal *:</label>
+                  <input type="text" id="cfgEmpresaRIF" class="form-control form-control-sm fw-bold text-uppercase num-legible" placeholder="Ej: J-505072889">
+                </div>
+              </div>
+
+              <div class="row g-2 mb-2">
+                <div class="col-md-6">
+                  <label for="cfgEmpresaDireccion1" class="form-label small fw-bold mb-1">Dirección Fiscal (Línea 1) *:</label>
+                  <input type="text" id="cfgEmpresaDireccion1" class="form-control form-control-sm text-uppercase" placeholder="Ej: AV. SAN MARTIN, CC ATLANTICO NIVEL PB">
+                </div>
+                <div class="col-md-6">
+                  <label for="cfgEmpresaDireccion2" class="form-label small fw-bold mb-1">Dirección Fiscal (Línea 2):</label>
+                  <input type="text" id="cfgEmpresaDireccion2" class="form-control form-control-sm text-uppercase" placeholder="Ej: LOCAL 1, URB. ARTIGAS, CARACAS">
+                </div>
+              </div>
+
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label for="cfgEmpresaDireccion3" class="form-label small fw-bold mb-1">Ciudad / Distrito Fiscal:</label>
+                  <input type="text" id="cfgEmpresaDireccion3" class="form-control form-control-sm text-uppercase" placeholder="Ej: DISTRITO CAPITAL">
+                </div>
+                <div class="col-md-6">
+                  <label for="cfgEmpresaTelefono" class="form-label small fw-bold mb-1">Teléfono de Contacto:</label>
+                  <input type="text" id="cfgEmpresaTelefono" class="form-control form-control-sm fw-bold num-legible" placeholder="Ej: 0412-1753275">
+                </div>
+              </div>
+            </div>
+
+            <!-- SECCIÓN 2: GESTIÓN DE LOGOS Y RECURSOS GRÁFICOS (GITHUB) -->
+            <div class="p-3 bg-white border rounded-3 mb-2 shadow-sm">
+              <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                <h6 class="fw-bold text-primary mb-0">🖼️ Gestión de Logos Oficiales (Carpeta img/)</h6>
+                <span class="badge bg-secondary small">GitHub Sync</span>
+              </div>
+
+              <div class="row g-3">
+                <!-- Variante 1: Logo Primario Fondo Blanco -->
+                <div class="col-md-6">
+                  <div class="card p-2 h-100 border text-center shadow-sm">
+                    <div class="small fw-bold text-dark mb-1">Logo Primario (Fondo Blanco)</div>
+                    <div class="small text-muted mb-2 font-monospace" style="font-size: 0.72rem;">img/LOGO-MUNDO123.webp</div>
+                    <div class="d-flex justify-content-center align-items-center bg-white p-2 border rounded mb-2" style="height: 80px;">
+                      <img id="previewLogoFondoBlanco" src="../img/LOGO-MUNDO123.webp" alt="Logo Blanco" style="max-height: 70px; max-width: 100%; object-fit: contain;">
+                    </div>
+                    <input type="file" id="fileLogoFondoBlanco" class="form-control form-control-sm" accept="image/webp" onchange="previsualizarLogoConfig(this, 'previewLogoFondoBlanco')">
+                    <div class="form-text text-muted" style="font-size: 0.68rem;">Formato: .webp &lt; 120 KB</div>
+                  </div>
+                </div>
+
+                <!-- Variante 2: Logo Primario Fondo Negro -->
+                <div class="col-md-6">
+                  <div class="card p-2 h-100 border text-center shadow-sm">
+                    <div class="small fw-bold text-dark mb-1">Logo Primario (Fondo Negro)</div>
+                    <div class="small text-muted mb-2 font-monospace" style="font-size: 0.72rem;">img/LOGOTIPO_MUNDOCARNES.jpg</div>
+                    <div class="d-flex justify-content-center align-items-center bg-dark p-2 border rounded mb-2" style="height: 80px;">
+                      <img id="previewLogoFondoNegro" src="../img/LOGOTIPO MUNDOCARNES.jpg" alt="Logo Negro" style="max-height: 70px; max-width: 100%; object-fit: contain;">
+                    </div>
+                    <input type="file" id="fileLogoFondoNegro" class="form-control form-control-sm" accept="image/jpeg, image/jpg, image/webp" onchange="previsualizarLogoConfig(this, 'previewLogoFondoNegro')">
+                    <div class="form-text text-muted" style="font-size: 0.68rem;">Formato: .jpg / .webp &lt; 150 KB</div>
+                  </div>
+                </div>
+
+                <!-- Variante 3: Logo Secundario Transparente -->
+                <div class="col-md-6">
+                  <div class="card p-2 h-100 border text-center shadow-sm">
+                    <div class="small fw-bold text-dark mb-1">Logo Secundario (Sin Fondo)</div>
+                    <div class="small text-muted mb-2 font-monospace" style="font-size: 0.72rem;">img/MUNDOCARNE_TRANSPARENTE.png</div>
+                    <div class="d-flex justify-content-center align-items-center p-2 border rounded mb-2" style="height: 80px; background: repeating-conic-gradient(#e2e8f0 0% 25%, #ffffff 0% 50%) 50% / 14px 14px;">
+                      <img id="previewLogoTransparente" src="../img/MUNDOCARNE TRANSPARENTE.png" alt="Logo Transparente" style="max-height: 70px; max-width: 100%; object-fit: contain;">
+                    </div>
+                    <input type="file" id="fileLogoTransparente" class="form-control form-control-sm" accept="image/png" onchange="previsualizarLogoConfig(this, 'previewLogoTransparente')">
+                    <div class="form-text text-muted" style="font-size: 0.68rem;">Formato: .png transparente &lt; 120 KB</div>
+                  </div>
+                </div>
+
+                <!-- Variante 4: Logo Secundario Web -->
+                <div class="col-md-6">
+                  <div class="card p-2 h-100 border text-center shadow-sm">
+                    <div class="small fw-bold text-dark mb-1">Logo Secundario (Web)</div>
+                    <div class="small text-muted mb-2 font-monospace" style="font-size: 0.72rem;">img/MUNDOCARNE-web.webp</div>
+                    <div class="d-flex justify-content-center align-items-center bg-white p-2 border rounded mb-2" style="height: 80px;">
+                      <img id="previewLogoSecundarioWeb" src="../img/MUNDOCARNE-web.webp" alt="Logo Web" onerror="this.src='../img/LOGO-MUNDO123.webp'" style="max-height: 70px; max-width: 100%; object-fit: contain;">
+                    </div>
+                    <input type="file" id="fileLogoSecundarioWeb" class="form-control form-control-sm" accept="image/webp" onchange="previsualizarLogoConfig(this, 'previewLogoSecundarioWeb')">
+                    <div class="form-text text-muted" style="font-size: 0.68rem;">Formato: .webp &lt; 120 KB</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="errorModalDatosEmpresa" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer bg-white justify-content-between p-3">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cerrar</button>
+            <button type="button" id="btnGuardarDatosEmpresa" class="btn btn-success fw-bold px-5 py-2 fs-6 rounded-pill shadow" onclick="guardarDatosEmpresaYLogos()">
+              💾 Guardar Datos y Sincronizar Logos
             </button>
           </div>
         </div>
