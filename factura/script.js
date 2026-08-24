@@ -67,6 +67,33 @@ function obtenerTablaCierresUsuario(u) {
   return `cierres_${normalizarUsuario(u)}`;
 }
 
+// Obtener datos fiscales y comerciales dinámicos de la empresa
+function obtenerDatosEmpresa() {
+  const guardado = localStorage.getItem("pos_empresa_config");
+  if (guardado) {
+    try {
+      const d = JSON.parse(guardado);
+      return {
+        nombre: (d.nombre || "FRIGORIFICO MUNDOCARNES, C.A.").toUpperCase(),
+        rif: (d.rif || "J-505072889").toUpperCase(),
+        direccion1: (d.direccion1 || "AV. SAN MARTIN CC ATLANTICO NIVEL PB").toUpperCase(),
+        direccion2: (d.direccion2 || "LOCAL 1 URB ARTIGAS CARACAS").toUpperCase(),
+        direccion3: (d.direccion3 || "DISTRITO CAPITAL").toUpperCase(),
+        telefono: d.telefono || "0412-1753275"
+      };
+    } catch (e) {}
+  }
+  return {
+    nombre: "FRIGORIFICO MUNDOCARNES, C.A.",
+    rif: "J-505072889",
+    direccion1: "AV. SAN MARTIN CC ATLANTICO NIVEL PB",
+    direccion2: "LOCAL 1 URB ARTIGAS CARACAS",
+    direccion3: "DISTRITO CAPITAL",
+    telefono: "0412-1753275"
+  };
+}
+window.obtenerDatosEmpresa = obtenerDatosEmpresa;
+
 // ==========================================================================
 // MOTOR DE BASE DE DATOS LOCAL INDEXEDDB (OFFLINE-FIRST A 0ms)
 // ==========================================================================
@@ -2785,15 +2812,17 @@ function renderizarTicketTermicoHTML(d) {
     let cedulaCliente = String(d.cliente.cedula || "V-00000000").trim();
     if (!/^[VJEGPvjegp]/i.test(cedulaCliente)) cedulaCliente = "V-" + cedulaCliente;
 
+   const emp = obtenerDatosEmpresa();
+
     ticketHtml = `
       <div class="ticket-pp9-wrapper">
         <div class="pp9-header text-center">
           <div class="pp9-bold">SENIAT</div>
-          <div class="pp9-bold">J-400999553</div>
-          <div class="pp9-bold">FRIGORIFICO EL MUNDO DE LA CARNE C.A.</div>
-          <div>AV SAN MARTIN CC ATLANTICO NIVEL</div>
-          <div>PB LOCAL 1 URB ARTIGAS CARACAS</div>
-          <div>DISTRITO CAPITAL</div>
+          <div class="pp9-bold">${emp.rif}</div>
+          <div class="pp9-bold">${emp.nombre}</div>
+          <div>${emp.direccion1}</div>
+          <div>${emp.direccion2}</div>
+          <div>${emp.direccion3}</div>
         </div>
 
         <div class="pp9-cliente-bloque">
@@ -3340,6 +3369,138 @@ function confirmarAgregarCodigosAFactura() {
   mostrarAvisoFactura(`🎉 Se agregaron ${agregados} producto(s) desde el ticket de balanza.`);
 }
 
+// ==========================================================================
+// MÓDULO DE CONFIGURACIÓN DE DATOS DE LA EMPRESA Y LOGOS
+// ==========================================================================
+function abrirModalDatosEmpresa() {
+  const emp = obtenerDatosEmpresa();
+  document.getElementById('cfgEmpresaNombre').value = emp.nombre;
+  document.getElementById('cfgEmpresaRIF').value = emp.rif;
+  document.getElementById('cfgEmpresaDireccion1').value = emp.direccion1;
+  document.getElementById('cfgEmpresaDireccion2').value = emp.direccion2;
+  document.getElementById('cfgEmpresaDireccion3').value = emp.direccion3;
+  document.getElementById('cfgEmpresaTelefono').value = emp.telefono;
+
+  const t = Date.now();
+  document.getElementById('previewLogoFondoBlanco').src = `../img/LOGO-MUNDO123.webp?t=${t}`;
+  document.getElementById('previewLogoFondoNegro').src = `../img/LOGOTIPO MUNDOCARNES.jpg?t=${t}`;
+  document.getElementById('previewLogoTransparente').src = `../img/MUNDOCARNE TRANSPARENTE.png?t=${t}`;
+  document.getElementById('previewLogoSecundarioWeb').src = `../img/MUNDOCARNE-web.webp?t=${t}`;
+
+  document.getElementById('fileLogoFondoBlanco').value = "";
+  document.getElementById('fileLogoFondoNegro').value = "";
+  document.getElementById('fileLogoTransparente').value = "";
+  document.getElementById('fileLogoSecundarioWeb').value = "";
+
+  document.getElementById('errorModalDatosEmpresa').classList.add('hidden');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDatosEmpresa')).show();
+}
+window.abrirModalDatosEmpresa = abrirModalDatosEmpresa;
+
+function previsualizarLogoConfig(inputElem, imgId) {
+  if (inputElem.files && inputElem.files[0]) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = document.getElementById(imgId);
+      if (img) img.src = e.target.result;
+    };
+    reader.readAsDataURL(inputElem.files[0]);
+  }
+}
+window.previsualizarLogoConfig = previsualizarLogoConfig;
+
+async function guardarDatosEmpresaYLogos() {
+  const nombre = document.getElementById('cfgEmpresaNombre').value.trim().toUpperCase();
+  const rif = document.getElementById('cfgEmpresaRIF').value.trim().toUpperCase();
+  const dir1 = document.getElementById('cfgEmpresaDireccion1').value.trim().toUpperCase();
+  const dir2 = document.getElementById('cfgEmpresaDireccion2').value.trim().toUpperCase();
+  const dir3 = document.getElementById('cfgEmpresaDireccion3').value.trim().toUpperCase();
+  const tel = document.getElementById('cfgEmpresaTelefono').value.trim();
+  const errorDiv = document.getElementById('errorModalDatosEmpresa');
+
+  if (!nombre || !rif || !dir1) {
+    if (errorDiv) {
+      errorDiv.textContent = "El Nombre, RIF y Dirección principal son obligatorios.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const datosEmpresa = {
+    nombre: nombre,
+    rif: rif,
+    direccion1: dir1,
+    direccion2: dir2,
+    direccion3: dir3,
+    telefono: tel
+  };
+
+  localStorage.setItem("pos_empresa_config", JSON.stringify(datosEmpresa));
+  await dbPut("config", { key: "empresaConfig", value: datosEmpresa });
+
+  const fBlanco = document.getElementById('fileLogoFondoBlanco');
+  const fNegro = document.getElementById('fileLogoFondoNegro');
+  const fTransp = document.getElementById('fileLogoTransparente');
+  const fWeb = document.getElementById('fileLogoSecundarioWeb');
+
+  const hayLogosParaSubir = (fBlanco.files.length > 0 || fNegro.files.length > 0 || fTransp.files.length > 0 || fWeb.files.length > 0);
+
+  if (hayLogosParaSubir) {
+    const token = sessionStorage.getItem("github_token");
+    if (!token) {
+      accionPendienteGitHub = "guardarDatosEmpresa";
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).show();
+      return;
+    }
+
+    const btn = document.getElementById('btnGuardarDatosEmpresa');
+    if (btn) { btn.disabled = true; btn.textContent = "Subiendo logos a GitHub..."; }
+
+    try {
+      if (fBlanco.files.length > 0) {
+        const fileData = await validarYLeerArchivoWebPFac(fBlanco);
+        if (fileData) await subirArchivoAGitHubFactura("img/LOGO-MUNDO123.webp", fileData.base64, "Actualización Logo Primario Blanco");
+      }
+      if (fNegro.files.length > 0) {
+        const file = fNegro.files[0];
+        const base64 = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.target.result.split(',')[1]);
+          r.onerror = rej;
+          r.readAsDataURL(file);
+        });
+        await subirArchivoAGitHubFactura("img/LOGOTIPO MUNDOCARNES.jpg", base64, "Actualización Logo Fondo Negro");
+      }
+      if (fTransp.files.length > 0) {
+        const file = fTransp.files[0];
+        const base64 = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.target.result.split(',')[1]);
+          r.onerror = rej;
+          r.readAsDataURL(file);
+        });
+        await subirArchivoAGitHubFactura("img/MUNDOCARNE TRANSPARENTE.png", base64, "Actualización Logo Transparente");
+      }
+      if (fWeb.files.length > 0) {
+        const fileData = await validarYLeerArchivoWebPFac(fWeb);
+        if (fileData) await subirArchivoAGitHubFactura("img/MUNDOCARNE-web.webp", fileData.base64, "Actualización Logo Secundario Web");
+      }
+
+      if (btn) { btn.disabled = false; btn.textContent = "💾 Guardar Datos y Sincronizar Logos"; }
+    } catch (eLogo) {
+      if (btn) { btn.disabled = false; btn.textContent = "💾 Guardar Datos y Sincronizar Logos"; }
+      console.warn("Aviso al subir logos:", eLogo);
+      mostrarAvisoFactura("Datos guardados. Aviso en logos: " + eLogo.message);
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDatosEmpresa')).hide();
+      return;
+    }
+  }
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDatosEmpresa')).hide();
+  mostrarAvisoFactura("🎉 Datos de la empresa y recursos actualizados exitosamente.");
+}
+window.guardarDatosEmpresaYLogos = guardarDatosEmpresaYLogos;
+
 // CONFIGURACIÓN FULLSCREEN DE PRODUCTOS Y PLU
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
@@ -3811,6 +3972,8 @@ async function ejecutarGuardadoConTokenQR() {
 
   if (accionPendienteGitHub === "crearNuevoProducto") {
     ejecutarCrearNuevoProductoPOS();
+  } else if (accionPendienteGitHub === "guardarDatosEmpresa") {
+    guardarDatosEmpresaYLogos();
   } else {
     procesarSincronizacionGitHub();
   }
@@ -4130,15 +4293,17 @@ function renderizarTicketTermicoHistorialHTML(d) {
         <span class="pp9-bold">${numDocPP9}</span>
       </div>`;
 
+    const emp = obtenerDatosEmpresa();
+
     ticketHtml = `
       <div class="ticket-pp9-wrapper">
         <div class="pp9-header text-center">
           <div class="pp9-bold">SENIAT</div>
-          <div class="pp9-bold">J-400999553</div>
-          <div class="pp9-bold">FRIGORIFICO EL MUNDO DE LA CARNE C.A.</div>
-          <div>AV SAN MARTIN CC ATLANTICO NIVEL</div>
-          <div>PB LOCAL 1 URB ARTIGAS CARACAS</div>
-          <div>DISTRITO CAPITAL</div>
+          <div class="pp9-bold">${emp.rif}</div>
+          <div class="pp9-bold">${emp.nombre}</div>
+          <div>${emp.direccion1}</div>
+          <div>${emp.direccion2}</div>
+          <div>${emp.direccion3}</div>
         </div>
 
         ${encabezadoTipoDoc}
@@ -6193,15 +6358,17 @@ function renderizarTicketCierreCajaHTML(d) {
     const cantFiscales = rFisc.cantFacturasFiscales || 0;
     const ultFac = String(rFisc.facturaFinalFiscal || "00000000").replace(/\D/g, '').padStart(8, '0');
 
+    const emp = obtenerDatosEmpresa();
+
     ticketHtml = `
       <div class="ticket-pp9-wrapper">
         <div class="pp9-header text-center">
           <div class="pp9-bold">SENIAT</div>
-          <div class="pp9-bold">J-400999553</div>
-          <div class="pp9-bold">FRIGORIFICO EL MUNDO DE LA CARNE C.A.</div>
-          <div>AV SAN MARTIN CC ATLANTICO NIVEL</div>
-          <div>PB LOCAL 1 URB ARTIGAS CARACAS</div>
-          <div>DISTRITO CAPITAL</div>
+          <div class="pp9-bold">${emp.rif}</div>
+          <div class="pp9-bold">${emp.nombre}</div>
+          <div>${emp.direccion1}</div>
+          <div>${emp.direccion2}</div>
+          <div>${emp.direccion3}</div>
         </div>
 
         <div class="pp9-titulo-doc text-center">REPORTE Z</div>
