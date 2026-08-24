@@ -83,7 +83,7 @@ function obtenerDatosEmpresa() {
       };
     } catch (e) {}
   }
-  return {
+ return {
     nombre: "FRIGORIFICO MUNDOCARNES, C.A.",
     rif: "J-505072889",
     direccion1: "AV. SAN MARTIN CC ATLANTICO NIVEL PB",
@@ -93,6 +93,17 @@ function obtenerDatosEmpresa() {
   };
 }
 window.obtenerDatosEmpresa = obtenerDatosEmpresa;
+
+// Obtener el serial o número de registro de máquina configurado para el modelo activo
+function obtenerSerialFiscalActivo() {
+  const modelo = (window.fiscalDriver ? window.fiscalDriver.modelo : localStorage.getItem("pos_modelo_impresora_fiscal")) || "PP9";
+  const serialGuardado = localStorage.getItem(`pos_serial_fiscal_${modelo}`) || localStorage.getItem("pos_serial_fiscal_activo");
+  if (serialGuardado && serialGuardado.trim()) {
+    return serialGuardado.trim().toUpperCase();
+  }
+  return (modelo === "PP9") ? "ZZP0005063" : "Z7C7044438";
+}
+window.obtenerSerialFiscalActivo = obtenerSerialFiscalActivo;
 
 // ==========================================================================
 // MOTOR DE BASE DE DATOS LOCAL INDEXEDDB (OFFLINE-FIRST A 0ms)
@@ -306,9 +317,7 @@ function inicializarModoFiscal() {
   const chk = document.getElementById('chkModoFiscal');
   if (chk) chk.checked = modoFiscalActivo;
 
-  const modeloGuardado = localStorage.getItem("pos_modelo_impresora_fiscal") || "HKA80";
-  const selectModelo = document.getElementById('selectModeloFiscal');
-  if (selectModelo) selectModelo.value = modeloGuardado;
+  const modeloGuardado = localStorage.getItem("pos_modelo_impresora_fiscal") || "PP9";
 
   if (window.fiscalDriver) {
     window.fiscalDriver.setModelo(modeloGuardado);
@@ -367,7 +376,6 @@ async function cambiarModeloImpresoraFiscal(nuevoModelo) {
 
 function actualizarInterfazModoFiscal() {
   const badgeModo = document.getElementById('badgeModoFiscal');
-  const selectModelo = document.getElementById('selectModeloFiscal');
   const btnConectar = document.getElementById('btnConectarFiscal');
   const btnHero = document.getElementById('btnEjecutarFacturarHero');
   const btnModalEmitir = document.getElementById('btnEmitirFacturaFinal');
@@ -375,14 +383,13 @@ function actualizarInterfazModoFiscal() {
   const btnRepX = document.getElementById('btnReporteXFiscal');
 
   const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "Fiscal";
-  const modeloTag = window.fiscalDriver ? window.fiscalDriver.modelo : "HKA80";
+  const modeloTag = window.fiscalDriver ? window.fiscalDriver.modelo : "PP9";
 
   if (modoFiscalActivo) {
     if (badgeModo) {
       badgeModo.textContent = `🟢 Fiscal`;
       badgeModo.className = "badge-modo-fiscal fiscal-on";
     }
-    if (selectModelo) selectModelo.classList.remove('hidden');
     if (btnConectar) btnConectar.classList.remove('hidden');
     if (btnRepX) btnRepX.classList.remove('hidden');
     if (btnHero) {
@@ -401,7 +408,6 @@ function actualizarInterfazModoFiscal() {
       badgeModo.textContent = "📄 No Fiscal";
       badgeModo.className = "badge-modo-fiscal fiscal-off";
     }
-    if (selectModelo) selectModelo.classList.add('hidden');
     if (btnConectar) btnConectar.classList.add('hidden');
     if (btnRepX) btnRepX.classList.add('hidden');
     if (btnHero) {
@@ -3403,6 +3409,57 @@ function confirmarAgregarCodigosAFactura() {
 // ==========================================================================
 // MÓDULO DE CONFIGURACIÓN DE DATOS DE LA EMPRESA Y LOGOS
 // ==========================================================================
+
+// Abrir cuadro para ingresar el número de registro fiscal según la impresora elegida
+function solicitarConfiguracionDispositivoFiscal(codigoModelo, nombreModelo) {
+  document.getElementById('regFiscalModeloCode').value = codigoModelo;
+  document.getElementById('regFiscalModeloNombre').textContent = nombreModelo;
+  
+  const serialActual = localStorage.getItem(`pos_serial_fiscal_${codigoModelo}`) || (codigoModelo === 'PP9' ? 'ZZP0005063' : 'Z7C7044438');
+  document.getElementById('regFiscalSerialInput').value = serialActual;
+  document.getElementById('errorModalRegFiscal').classList.add('hidden');
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRegistroDispositivoFiscal')).show();
+}
+window.solicitarConfiguracionDispositivoFiscal = solicitarConfiguracionDispositivoFiscal;
+
+// Procesar confirmación con el formato exacto requerido
+async function procesarConfirmacionDispositivoFiscal() {
+  const codigo = document.getElementById('regFiscalModeloCode').value;
+  const nombre = document.getElementById('regFiscalModeloNombre').textContent;
+  const serial = document.getElementById('regFiscalSerialInput').value.trim().toUpperCase();
+  const errorDiv = document.getElementById('errorModalRegFiscal');
+
+  if (!serial) {
+    if (errorDiv) {
+      errorDiv.textContent = "Por favor, ingrese el número de registro o serial fiscal.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRegistroDispositivoFiscal')).hide();
+
+  // Mensaje de confirmación exacto
+  const mensajeConfirmacion = `¿Está seguro de que desea conectar la impresora ${nombre} con el número de registro ${serial}?`;
+  
+  if (confirm(mensajeConfirmacion)) {
+    localStorage.setItem(`pos_serial_fiscal_${codigo}`, serial);
+    localStorage.setItem("pos_serial_fiscal_activo", serial);
+    localStorage.setItem("pos_modelo_impresora_fiscal", codigo);
+
+    await cambiarModeloImpresoraFiscal(codigo);
+
+    mostrarAvisoFactura(`🖨️ ${nombre} configurada con N° de Registro: ${serial} ✅`);
+
+    // Conectar si no estaba conectada
+    if (window.fiscalDriver && !window.fiscalDriver.conectado) {
+      conectarImpresoraFiscalManual();
+    }
+  }
+}
+window.procesarConfirmacionDispositivoFiscal = procesarConfirmacionDispositivoFiscal;
+
 function abrirModalDatosEmpresa() {
   const emp = obtenerDatosEmpresa();
   document.getElementById('cfgEmpresaNombre').value = emp.nombre;
@@ -4261,7 +4318,7 @@ function renderizarTicketTermicoHistorialHTML(d) {
     // REIMPRESIÓN HISTORIAL: FORMATO EXACTO PP9 PLUS CON DESGLOSE TRIBUTARIO COMPLETO
     // =========================================================================
     const emp = obtenerDatosEmpresa();
-    const serialFiscal = window.fiscalDriver?.ultimoReporteStatus?.serial || "ZZP0005063";
+    const serialFiscal = obtenerSerialFiscalActivo();
     const esNC = Boolean(d.esNotaCredito || String(d.numFactura || "").startsWith("NC-") || String(d.formaPagoStr || "").includes("NOTA DE CREDITO"));
     const numDocPP9 = String(d.numFactura || "00000000").replace(/\D/g, '').padStart(8, '0');
     const tasa = d.tasaBCV || 780.00;
@@ -5110,7 +5167,7 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
     const dDesde = new Date(`${fechaDesdeStr}T00:00:00`);
     const dHasta = new Date(`${fechaHastaStr}T23:59:59`);
     const tasaActual = obtenerTasaBCV() || 778.00;
-    const serialFiscalPredeterminado = window.fiscalDriver?.ultimoReporteStatus?.serial || "Z7C7044438";
+    const serialFiscalPredeterminado = obtenerSerialFiscalActivo();
 
     // 1. OBTENER VENTAS FISCALES
     let todasLasVentas = [];
