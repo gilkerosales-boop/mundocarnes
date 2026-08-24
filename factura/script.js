@@ -4227,14 +4227,20 @@ function renderizarTicketTermicoHistorialHTML(d) {
 
   if (esFiscal) {
     // =========================================================================
-    // REIMPRESIÓN HISTORIAL: FORMATO EXACTO PP9 PLUS
+    // REIMPRESIÓN HISTORIAL: FORMATO EXACTO PP9 PLUS CON DESGLOSE TRIBUTARIO COMPLETO
     // =========================================================================
+    const emp = obtenerDatosEmpresa();
     const serialFiscal = window.fiscalDriver?.ultimoReporteStatus?.serial || "ZZP0005063";
     const esNC = Boolean(d.esNotaCredito || String(d.numFactura || "").startsWith("NC-") || String(d.formaPagoStr || "").includes("NOTA DE CREDITO"));
     const numDocPP9 = String(d.numFactura || "00000000").replace(/\D/g, '').padStart(8, '0');
-    const tasa = d.tasaBCV || 1;
+    const tasa = d.tasaBCV || 780.00;
 
     let itemsHtml = "";
+    let totExentoBs = 0;
+    let totBase16Bs = 0;
+    let totIVA16Bs = 0;
+    let totGeneralBs = 0;
+
     if (d.productosSummary) {
       const listaProds = d.productosSummary.split(' | ');
       listaProds.forEach(prodStr => {
@@ -4248,14 +4254,12 @@ function renderizarTicketTermicoHistorialHTML(d) {
           subUSD = parseFloat(partesGuion[1]) || 0;
           let textoIzquierdo = partesGuion[0].trim();
 
-          // 1. Extraer cantidad al final: ej "(1 Kg 451 g)" o "(2 uds)"
           let matchCant = textoIzquierdo.match(/\(([^()]+)\)$/);
           if (matchCant) {
             cantTxt = matchCant[1].trim();
             textoIzquierdo = textoIzquierdo.substring(0, matchCant.index).trim();
           }
 
-          // 2. Extraer alícuota de IVA si quedó al final: ej "(G)" o "(E)" o "(R)"
           let matchTasa = textoIzquierdo.match(/\(([EGRegr0-9%]+)\)$/);
           if (matchTasa) {
             let tStr = matchTasa[1].toUpperCase();
@@ -4271,6 +4275,18 @@ function renderizarTicketTermicoHistorialHTML(d) {
         }
 
         let subBs = subUSD * tasa;
+        let factorIVA = (tasaTag === "G" || tasaTag === "16") ? 1.16 : 1.0;
+        let baseImponibleBs = subBs / factorIVA;
+        let ivaBs = subBs - baseImponibleBs;
+
+        if (tasaTag === "G" || tasaTag === "16") {
+          totBase16Bs += baseImponibleBs;
+          totIVA16Bs += ivaBs;
+        } else {
+          totExentoBs += subBs;
+        }
+        totGeneralBs += subBs;
+
         let esPesa = cantTxt.includes('Kg') || cantTxt.includes('g');
         let cantNum = 1;
         let matchNum = cantTxt.match(/([0-9.]+)\s*uds/i);
@@ -4312,12 +4328,42 @@ function renderizarTicketTermicoHistorialHTML(d) {
       });
     }
 
+    if (totGeneralBs === 0 && d.totalBs) {
+      totGeneralBs = Math.abs(d.totalBs);
+    }
+
+    // Desglose fiscal exacto antes de totales
+    let bloqueDesgloseFiscal = "";
+    if (totExentoBs > 0) {
+      bloqueDesgloseFiscal += `
+        <div class="pp9-fila-item">
+          <span>EXENTO</span>
+          <span>Bs ${totExentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>`;
+    }
+    if (totBase16Bs > 0) {
+      bloqueDesgloseFiscal += `
+        <div class="pp9-fila-item">
+          <span>BI G (16,00%)</span>
+          <span>Bs ${totBase16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="pp9-fila-item">
+          <span>IVA G (16,00%)</span>
+          <span>Bs ${totIVA16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>`;
+    }
+
     let cedulaCliente = String(d.cliente?.cedula || d.cedula || "V-00000000").trim();
     if (!/^[VJEGPvjegp]/i.test(cedulaCliente)) cedulaCliente = "V-" + cedulaCliente;
 
+    let bloqueCompRet = (d.comprobanteRetencion || d.COMPROBANTE_RETENCION) 
+      ? `<div>COMP RET ${d.comprobanteRetencion || d.COMPROBANTE_RETENCION}</div>` : '';
+    let bloqueIGTF = (d.montoIGTF_BS > 0 || d.MONTO_IGTF_BS > 0) 
+      ? `<div>IG.. 3 BS ${parseFloat(d.montoIGTF_BS || d.MONTO_IGTF_BS).toFixed(2)}</div>` : '';
+
     let encabezadoTipoDoc = esNC ? `
       <div class="pp9-info-doc">
-        <div>#FAC:${d.facturaAfectada || '00000015'}</div>
+        <div>#FAC:${d.facturaAfectada || '00000022'}</div>
         <div>FECHA FAC:${d.fechaFacturaAfectada || '24/08/2026'}</div>
         <div>#CONTROL/SERIAL IF:${serialFiscal}</div>
         <div>RIF/CI:${cedulaCliente}</div>
@@ -4325,23 +4371,35 @@ function renderizarTicketTermicoHistorialHTML(d) {
         <div>MOTIVO: DEVOLUCION DE MERCANCIA</div>
       </div>
       <div class="pp9-titulo-doc text-center mt-1">NOTA DE CREDITO</div>
-      <div class="pp9-fila-item">
-        <span>NOTA DE CREDITO:</span>
-        <span class="pp9-bold">${numDocPP9}</span>
+      <div class="pp9-info-doc">
+        <div class="pp9-fila-item">
+          <span>NOTA DE CREDITO:</span>
+          <span class="pp9-bold">${numDocPP9}</span>
+        </div>
+        <div class="pp9-fila-item">
+          <span>FECHA: ${String(d.fechaStr || '').split(',')[0] || '24-08-2026'}</span>
+          <span>HORA: ${String(d.fechaStr || '').split(',')[1] || '05:20'}</span>
+        </div>
       </div>` : `
       <div class="pp9-cliente-bloque">
         <div>RIF/CI:${cedulaCliente}</div>
         <div>R.S.:${String(d.cliente?.nombre || d.nombre || 'CONSUMIDOR FINAL').toUpperCase()}</div>
         <div>${String(d.cliente?.direccion || d.direccion || 'CARACAS').toUpperCase()}</div>
         <div>${d.cliente?.telefono || 'N/D'}</div>
+        ${bloqueCompRet}
+        ${bloqueIGTF}
       </div>
       <div class="pp9-titulo-doc text-center">FACTURA</div>
-      <div class="pp9-fila-item">
-        <span>FACTURA:</span>
-        <span class="pp9-bold">${numDocPP9}</span>
+      <div class="pp9-info-doc">
+        <div class="pp9-fila-item">
+          <span>FACTURA:</span>
+          <span class="pp9-bold">${numDocPP9}</span>
+        </div>
+        <div class="pp9-fila-item">
+          <span>FECHA: ${String(d.fechaStr || '').split(',')[0] || '24-08-2026'}</span>
+          <span>HORA: ${String(d.fechaStr || '').split(',')[1] || '05:14'}</span>
+        </div>
       </div>`;
-
-    const emp = obtenerDatosEmpresa();
 
     ticketHtml = `
       <div class="ticket-pp9-wrapper">
@@ -4355,9 +4413,6 @@ function renderizarTicketTermicoHistorialHTML(d) {
         </div>
 
         ${encabezadoTipoDoc}
-        <div class="pp9-fila-item">
-          <span>FECHA: ${d.fechaStr || '24-08-2026'}</span>
-        </div>
 
         <div class="pp9-separator-dashed"></div>
 
@@ -4368,13 +4423,15 @@ function renderizarTicketTermicoHistorialHTML(d) {
         <div class="pp9-separator-dashed"></div>
 
         <div class="pp9-totales-bloque">
+          ${bloqueDesgloseFiscal}
+          <div class="pp9-separator-dashed"></div>
           <div class="pp9-fila-item">
             <span>EFECTIVO 1</span>
-            <span>Bs ${Math.abs(d.totalBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span>Bs ${totGeneralBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
           <div class="pp9-fila-item pp9-bold mt-1">
             <span>TOTAL</span>
-            <span>Bs ${Math.abs(d.totalBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span>Bs ${totGeneralBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
 
