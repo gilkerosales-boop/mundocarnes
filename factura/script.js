@@ -270,6 +270,7 @@ async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
 // GESTIÓN DEL MODO FISCAL DUAL Y MODELOS (HKA80 / ACLAS PP9 PLUS)
 // ==========================================================================
 let timerMonitorHardwareFiscal = null;
+let ultimoEstadoSensorFiscal = "LISTA";
 
 function iniciarMonitorSensoresFiscal() {
   if (timerMonitorHardwareFiscal) clearInterval(timerMonitorHardwareFiscal);
@@ -277,13 +278,21 @@ function iniciarMonitorSensoresFiscal() {
   timerMonitorHardwareFiscal = setInterval(async () => {
     if (modoFiscalActivo && window.fiscalDriver && window.fiscalDriver.conectado) {
       const stHw = await window.fiscalDriver.verificarEstadoHardware();
-      if (!stHw.ok && (stHw.codigo === "TAPA_ABIERTA" || stHw.codigo === "SIN_PAPEL")) {
+      if (!stHw.ok && (stHw.codigo === "TAPA_ABIERTA" || stHw.codigo === "SIN_PAPEL" || stHw.codigo === "ERROR_CONEXION")) {
         actualizarBotonHardwareFiscal(stHw.codigo, stHw.mensaje);
+        if (ultimoEstadoSensorFiscal !== stHw.codigo) {
+          ultimoEstadoSensorFiscal = stHw.codigo;
+          mostrarAvisoFactura(stHw.mensaje, true, 4000);
+        }
       } else if (stHw.ok) {
+        if (ultimoEstadoSensorFiscal !== "LISTA") {
+          ultimoEstadoSensorFiscal = "LISTA";
+          mostrarAvisoFactura(`🟢 Impresora fiscal ${window.fiscalDriver.getNombreModelo()} lista.`, true, 3000);
+        }
         actualizarBotonHardwareFiscal("LISTA");
       }
     }
-  }, 4000);
+  }, 2500);
 }
 
 function inicializarModoFiscal() {
@@ -304,6 +313,7 @@ function inicializarModoFiscal() {
       actualizarBotonHardwareFiscal(estado, mensaje);
       if (estado === "CONECTADO") {
         mostrarAvisoFactura(`🟢 Impresora Fiscal ${window.fiscalDriver.getNombreModelo()} Conectada.`);
+        iniciarMonitorSensoresFiscal();
       } else if (estado === "ERROR_CONEXION" || estado === "DESCONECTADO" || estado === "TAPA_ABIERTA" || estado === "SIN_PAPEL") {
         mostrarAvisoFactura("⚠️ " + mensaje);
       }
