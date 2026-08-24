@@ -314,19 +314,16 @@ function inicializarModoFiscal() {
     window.fiscalDriver.setModelo(modeloGuardado);
 
     window.fiscalDriver.onStatusChange(({ estado, mensaje }) => {
-      actualizarBotonHardwareFiscal(estado, mensaje);
+      actualizarBotonHardwareFiscal(estado);
       if (estado === "CONECTADO") {
         mostrarAvisoFactura(`🟢 Impresora Fiscal ${window.fiscalDriver.getNombreModelo()} Conectada.`);
-        iniciarMonitorSensoresFiscal();
-      } else if (estado === "ERROR_CONEXION" || estado === "DESCONECTADO" || estado === "TAPA_ABIERTA" || estado === "SIN_PAPEL") {
+      } else if (estado === "ERROR_CONEXION" || estado === "DESCONECTADO") {
         mostrarAvisoFactura("⚠️ " + mensaje);
       }
     });
 
     if (modoFiscalActivo) {
-      window.fiscalDriver.reconectarAutomatico().then(ok => {
-        if (ok) iniciarMonitorSensoresFiscal();
-      });
+      window.fiscalDriver.reconectarAutomatico();
     }
   }
 
@@ -343,14 +340,12 @@ function alternarModoFiscalPOS(estaActivo) {
     mostrarAvisoFactura(`🟢 Modo Fiscal ACTIVADO (${nombreModelo})`);
     if (window.fiscalDriver && !window.fiscalDriver.conectado) {
       window.fiscalDriver.reconectarAutomatico().then(conectado => {
-        if (conectado) iniciarMonitorSensoresFiscal();
-        else mostrarAvisoFactura(`ℹ️ Conecte la ${nombreModelo} haciendo clic en '🔌 Conectar Fiscal'.`);
+        if (!conectado) {
+          mostrarAvisoFactura(`ℹ️ Conecte la ${nombreModelo} haciendo clic en '🔌 Conectar Fiscal'.`);
+        }
       });
-    } else if (window.fiscalDriver?.conectado) {
-      iniciarMonitorSensoresFiscal();
     }
   } else {
-    if (timerMonitorHardwareFiscal) clearInterval(timerMonitorHardwareFiscal);
     mostrarAvisoFactura("📄 Modo Control Interno ACTIVADO (Ticketera XP-80C)");
   }
 }
@@ -366,7 +361,6 @@ async function cambiarModeloImpresoraFiscal(nuevoModelo) {
     if (modoFiscalActivo) {
       const reconectado = await window.fiscalDriver.reconectarAutomatico();
       actualizarBotonHardwareFiscal(reconectado ? "CONECTADO" : "DESCONECTADO");
-      if (reconectado) iniciarMonitorSensoresFiscal();
     }
   }
 }
@@ -482,7 +476,6 @@ async function conectarImpresoraFiscalManual() {
     
     if (btn) { btn.disabled = false; }
     actualizarBotonHardwareFiscal("CONECTADO");
-    iniciarMonitorSensoresFiscal();
   } catch (err) {
     const btn = document.getElementById('btnConectarFiscal');
     if (btn) { btn.disabled = false; }
@@ -491,7 +484,7 @@ async function conectarImpresoraFiscalManual() {
   }
 }
 
-function actualizarBotonHardwareFiscal(estado, mensaje = "") {
+function actualizarBotonHardwareFiscal(estado) {
   const btn = document.getElementById('btnConectarFiscal');
   if (!btn) return;
 
@@ -502,14 +495,6 @@ function actualizarBotonHardwareFiscal(estado, mensaje = "") {
     btn.className = "btn btn-sm btn-success fw-bold btn-hardware-fiscal";
     btn.innerHTML = `🟢 ${modeloTag} Lista`;
     btn.title = `Impresora fiscal ${nombreModelo} conectada y lista para facturar.`;
-  } else if (estado === "TAPA_ABIERTA") {
-    btn.className = "btn btn-sm btn-warning text-dark fw-bold btn-hardware-fiscal";
-    btn.innerHTML = `⚠️ Tapa Abierta`;
-    btn.title = `La compuerta de la ${nombreModelo} está abierta. Por favor, ciérrela bien.`;
-  } else if (estado === "SIN_PAPEL") {
-    btn.className = "btn btn-sm btn-danger text-white fw-bold btn-hardware-fiscal";
-    btn.innerHTML = `⚠️ Sin Papel`;
-    btn.title = `La ${nombreModelo} no tiene papel térmico. Inserte un rollo nuevo.`;
   } else {
     btn.className = "btn btn-sm btn-outline-info text-white fw-bold btn-hardware-fiscal";
     btn.innerHTML = `🔌 Conectar ${modeloTag}`;
