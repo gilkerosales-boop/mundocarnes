@@ -986,36 +986,21 @@ body {
 /* ==========================================================================
    ESTILOS DE PREVISUALIZACIÓN IDÉNTICA ACLAS PP9 PLUS (MATRIZ TÉRMICA FISCAL)
    ========================================================================== */
-.ticket-pp9-wrapper {
-  width: 100%;
-  max-width: 320px;
-  margin: 0 auto;
-  padding: 14px 16px;
-  background-color: #ffffff;
-  color: #000000;
-  font-family: Consolas, 'Courier New', Monaco, monospace !important;
-  font-size: 11px;
-  line-height: 1.25;
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  box-sizing: border-box;
-  text-transform: uppercase;
-}
-
 /* Visor y efecto de papel térmico continuo para Reporte Z (>40 cm) */
 #vistaPreviaCierreCajaModal {
   width: 100%;
   max-height: 58vh;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 10px 12px 24px 12px;
-  background-color: #e2e8f0;
+  padding: 14px 10px 30px 10px;
+  background-color: #cbd5e1;
   border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.08);
+  border: 1px solid #94a3b8;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.1);
   scrollbar-width: thin;
   scrollbar-color: #475569 #cbd5e1;
+  display: block !important;
+  text-align: center;
 }
 
 #vistaPreviaCierreCajaModal::-webkit-scrollbar {
@@ -1032,6 +1017,25 @@ body {
   border-radius: 8px;
 }
 
+.ticket-pp9-wrapper {
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto !important;
+  display: block !important;
+  padding: 14px 16px;
+  background-color: #ffffff !important;
+  color: #000000;
+  font-family: Consolas, 'Courier New', Monaco, monospace !important;
+  font-size: 11px;
+  line-height: 1.25;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
+  border: 1px solid #94a3b8;
+  border-radius: 4px;
+  box-sizing: border-box;
+  text-transform: uppercase;
+  text-align: left;
+}
+
 .ticket-pp9-reporte-z {
   max-width: 370px !important;
   padding: 18px 20px 30px 20px !important;
@@ -1039,9 +1043,11 @@ body {
   line-height: 1.32 !important;
   border: 1px solid #64748b !important;
   border-radius: 2px !important;
-  background: #ffffff !important;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.22) !important;
+  background-color: #ffffff !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25) !important;
   letter-spacing: 0.15px;
+  height: auto !important;
+  min-height: max-content !important;
 }
 
 .pp9-bold {
