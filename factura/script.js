@@ -4238,28 +4238,76 @@ function renderizarTicketTermicoHistorialHTML(d) {
     if (d.productosSummary) {
       const listaProds = d.productosSummary.split(' | ');
       listaProds.forEach(prodStr => {
-        const match = prodStr.match(/^(.*?)(?:\s*\((.*?)\))?\s*-\s*\$(.*)$/);
-        if (match) {
-          let nom = match[1].trim();
-          let cant = match[2] ? match[2].trim() : "1 uds";
-          let subUSD = parseFloat(match[3]) || 0;
-          let subBs = subUSD * tasa;
-          let tasaTag = (prodStr.includes('(G)') || prodStr.includes('(16%)')) ? 'G' : 'E';
+        let nom = "";
+        let tasaTag = "E";
+        let cantTxt = "1 uds";
+        let subUSD = 0;
 
-          if (cant.includes('Kg') || cant.includes('g') || parseInt(cant, 10) > 1) {
-            itemsHtml += `
-              <div class="pp9-linea-multiplicador">${cant}</div>
-              <div class="pp9-fila-item">
-                <span class="pp9-item-nombre">${nom} (${tasaTag})</span>
-                <span class="pp9-item-monto">Bs ${subBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              </div>`;
-          } else {
-            itemsHtml += `
-              <div class="pp9-fila-item">
-                <span class="pp9-item-nombre">${nom} (${tasaTag})</span>
-                <span class="pp9-item-monto">Bs ${subBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              </div>`;
+        let partesGuion = prodStr.split(/\s*-\s*\$/);
+        if (partesGuion.length === 2) {
+          subUSD = parseFloat(partesGuion[1]) || 0;
+          let textoIzquierdo = partesGuion[0].trim();
+
+          // 1. Extraer cantidad al final: ej "(1 Kg 451 g)" o "(2 uds)"
+          let matchCant = textoIzquierdo.match(/\(([^()]+)\)$/);
+          if (matchCant) {
+            cantTxt = matchCant[1].trim();
+            textoIzquierdo = textoIzquierdo.substring(0, matchCant.index).trim();
           }
+
+          // 2. Extraer alícuota de IVA si quedó al final: ej "(G)" o "(E)" o "(R)"
+          let matchTasa = textoIzquierdo.match(/\(([EGRegr0-9%]+)\)$/);
+          if (matchTasa) {
+            let tStr = matchTasa[1].toUpperCase();
+            if (tStr.includes('G') || tStr.includes('16')) tasaTag = 'G';
+            else if (tStr.includes('R') || tStr.includes('8')) tasaTag = 'R';
+            else tasaTag = 'E';
+            nom = textoIzquierdo.substring(0, matchTasa.index).trim();
+          } else {
+            nom = textoIzquierdo;
+          }
+        } else {
+          nom = prodStr.trim();
+        }
+
+        let subBs = subUSD * tasa;
+        let esPesa = cantTxt.includes('Kg') || cantTxt.includes('g');
+        let cantNum = 1;
+        let matchNum = cantTxt.match(/([0-9.]+)\s*uds/i);
+        if (matchNum) cantNum = parseFloat(matchNum[1]) || 1;
+
+        if (esPesa) {
+          let kgMatch = cantTxt.match(/([0-9.]+)\s*Kg/i);
+          let gMatch = cantTxt.match(/([0-9.]+)\s*g/i);
+          let kgVal = kgMatch ? parseFloat(kgMatch[1]) : 0;
+          let gVal = gMatch ? parseFloat(gMatch[1]) : 0;
+          let pesoTotalKg = kgVal + (gVal / 1000);
+          if (pesoTotalKg === 0 && gVal > 0) pesoTotalKg = gVal / 1000;
+          if (pesoTotalKg === 0) pesoTotalKg = 1;
+
+          let unitarioBs = subBs / pesoTotalKg;
+          let kgStr = pesoTotalKg.toFixed(3).replace('.', ',');
+
+          itemsHtml += `
+            <div class="pp9-linea-multiplicador">${kgStr}xBs ${unitarioBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div class="pp9-fila-item">
+              <span class="pp9-item-nombre">${nom} (${tasaTag})</span>
+              <span class="pp9-item-monto">Bs ${subBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>`;
+        } else if (cantNum > 1) {
+          let unitarioBs = subBs / cantNum;
+          itemsHtml += `
+            <div class="pp9-linea-multiplicador">${cantNum}x Bs ${unitarioBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div class="pp9-fila-item">
+              <span class="pp9-item-nombre">${nom} (${tasaTag})</span>
+              <span class="pp9-item-monto">Bs ${subBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>`;
+        } else {
+          itemsHtml += `
+            <div class="pp9-fila-item">
+              <span class="pp9-item-nombre">${nom} (${tasaTag})</span>
+              <span class="pp9-item-monto">Bs ${subBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </div>`;
         }
       });
     }
