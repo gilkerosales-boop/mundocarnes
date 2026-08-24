@@ -60,7 +60,7 @@
 
         <div class="d-flex align-items-center flex-wrap gap-2">
           <!-- SELECTOR DUAL DE MODO DE IMPRESIÓN (FISCAL / NO FISCAL) -->
-          <div class="toggle-fiscal-wrapper" title="Alternar entre Facturación Fiscal (HKA80 / PP9 Plus) y Control Interno (XP-80C)">
+          <div class="toggle-fiscal-wrapper" title="Alternar entre Facturación Fiscal y Control Interno (XP-80C)">
             <label class="toggle-fiscal-switch">
               <input type="checkbox" id="chkModoFiscal" onchange="alternarModoFiscalPOS(this.checked)">
               <span class="toggle-fiscal-slider"></span>
@@ -68,14 +68,8 @@
             <span id="badgeModoFiscal" class="badge-modo-fiscal fiscal-off">📄 No Fiscal</span>
           </div>
 
-          <!-- SELECTOR DE MODELO DE IMPRESORA FISCAL (HKA80 / ACLAS PP9 PLUS) -->
-          <select id="selectModeloFiscal" class="form-select form-select-sm fw-bold border-0 text-white rounded-pill px-2 hidden" style="background: rgba(255, 255, 255, 0.18); width: 110px; height: 32px;" onchange="cambiarModeloImpresoraFiscal(this.value)" title="Seleccionar Modelo de Impresora Fiscal">
-            <option value="HKA80" class="text-dark" selected>🖨️ HKA80</option>
-            <option value="PP9" class="text-dark">🖨️ PP9 Plus</option>
-          </select>
-
           <!-- BOTÓN DE CONEXIÓN USB / ESTADO DE IMPRESORA FISCAL -->
-          <button type="button" id="btnConectarFiscal" class="btn btn-sm btn-outline-info fw-bold btn-hardware-fiscal hidden" onclick="conectarImpresoraFiscalManual()" title="Haga clic para conectar o probar la impresora fiscal seleccionada">
+          <button type="button" id="btnConectarFiscal" class="btn btn-sm btn-outline-info fw-bold btn-hardware-fiscal hidden" onclick="conectarImpresoraFiscalManual()" title="Haga clic para conectar o probar la impresora fiscal activa">
             🔌 Conectar Fiscal
           </button>
 
@@ -90,16 +84,34 @@
           <button type="button" class="btn btn-nav-custom btn-nav-red" onclick="abrirModalCierreCaja()">
             🔒 Cierre Caja
           </button>
-          <!-- Botón 3: Menú Desplegable de Configuración -->
+          <!-- Botón 3: Menú Desplegable de Configuración con Submenú de Dispositivos Fiscales -->
           <div class="dropdown me-2">
             <button class="btn btn-nav-custom btn-nav-blue dropdown-toggle" type="button" id="dropdownMenuConfig" data-bs-toggle="dropdown" aria-expanded="false">
               ⚙️ Configuración
             </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0" aria-labelledby="dropdownMenuConfig" style="border-radius: 12px; min-width: 240px;">
+            <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0" aria-labelledby="dropdownMenuConfig" style="border-radius: 12px; min-width: 260px;">
               <li>
                 <button class="dropdown-item fw-bold py-2" type="button" onclick="abrirModalDatosEmpresa()">
                   🏢 Datos de la Empresa y Logos
                 </button>
+              </li>
+              <!-- Opción con Submenú en Cascada para Impresoras Fiscales -->
+              <li class="dropdown-submenu-item position-relative">
+                <a class="dropdown-item dropdown-toggle fw-bold py-2" href="javascript:void(0);" id="submenuDispositivosFiscales">
+                  🖨️ Dispositivos de impresión fiscal
+                </a>
+                <ul class="dropdown-menu dropdown-menu-start submenu-flotante-fiscal shadow border-0" style="border-radius: 10px; min-width: 220px;">
+                  <li>
+                    <button class="dropdown-item fw-bold py-2" type="button" onclick="solicitarConfiguracionDispositivoFiscal('PP9', 'Aclas PP9 Plus')">
+                      🖨️ Aclas PP9 Plus
+                    </button>
+                  </li>
+                  <li>
+                    <button class="dropdown-item fw-bold py-2" type="button" onclick="solicitarConfiguracionDispositivoFiscal('HKA80', 'The Factory HKA80')">
+                      🖨️ The Factory HKA80
+                    </button>
+                  </li>
+                </ul>
               </li>
               <li><hr class="dropdown-divider my-1"></li>
               <li>
@@ -1062,6 +1074,37 @@
             <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cerrar</button>
             <button type="button" id="btnGuardarDatosEmpresa" class="btn btn-success fw-bold px-5 py-2 fs-6 rounded-pill shadow" onclick="guardarDatosEmpresaYLogos()">
               💾 Guardar Datos y Sincronizar Logos
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL REGISTRO Y SERIAL DE DISPOSITIVO FISCAL -->
+    <div class="modal fade" id="modalRegistroDispositivoFiscal" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered" style="max-width: 450px;">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-dark text-white py-3">
+            <h5 class="modal-title fw-bold" id="tituloModalRegistroFiscal">🖨️ Configurar Dispositivo Fiscal</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            <input type="hidden" id="regFiscalModeloCode" value="">
+            <div class="mb-3">
+              <label class="form-label fw-bold small text-muted mb-1">Impresora Fiscal:</label>
+              <div class="fw-bold fs-6 text-primary p-2 bg-white rounded border" id="regFiscalModeloNombre">Aclas PP9 Plus</div>
+            </div>
+            <div class="mb-3">
+              <label for="regFiscalSerialInput" class="form-label fw-bold small text-dark mb-1">Número de Registro / Serial Fiscal *:</label>
+              <input type="text" id="regFiscalSerialInput" class="form-control fw-bold text-uppercase fs-5 text-center num-legible" placeholder="Ej: ZZP0005063 o Z7C7044438" maxlength="16" required>
+              <div class="form-text text-muted small mt-1">Este serial aparecerá en el pie MH de facturas, notas de crédito, reportes Z y en el libro SENIAT.</div>
+            </div>
+            <div id="errorModalRegFiscal" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer justify-content-between p-3 bg-white border-top">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnAceptarRegFiscal" class="btn btn-success fw-bold px-4 rounded-pill shadow" onclick="procesarConfirmacionDispositivoFiscal()">
+              Aceptar ✓
             </button>
           </div>
         </div>
