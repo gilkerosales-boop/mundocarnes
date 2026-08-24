@@ -5859,12 +5859,76 @@ function eliminarMovimientoEfectivo(index) {
   }
 }
 
-// CIERRE DE CAJA (CARGA AUTOMÁTICA DEL SALDO INICIAL APERTURADO)
-function abrirModalCierreCaja() {
+// Validar si ya existe un cierre registrado hoy para la modalidad activa (Fiscal vs No Fiscal)
+function verificarCierreExistenteHoy(esFiscalObjetivo) {
+  const usuario = obtenerUsuarioActivo();
+  const hoy = new Date();
+  const hoyDia = hoy.getDate();
+  const hoyMes = hoy.getMonth();
+  const hoyAnio = hoy.getFullYear();
+
+  for (let c of cacheHistorialCierres) {
+    const userFila = normalizarUsuario(c.usuario || usuario);
+    if (userFila === usuario) {
+      const fStr = String(c.fechaStr || c["FECHA"] || "");
+      const ts = parsearFechaTimestamp(fStr);
+      let esDeHoy = false;
+
+      if (ts > 0) {
+        const dCierre = new Date(ts);
+        esDeHoy = (dCierre.getFullYear() === hoyAnio && dCierre.getMonth() === hoyMes && dCierre.getDate() === hoyDia);
+      } else {
+        const dStr = String(hoyDia).padStart(2, '0');
+        const mStr = String(hoyMes + 1).padStart(2, '0');
+        esDeHoy = fStr.includes(`${hoyDia}/${hoyMes + 1}/${hoyAnio}`) || fStr.includes(`${dStr}/${mStr}/${hoyAnio}`);
+      }
+
+      if (esDeHoy) {
+        const cEsFiscal = Boolean(c.esFiscal === true || c.esFiscal === "true" || c.modoFiscal === true || c.modoFiscal === "true" || c["ES_FISCAL"] === true || c["ES_FISCAL"] === "true" || c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ);
+        if (cEsFiscal === esFiscalObjetivo) {
+          return c;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// CIERRE DE CAJA (VALIDACIÓN DE MÁXIMO 1 CIERRE NO FISCAL Y 1 CIERRE FISCAL POR DÍA)
+async function abrirModalCierreCaja() {
   const usuario = obtenerUsuarioActivo();
   const elemUsuario = document.getElementById('cierreUsuarioNombre');
   if (elemUsuario) {
     elemUsuario.textContent = `👤 Cajero: ${usuario.toUpperCase()}`;
+  }
+
+  // Cargar historial de cierres para validar en tiempo real
+  await cargarHistorialCierresCaja();
+
+  const cierreExistente = verificarCierreExistenteHoy(modoFiscalActivo);
+  const btnSiguiente = document.getElementById('btnSiguienteCierreCaja');
+  const errorDiv = document.getElementById('errorModalCierrePaso1');
+
+  if (cierreExistente) {
+    const tipoStr = modoFiscalActivo ? "Cierre Fiscal (Reporte Z)" : "Cierre de Control Interno (No Fiscal)";
+    const reglaStr = modoFiscalActivo 
+      ? "Por normativa legal del SENIAT solo se permite emitir 1 Reporte Z por día." 
+      : "Solo se permite emitir 1 cierre de control interno por jornada diaria.";
+
+    if (errorDiv) {
+      errorDiv.innerHTML = `⚠️ <strong>CIERRE YA REGISTRADO HOY:</strong><br>Ya se ha emitido el <strong>${tipoStr}</strong> de hoy (${cierreExistente.fechaStr}).<br><small class="text-muted">${reglaStr}</small>`;
+      errorDiv.classList.remove('hidden');
+    }
+    if (btnSiguiente) {
+      btnSiguiente.disabled = true;
+      btnSiguiente.classList.add('disabled');
+    }
+  } else {
+    if (errorDiv) errorDiv.classList.add('hidden');
+    if (btnSiguiente) {
+      btnSiguiente.disabled = false;
+      btnSiguiente.classList.remove('disabled');
+    }
   }
 
   const hoy = new Date().toISOString().split('T')[0];
@@ -5885,7 +5949,6 @@ function abrirModalCierreCaja() {
     document.getElementById('cierreInicialBS').value = "0.00";
   }
 
-  document.getElementById('errorModalCierrePaso1').classList.add('hidden');
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCierreCajaPaso1')).show();
 }
 
