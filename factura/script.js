@@ -2685,232 +2685,218 @@ async function emitirFacturaFinal() {
 }
 
 function renderizarTicketTermicoHTML(d) {
-  let filasProductosHtml = "";
-  let i = 1;
-  let esModoBs = (d.monedaVistaModal === "BS");
   let tasa = d.tasaBCV || 1;
-
   let items = d.items || ((transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura);
-
-  for (let key in items) {
-    let item = items[key];
-    let precUnit = "";
-    let itemTotalTxt = "";
-    let tasaLetra = (item.tasaIVA || "E").toUpperCase();
-
-    if (esModoBs) {
-      let precBaseBs = (parseFloat(item.precioBase) || 0) * tasa;
-      let precTotalBs = (parseFloat(item.precioTotal) || 0) * tasa;
-      let unidadBs = (item.unidad === 'gramos' || item.unidad === 'mixto') ? '/Kg' : '/Ud';
-
-      precUnit = `Bs. ${precBaseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${unidadBs}`;
-      itemTotalTxt = `Bs. ${precTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    } else {
-      let unidadUsd = (item.unidad === 'gramos' || item.unidad === 'mixto') ? '/Kg' : '/Ud';
-
-      precUnit = `$${item.precioBase.toFixed(2)}${unidadUsd}`;
-      itemTotalTxt = `$${item.precioTotal}`;
-    }
-
-    const tagFiscalProd = d.modoFiscal ? ` <span class="small text-muted">(${tasaLetra})</span>` : "";
-
-    filasProductosHtml += `
-      <tr>
-        <td style="width:6%;">${i++}</td>
-        <td style="width:36%;" class="fw-bold">${key}${tagFiscalProd}</td>
-        <td style="width:24%;" class="text-center num-legible">${precUnit}</td>
-        <td style="width:16%;" class="text-center num-legible">${item.cantidadTxt}</td>
-        <td style="width:18%;" class="text-end fw-bold num-legible">${itemTotalTxt}</td>
-      </tr>`;
-  }
-
-  let bloqueTotalesHtml = "";
-
- if (d.modoFiscal) {
-    // =========================================================================
-    // DESGLOSE FISCAL SENIAT COMPLETO (Soporte Dual $ y Bs con Retenciones e IGTF)
-    // =========================================================================
-    let seccionRetencionHtml = "";
-    if (d.esContribuyenteEspecial && (d.montoRetencionBS > 0 || d.montoRetencionUSD > 0)) {
-      const txtMontoRet = esModoBs 
-        ? `-Bs. ${(d.montoRetencionBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-        : `-$${(d.montoRetencionUSD || 0).toFixed(2)}`;
-
-      seccionRetencionHtml = `
-        <div class="d-flex justify-content-between small text-danger fw-bold">
-          <span>(-) RETENCIÓN IVA (${d.porcentajeRetencion}%):</span>
-          <span class="num-legible">${txtMontoRet}</span>
-        </div>
-        <div class="small text-muted text-end" style="font-size: 8.5px;">COMPROBANTE SENIAT: ${d.comprobanteRetencion || 'PENDIENTE'}</div>`;
-    }
-
-    let seccionIGTFHtml = "";
-    if (d.montoIGTF_BS > 0 || d.montoIGTF_USD > 0) {
-      const txtMontoIGTF = esModoBs 
-        ? `+Bs. ${(d.montoIGTF_BS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-        : `+$${(d.montoIGTF_USD || 0).toFixed(2)}`;
-
-      seccionIGTFHtml = `
-        <div class="d-flex justify-content-between small text-primary fw-bold">
-          <span>(+) IGTF PERCIBIDO (3.00%):</span>
-          <span class="num-legible">${txtMontoIGTF}</span>
-        </div>`;
-    }
-
-    if (esModoBs) {
-      let exentoBs = (d.montoExento || 0) * tasa;
-      let baseBs = (d.montoBase || 0) * tasa;
-      let ivaBs = (d.montoIVA || 0) * tasa;
-      let netoCobrarBs = d.totalNetoCobradoBS || d.totalBs;
-      let netoCobrarUSD = d.totalNetoCobradoUSD || d.totalUSD;
-
-      bloqueTotalesHtml = `
-        <div class="d-flex justify-content-between small text-muted">
-          <span>EXENTO (0%):</span>
-          <span class="num-legible">Bs. ${exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="d-flex justify-content-between small text-muted">
-          <span>BASE GRAVABLE (16%):</span>
-          <span class="num-legible">Bs. ${baseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="d-flex justify-content-between small text-danger fw-bold">
-          <span>IVA (16%):</span>
-          <span class="num-legible">Bs. ${ivaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        ${seccionRetencionHtml}
-        ${seccionIGTFHtml}
-        <div class="ticket-divider"></div>
-        <div class="d-flex justify-content-between text-muted">
-          <span>SUBTOTAL OPERACIÓN:</span>
-          <span class="num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="d-flex justify-content-between text-success fw-bold">
-          <span>TOTAL A COBRAR (Bs):</span>
-          <strong class="fs-5 num-legible">Bs. ${netoCobrarBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-        </div>
-        <div class="d-flex justify-content-between text-muted">
-          <span>TOTAL REF ($):</span>
-          <span class="num-legible">$${netoCobrarUSD.toFixed(2)}</span>
-        </div>`;
-    } else {
-      let netoCobrarUSD = d.totalNetoCobradoUSD || d.totalUSD;
-      let netoCobrarBs = d.totalNetoCobradoBS || d.totalBs;
-
-      bloqueTotalesHtml = `
-        <div class="d-flex justify-content-between small text-muted">
-          <span>EXENTO (0%):</span>
-          <span class="num-legible">$${(d.montoExento || 0).toFixed(2)}</span>
-        </div>
-        <div class="d-flex justify-content-between small text-muted">
-          <span>BASE GRAVABLE (16%):</span>
-          <span class="num-legible">$${(d.montoBase || 0).toFixed(2)}</span>
-        </div>
-        <div class="d-flex justify-content-between small text-danger fw-bold">
-          <span>IVA (16%):</span>
-          <span class="num-legible">$${(d.montoIVA || 0).toFixed(2)}</span>
-        </div>
-        ${seccionRetencionHtml}
-        ${seccionIGTFHtml}
-        <div class="ticket-divider"></div>
-        <div class="d-flex justify-content-between text-muted">
-          <span>SUBTOTAL OPERACIÓN:</span>
-          <span class="num-legible">$${d.totalUSD.toFixed(2)}</span>
-        </div>
-        <div class="d-flex justify-content-between text-success fw-bold">
-          <span>TOTAL A COBRAR ($):</span>
-          <strong class="fs-5 num-legible">$${netoCobrarUSD.toFixed(2)}</strong>
-        </div>
-        <div class="d-flex justify-content-between text-muted">
-          <span>TOTAL REF (Bs):</span>
-          <span class="num-legible">Bs. ${netoCobrarBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>`;
-    }
-  } else {
-    // =========================================================================
-    // COMPROBANTE NO FISCAL / CONTROL INTERNO LIMPIO (CERO RENGLONES DE IVA)
-    // =========================================================================
-    if (esModoBs) {
-      bloqueTotalesHtml = `
-        <div class="d-flex justify-content-between">
-          <span>TOTAL A PAGAR (Bs):</span>
-          <strong class="fs-6 num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-        </div>
-        <div class="d-flex justify-content-between text-muted">
-          <span>TOTAL REF ($):</span>
-          <span class="num-legible">$${d.totalUSD.toFixed(2)}</span>
-        </div>`;
-    } else {
-      bloqueTotalesHtml = `
-        <div class="d-flex justify-content-between">
-          <span>TOTAL A PAGAR ($):</span>
-          <strong class="fs-6 num-legible">$${d.totalUSD.toFixed(2)}</strong>
-        </div>
-        <div class="d-flex justify-content-between text-muted">
-          <span>TOTAL REF (Bs):</span>
-          <span class="num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>`;
-    }
-  }
-
   let ticketHtml = "";
 
   if (d.modoFiscal) {
     // =========================================================================
-    // VISTA PREVIA EXACTA: FORMATO FISCAL THE FACTORY HKA80 (SENIAT)
+    // MODALIDAD FISCAL: DISEÑO EXACTO ACLAS PP9 PLUS (IDÉNTICO AL TICKET FÍSICO)
     // =========================================================================
-    const serialFiscal = window.fiscalDriver?.ultimoReporteStatus?.serial || "Z7C7044438";
-    
+    const serialFiscal = window.fiscalDriver?.ultimoReporteStatus?.serial || "ZZP0005063";
+    const fechaActual = new Date();
+    const dia = String(fechaActual.getDate()).padStart(2, '0');
+    const mes = String(fechaActual.getMonth() + 1).padStart(2, '0');
+    const anio = fechaActual.getFullYear();
+    const hora = String(fechaActual.getHours()).padStart(2, '0');
+    const min = String(fechaActual.getMinutes()).padStart(2, '0');
+    const fechaPP9 = `${dia}-${mes}-${anio}`;
+    const horaPP9 = `${hora}:${min}`;
+    const numFacturaPP9 = String(d.numFactura || "00000000").replace(/\D/g, '').padStart(8, '0');
+
+    let renglonesFiscalesHtml = "";
+    let totExentoBs = 0;
+    let totBase16Bs = 0;
+    let totIVA16Bs = 0;
+    let totGeneralBs = 0;
+
+    for (let key in items) {
+      let item = items[key];
+      let tasaLetra = (item.tasaIVA || "E").toUpperCase();
+      let precioUSD = parseFloat(item.precioBase) || 0;
+      let totalUSD = parseFloat(item.precioTotal) || 0;
+      let precioUnitBs = precioUSD * tasa;
+      let itemTotalBs = totalUSD * tasa;
+
+      let factorIVA = (tasaLetra === "G" || tasaLetra === "16") ? 1.16 : 1.0;
+      let baseImponibleBs = itemTotalBs / factorIVA;
+      let ivaBs = itemTotalBs - baseImponibleBs;
+
+      if (tasaLetra === "G" || tasaLetra === "16") {
+        totBase16Bs += baseImponibleBs;
+        totIVA16Bs += ivaBs;
+      } else {
+        totExentoBs += itemTotalBs;
+      }
+      totGeneralBs += itemTotalBs;
+
+      let esPesa = (item.unidad === 'gramos' || item.unidad === 'mixto');
+      let cantNumerica = parseFloat(item.cantNumerica) || 1;
+
+      if (esPesa) {
+        let kgCant = (cantNumerica >= 100 ? (cantNumerica / 1000) : cantNumerica).toFixed(3).replace('.', ',');
+        renglonesFiscalesHtml += `
+          <div class="pp9-linea-multiplicador">${kgCant}xBs ${precioUnitBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div class="pp9-fila-item">
+            <span class="pp9-item-nombre">${key} (${tasaLetra})</span>
+            <span class="pp9-item-monto">Bs ${itemTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>`;
+      } else if (cantNumerica > 1) {
+        renglonesFiscalesHtml += `
+          <div class="pp9-linea-multiplicador">${cantNumerica}x Bs ${precioUnitBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div class="pp9-fila-item">
+            <span class="pp9-item-nombre">${key} (${tasaLetra})</span>
+            <span class="pp9-item-monto">Bs ${itemTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>`;
+      } else {
+        renglonesFiscalesHtml += `
+          <div class="pp9-fila-item">
+            <span class="pp9-item-nombre">${key} (${tasaLetra})</span>
+            <span class="pp9-item-monto">Bs ${itemTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>`;
+      }
+    }
+
+    let bloqueResumenFiscal = "";
+    if (totExentoBs > 0) {
+      bloqueResumenFiscal += `
+        <div class="pp9-fila-item">
+          <span>EXENTO</span>
+          <span>Bs ${totExentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>`;
+    }
+    if (totBase16Bs > 0) {
+      bloqueResumenFiscal += `
+        <div class="pp9-fila-item">
+          <span>BI G (16,00%)</span>
+          <span>Bs ${totBase16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="pp9-fila-item">
+          <span>IVA G (16,00%)</span>
+          <span>Bs ${totIVA16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>`;
+    }
+
+    let bloqueIGTFHtml = "";
+    if (d.montoIGTF_BS > 0) {
+      bloqueIGTFHtml = `<div>IG.. 3 BS ${parseFloat(d.montoIGTF_BS).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>`;
+    }
+
+    let cedulaCliente = String(d.cliente.cedula || "V-00000000").trim();
+    if (!/^[VJEGPvjegp]/i.test(cedulaCliente)) cedulaCliente = "V-" + cedulaCliente;
+
     ticketHtml = `
-      <div class="ticket-container shadow-sm border text-start">
-        <div class="ticket-header">
-          <div class="small fw-bold text-center">SENIAT</div>
-          <div class="small fw-bold text-center">RIF J-505072889</div>
-          <div class="fw-bold fs-6 text-center">FRIGORIFICO MUNDOCARNES, C.A</div>
-          <div class="small text-center">AV. SAN MARTIN, CARACAS, DISTRITO CAPITAL</div>
-          <div class="ticket-title mt-2 fs-6 text-center">FACTURA FISCAL</div>
+      <div class="ticket-pp9-wrapper">
+        <div class="pp9-header text-center">
+          <div class="pp9-bold">SENIAT</div>
+          <div class="pp9-bold">J-400999553</div>
+          <div class="pp9-bold">FRIGORIFICO EL MUNDO DE LA CARNE C.A.</div>
+          <div>AV SAN MARTIN CC ATLANTICO NIVEL</div>
+          <div>PB LOCAL 1 URB ARTIGAS CARACAS</div>
+          <div>DISTRITO CAPITAL</div>
         </div>
 
-        <div class="ticket-info">
-          <div><strong>CLIENTE:</strong> ${d.cliente.nombre}</div>
-          <div><strong>CI / RIF:</strong> <span class="num-legible">${d.cliente.cedula}</span></div>
-          <div><strong>DIR:</strong> ${d.cliente.direccion || 'CIUDAD'} | <strong>TELF:</strong> ${d.cliente.telefono || 'N/D'}</div>
-          <div class="ticket-divider"></div>
-          <div><strong>FACTURA FISCAL:</strong> <span class="fs-6 fw-bold num-legible">${d.numFactura.replace('001-', 'FAC-')}</span></div>
-          <div><strong>FECHA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
+        <div class="pp9-cliente-bloque">
+          <div>RIF/CI:${cedulaCliente}</div>
+          <div>R.S.:${String(d.cliente.nombre || 'CONSUMIDOR FINAL').toUpperCase()}</div>
+          <div>${String(d.cliente.direccion || 'CARACAS').toUpperCase()}</div>
+          <div>${d.cliente.telefono || 'N/D'}</div>
+          ${bloqueIGTFHtml}
         </div>
 
-        <table class="ticket-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>PRODUCTO</th>
-              <th class="text-center">PRECIO</th>
-              <th class="text-center">CANT</th>
-              <th class="text-end">TOTAL</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${filasProductosHtml}
-          </tbody>
-        </table>
-
-        <div class="ticket-totals border-top pt-1">
-          ${bloqueTotalesHtml}
-          <div class="ticket-divider"></div>
-          <div><strong>FORMA DE PAGO:</strong></div>
-          <div class="small fw-bold">${d.formaPagoStr}</div>
+        <div class="pp9-titulo-doc text-center">FACTURA</div>
+        <div class="pp9-info-doc">
+          <div class="pp9-fila-item">
+            <span>FACTURA:</span>
+            <span class="pp9-bold">${numFacturaPP9}</span>
+          </div>
+          <div class="pp9-fila-item">
+            <span>FECHA: ${fechaPP9}</span>
+            <span>HORA: ${horaPP9}</span>
+          </div>
         </div>
 
-        <div class="ticket-footer mt-3 d-flex justify-content-between align-items-center">
-          <span class="fw-bold">MH</span>
-          <span class="num-legible fw-bold">${serialFiscal}</span>
+        <div class="pp9-separator-dashed"></div>
+
+        <div class="pp9-cuerpo-items">
+          ${renglonesFiscalesHtml}
+        </div>
+
+        <div class="pp9-separator-dashed"></div>
+
+        <div class="pp9-totales-bloque">
+          ${bloqueResumenFiscal}
+          <div class="pp9-separator-dashed"></div>
+          <div class="pp9-fila-item">
+            <span>EFECTIVO 1</span>
+            <span>Bs ${totGeneralBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+          <div class="pp9-fila-item pp9-bold mt-1">
+            <span>TOTAL</span>
+            <span>Bs ${totGeneralBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+        </div>
+
+        <div class="pp9-footer d-flex justify-content-between mt-2">
+          <span>MH</span>
+          <span class="pp9-bold">${serialFiscal}</span>
         </div>
       </div>
     `;
+
   } else {
     // =========================================================================
-    // VISTA PREVIA: CONTROL INTERNO CONVENCIONAL (XP-80C NOTA DE ENTREGA)
+    // MODALIDAD NO FISCAL: NOTA DE ENTREGA CONTROL INTERNO XP-80C (INTACTO)
     // =========================================================================
+    let filasProductosHtml = "";
+    let i = 1;
+    let esModoBs = (d.monedaVistaModal === "BS");
+
+    for (let key in items) {
+      let item = items[key];
+      let precUnit = "";
+      let itemTotalTxt = "";
+
+      if (esModoBs) {
+        let precBaseBs = (parseFloat(item.precioBase) || 0) * tasa;
+        let precTotalBs = (parseFloat(item.precioTotal) || 0) * tasa;
+        let unidadBs = (item.unidad === 'gramos' || item.unidad === 'mixto') ? '/Kg' : '/Ud';
+        precUnit = `Bs. ${precBaseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${unidadBs}`;
+        itemTotalTxt = `Bs. ${precTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      } else {
+        let unidadUsd = (item.unidad === 'gramos' || item.unidad === 'mixto') ? '/Kg' : '/Ud';
+        precUnit = `$${item.precioBase.toFixed(2)}${unidadUsd}`;
+        itemTotalTxt = `$${item.precioTotal}`;
+      }
+
+      filasProductosHtml += `
+        <tr>
+          <td style="width:6%;">${i++}</td>
+          <td style="width:42%;" class="fw-bold">${key}</td>
+          <td style="width:20%;" class="text-center num-legible">${precUnit}</td>
+          <td style="width:16%;" class="text-center num-legible">${item.cantidadTxt}</td>
+          <td style="width:16%;" class="text-end fw-bold num-legible">${itemTotalTxt}</td>
+        </tr>`;
+    }
+
+    let bloqueTotalesHtml = esModoBs ? `
+      <div class="d-flex justify-content-between">
+        <span>TOTAL A PAGAR (Bs):</span>
+        <strong class="fs-6 num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+      </div>
+      <div class="d-flex justify-content-between text-muted">
+        <span>TOTAL REF ($):</span>
+        <span class="num-legible">$${d.totalUSD.toFixed(2)}</span>
+      </div>` : `
+      <div class="d-flex justify-content-between">
+        <span>TOTAL A PAGAR ($):</span>
+        <strong class="fs-6 num-legible">$${d.totalUSD.toFixed(2)}</strong>
+      </div>
+      <div class="d-flex justify-content-between text-muted">
+        <span>TOTAL REF (Bs):</span>
+        <span class="num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+      </div>`;
+
     ticketHtml = `
       <div class="ticket-container shadow-sm border text-start">
         <div class="ticket-header text-center">
@@ -2918,6 +2904,7 @@ function renderizarTicketTermicoHTML(d) {
           <div class="ticket-title fs-6">COMPROBANTE NO FISCAL - NOTA DE ENTREGA</div>
           <div>RIF: J-505072889 | TELF: 0412-1753275</div>
           <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
+          <div>HORARIO: 7:30am - 19:00pm</div>
         </div>
 
         <div class="ticket-info">
@@ -4072,88 +4059,205 @@ function reimprimirFacturaHistorial(numFactura) {
 }
 
 function renderizarTicketTermicoHistorialHTML(d) {
-  let filasProductosHtml = "";
-  let i = 1;
+  const esFiscal = Boolean(d.modoFiscal || d.esFiscal || String(d.formaPagoStr || "").includes("FISCAL") || /^\d{8}$/.test(String(d.numFactura || "")));
+  let ticketHtml = "";
 
-  if (d.productosSummary) {
-    const listaProds = d.productosSummary.split(' | ');
-    listaProds.forEach(prodStr => {
-      const match = prodStr.match(/^(.*?)(?:\s*\((.*?)\))?\s*-\s*\$(.*)$/);
-      if (match) {
-        let nom = match[1].trim();
-        let cant = match[2] ? match[2].trim() : "1 uds";
-        let tot = match[3] ? match[3].trim() : "0.00";
+  if (esFiscal) {
+    // =========================================================================
+    // REIMPRESIÓN HISTORIAL: FORMATO EXACTO PP9 PLUS
+    // =========================================================================
+    const serialFiscal = window.fiscalDriver?.ultimoReporteStatus?.serial || "ZZP0005063";
+    const esNC = Boolean(d.esNotaCredito || String(d.numFactura || "").startsWith("NC-") || String(d.formaPagoStr || "").includes("NOTA DE CREDITO"));
+    const numDocPP9 = String(d.numFactura || "00000000").replace(/\D/g, '').padStart(8, '0');
+    const tasa = d.tasaBCV || 1;
 
-        filasProductosHtml += `
-          <tr>
-            <td style="width:6%;">${i++}</td>
-            <td style="width:42%;" class="fw-bold">${nom}</td>
-            <td style="width:18%;" class="text-center">--</td>
-            <td style="width:16%;" class="text-center">${cant}</td>
-            <td style="width:18%;" class="text-end fw-bold">$${tot}</td>
-          </tr>`;
-      } else {
-        filasProductosHtml += `
-          <tr>
-            <td style="width:6%;">${i++}</td>
-            <td colspan="3" class="fw-bold">${prodStr}</td>
-            <td style="width:18%;" class="text-end fw-bold">--</td>
-          </tr>`;
-      }
-    });
+    let itemsHtml = "";
+    if (d.productosSummary) {
+      const listaProds = d.productosSummary.split(' | ');
+      listaProds.forEach(prodStr => {
+        const match = prodStr.match(/^(.*?)(?:\s*\((.*?)\))?\s*-\s*\$(.*)$/);
+        if (match) {
+          let nom = match[1].trim();
+          let cant = match[2] ? match[2].trim() : "1 uds";
+          let subUSD = parseFloat(match[3]) || 0;
+          let subBs = subUSD * tasa;
+          let tasaTag = (prodStr.includes('(G)') || prodStr.includes('(16%)')) ? 'G' : 'E';
+
+          if (cant.includes('Kg') || cant.includes('g') || parseInt(cant, 10) > 1) {
+            itemsHtml += `
+              <div class="pp9-linea-multiplicador">${cant}</div>
+              <div class="pp9-fila-item">
+                <span class="pp9-item-nombre">${nom} (${tasaTag})</span>
+                <span class="pp9-item-monto">Bs ${subBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>`;
+          } else {
+            itemsHtml += `
+              <div class="pp9-fila-item">
+                <span class="pp9-item-nombre">${nom} (${tasaTag})</span>
+                <span class="pp9-item-monto">Bs ${subBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>`;
+          }
+        }
+      });
+    }
+
+    let cedulaCliente = String(d.cliente?.cedula || d.cedula || "V-00000000").trim();
+    if (!/^[VJEGPvjegp]/i.test(cedulaCliente)) cedulaCliente = "V-" + cedulaCliente;
+
+    let encabezadoTipoDoc = esNC ? `
+      <div class="pp9-info-doc">
+        <div>#FAC:${d.facturaAfectada || '00000015'}</div>
+        <div>FECHA FAC:${d.fechaFacturaAfectada || '24/08/2026'}</div>
+        <div>#CONTROL/SERIAL IF:${serialFiscal}</div>
+        <div>RIF/CI:${cedulaCliente}</div>
+        <div>R.S.:${String(d.cliente?.nombre || d.nombre || 'CLIENTE').toUpperCase()}</div>
+        <div>MOTIVO: DEVOLUCION DE MERCANCIA</div>
+      </div>
+      <div class="pp9-titulo-doc text-center mt-1">NOTA DE CREDITO</div>
+      <div class="pp9-fila-item">
+        <span>NOTA DE CREDITO:</span>
+        <span class="pp9-bold">${numDocPP9}</span>
+      </div>` : `
+      <div class="pp9-cliente-bloque">
+        <div>RIF/CI:${cedulaCliente}</div>
+        <div>R.S.:${String(d.cliente?.nombre || d.nombre || 'CONSUMIDOR FINAL').toUpperCase()}</div>
+        <div>${String(d.cliente?.direccion || d.direccion || 'CARACAS').toUpperCase()}</div>
+        <div>${d.cliente?.telefono || 'N/D'}</div>
+      </div>
+      <div class="pp9-titulo-doc text-center">FACTURA</div>
+      <div class="pp9-fila-item">
+        <span>FACTURA:</span>
+        <span class="pp9-bold">${numDocPP9}</span>
+      </div>`;
+
+    ticketHtml = `
+      <div class="ticket-pp9-wrapper">
+        <div class="pp9-header text-center">
+          <div class="pp9-bold">SENIAT</div>
+          <div class="pp9-bold">J-400999553</div>
+          <div class="pp9-bold">FRIGORIFICO EL MUNDO DE LA CARNE C.A.</div>
+          <div>AV SAN MARTIN CC ATLANTICO NIVEL</div>
+          <div>PB LOCAL 1 URB ARTIGAS CARACAS</div>
+          <div>DISTRITO CAPITAL</div>
+        </div>
+
+        ${encabezadoTipoDoc}
+        <div class="pp9-fila-item">
+          <span>FECHA: ${d.fechaStr || '24-08-2026'}</span>
+        </div>
+
+        <div class="pp9-separator-dashed"></div>
+
+        <div class="pp9-cuerpo-items">
+          ${itemsHtml}
+        </div>
+
+        <div class="pp9-separator-dashed"></div>
+
+        <div class="pp9-totales-bloque">
+          <div class="pp9-fila-item">
+            <span>EFECTIVO 1</span>
+            <span>Bs ${Math.abs(d.totalBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+          <div class="pp9-fila-item pp9-bold mt-1">
+            <span>TOTAL</span>
+            <span>Bs ${Math.abs(d.totalBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+        </div>
+
+        <div class="pp9-footer d-flex justify-content-between mt-2">
+          <span>MH</span>
+          <span class="pp9-bold">${serialFiscal}</span>
+        </div>
+      </div>
+    `;
+
+  } else {
+    // REIMPRESIÓN CONTROL INTERNO NO FISCAL (INTACTO)
+    let filasProductosHtml = "";
+    let i = 1;
+
+    if (d.productosSummary) {
+      const listaProds = d.productosSummary.split(' | ');
+      listaProds.forEach(prodStr => {
+        const match = prodStr.match(/^(.*?)(?:\s*\((.*?)\))?\s*-\s*\$(.*)$/);
+        if (match) {
+          let nom = match[1].trim();
+          let cant = match[2] ? match[2].trim() : "1 uds";
+          let tot = match[3] ? match[3].trim() : "0.00";
+
+          filasProductosHtml += `
+            <tr>
+              <td style="width:6%;">${i++}</td>
+              <td style="width:42%;" class="fw-bold">${nom}</td>
+              <td style="width:18%;" class="text-center">--</td>
+              <td style="width:16%;" class="text-center">${cant}</td>
+              <td style="width:18%;" class="text-end fw-bold">$${tot}</td>
+            </tr>`;
+        } else {
+          filasProductosHtml += `
+            <tr>
+              <td style="width:6%;">${i++}</td>
+              <td colspan="3" class="fw-bold">${prodStr}</td>
+              <td style="width:18%;" class="text-end fw-bold">--</td>
+            </tr>`;
+        }
+      });
+    }
+
+    ticketHtml = `
+      <div class="ticket-container shadow-sm border">
+        <div class="ticket-header">
+          <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
+          <div class="ticket-title fs-6">COMPROBANTE NO FISCAL - NOTA DE ENTREGA</div>
+          <div>RIF: J-505072889 | TELF: 0412-1753275</div>
+          <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
+          <div>HORARIO: 7:30am - 19:00pm</div>
+        </div>
+
+        <div class="ticket-info">
+          <div><strong>FACTURA N°:</strong> <span class="fs-6 num-legible">${d.numFactura}</span> (COPIA)</div>
+          <div><strong>FECHA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
+          <div><strong>CLIENTE:</strong> ${d.cliente?.nombre || d.nombre || 'CONSUMIDOR FINAL'}</div>
+          <div><strong>CI/RIF:</strong> <span class="num-legible">${d.cliente?.cedula || d.cedula || 'N/D'}</span></div>
+          <div><strong>DIR:</strong> ${d.cliente?.direccion || d.direccion || 'N/D'}</div>
+        </div>
+
+        <table class="ticket-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>PRODUCTO</th>
+              <th class="text-center">PRECIO</th>
+              <th class="text-center">CANT/PESO</th>
+              <th class="text-end">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filasProductosHtml}
+          </tbody>
+        </table>
+
+        <div class="ticket-totals border-top pt-1">
+          <div class="d-flex justify-content-between">
+            <span>TOTAL FACTURA ($):</span>
+            <strong class="fs-6 num-legible">$${d.totalUSD.toFixed(2)}</strong>
+          </div>
+          <div class="d-flex justify-content-between text-muted">
+            <span>TOTAL FACTURA (Bs):</span>
+            <span class="num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+          <div class="ticket-divider"></div>
+          <div><strong>FORMA DE PAGO:</strong></div>
+          <div class="small">${d.formaPagoStr}</div>
+        </div>
+
+        <div class="ticket-footer">
+          <div>¡Gracias por su preferencia!</div>
+        </div>
+      </div>
+    `;
   }
-
-  const ticketHtml = `
-    <div class="ticket-container shadow-sm border">
-      <div class="ticket-header">
-        <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
-        <div>RIF: J-505072889 | TELF: 0412-1753275</div>
-        <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
-        <div>HORARIO: 7:30am - 19:00pm</div>
-      </div>
-
-      <div class="ticket-info">
-        <div><strong>FACTURA N°:</strong> <span class="fs-6 num-legible">${d.numFactura}</span> (COPIA)</div>
-        <div><strong>FECHA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
-        <div><strong>CLIENTE:</strong> ${d.cliente.nombre}</div>
-        <div><strong>CI/RIF:</strong> <span class="num-legible">${d.cliente.cedula}</span></div>
-        <div><strong>DIR:</strong> ${d.cliente.direccion || 'N/D'}</div>
-      </div>
-
-      <table class="ticket-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>PRODUCTO</th>
-            <th class="text-center">PRECIO</th>
-            <th class="text-center">CANT/PESO</th>
-            <th class="text-end">TOTAL</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filasProductosHtml}
-        </tbody>
-      </table>
-
-      <div class="ticket-totals border-top pt-1">
-        <div class="d-flex justify-content-between">
-          <span>TOTAL FACTURA ($):</span>
-          <strong class="fs-6 num-legible">$${d.totalUSD.toFixed(2)}</strong>
-        </div>
-        <div class="d-flex justify-content-between text-muted">
-          <span>TOTAL FACTURA (Bs):</span>
-          <span class="num-legible">Bs. ${d.totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="ticket-divider"></div>
-        <div><strong>FORMA DE PAGO:</strong></div>
-        <div class="small">${d.formaPagoStr}</div>
-      </div>
-
-      <div class="ticket-footer">
-        <div>¡Gracias por su preferencia!</div>
-      </div>
-    </div>
-  `;
 
   const elemImpresion = document.getElementById('contenidoTicketImprimible');
   if (elemImpresion) elemImpresion.innerHTML = ticketHtml;
@@ -6064,109 +6168,124 @@ async function procesarSiguienteCierreCaja() {
 function renderizarTicketCierreCajaHTML(d) {
   const rGen = d.resumen || {};
   const rFisc = d.resumenFiscal || {};
-  const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "THE FACTORY HKA80";
   const factorTasa = (parseFloat(d.tasaBCV) > 0) ? parseFloat(d.tasaBCV) : 1;
-
   let ticketHtml = "";
 
   if (d.modoFiscal) {
     // =========================================================================
-    // FORMATO A: REPORTE Z FISCAL OFICIAL (AISLADO AL USUARIO Y VENTAS FISCALES)
+    // MODALIDAD FISCAL: REPORTE Z EXACTO ACLAS PP9 PLUS (IDÉNTICO AL ESCANEO)
     // =========================================================================
+    const serialFiscal = window.fiscalDriver?.ultimoReporteStatus?.serial || "ZZP0005063";
+    const fechaActual = new Date();
+    const dia = String(fechaActual.getDate()).padStart(2, '0');
+    const mes = String(fechaActual.getMonth() + 1).padStart(2, '0');
+    const anio = fechaActual.getFullYear();
+    const hora = String(fechaActual.getHours()).padStart(2, '0');
+    const min = String(fechaActual.getMinutes()).padStart(2, '0');
+    const fechaPP9 = `${dia}-${mes}-${anio}`;
+    const horaPP9 = `${hora}:${min}`;
+    const numReporteZ = String(d.numeroZ || "0002").replace(/\D/g, '').padStart(4, '0');
+
+    const totalVentasBs = (rFisc.totalFiscalBS || (rGen.totalGeneralVentasBS || 0));
+    const exentoBs = 0;
+    const base16Bs = totalVentasBs > 0 ? (totalVentasBs / 1.16) : 0;
+    const iva16Bs = totalVentasBs - base16Bs;
     const cantFiscales = rFisc.cantFacturasFiscales || 0;
-    const ultFac = rFisc.facturaFinalFiscal || "00000000";
+    const ultFac = String(rFisc.facturaFinalFiscal || "00000000").replace(/\D/g, '').padStart(8, '0');
 
     ticketHtml = `
-      <div class="ticket-container shadow-sm border text-start">
-        <div class="ticket-header">
-          <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
-          <div class="small fw-bold">SENIAT</div>
-          <div class="small fw-bold">RIF J-505072889</div>
-          <div class="fw-bold fs-6">FRIGORIFICO MUNDOCARNES, C.A</div>
-          <div class="small">AV. SAN MARTIN, CARACAS, DISTRITO CAPITAL</div>
-          <div class="ticket-title mt-2 fs-6">REPORTE Z (CIERRE DIARIO)</div>
-          <div class="small text-muted">${nombreModelo.toUpperCase()}</div>
+      <div class="ticket-pp9-wrapper">
+        <div class="pp9-header text-center">
+          <div class="pp9-bold">SENIAT</div>
+          <div class="pp9-bold">J-400999553</div>
+          <div class="pp9-bold">FRIGORIFICO EL MUNDO DE LA CARNE C.A.</div>
+          <div>AV SAN MARTIN CC ATLANTICO NIVEL</div>
+          <div>PB LOCAL 1 URB ARTIGAS CARACAS</div>
+          <div>DISTRITO CAPITAL</div>
         </div>
 
-        <div class="ticket-info">
-          <div><strong>FECHA / HORA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
-          <div><strong>CAJERO(A):</strong> ${d.usuario}</div>
-          <div><strong>TASA BCV:</strong> <span class="num-legible">Bs. ${factorTasa.toFixed(2)}</span></div>
-        </div>
-
-        <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
-          1. RESUMEN DE VENTAS FISCALES
-        </div>
-        <table class="ticket-table mb-2">
-          <tbody>
-            <tr>
-              <td># FACTURAS FISCALES DEL DÍA:</td>
-              <td class="text-end fw-bold text-primary num-legible">${cantFiscales} facturas</td>
-            </tr>
-            <tr>
-              <td>ÚLTIMA FACTURA EMITIDA:</td>
-              <td class="text-end fw-bold text-danger num-legible">${ultFac}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
-          2. MEDIOS DE PAGO FISCALES
-        </div>
-        <table class="ticket-table mb-2">
-          <tbody>
-            <tr>
-              <td>PUNTO DE VENTA (DÉBITO/CRÉDITO):</td>
-              <td class="text-end fw-bold num-legible">Bs. ${(rFisc.ventasPuntoVenta || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-            </tr>
-            <tr>
-              <td>PAGO MÓVIL / OTROS MEDIOS:</td>
-              <td class="text-end fw-bold num-legible">Bs. ${(rFisc.ventasPagoMovil || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-            </tr>
-            <tr>
-              <td>EFECTIVO BOLÍVARES:</td>
-              <td class="text-end fw-bold num-legible">Bs. ${(rFisc.ventasEfectivoBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-            </tr>
-            <tr>
-              <td>EFECTIVO DIVISAS:</td>
-              <td class="text-end fw-bold num-legible">$${(rFisc.ventasEfectivoUSD || 0).toFixed(2)}</td>
-            </tr>
-            <tr>
-              <td>CASHEA:</td>
-              <td class="text-end fw-bold num-legible">$${(rFisc.ventasCashea || 0).toFixed(2)}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
-          3. TOTALES FISCALES DEL DÍA (SENIAT)
-        </div>
-        <div class="ticket-totals border-top pt-1">
-          <div class="d-flex justify-content-between">
-            <span>TOTAL INGRESOS BOLÍVARES (Bs):</span>
-            <strong class="fs-5 text-dark num-legible">Bs. ${(rFisc.totalFiscalBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+        <div class="pp9-titulo-doc text-center">REPORTE Z</div>
+        <div class="pp9-info-doc">
+          <div class="pp9-fila-item">
+            <span>REPORTE Z:</span>
+            <span class="pp9-bold">${numReporteZ}</span>
           </div>
-          <div class="d-flex justify-content-between">
-            <span>TOTAL INGRESOS DIVISAS ($):</span>
-            <strong class="fs-5 text-success num-legible">$${(rFisc.totalFiscalUSD || 0).toFixed(2)}</strong>
-          </div>
-          <div class="ticket-divider"></div>
-          <div class="d-flex justify-content-between text-success fw-bold">
-            <span>EFECTIVO TOTAL EN GAVETA ($):</span>
-            <span class="fs-6 num-legible">$${d.totalCajaUSD.toFixed(2)}</span>
-          </div>
-          <div class="d-flex justify-content-between text-primary fw-bold">
-            <span>EFECTIVO TOTAL EN GAVETA (Bs):</span>
-            <span class="fs-6 num-legible">Bs. ${d.totalCajaBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <div class="pp9-fila-item">
+            <span>FECHA: ${fechaPP9}</span>
+            <span>HORA: ${horaPP9}</span>
           </div>
         </div>
 
-        <div class="ticket-footer mt-3">
-          <div class="mt-4 pt-3 border-top border-dark text-center">
-            ____________________________________<br>
-            <strong>FIRMA Y CONFORMIDAD CAJERO(A)</strong>
+        <div class="pp9-seccion-titulo text-center">MEDIOS DE PAGO</div>
+        <div class="pp9-fila-item">
+          <span>EFECTIVO 1 (#18)</span>
+          <span>Bs ${totalVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="pp9-fila-item pp9-bold">
+          <span>TOTAL GAVETA</span>
+          <span>Bs ${totalVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+
+        <div class="pp9-seccion-titulo text-center">VENTAS</div>
+        <div class="pp9-fila-item">
+          <span>#FACT DEL DIA</span>
+          <span>${cantFiscales}</span>
+        </div>
+        <div class="pp9-fila-item">
+          <span>#FACT ANULADAS</span>
+          <span>0</span>
+        </div>
+
+        <div class="pp9-seccion-titulo text-center">DOCUMENTOS NO FISCALES</div>
+        <div class="pp9-fila-item">
+          <span>#DNF DEL DIA</span>
+          <span>0</span>
+        </div>
+
+        <div class="pp9-seccion-titulo text-center">NOTAS DE CREDITO</div>
+        <div class="pp9-fila-item">
+          <span>#NC DEL DIA</span>
+          <span>0</span>
+        </div>
+
+        <div class="pp9-seccion-titulo text-center">VENTAS</div>
+        <div class="pp9-fila-item">
+          <span>EXENTO</span>
+          <span>Bs ${exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="pp9-fila-item">
+          <span>BI G (16,00%)</span>
+          <span>Bs ${base16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="pp9-fila-item">
+          <span>IVA G (16,00%)</span>
+          <span>Bs ${iva16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="pp9-fila-item">
+          <span>SUBTTL VENTA</span>
+          <span>Bs ${totalVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="pp9-fila-item pp9-bold">
+          <span>TOTAL VENTA</span>
+          <span>Bs ${totalVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+
+        <div class="pp9-separator-dashed"></div>
+
+        <div class="pp9-info-doc">
+          <div class="pp9-fila-item">
+            <span>ULTIMA FACTURA</span>
+            <span class="pp9-bold">${ultFac}</span>
           </div>
-          <div class="small mt-2">DOCUMENTO FISCAL DE CIERRE DIARIO</div>
+          <div class="pp9-fila-item">
+            <span>FECHA: ${fechaPP9}</span>
+            <span>HORA: ${horaPP9}</span>
+          </div>
+        </div>
+
+        <div class="pp9-footer d-flex justify-content-between mt-2">
+          <span>MH</span>
+          <span class="pp9-bold">${serialFiscal}</span>
         </div>
       </div>
     `;
