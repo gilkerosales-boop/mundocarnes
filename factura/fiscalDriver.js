@@ -547,7 +547,7 @@ class FiscalDriverTFHKA {
     }
   }
 
-  // 3.1. Emitir Nota de Crédito Fiscal Oficial TFHKA
+  // 3.1. Emitir Nota de Crédito Fiscal Oficial TFHKA (Protocolo Directo de Anulación / Devolución)
   async emitirNotaCreditoFiscal(datosNC) {
     if (!this.conectado) {
       throw new Error(`No hay conexión activa con la impresora fiscal ${this.getNombreModelo()}.`);
@@ -610,7 +610,6 @@ class FiscalDriverTFHKA {
         await this.enviarComando(`iD*${fechaAfectadaFormateada}`);
         if (serialFiscal) await this.enviarComando(`iI*${serialFiscal}`);
       } catch (errInicioNC) {
-        // En caso de documento previo trabado, anular (7) y reintentar apertura
         try { await this.enviarComando("7"); } catch (e) {}
         await new Promise(r => setTimeout(r, 800));
         await this.enviarComando(`iS*${nombreCliente}`);
@@ -622,6 +621,7 @@ class FiscalDriverTFHKA {
 
       if (motivo) await this.enviarComando(`i00MOTIVO: ${this.sanitizarTexto(motivo, 30)}`);
 
+      // PASO B: Renglones de Devolución en Nota de Crédito (d0, d1, d2)
       const factorTasa = (parseFloat(tasaBCV) > 0) ? parseFloat(tasaBCV) : 1;
 
       for (let nombreProd in itemsDevueltos) {
@@ -629,14 +629,14 @@ class FiscalDriverTFHKA {
         const descProd = this.sanitizarTexto(nombreProd, 35);
         const tasaIVA = (item.tasaIVA || "E").toUpperCase();
 
-        let cmdDevolucionChar = "d0";
+        let cmdDevolucionChar = "d0"; // Exento por defecto
         let factorIVA = 1.0;
 
         if (tasaIVA === "G" || tasaIVA === "16") {
-          cmdDevolucionChar = "d1";
+          cmdDevolucionChar = "d1"; // General 16%
           factorIVA = 1.16;
         } else if (tasaIVA === "R" || tasaIVA === "8") {
-          cmdDevolucionChar = "d2";
+          cmdDevolucionChar = "d2"; // Reducido 8%
           factorIVA = 1.08;
         }
 
@@ -650,10 +650,15 @@ class FiscalDriverTFHKA {
 
         const tramaRenglonNC = `${cmdDevolucionChar}${strPrecio}${strCantidad}${descProd}`;
         await this.enviarComando(tramaRenglonNC);
+
+        // Pausa para impresión térmica del renglón
+        await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
       }
 
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 600 : 250));
+
+      // PASO C: Pago y Cierre Definitivo de Nota de Crédito
       try {
-       try {
         await this.enviarComando("101");
       } catch (eNC1) {}
 
@@ -665,7 +670,7 @@ class FiscalDriverTFHKA {
 
       await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 3500 : 1500));
 
-      // Capturar Número de Nota de Crédito Fiscal Real Impreso por la máquina
+      // PASO D: Capturar Número de Nota de Crédito Fiscal Real Impreso por la máquina
       let numNC = null;
       try {
         const statusFinal = await this.consultarEstado();
