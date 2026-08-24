@@ -163,6 +163,38 @@ body {
   color: var(--pos-red);
 }
 
+/* Submenú en cascada al pasar el cursor (Hover Flyout) */
+.dropdown-submenu-item {
+  position: relative;
+}
+
+.dropdown-submenu-item > .dropdown-item:after {
+  content: " ◀";
+  float: right;
+  font-size: 0.68rem;
+  margin-top: 2px;
+  opacity: 0.6;
+}
+
+.dropdown-submenu-item .submenu-flotante-fiscal {
+  top: 0;
+  right: 100%;
+  left: auto;
+  margin-top: -6px;
+  margin-right: 4px;
+  display: none;
+  background-color: #ffffff;
+  border: 1px solid var(--pos-card-border);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22) !important;
+  border-radius: var(--pos-radius-md) !important;
+  padding: 6px;
+  z-index: 1060;
+}
+
+.dropdown-submenu-item:hover > .submenu-flotante-fiscal {
+  display: block;
+}
+
 #badgeEstadoSync {
   font-size: 0.78rem;
   border-radius: var(--pos-radius-pill);
