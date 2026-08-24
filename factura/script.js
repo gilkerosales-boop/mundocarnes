@@ -5233,32 +5233,64 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
     });
 
     // =========================================================================
-    // SECCIÓN B: PROCESAMIENTO DE REPORTES Z (HOJA Y SECCIÓN ADICIONAL)
+    // SECCIÓN B: PROCESAMIENTO DE REPORTES Z (CONSOLIDACIÓN EXACTA 1:1 CON FACTURAS)
     // =========================================================================
     let filasSeniatZ = [];
     let totVentasBsZ = 0, totExentoBsZ = 0, totBase16BsZ = 0, totIVA16BsZ = 0;
     let totBase8BsZ = 0, totIVA8BsZ = 0, totIgtfBsZ = 0, totRetenidoBsZ = 0;
     let operacionNroZ = 1;
 
+    // Agrupar facturas fiscales emitidas por fecha para calcular los totales reales del Reporte Z
+    let mapaTotalesPorFecha = {};
+    filasSeniatFac.forEach(f => {
+      const fKey = f.fecha;
+      if (!mapaTotalesPorFecha[fKey]) {
+        mapaTotalesPorFecha[fKey] = {
+          totalVentaBs: 0,
+          exentoBs: 0,
+          base16Bs: 0,
+          iva16Bs: 0,
+          base8Bs: 0,
+          iva8Bs: 0,
+          igtfBs: 0,
+          ivaRetenidoBs: 0
+        };
+      }
+      mapaTotalesPorFecha[fKey].totalVentaBs += f.totalVentaBs;
+      mapaTotalesPorFecha[fKey].exentoBs += f.exentoBs;
+      mapaTotalesPorFecha[fKey].base16Bs += f.base16Bs;
+      mapaTotalesPorFecha[fKey].iva16Bs += f.iva16Bs;
+      mapaTotalesPorFecha[fKey].base8Bs += f.base8Bs;
+      mapaTotalesPorFecha[fKey].iva8Bs += f.iva8Bs;
+      mapaTotalesPorFecha[fKey].igtfBs += f.igtfBs;
+      mapaTotalesPorFecha[fKey].ivaRetenidoBs += f.ivaRetenidoBs;
+    });
+
     cierresPeriodo.forEach(c => {
       const fechaStr = String(c["FECHA"] || c.fechaStr || "").split(',')[0].trim();
-      const numReporteZ = String(c["NUMERO Z"] || c.numeroZ || (c.id ? `Z-${String(c.id).padStart(4, '0')}` : `Z-${String(operacionNroZ).padStart(4, '0')}`));
+      const numReporteZ = String(c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ || (c.id ? `Z-${String(c.id).padStart(4, '0')}` : `Z-${String(operacionNroZ).padStart(4, '0')}`));
       const serialMaquina = String(c["SERIAL"] || c.serial || serialFiscalPredeterminado);
       
-      // Totales del Cierre Z
-      const r = c.resumen || {};
-      let totalVentaUSD = parseFloat(c["TOTAL 1"] || c.totalVentasUSD || r.totalGeneralVentasUSD) || 0;
-      let totalVentaBs = parseFloat(c["TOTAL 2"] || c.totalVentasBS || r.totalGeneralVentasBS) || 0;
+      // Consolidar con las sumatorias exactas de las facturas de esa fecha
+      const totalesDia = mapaTotalesPorFecha[fechaStr] || {
+        totalVentaBs: parseFloat(c["TOTAL 2"] || c.totalVentasBS) || 0,
+        exentoBs: 0,
+        base16Bs: 0,
+        iva16Bs: 0,
+        base8Bs: 0,
+        iva8Bs: 0,
+        igtfBs: 0,
+        ivaRetenidoBs: 0
+      };
 
-      if (totalVentaBs === 0 && totalVentaUSD > 0) {
-        totalVentaBs = totalVentaUSD * tasaActual;
-      }
-
-      // Base Imponible estimada / IVA del cierre
-      let base16Bs = totalVentaBs > 0 ? (totalVentaBs / 1.16) : 0;
-      let iva16Bs = totalVentaBs - base16Bs;
-      let exentoBs = 0;
-      let base8Bs = 0, iva8Bs = 0, igtfBs = 0, retenidoBs = 0;
+      let totalVentaBs = totalesDia.totalVentaBs;
+      let exentoBs = totalesDia.exentoBs;
+      let base16Bs = totalesDia.base16Bs;
+      let iva16Bs = totalesDia.iva16Bs;
+      let base8Bs = totalesDia.base8Bs;
+      let iva8Bs = totalesDia.iva8Bs;
+      let igtfBs = totalesDia.igtfBs;
+      let retenidoBs = totalesDia.ivaRetenidoBs;
 
       totVentasBsZ += totalVentaBs;
       totExentoBsZ += exentoBs;
@@ -5283,10 +5315,10 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
         totalVentaBs: totalVentaBs,
         exentoBs: exentoBs,
         base16Bs: base16Bs,
-        alicuota16: base16Bs > 0 ? "16%" : "",
+        alicuota16: base16Bs !== 0 ? "16%" : "",
         iva16Bs: iva16Bs,
         base8Bs: base8Bs,
-        alicuota8: "",
+        alicuota8: base8Bs !== 0 ? "8%" : "",
         iva8Bs: iva8Bs,
         igtfBs: igtfBs,
         compRetencion: "-",
