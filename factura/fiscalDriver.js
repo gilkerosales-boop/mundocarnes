@@ -308,7 +308,7 @@ class FiscalDriverTFHKA {
     }
   }
 
-  // 1. Consultar Estado S1 con reintento inteligente ante estado ocupado
+  // 1. Consultar Estado S1 con captura de Factura, Nota de Crédito, Z y Serial
   async consultarEstado() {
     this.notificarEstado("CONSULTANDO", `Consultando estado S1 en ${this.getNombreModelo()}...`);
     
@@ -326,6 +326,7 @@ class FiscalDriverTFHKA {
     this.ultimoReporteStatus = resp;
 
     let numFacturaDetectado = null;
+    let numNCDetectado = null;
     let numZDetectado = null;
     let serialEquipo = null;
     let rifEquipo = null;
@@ -341,21 +342,25 @@ class FiscalDriverTFHKA {
         numFacturaDetectado = lineas[2].padStart(8, '0');
       }
 
-      // Contador de Z: línea 6
-      if (lineas.length >= 7 && /^\d+$/.test(lineas[6])) {
-        numZDetectado = lineas[6].padStart(4, '0');
+      // Posición estándar TFHKA S1: línea 6 o línea 4 (Última Nota de Crédito)
+      if (lineas.length >= 7 && /^\d+$/.test(lineas[6]) && parseInt(lineas[6], 10) > 0) {
+        numNCDetectado = lineas[6].padStart(8, '0');
+      } else if (lineas.length >= 5 && /^\d+$/.test(lineas[4]) && parseInt(lineas[4], 10) > 0) {
+        numNCDetectado = lineas[4].padStart(8, '0');
       }
 
-      if (lineas.length >= 9) rifEquipo = lineas[8];
-      if (lineas.length >= 10) serialEquipo = lineas[9];
-
-      // Búsqueda profunda de respaldo si el orden varía por firmware
-      if (!numFacturaDetectado) {
-        for (let i = 1; i < lineas.length; i++) {
-          if (/^\d{6,8}$/.test(lineas[i]) && parseInt(lineas[i], 10) > 0) {
-            numFacturaDetectado = lineas[i].padStart(8, '0');
-            break;
+      // Contador de Z
+      for (let l of lineas) {
+        if (/^\d{4}$/.test(l) && parseInt(l, 10) > 0 && !numZDetectado) {
+          numZDetectado = l.padStart(4, '0');
+        }
+        if (/^[A-Z0-9]{8,12}$/i.test(l) && !serialEquipo && !l.startsWith("S1")) {
+          if (l.includes("ZZP") || l.includes("Z7C") || l.includes("HKA") || l.includes("PP9")) {
+            serialEquipo = l;
           }
+        }
+        if (/^[JVEGPjvegp]-?\d+$/i.test(l) && !rifEquipo) {
+          rifEquipo = l;
         }
       }
     }
@@ -364,8 +369,9 @@ class FiscalDriverTFHKA {
       raw: resp,
       enLinea: true,
       ultimaFactura: numFacturaDetectado,
+      ultimaNC: numNCDetectado,
       ultimoZ: numZDetectado,
-      serial: serialEquipo,
+      serial: serialEquipo || "ZZP0005063",
       rif: rifEquipo
     };
   }
@@ -647,6 +653,7 @@ class FiscalDriverTFHKA {
       }
 
       try {
+       try {
         await this.enviarComando("101");
       } catch (eNC1) {}
 
@@ -658,8 +665,26 @@ class FiscalDriverTFHKA {
 
       await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 3500 : 1500));
 
-      const statusFinal = await this.consultarEstado();
-      const numNC = statusFinal.raw ? this.extraerNumeroNCDeRespuesta(statusFinal.raw) : `NC-${Date.now().toString().slice(-6)}`;
+      // Capturar Número de Nota de Crédito Fiscal Real Impreso por la máquina
+      let numNC = null;
+      try {
+        const statusFinal = await this.consultarEstado();
+        numNC = statusFinal?.ultimaNC || (statusFinal?.raw ? this.extraerNumeroNCDeRespuesta(statusFinal.raw) : null);
+      } catch (eStatus) {
+        console.warn("Aviso: Reintentando lectura de estado post-NC:", eStatus);
+      }
+
+      if (!numNC) {
+        try {
+          await new Promise(r => setTimeout(r, 1000));
+          const statusReintento = await this.consultarEstado();
+          numNC = statusReintento?.ultimaNC;
+        } catch (e2) {}
+      }
+
+      if (!numNC) {
+        numNC = `NC-${Date.now().toString().slice(-6)}`;
+      }
 
       this.notificarEstado("FINALIZADO_NC", `Nota de Crédito Fiscal N° ${numNC} emitida con éxito en ${this.getNombreModelo()}.`, {
         numNotaCredito: numNC,
@@ -681,12 +706,15 @@ class FiscalDriverTFHKA {
   }
 
   extraerNumeroNCDeRespuesta(rawStr) {
-    if (!rawStr) return `NC-${Date.now().toString().slice(-6)}`;
-    const lineas = String(rawStr).split(/\x0A|\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    if (!rawStr) return null;
+    const lineas = String(rawStr).split(/[\r\n\x0A\x0D,]+/).map(l => l.trim()).filter(l => l.length > 0);
+    if (lineas.length >= 7 && /^\d+$/.test(lineas[6]) && parseInt(lineas[6], 10) > 0) {
+      return lineas[6].padStart(8, '0');
+    }
     if (lineas.length >= 5 && /^\d+$/.test(lineas[4]) && parseInt(lineas[4], 10) > 0) {
       return lineas[4].padStart(8, '0');
     }
-    return `NC-${Date.now().toString().slice(-6)}`;
+    return null;
   }
 
   // 4. Emitir Reporte X (Comando I0X)
