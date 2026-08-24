@@ -313,13 +313,13 @@ class FiscalDriverTFHKA {
     this.notificarEstado("CONSULTANDO", `Consultando estado S1 en ${this.getNombreModelo()}...`);
     
     let resp = null;
-    for (let intento = 0; intento < 3; intento++) {
+    for (let intento = 0; intento < 4; intento++) {
       try {
         resp = await this.enviarComando("S1", true);
-        if (resp) break;
+        if (resp && resp.length > 3) break;
       } catch (errIntento) {
-        if (intento < 2) {
-          await new Promise(r => setTimeout(r, 800));
+        if (intento < 3) {
+          await new Promise(r => setTimeout(r, 1000));
         }
       }
     }
@@ -332,14 +332,16 @@ class FiscalDriverTFHKA {
 
     if (resp) {
       const lineas = String(resp)
-        .split(/\x0A|\r?\n/)
+        .split(/[\r\n\x0A\x0D,]+/)
         .map(l => l.trim())
         .filter(l => l.length > 0);
 
-      if (lineas.length >= 3 && /^\d+$/.test(lineas[2])) {
+      // Posición estándar TFHKA S1: línea 2 (Última Factura)
+      if (lineas.length >= 3 && /^\d+$/.test(lineas[2]) && parseInt(lineas[2], 10) > 0) {
         numFacturaDetectado = lineas[2].padStart(8, '0');
       }
 
+      // Contador de Z: línea 6
       if (lineas.length >= 7 && /^\d+$/.test(lineas[6])) {
         numZDetectado = lineas[6].padStart(4, '0');
       }
@@ -347,15 +349,9 @@ class FiscalDriverTFHKA {
       if (lineas.length >= 9) rifEquipo = lineas[8];
       if (lineas.length >= 10) serialEquipo = lineas[9];
 
-      if (!numFacturaDetectado && resp.includes(',')) {
-        const partes = resp.split(',');
-        if (partes.length > 2 && /^\d+$/.test(partes[2].trim())) {
-          numFacturaDetectado = partes[2].trim().padStart(8, '0');
-        }
-      }
-
+      // Búsqueda profunda de respaldo si el orden varía por firmware
       if (!numFacturaDetectado) {
-        for (let i = 2; i < lineas.length; i++) {
+        for (let i = 1; i < lineas.length; i++) {
           if (/^\d{6,8}$/.test(lineas[i]) && parseInt(lineas[i], 10) > 0) {
             numFacturaDetectado = lineas[i].padStart(8, '0');
             break;
@@ -487,17 +483,27 @@ class FiscalDriverTFHKA {
       // Enviar comando directo de totalización y cierre sin subtotal previo
       await this.enviarComando(cmdCodigoPago);
 
-      // Esperar a que el mecanismo térmico termine la impresión y el corte físico
-      const pausaCorteMs = this.modelo === "PP9" ? 2400 : 1200;
+      await this.enviarComando(cmdCodigoPago);
+
+      // Esperar a que el mecanismo térmico termine la impresión y el corte físico de papel
+      const pausaCorteMs = this.modelo === "PP9" ? 3800 : 1800;
       await new Promise(r => setTimeout(r, pausaCorteMs));
 
-      // PASO E: Capturar Número de Factura Fiscal Impreso sin interrumpir la venta
+      // PASO E: Capturar Número de Factura Fiscal Real Impreso por la máquina
       let numFacturaFiscal = null;
       try {
         const statusFinal = await this.consultarEstado();
         numFacturaFiscal = statusFinal?.ultimaFactura;
       } catch (eStatus) {
-        console.warn("Aviso: No se pudo leer S1 post-impresión:", eStatus);
+        console.warn("Aviso: Reintentando lectura de estado post-impresión:", eStatus);
+      }
+
+      if (!numFacturaFiscal) {
+        try {
+          await new Promise(r => setTimeout(r, 1200));
+          const statusReintento = await this.consultarEstado();
+          numFacturaFiscal = statusReintento?.ultimaFactura;
+        } catch (e2) {}
       }
 
       if (!numFacturaFiscal) {
