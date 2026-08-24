@@ -491,7 +491,11 @@ function actualizarBotonHardwareFiscal(estado) {
   const modeloTag = window.fiscalDriver ? window.fiscalDriver.modelo : "Fiscal";
   const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "Impresora Fiscal";
 
-  if (estado === "CONECTADO" || estado === "LISTA") {
+  // Mantener verde si la impresora está conectada o acaba de finalizar una impresión exitosa
+  const estaRealmenteConectado = (window.fiscalDriver && window.fiscalDriver.conectado) || 
+    estado === "CONECTADO" || estado === "LISTA" || String(estado).startsWith("FINALIZADO");
+
+  if (estaRealmenteConectado && estado !== "ERROR_CONEXION" && estado !== "DESCONECTADO") {
     btn.className = "btn btn-sm btn-success fw-bold btn-hardware-fiscal";
     btn.innerHTML = `🟢 ${modeloTag} Lista`;
     btn.title = `Impresora fiscal ${nombreModelo} conectada y lista para facturar.`;
