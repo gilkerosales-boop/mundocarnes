@@ -405,25 +405,25 @@ class FiscalDriverTFHKA {
       const direccionCliente = this.sanitizarTexto(cliente.direccion || "CARACAS", 38);
       const telefonoCliente = this.sanitizarTexto(cliente.telefono || "N/D", 20);
 
-      // Asegurar prefijo legal en Cédula / RIF (V-, J-, E-, G-, P-)
+      // Asegurar prefijo legal obligatorio en Cédula / RIF (V-, J-, E-, G-, P-)
       if (!/^[VJEGPvjegp]/i.test(cedulaCliente)) {
         cedulaCliente = "V-" + cedulaCliente;
       }
 
-      // PASO A: Encabezado de Cliente Universal TFHKA (i01 Nombre, i02 Cédula/RIF)
+      // PASO A: Apertura Oficial de Factura Fiscal (iS* Razón Social + iR* RIF/CI)
       try {
-        await this.enviarComando(`i01${nombreCliente}`);
-        await this.enviarComando(`i02${cedulaCliente}`);
+        await this.enviarComando(`iS*${nombreCliente}`);
+        await this.enviarComando(`iR*${cedulaCliente}`);
       } catch (errInicio) {
-        // Si había una factura previa trabada en la memoria, cancelarla (7) y reintentar
+        // Si había un documento trabado en el cabezal, anularlo (7) y abrir factura
         try { await this.enviarComando("7"); } catch (e) {}
-        await new Promise(r => setTimeout(r, 600));
-        await this.enviarComando(`i01${nombreCliente}`);
-        await this.enviarComando(`i02${cedulaCliente}`);
+        await new Promise(r => setTimeout(r, 800));
+        await this.enviarComando(`iS*${nombreCliente}`);
+        await this.enviarComando(`iR*${cedulaCliente}`);
       }
 
-      if (direccionCliente) await this.enviarComando(`i03${direccionCliente}`);
-      if (telefonoCliente) await this.enviarComando(`i04${telefonoCliente}`);
+      if (direccionCliente) await this.enviarComando(`i00${direccionCliente}`);
+      if (telefonoCliente) await this.enviarComando(`i01${telefonoCliente}`);
 
       // Transmisión de Comprobante de Retención SENIAT si aplica
       if (datosFactura.esContribuyenteEspecial && datosFactura.comprobanteRetencion) {
