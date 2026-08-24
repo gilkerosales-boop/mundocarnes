@@ -961,6 +961,106 @@ body {
 }
 
 /* ==========================================================================
+   ESTILOS DE PREVISUALIZACIÓN IDÉNTICA ACLAS PP9 PLUS (MATRIZ TÉRMICA FISCAL)
+   ========================================================================== */
+.ticket-pp9-wrapper {
+  width: 72mm;
+  max-width: 320px;
+  margin: 0 auto;
+  padding: 12px 14px;
+  background-color: #ffffff;
+  color: #000000;
+  font-family: Consolas, 'Courier New', Monaco, monospace !important;
+  font-size: 11px;
+  line-height: 1.25;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.15);
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  box-sizing: border-box;
+  text-transform: uppercase;
+}
+
+.pp9-bold {
+  font-weight: 800 !important;
+}
+
+.pp9-header {
+  font-size: 11px;
+  margin-bottom: 6px;
+  line-height: 1.2;
+}
+
+.pp9-cliente-bloque {
+  font-size: 11px;
+  margin-bottom: 6px;
+  line-height: 1.25;
+}
+
+.pp9-titulo-doc {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  margin: 6px 0 4px 0;
+}
+
+.pp9-info-doc {
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.pp9-separator-dashed {
+  border-bottom: 1px dashed #000000;
+  margin: 5px 0;
+  width: 100%;
+}
+
+.pp9-cuerpo-items {
+  font-size: 11px;
+}
+
+.pp9-linea-multiplicador {
+  font-size: 11px;
+  margin-top: 3px;
+}
+
+.pp9-fila-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  margin-bottom: 1px;
+}
+
+.pp9-item-nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 6px;
+}
+
+.pp9-item-monto {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pp9-seccion-titulo {
+  font-weight: 800;
+  text-align: center;
+  font-size: 11px;
+  margin: 8px 0 3px 0;
+}
+
+.pp9-totales-bloque {
+  font-size: 11px;
+}
+
+.pp9-footer {
+  font-size: 11px;
+  border-top: 1px dashed #000000;
+  padding-top: 4px;
+}
+
+/* ==========================================================================
    REGLAS DE IMPRESIÓN EXCLUSIVAS XP-80C
    ========================================================================== */
 @media print {
