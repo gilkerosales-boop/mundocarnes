@@ -269,6 +269,23 @@ async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
 // ==========================================================================
 // GESTIÓN DEL MODO FISCAL DUAL Y MODELOS (HKA80 / ACLAS PP9 PLUS)
 // ==========================================================================
+let timerMonitorHardwareFiscal = null;
+
+function iniciarMonitorSensoresFiscal() {
+  if (timerMonitorHardwareFiscal) clearInterval(timerMonitorHardwareFiscal);
+  
+  timerMonitorHardwareFiscal = setInterval(async () => {
+    if (modoFiscalActivo && window.fiscalDriver && window.fiscalDriver.conectado) {
+      const stHw = await window.fiscalDriver.verificarEstadoHardware();
+      if (!stHw.ok && (stHw.codigo === "TAPA_ABIERTA" || stHw.codigo === "SIN_PAPEL")) {
+        actualizarBotonHardwareFiscal(stHw.codigo, stHw.mensaje);
+      } else if (stHw.ok) {
+        actualizarBotonHardwareFiscal("LISTA");
+      }
+    }
+  }, 4000);
+}
+
 function inicializarModoFiscal() {
   const guardado = localStorage.getItem("pos_modo_fiscal");
   modoFiscalActivo = (guardado === "true");
@@ -284,16 +301,18 @@ function inicializarModoFiscal() {
     window.fiscalDriver.setModelo(modeloGuardado);
 
     window.fiscalDriver.onStatusChange(({ estado, mensaje }) => {
-      actualizarBotonHardwareFiscal(estado);
+      actualizarBotonHardwareFiscal(estado, mensaje);
       if (estado === "CONECTADO") {
         mostrarAvisoFactura(`🟢 Impresora Fiscal ${window.fiscalDriver.getNombreModelo()} Conectada.`);
-      } else if (estado === "ERROR_CONEXION" || estado === "DESCONECTADO") {
+      } else if (estado === "ERROR_CONEXION" || estado === "DESCONECTADO" || estado === "TAPA_ABIERTA" || estado === "SIN_PAPEL") {
         mostrarAvisoFactura("⚠️ " + mensaje);
       }
     });
 
     if (modoFiscalActivo) {
-      window.fiscalDriver.reconectarAutomatico();
+      window.fiscalDriver.reconectarAutomatico().then(ok => {
+        if (ok) iniciarMonitorSensoresFiscal();
+      });
     }
   }
 
@@ -310,12 +329,14 @@ function alternarModoFiscalPOS(estaActivo) {
     mostrarAvisoFactura(`🟢 Modo Fiscal ACTIVADO (${nombreModelo})`);
     if (window.fiscalDriver && !window.fiscalDriver.conectado) {
       window.fiscalDriver.reconectarAutomatico().then(conectado => {
-        if (!conectado) {
-          mostrarAvisoFactura(`ℹ️ Conecte la ${nombreModelo} haciendo clic en '🔌 Conectar Fiscal'.`);
-        }
+        if (conectado) iniciarMonitorSensoresFiscal();
+        else mostrarAvisoFactura(`ℹ️ Conecte la ${nombreModelo} haciendo clic en '🔌 Conectar Fiscal'.`);
       });
+    } else if (window.fiscalDriver?.conectado) {
+      iniciarMonitorSensoresFiscal();
     }
   } else {
+    if (timerMonitorHardwareFiscal) clearInterval(timerMonitorHardwareFiscal);
     mostrarAvisoFactura("📄 Modo Control Interno ACTIVADO (Ticketera XP-80C)");
   }
 }
@@ -328,10 +349,10 @@ async function cambiarModeloImpresoraFiscal(nuevoModelo) {
     const nombreModelo = window.fiscalDriver.getNombreModelo();
     mostrarAvisoFactura(`🖨️ Modelo fiscal configurado: ${nombreModelo}`);
 
-    // Si el modo fiscal está encendido, intentar reconexión inmediata con los parámetros del modelo seleccionado
     if (modoFiscalActivo) {
       const reconectado = await window.fiscalDriver.reconectarAutomatico();
       actualizarBotonHardwareFiscal(reconectado ? "CONECTADO" : "DESCONECTADO");
+      if (reconectado) iniciarMonitorSensoresFiscal();
     }
   }
 }
@@ -388,7 +409,6 @@ function actualizarInterfazModoFiscal() {
     }
   }
 
-  // Control de visibilidad de desglose tributario en pantalla según el modo
   const boxIVAPanel = document.getElementById('contenedorDesgloseIVA');
   const boxIVAModal = document.getElementById('contenedorDesgloseIVAModal');
   const contCheckEspecial = document.getElementById('contCheckContribuyenteEspecial');
@@ -405,7 +425,6 @@ function actualizarInterfazModoFiscal() {
     else boxIVAModal.classList.add('hidden');
   }
 
-  // Activar o neutralizar interruptores de Retención SENIAT e IGTF según el Modo Fiscal
   if (contCheckEspecial) {
     if (modoFiscalActivo) contCheckEspecial.classList.remove('hidden');
     else {
@@ -449,6 +468,7 @@ async function conectarImpresoraFiscalManual() {
     
     if (btn) { btn.disabled = false; }
     actualizarBotonHardwareFiscal("CONECTADO");
+    iniciarMonitorSensoresFiscal();
   } catch (err) {
     const btn = document.getElementById('btnConectarFiscal');
     if (btn) { btn.disabled = false; }
@@ -457,17 +477,25 @@ async function conectarImpresoraFiscalManual() {
   }
 }
 
-function actualizarBotonHardwareFiscal(estado) {
+function actualizarBotonHardwareFiscal(estado, mensaje = "") {
   const btn = document.getElementById('btnConectarFiscal');
   if (!btn) return;
 
   const modeloTag = window.fiscalDriver ? window.fiscalDriver.modelo : "Fiscal";
   const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "Impresora Fiscal";
 
-  if (estado === "CONECTADO") {
+  if (estado === "CONECTADO" || estado === "LISTA") {
     btn.className = "btn btn-sm btn-success fw-bold btn-hardware-fiscal";
     btn.innerHTML = `🟢 ${modeloTag} Lista`;
     btn.title = `Impresora fiscal ${nombreModelo} conectada y lista para facturar.`;
+  } else if (estado === "TAPA_ABIERTA") {
+    btn.className = "btn btn-sm btn-warning text-dark fw-bold btn-hardware-fiscal";
+    btn.innerHTML = `⚠️ Tapa Abierta`;
+    btn.title = `La compuerta de la ${nombreModelo} está abierta. Por favor, ciérrela bien.`;
+  } else if (estado === "SIN_PAPEL") {
+    btn.className = "btn btn-sm btn-danger text-white fw-bold btn-hardware-fiscal";
+    btn.innerHTML = `⚠️ Sin Papel`;
+    btn.title = `La ${nombreModelo} no tiene papel térmico. Inserte un rollo nuevo.`;
   } else {
     btn.className = "btn btn-sm btn-outline-info text-white fw-bold btn-hardware-fiscal";
     btn.innerHTML = `🔌 Conectar ${modeloTag}`;
