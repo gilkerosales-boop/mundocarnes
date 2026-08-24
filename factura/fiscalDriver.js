@@ -569,35 +569,52 @@ class FiscalDriverTFHKA {
 
     try {
       const nombreCliente = this.sanitizarTexto(cliente?.nombre || "CONSUMIDOR FINAL", 38);
-      const cedulaCliente = this.sanitizarTexto(cliente?.cedula || "V-00000000", 20);
+      let cedulaCliente = this.sanitizarTexto(cliente?.cedula || "V-00000000", 20);
 
-      if (this.modelo === "PP9") {
-        await this.enviarComando(`iR*${cedulaCliente}`);
-        await this.enviarComando(`iS*${nombreCliente}`);
-      } else {
-        await this.enviarComando(`i01${nombreCliente}`);
-        await this.enviarComando(`i02${cedulaCliente}`);
+      // Asegurar prefijo legal en Cédula / RIF
+      if (!/^[VJEGPvjegp]/i.test(cedulaCliente)) {
+        cedulaCliente = "V-" + cedulaCliente;
       }
 
       const numFacFormateado = String(facturaAfectada).replace(/\D/g, '').padStart(8, '0');
-      const serialFiscal = this.sanitizarTexto(serialImpresoraAfectada || this.ultimoReporteStatus?.serial || "Z7C7044438", 12);
+      const serialFiscal = this.sanitizarTexto(serialImpresoraAfectada || this.ultimoReporteStatus?.serial || "ZZP0005063", 12);
       
+      // Formato fecha oficial SENIAT: DD/MM/AAAA
       let fechaAfectadaFormateada = "";
       if (fechaFacturaAfectada) {
         const partesF = String(fechaFacturaAfectada).split(/[,\s]+/)[0].split(/[\/\-]/);
         if (partesF.length === 3) {
-          fechaAfectadaFormateada = `${String(partesF[0]).padStart(2, '0')}-${String(partesF[1]).padStart(2, '0')}-${partesF[2]}`;
+          let dia = String(partesF[0]).padStart(2, '0');
+          let mes = String(partesF[1]).padStart(2, '0');
+          let anio = partesF[2];
+          if (anio.length === 2) anio = "20" + anio;
+          fechaAfectadaFormateada = `${dia}/${mes}/${anio}`;
         }
       }
       if (!fechaAfectadaFormateada) {
         const hoy = new Date();
-        fechaAfectadaFormateada = `${String(hoy.getDate()).padStart(2, '0')}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${hoy.getFullYear()}`;
+        fechaAfectadaFormateada = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`;
       }
 
-      await this.enviarComando(`iF${numFacFormateado}`);
-      await this.enviarComando(`iD${fechaAfectadaFormateada}`);
-      if (serialFiscal) await this.enviarComando(`iS${serialFiscal}`);
-      if (motivo) await this.enviarComando(`i03MOTIVO: ${this.sanitizarTexto(motivo, 30)}`);
+      // PASO A: Apertura Oficial de Nota de Crédito con Vinculación SENIAT (iS*, iR*, iF*, iD*, iI*)
+      try {
+        await this.enviarComando(`iS*${nombreCliente}`);
+        await this.enviarComando(`iR*${cedulaCliente}`);
+        await this.enviarComando(`iF*${numFacFormateado}`);
+        await this.enviarComando(`iD*${fechaAfectadaFormateada}`);
+        if (serialFiscal) await this.enviarComando(`iI*${serialFiscal}`);
+      } catch (errInicioNC) {
+        // En caso de documento previo trabado, anular (7) y reintentar apertura
+        try { await this.enviarComando("7"); } catch (e) {}
+        await new Promise(r => setTimeout(r, 800));
+        await this.enviarComando(`iS*${nombreCliente}`);
+        await this.enviarComando(`iR*${cedulaCliente}`);
+        await this.enviarComando(`iF*${numFacFormateado}`);
+        await this.enviarComando(`iD*${fechaAfectadaFormateada}`);
+        if (serialFiscal) await this.enviarComando(`iI*${serialFiscal}`);
+      }
+
+      if (motivo) await this.enviarComando(`i00MOTIVO: ${this.sanitizarTexto(motivo, 30)}`);
 
       const factorTasa = (parseFloat(tasaBCV) > 0) ? parseFloat(tasaBCV) : 1;
 
