@@ -276,23 +276,27 @@ function iniciarMonitorSensoresFiscal() {
   if (timerMonitorHardwareFiscal) clearInterval(timerMonitorHardwareFiscal);
   
   timerMonitorHardwareFiscal = setInterval(async () => {
-    if (modoFiscalActivo && window.fiscalDriver && window.fiscalDriver.conectado) {
+    // Solo sondear si no hay una impresión en curso para no colisionar el canal
+    if (modoFiscalActivo && window.fiscalDriver && window.fiscalDriver.conectado && !window.fiscalDriver.ocupadoTransmision) {
       const stHw = await window.fiscalDriver.verificarEstadoHardware();
+      
       if (!stHw.ok && (stHw.codigo === "TAPA_ABIERTA" || stHw.codigo === "SIN_PAPEL" || stHw.codigo === "ERROR_CONEXION")) {
         actualizarBotonHardwareFiscal(stHw.codigo, stHw.mensaje);
+        // Mostrar alerta solo en el momento del cambio de estado (sin repetición)
         if (ultimoEstadoSensorFiscal !== stHw.codigo) {
           ultimoEstadoSensorFiscal = stHw.codigo;
           mostrarAvisoFactura(stHw.mensaje, true, 4000);
         }
       } else if (stHw.ok) {
+        // Si se cerró la tapa o se colocó papel, avisar una sola vez y mantener botón verde silencioso
         if (ultimoEstadoSensorFiscal !== "LISTA") {
           ultimoEstadoSensorFiscal = "LISTA";
-          mostrarAvisoFactura(`🟢 Impresora fiscal ${window.fiscalDriver.getNombreModelo()} lista.`, true, 3000);
+          mostrarAvisoFactura(`🟢 ${window.fiscalDriver.getNombreModelo()} lista.`, true, 2500);
         }
         actualizarBotonHardwareFiscal("LISTA");
       }
     }
-  }, 2500);
+  }, 3500);
 }
 
 function inicializarModoFiscal() {
