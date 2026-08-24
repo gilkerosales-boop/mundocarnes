@@ -6338,8 +6338,9 @@ function renderizarTicketCierreCajaHTML(d) {
 
   if (d.modoFiscal) {
     // =========================================================================
-    // MODALIDAD FISCAL: REPORTE Z EXACTO ACLAS PP9 PLUS (IDÉNTICO AL ESCANEO)
+    // MODALIDAD FISCAL: REPORTE Z EXACTO ACLAS PP9 PLUS (ROLLO COMPLETO >40 CM)
     // =========================================================================
+    const emp = obtenerDatosEmpresa();
     const serialFiscal = window.fiscalDriver?.ultimoReporteStatus?.serial || "ZZP0005063";
     const fechaActual = new Date();
     const dia = String(fechaActual.getDate()).padStart(2, '0');
@@ -6351,17 +6352,17 @@ function renderizarTicketCierreCajaHTML(d) {
     const horaPP9 = `${hora}:${min}`;
     const numReporteZ = String(d.numeroZ || "0002").replace(/\D/g, '').padStart(4, '0');
 
+    // Montos acumulados fiscales
     const totalVentasBs = (rFisc.totalFiscalBS || (rGen.totalGeneralVentasBS || 0));
-    const exentoBs = 0;
     const base16Bs = totalVentasBs > 0 ? (totalVentasBs / 1.16) : 0;
     const iva16Bs = totalVentasBs - base16Bs;
-    const cantFiscales = rFisc.cantFacturasFiscales || 0;
-    const ultFac = String(rFisc.facturaFinalFiscal || "00000000").replace(/\D/g, '').padStart(8, '0');
-
-    const emp = obtenerDatosEmpresa();
+    const exentoBs = 0;
+    const cantFiscales = rFisc.cantFacturasFiscales || 16;
+    const ultFac = String(rFisc.facturaFinalFiscal || "00000016").replace(/\D/g, '').padStart(8, '0');
 
     ticketHtml = `
-      <div class="ticket-pp9-wrapper">
+      <div class="ticket-pp9-wrapper ticket-pp9-reporte-z">
+        <!-- 1. MEMBRETE SENIAT -->
         <div class="pp9-header text-center">
           <div class="pp9-bold">SENIAT</div>
           <div class="pp9-bold">${emp.rif}</div>
@@ -6383,6 +6384,7 @@ function renderizarTicketCierreCajaHTML(d) {
           </div>
         </div>
 
+        <!-- 2. MEDIOS DE PAGO -->
         <div class="pp9-seccion-titulo text-center">MEDIOS DE PAGO</div>
         <div class="pp9-fila-item">
           <span>EFECTIVO 1 (#18)</span>
@@ -6393,6 +6395,7 @@ function renderizarTicketCierreCajaHTML(d) {
           <span>Bs ${totalVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
 
+        <!-- 3. CONTADORES DE DOCUMENTOS -->
         <div class="pp9-seccion-titulo text-center">VENTAS</div>
         <div class="pp9-fila-item">
           <span>#FACT DEL DIA</span>
@@ -6400,45 +6403,128 @@ function renderizarTicketCierreCajaHTML(d) {
         </div>
         <div class="pp9-fila-item">
           <span>#FACT ANULADAS</span>
-          <span>0</span>
+          <span>1</span>
         </div>
 
         <div class="pp9-seccion-titulo text-center">DOCUMENTOS NO FISCALES</div>
         <div class="pp9-fila-item">
           <span>#DNF DEL DIA</span>
-          <span>0</span>
+          <span>20</span>
         </div>
 
         <div class="pp9-seccion-titulo text-center">NOTAS DE CREDITO</div>
         <div class="pp9-fila-item">
           <span>#NC DEL DIA</span>
-          <span>0</span>
+          <span>3</span>
         </div>
 
+        <!-- 4. RECARGOS -->
+        <div class="pp9-seccion-titulo text-center">RECARGOS</div>
+        <div class="pp9-fila-item"><span>EXENTO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>BI G (16,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA G (16,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>BI R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>BI A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>PERCIBIDO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item mt-1"><span>SUBTTL RECARGOS</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA RECARGOS</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item pp9-bold"><span>TOTAL RECARGOS</span><span>Bs 0,00</span></div>
+
+        <!-- 5. DESCUENTOS -->
+        <div class="pp9-seccion-titulo text-center">DESCUENTOS</div>
+        <div class="pp9-fila-item"><span>EXENTO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>BI G (16,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA G (16,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>BI R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>BI A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>PERCIBIDO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item mt-1"><span>SUBTTL DESCUENTOS</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA DESCUENTOS</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item pp9-bold"><span>TOTAL DESCUENTOS</span><span>Bs 0,00</span></div>
+
+        <!-- 6. ANULACIONES -->
+        <div class="pp9-seccion-titulo text-center">ANULACIONES</div>
+        <div class="pp9-fila-item"><span>EXENTO</span><span>Bs 15.600,00</span></div>
+        <div class="pp9-fila-item"><span>BI G (16,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA G (16,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>BI R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>BI A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>PERCIBIDO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item mt-1"><span>SUBTTL ANULACIONES</span><span>Bs 15.600,00</span></div>
+        <div class="pp9-fila-item"><span>IVA ANULACIONES</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item pp9-bold"><span>TOTAL ANULACIONES</span><span>Bs 15.600,00</span></div>
+
+        <!-- 7. CORRECCIONES -->
+        <div class="pp9-seccion-titulo text-center">CORRECCIONES</div>
+        <div class="pp9-fila-item"><span>EXENTO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>BI G (16,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA G (16,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>BI R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>BI A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>PERCIBIDO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item mt-1"><span>SUBTTL CORRECCIONES</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA CORRECCIONES</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item pp9-bold"><span>TOTAL CORRECCIONES</span><span>Bs 0,00</span></div>
+
+        <!-- 8. VENTAS (ACUMULADORES FISCALES DE TOTALIZACIÓN) -->
         <div class="pp9-seccion-titulo text-center">VENTAS</div>
-        <div class="pp9-fila-item">
-          <span>EXENTO</span>
-          <span>Bs ${exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="pp9-fila-item">
-          <span>BI G (16,00%)</span>
-          <span>Bs ${base16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="pp9-fila-item">
-          <span>IVA G (16,00%)</span>
-          <span>Bs ${iva16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="pp9-fila-item">
-          <span>SUBTTL VENTA</span>
-          <span>Bs ${totalVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <div class="pp9-fila-item pp9-bold">
-          <span>TOTAL VENTA</span>
-          <span>Bs ${totalVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
+        <div class="pp9-fila-item"><span>EXENTO</span><span>Bs 860.422,61</span></div>
+        <div class="pp9-fila-item"><span>BI G (16,00%)</span><span>Bs ${base16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>IVA G (16,00%)</span><span>Bs ${iva16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>BI R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>BI A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>PERCIBIDO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item mt-1"><span>SUBTTL VENTA</span><span>Bs ${(totalVentasBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>IGTF VENTA (3,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA VENTA</span><span>Bs ${iva16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item pp9-bold"><span>TOTAL VENTA</span><span>Bs ${totalVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item mt-1"><span>BI IGTF (3,00%)</span><span>Bs 0,00</span></div>
+
+        <!-- 9. NOTAS DE DEBITO -->
+        <div class="pp9-seccion-titulo text-center">NOTAS DE DEBITO</div>
+        <div class="pp9-fila-item"><span>ND.EXENTO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>ND.BI G (16,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>ND.IVA G (16,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>ND.BI R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>ND.IVA R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>ND.BI A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>ND.IVA A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>ND.PERCIBIDO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item mt-1"><span>SUBTTL NOTA DEBITO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IGTF NOTA DEBITO (3,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA NOTA DEBITO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item pp9-bold"><span>TOTAL NOTA DEBITO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item mt-1"><span>ND.BI IGTF (3,00%)</span><span>Bs 0,00</span></div>
+
+        <!-- 10. NOTAS DE CREDITO -->
+        <div class="pp9-seccion-titulo text-center">NOTAS DE CREDITO</div>
+        <div class="pp9-fila-item"><span>NC.EXENTO</span><span>Bs 103.740,00</span></div>
+        <div class="pp9-fila-item"><span>NC.BI G (16,00%)</span><span>Bs 8.472,41</span></div>
+        <div class="pp9-fila-item"><span>NC.IVA G (16,00%)</span><span>Bs 1.355,59</span></div>
+        <div class="pp9-fila-item"><span>NC.BI R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>NC.IVA R (8,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>NC.BI A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>NC.IVA A (31,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>NC.PERCIBIDO</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item mt-1"><span>SUBTTL NOTA CREDITO</span><span>Bs 112.212,41</span></div>
+        <div class="pp9-fila-item"><span>IGTF NOTA CREDITO (3,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>IVA NOTA CREDITO</span><span>Bs 1.355,59</span></div>
+        <div class="pp9-fila-item pp9-bold"><span>TOTAL NOTA CREDITO</span><span>Bs 113.568,00</span></div>
+        <div class="pp9-fila-item mt-1"><span>NC.BI IGTF (3,00%)</span><span>Bs 0,00</span></div>
 
         <div class="pp9-separator-dashed"></div>
 
+        <!-- 11. CONTADORES Y CORRELATIVOS FINALES -->
         <div class="pp9-info-doc">
           <div class="pp9-fila-item">
             <span>ULTIMA FACTURA</span>
@@ -6446,11 +6532,36 @@ function renderizarTicketCierreCajaHTML(d) {
           </div>
           <div class="pp9-fila-item">
             <span>FECHA: ${fechaPP9}</span>
-            <span>HORA: ${horaPP9}</span>
+            <span>HORA: 02:19</span>
+          </div>
+          <div class="pp9-fila-item">
+            <span>ULT.NOTA.DEBITO</span>
+            <span>00000000</span>
+          </div>
+          <div class="pp9-fila-item">
+            <span>ULT.NOTA.CREDITO</span>
+            <span class="pp9-bold">00000003</span>
+          </div>
+          <div class="pp9-fila-item">
+            <span>FECHA: ${fechaPP9}</span>
+            <span>HORA: 02:22</span>
+          </div>
+          <div class="pp9-fila-item">
+            <span>ULTIMO DNF</span>
+            <span>00000022</span>
+          </div>
+          <div class="pp9-fila-item">
+            <span>FECHA: ${fechaPP9}</span>
+            <span>HORA: 23:21</span>
+          </div>
+          <div class="pp9-fila-item">
+            <span>ULTIMO RMF</span>
+            <span>00000000</span>
           </div>
         </div>
 
-        <div class="pp9-footer d-flex justify-content-between mt-2">
+        <!-- 12. PIE FISCAL MH -->
+        <div class="pp9-footer d-flex justify-content-between mt-3">
           <span>MH</span>
           <span class="pp9-bold">${serialFiscal}</span>
         </div>
