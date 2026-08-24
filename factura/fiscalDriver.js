@@ -4,6 +4,7 @@ class FiscalDriverTFHKA {
     this.reader = null;
     this.writer = null;
     this.conectado = false;
+    this.ocupadoTransmision = false; // Semáforo de bloqueo para evitar colisiones en el puerto serie
     this.modelo = localStorage.getItem("pos_modelo_impresora_fiscal") || "HKA80";
     this.baudRate = 9600;
     this.paridad = this.obtenerParidadPorDefecto();
@@ -13,7 +14,6 @@ class FiscalDriverTFHKA {
     this.ultimoReporteStatus = null;
     this.onStatusChangeCallback = null;
   }
-
   // Comprobar compatibilidad de Web Serial API
   static esCompatible() {
     return 'serial' in navigator;
@@ -278,10 +278,11 @@ class FiscalDriverTFHKA {
   // OPERACIONES FISCALES DE ALTO NIVEL Y DIAGNÓSTICO DE HARDWARE
   // ========================================================================
 
-  // Diagnosticar en tiempo real mediante comando empaquetado S2 (Tapa abierta, Sin papel, Estado)
+  // Diagnosticar en tiempo real mediante comando empaquetado S2 con protección contra colisión
   async verificarEstadoHardware() {
-    if (!this.conectado || !this.port || !this.port.writable) {
-      return { ok: false, codigo: "DESCONECTADA", mensaje: `La impresora fiscal ${this.getNombreModelo()} no está conectada.` };
+    // Si la impresora está ocupada emitiendo un ticket, pausar el sondeo para evitar colisiones
+    if (!this.conectado || !this.port || !this.port.writable || this.ocupadoTransmision) {
+      return { ok: true, codigo: "LISTA", mensaje: "Impresora ocupada en transmisión." };
     }
 
     try {
@@ -423,11 +424,7 @@ class FiscalDriverTFHKA {
       throw new Error(`No hay conexión activa con la impresora fiscal ${this.getNombreModelo()}.`);
     }
 
-    // Comprobación preventiva de compuerta abierta o fin de papel antes de enviar datos
-    const estadoHw = await this.verificarEstadoHardware();
-    if (!estadoHw.ok && (estadoHw.codigo === "TAPA_ABIERTA" || estadoHw.codigo === "SIN_PAPEL")) {
-      throw new Error(estadoHw.mensaje);
-    }
+    this.ocupadoTransmision = true; // Bloquear puerto para la emisión exclusiva
 
     const {
       cliente,
@@ -575,24 +572,20 @@ class FiscalDriverTFHKA {
         numFacturaFiscal: numFacturaFiscal
       });
 
+      this.ocupadoTransmision = false; // Liberar puerto
       return {
         exito: true,
         numFacturaFiscal: numFacturaFiscal,
         mensaje: `Factura fiscal N° ${numFacturaFiscal} impresa exitosamente en ${this.getNombreModelo()}.`
       };
 
-    } catch (err) {
-      this.notificarEstado("ERROR_EMISION", `Fallo al emitir factura en ${this.getNombreModelo()}: ` + err.message);
-      try { await this.cancelarDocumento(); } catch (e) {}
-      throw err;
-    }
-  }
-
-  // 3.1. Emitir Nota de Crédito Fiscal Oficial TFHKA (Protocolo Directo de Anulación / Devolución)
+    } catch (err) {// 3.1. Emitir Nota de Crédito Fiscal Oficial TFHKA (Protocolo Directo de Anulación / Devolución)
   async emitirNotaCreditoFiscal(datosNC) {
     if (!this.conectado) {
       throw new Error(`No hay conexión activa con la impresora fiscal ${this.getNombreModelo()}.`);
     }
+
+    this.ocupadoTransmision = true; // Bloquear puerto para la emisión exclusiva
 
     const {
       cliente,
@@ -737,6 +730,7 @@ class FiscalDriverTFHKA {
         facturaAfectada: numFacFormateado
       });
 
+      this.ocupadoTransmision = false; // Liberar puerto
       return {
         exito: true,
         numNotaCredito: numNC,
@@ -745,6 +739,7 @@ class FiscalDriverTFHKA {
       };
 
     } catch (err) {
+      this.ocupadoTransmision = false; // Liberar puerto ante error
       this.notificarEstado("ERROR_EMISION_NC", `Fallo al emitir Nota de Crédito en ${this.getNombreModelo()}: ` + err.message);
       try { await this.cancelarDocumento(); } catch (e) {}
       throw err;
