@@ -2386,13 +2386,26 @@ function recalcularTotalesRetencionEIGTF() {
 }
 window.recalcularTotalesRetencionEIGTF = recalcularTotalesRetencionEIGTF;
 
-// SELECCIÓN DE FORMA DE PAGO
+// SELECCIÓN DE FORMA DE PAGO CON AUTO-DETECCIÓN DE IGTF 3% EN DIVISAS
 function seleccionarMetodoPagoBoton(metodo, btnElem) {
   document.querySelectorAll('.btn-metodo-pago').forEach(b => b.classList.remove('active'));
   if (btnElem) btnElem.classList.add('active');
 
   document.getElementById('facFormaPagoSelect').value = metodo;
+
+  // Auto-activar o auto-desactivar el interruptor de IGTF (3% Divisas) en Modo Fiscal
+  const chkIGTF = document.getElementById('chkPercibirIGTF3');
+  if (chkIGTF && modoFiscalActivo) {
+    const metodosDivisasIGTF = ["Efectivo Divisas", "Zelle", "PayPal"];
+    if (metodosDivisasIGTF.includes(metodo)) {
+      chkIGTF.checked = true;
+    } else if (metodo !== "Pago Mixto" && metodo !== "Cashea") {
+      chkIGTF.checked = false;
+    }
+  }
+
   evaluarFormaPagoFactura(metodo);
+  recalcularTotalesRetencionEIGTF();
 }
 
 function evaluarFormaPagoFactura(valor) {
