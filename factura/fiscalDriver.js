@@ -484,6 +484,20 @@ class FiscalDriverTFHKA {
         const tramaRenglon = `${cmdTasaChar}${strPrecio}${strCantidad}${descProd}`;
         await this.enviarComando(tramaRenglon);
 
+        // Pausa para que el cabezal imprima el renglón
+        await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
+      }
+
+      // Si aplica percepción IGTF (3% en Divisas), enviar comando de recargo fiscal para sumarlo al total físico
+      if (datosFactura.montoIGTF_BS > 0) {
+        const strMontoIGTF = this.formatearPrecioFiscal(datosFactura.montoIGTF_BS);
+        const tramaIGTF = `P+${strMontoIGTF}IGTF 3% DIVISAS`;
+        try {
+          await this.enviarComando(tramaIGTF);
+        } catch (eIGTF) {
+          // Si el firmware de prueba requiere recargo porcentual
+          try { await this.enviarComando("p+0300"); } catch (eIGTF2) {}
+        }
         await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
       }
 
