@@ -94,7 +94,7 @@ function obtenerDatosEmpresa() {
 }
 window.obtenerDatosEmpresa = obtenerDatosEmpresa;
 
-// Obtener con prioridad absoluta el número de registro / serial configurado para el modelo activo
+// Obtener el número de registro / serial fiscal privado configurado o detectado por hardware
 function obtenerSerialFiscalActivo() {
   const modelo = (window.fiscalDriver ? window.fiscalDriver.modelo : localStorage.getItem("pos_modelo_impresora_fiscal")) || "HKA80";
   const serialPorModelo = localStorage.getItem(`pos_serial_fiscal_${modelo}`);
@@ -105,7 +105,7 @@ function obtenerSerialFiscalActivo() {
   if (serialActivo && serialActivo.trim()) {
     return serialActivo.trim().toUpperCase();
   }
-  return (modelo === "PP9") ? "ZZP0005063" : "Z7C7044438";
+  return ""; // Sin seriales fijos quemados en código fuente
 }
 window.obtenerSerialFiscalActivo = obtenerSerialFiscalActivo;
 
@@ -3416,12 +3416,12 @@ function confirmarAgregarCodigosAFactura() {
 // MÓDULO DE CONFIGURACIÓN DE DATOS DE LA EMPRESA Y LOGOS
 // ==========================================================================
 
-// Abrir cuadro para ingresar el número de registro fiscal según la impresora elegida
+// Abrir cuadro para ingresar el número de registro fiscal privado según la impresora elegida
 function solicitarConfiguracionDispositivoFiscal(codigoModelo, nombreModelo) {
   document.getElementById('regFiscalModeloCode').value = codigoModelo;
   document.getElementById('regFiscalModeloNombre').textContent = nombreModelo;
   
-  const serialActual = localStorage.getItem(`pos_serial_fiscal_${codigoModelo}`) || (codigoModelo === 'PP9' ? 'ZZP0005063' : 'Z7C7044438');
+  const serialActual = localStorage.getItem(`pos_serial_fiscal_${codigoModelo}`) || "";
   document.getElementById('regFiscalSerialInput').value = serialActual;
   document.getElementById('errorModalRegFiscal').classList.add('hidden');
 
