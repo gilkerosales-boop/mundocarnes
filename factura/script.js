@@ -4195,7 +4195,7 @@ async function buscarFacturasHistorial(modo) {
 
   let mapFacturas = {};
 
-  try {
+ try {
     let ventasLocales = await dbGetAll("ventas");
     if (Array.isArray(ventasLocales)) {
       ventasLocales.forEach(f => {
@@ -4212,7 +4212,14 @@ async function buscarFacturasHistorial(modo) {
               formaPagoStr: f.formaPagoStr || "EFECTIVO",
               montoTotalUSD: parseFloat(f.montoTotalUSD) || 0,
               usuario: f.usuario || usuarioActivo,
-              esFiscal: Boolean(f.esFiscal || String(f.formaPagoStr || "").includes("FISCAL"))
+              esFiscal: Boolean(f.esFiscal || String(f.formaPagoStr || "").includes("FISCAL")),
+              montoIGTF_BS: parseFloat(f.montoIGTF_BS || f.MONTO_IGTF_BS) || 0,
+              montoIGTF_USD: parseFloat(f.montoIGTF_USD || f.MONTO_IGTF_USD) || 0,
+              totalNetoCobradoBS: parseFloat(f.totalNetoCobradoBS || f.TOTAL_NETO_COBRADO_BS) || 0,
+              totalNetoCobradoUSD: parseFloat(f.totalNetoCobradoUSD || f.TOTAL_NETO_COBRADO_USD) || 0,
+              comprobanteRetencion: f.comprobanteRetencion || f.COMPROBANTE_RETENCION || null,
+              montoRetencionBS: parseFloat(f.montoRetencionBS || f.MONTO_RETENCION_BS) || 0,
+              montoRetencionUSD: parseFloat(f.montoRetencionUSD || f.MONTO_RETENCION_USD) || 0
             };
           }
         }
@@ -4239,7 +4246,14 @@ async function buscarFacturasHistorial(modo) {
               formaPagoStr: v["FORMA DE PAGO"] || v.formaPagoStr || "",
               montoTotalUSD: parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0,
               usuario: usuarioActivo,
-              esFiscal: Boolean(String(v["FORMA DE PAGO"] || "").includes("FISCAL") || v.esFiscal)
+              esFiscal: Boolean(String(v["FORMA DE PAGO"] || "").includes("FISCAL") || v.esFiscal),
+              montoIGTF_BS: parseFloat(v["MONTO_IGTF_BS"] || v.montoIGTF_BS || v["IGTF"]) || 0,
+              montoIGTF_USD: parseFloat(v["MONTO_IGTF_USD"] || v.montoIGTF_USD) || 0,
+              totalNetoCobradoBS: parseFloat(v["TOTAL_NETO_COBRADO_BS"] || v.totalNetoCobradoBS) || 0,
+              totalNetoCobradoUSD: parseFloat(v["TOTAL_NETO_COBRADO_USD"] || v.totalNetoCobradoUSD) || 0,
+              comprobanteRetencion: v["COMPROBANTE_RETENCION"] || v.comprobanteRetencion || null,
+              montoRetencionBS: parseFloat(v["MONTO_RETENCION_BS"] || v.montoRetencionBS) || 0,
+              montoRetencionUSD: parseFloat(v["MONTO_RETENCION_USD"] || v.montoRetencionUSD) || 0
             };
           }
         });
@@ -4900,11 +4914,21 @@ function abrirModalNotaCreditoFiscal(numFactura) {
   const tasa = obtenerTasaBCV();
   const factorTasa = tasa > 0 ? tasa : 1;
 
-  // Cargar IGTF y Total Neto real de la factura original
-  const montoIGTF_BS = parseFloat(fac.montoIGTF_BS || fac["MONTO_IGTF_BS"] || fac.igtfBs) || 0;
-  const montoIGTF_USD = parseFloat(fac.montoIGTF_USD || fac["MONTO_IGTF_USD"] || fac.igtfUSD) || 0;
+  // Detección inteligente de IGTF y Total Neto real de la factura original
   const montoTotalBaseUSD = parseFloat(fac.montoTotalUSD) || 0;
-  const totalNetoOriginalUSD = parseFloat(fac.totalNetoCobradoUSD || fac["TOTAL_NETO_COBRADO_USD"] || (montoTotalBaseUSD + montoIGTF_USD)) || montoTotalBaseUSD;
+  const formaUpper = String(fac.formaPagoStr || "").toUpperCase();
+  const esPagoDivisas = formaUpper.includes("DIVISAS") || formaUpper.includes("ZELLE") || formaUpper.includes("PAYPAL") || formaUpper.includes("EFECTIVO DIVISAS");
+
+  let montoIGTF_USD = parseFloat(fac.montoIGTF_USD || fac["MONTO_IGTF_USD"]) || 0;
+  let montoIGTF_BS = parseFloat(fac.montoIGTF_BS || fac["MONTO_IGTF_BS"]) || 0;
+
+  // Si no estaba en el registro pero fue pagada en divisas con IGTF, calcular el 3%
+  if (montoIGTF_USD === 0 && esPagoDivisas && montoTotalBaseUSD > 0) {
+    montoIGTF_USD = parseFloat((montoTotalBaseUSD * 0.03).toFixed(2));
+    montoIGTF_BS = parseFloat((montoIGTF_USD * factorTasa).toFixed(2));
+  }
+
+  const totalNetoOriginalUSD = parseFloat(fac.totalNetoCobradoUSD || fac["TOTAL_NETO_COBRADO_USD"] || (montoTotalBaseUSD + montoIGTF_USD)) || (montoTotalBaseUSD + montoIGTF_USD);
 
   datosNCPendiente = {
     facturaAfectada: fac.numFactura,
@@ -4914,6 +4938,7 @@ function abrirModalNotaCreditoFiscal(numFactura) {
       nombre: fac.nombre || "CONSUMIDOR FINAL"
     },
     totalOriginalUSD: totalNetoOriginalUSD,
+    montoTotalBaseUSD: montoTotalBaseUSD,
     montoIGTF_BS: montoIGTF_BS,
     montoIGTF_USD: montoIGTF_USD,
     tasaBCV: factorTasa,
@@ -5073,24 +5098,23 @@ function recalcularTotalesNC() {
     }
   }
 
-  // Calcular IGTF a reversar proporcional si la factura original percibió IGTF (3%)
+  // Calcular IGTF a reversar si la factura original devengó IGTF (3%)
   let igtfReversarUSD = 0;
   let igtfReversarBS = 0;
 
-  if (datosNCPendiente && datosNCPendiente.montoIGTF_BS > 0) {
+  if (datosNCPendiente && (datosNCPendiente.montoIGTF_USD > 0 || datosNCPendiente.montoIGTF_BS > 0)) {
     igtfReversarUSD = parseFloat((totalUSD * 0.03).toFixed(2));
     igtfReversarBS = parseFloat((igtfReversarUSD * tasa).toFixed(2));
   }
 
-  const totalConIGTF_USD = totalUSD + igtfReversarUSD;
-  const totalConIGTF_BS = (totalUSD * tasa) + igtfReversarBS;
+  const totalConIGTF_USD = parseFloat((totalUSD + igtfReversarUSD).toFixed(2));
+  const totalConIGTF_BS = parseFloat(((totalUSD * tasa) + igtfReversarBS).toFixed(2));
   const exentoBS = exentoUSD * tasa;
   const base16BS = base16USD * tasa;
   const iva16BS = iva16USD * tasa;
 
   document.getElementById('ncMontoTotalUSD').textContent = `-$${totalConIGTF_USD.toFixed(2)}`;
-  document.getElementById('ncMontoTotalBS').textContent = `-Bs. ${totalConIGTF_BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  document.getElementById('ncExentoBS').textContent = `Bs. ${exentoBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  document.getElementById('ncMontoTotalBS').textContent = `-Bs. ${totalConIGTF_BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;  document.getElementById('ncExentoBS').textContent = `Bs. ${exentoBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   document.getElementById('ncBase16BS').textContent = `Bs. ${base16BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   document.getElementById('ncIVA16BS').textContent = `Bs. ${iva16BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
