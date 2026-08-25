@@ -354,21 +354,28 @@ class FiscalDriverTFHKA {
         numNCDetectado = lineas[4].padStart(8, '0');
       }
 
-      // Contador de Z y Serial
+      // Detección automática del serial físico grabado en la memoria de la máquina
       for (let l of lineas) {
         if (/^\d{4}$/.test(l) && parseInt(l, 10) > 0 && !numZDetectado) {
           numZDetectado = l.padStart(4, '0');
         }
-        if (/^[A-Z0-9]{8,12}$/i.test(l) && !serialEquipo && !l.startsWith("S1")) {
-          if (l.includes("ZZP") || l.includes("Z7C") || l.includes("HKA") || l.includes("PP9")) {
-            serialEquipo = l;
-          }
+        // Detección genérica de serial alfanumérico fiscal sin quemar marcas
+        if (/^[A-Z0-9]{8,14}$/i.test(l) && !serialEquipo && !l.startsWith("S1") && !/^\d+$/.test(l)) {
+          serialEquipo = l.toUpperCase();
         }
         if (/^[JVEGPjvegp]-?\d+$/i.test(l) && !rifEquipo) {
-          rifEquipo = l;
+          rifEquipo = l.toUpperCase();
         }
       }
     }
+
+    // Si se detectó el serial físico en la placa, registrarlo automáticamente en la configuración privada local
+    if (serialEquipo) {
+      localStorage.setItem(`pos_serial_fiscal_${this.modelo}`, serialEquipo);
+      localStorage.setItem("pos_serial_fiscal_activo", serialEquipo);
+    }
+
+    const serialPrivado = localStorage.getItem(`pos_serial_fiscal_${this.modelo}`) || localStorage.getItem("pos_serial_fiscal_activo") || "";
 
     return {
       raw: resp,
@@ -376,10 +383,9 @@ class FiscalDriverTFHKA {
       ultimaFactura: numFacturaDetectado,
       ultimaNC: numNCDetectado,
       ultimoZ: numZDetectado,
-      serial: serialEquipo || "ZZP0005063",
+      serial: serialEquipo || serialPrivado,
       rif: rifEquipo
     };
-  }
 
   // 2. Anular / Cancelar Documento en Curso (Comando 7)
   async cancelarDocumento() {
@@ -583,7 +589,8 @@ class FiscalDriverTFHKA {
       }
 
       const numFacFormateado = String(facturaAfectada).replace(/\D/g, '').padStart(8, '0');
-      const serialFiscal = this.sanitizarTexto(serialImpresoraAfectada || this.ultimoReporteStatus?.serial || "ZZP0005063", 12);
+      const serialPrivadoGuardado = localStorage.getItem(`pos_serial_fiscal_${this.modelo}`) || localStorage.getItem("pos_serial_fiscal_activo") || "";
+      const serialFiscal = this.sanitizarTexto(serialImpresoraAfectada || this.ultimoReporteStatus?.serial || serialPrivadoGuardado, 14);
       
       // Formato fecha oficial SENIAT: DD/MM/AAAA
       let fechaAfectadaFormateada = "";
