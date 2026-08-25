@@ -4900,6 +4900,12 @@ function abrirModalNotaCreditoFiscal(numFactura) {
   const tasa = obtenerTasaBCV();
   const factorTasa = tasa > 0 ? tasa : 1;
 
+  // Cargar IGTF y Total Neto real de la factura original
+  const montoIGTF_BS = parseFloat(fac.montoIGTF_BS || fac["MONTO_IGTF_BS"] || fac.igtfBs) || 0;
+  const montoIGTF_USD = parseFloat(fac.montoIGTF_USD || fac["MONTO_IGTF_USD"] || fac.igtfUSD) || 0;
+  const montoTotalBaseUSD = parseFloat(fac.montoTotalUSD) || 0;
+  const totalNetoOriginalUSD = parseFloat(fac.totalNetoCobradoUSD || fac["TOTAL_NETO_COBRADO_USD"] || (montoTotalBaseUSD + montoIGTF_USD)) || montoTotalBaseUSD;
+
   datosNCPendiente = {
     facturaAfectada: fac.numFactura,
     fechaFacturaAfectada: fac.fechaStr,
@@ -4907,9 +4913,11 @@ function abrirModalNotaCreditoFiscal(numFactura) {
       cedula: fac.cedula || "V-00000000",
       nombre: fac.nombre || "CONSUMIDOR FINAL"
     },
-    totalOriginalUSD: parseFloat(fac.montoTotalUSD) || 0,
+    totalOriginalUSD: totalNetoOriginalUSD,
+    montoIGTF_BS: montoIGTF_BS,
+    montoIGTF_USD: montoIGTF_USD,
     tasaBCV: factorTasa,
-    serialImpresora: window.fiscalDriver?.ultimoReporteStatus?.serial || "Z7C7044438",
+    serialImpresora: window.fiscalDriver?.ultimoReporteStatus?.serial || obtenerSerialFiscalActivo(),
     itemsOriginales: {}
   };
 
@@ -4926,7 +4934,7 @@ function abrirModalNotaCreditoFiscal(numFactura) {
   if (elemFecAf) elemFecAf.value = fac.fechaStr;
   if (elemCed) elemCed.value = fac.cedula;
   if (elemNom) elemNom.value = fac.nombre;
-  if (elemTot) elemTot.value = `$${datosNCPendiente.totalOriginalUSD.toFixed(2)}`;
+  if (elemTot) elemTot.value = `$${totalNetoOriginalUSD.toFixed(2)}`;
   if (elemTipo) elemTipo.value = "TOTAL";
   if (elemMot) elemMot.value = "DEVOLUCION DE MERCANCIA";
   if (errDiv) errDiv.classList.add('hidden');
@@ -4940,7 +4948,7 @@ function abrirModalNotaCreditoFiscal(numFactura) {
       const match = pStr.match(/^(.*?)(?:\s*\((.*?)\))?\s*-\s*\$(.*)$/);
       let nombre = match ? match[1].trim() : `ITEM ${idx + 1}`;
       let cantTxt = match && match[2] ? match[2].trim() : "1 uds";
-      let subUSD = match && match[3] ? parseFloat(match[3]) : (datosNCPendiente.totalOriginalUSD / listaItems.length);
+      let subUSD = match && match[3] ? parseFloat(match[3]) : (montoTotalBaseUSD / listaItems.length);
 
       let tasaItem = "E";
       if (pStr.toUpperCase().includes('(G)') || pStr.toUpperCase().includes('(16%)')) tasaItem = "G";
@@ -4976,8 +4984,8 @@ function abrirModalNotaCreditoFiscal(numFactura) {
       cantidadTxt: "1 uds",
       cantNumerica: 1,
       unidad: "unidades",
-      precioBase: datosNCPendiente.totalOriginalUSD,
-      precioTotal: datosNCPendiente.totalOriginalUSD.toFixed(2),
+      precioBase: montoTotalBaseUSD,
+      precioTotal: montoTotalBaseUSD.toFixed(2),
       tasaIVA: "E",
       incluido: true
     };
@@ -5065,20 +5073,32 @@ function recalcularTotalesNC() {
     }
   }
 
-  const totalBS = totalUSD * tasa;
+  // Calcular IGTF a reversar proporcional si la factura original percibió IGTF (3%)
+  let igtfReversarUSD = 0;
+  let igtfReversarBS = 0;
+
+  if (datosNCPendiente && datosNCPendiente.montoIGTF_BS > 0) {
+    igtfReversarUSD = parseFloat((totalUSD * 0.03).toFixed(2));
+    igtfReversarBS = parseFloat((igtfReversarUSD * tasa).toFixed(2));
+  }
+
+  const totalConIGTF_USD = totalUSD + igtfReversarUSD;
+  const totalConIGTF_BS = (totalUSD * tasa) + igtfReversarBS;
   const exentoBS = exentoUSD * tasa;
   const base16BS = base16USD * tasa;
   const iva16BS = iva16USD * tasa;
 
-  document.getElementById('ncMontoTotalUSD').textContent = `-$${totalUSD.toFixed(2)}`;
-  document.getElementById('ncMontoTotalBS').textContent = `-Bs. ${totalBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  document.getElementById('ncMontoTotalUSD').textContent = `-$${totalConIGTF_USD.toFixed(2)}`;
+  document.getElementById('ncMontoTotalBS').textContent = `-Bs. ${totalConIGTF_BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   document.getElementById('ncExentoBS').textContent = `Bs. ${exentoBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   document.getElementById('ncBase16BS').textContent = `Bs. ${base16BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   document.getElementById('ncIVA16BS').textContent = `Bs. ${iva16BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   if (datosNCPendiente) {
-    datosNCPendiente.totalReversarUSD = totalUSD;
-    datosNCPendiente.totalReversarBS = totalBS;
+    datosNCPendiente.totalReversarUSD = totalConIGTF_USD;
+    datosNCPendiente.totalReversarBS = totalConIGTF_BS;
+    datosNCPendiente.montoIGTF_Reversar_USD = igtfReversarUSD;
+    datosNCPendiente.montoIGTF_Reversar_BS = igtfReversarBS;
     datosNCPendiente.exentoBS = exentoBS;
     datosNCPendiente.base16BS = base16BS;
     datosNCPendiente.iva16BS = iva16BS;
@@ -5120,7 +5140,7 @@ async function confirmarEmisionNotaCreditoFiscal() {
         await window.fiscalDriver.solicitarYConectar();
       } else {
         btn.disabled = false;
-        btn.textContent = "🧾 Emitir Nota de Crédito Fiscal en HKA80";
+        btn.textContent = `🧾 Emitir Nota de Crédito Fiscal en ${nombreModelo}`;
         return;
       }
     }
@@ -5132,7 +5152,9 @@ async function confirmarEmisionNotaCreditoFiscal() {
       serialImpresoraAfectada: datosNCPendiente.serialImpresora,
       itemsDevueltos: itemsFinalesNC,
       motivo: motivo,
-      tasaBCV: datosNCPendiente.tasaBCV
+      tasaBCV: datosNCPendiente.tasaBCV,
+      montoIGTF_BS: datosNCPendiente.montoIGTF_Reversar_BS || 0,
+      montoIGTF_USD: datosNCPendiente.montoIGTF_Reversar_USD || 0
     };
 
     const resNC = await window.fiscalDriver.emitirNotaCreditoFiscal(datosPayloadNC);
@@ -5152,12 +5174,13 @@ async function confirmarEmisionNotaCreditoFiscal() {
       productosSummary: `NOTA DE CREDITO POR: ${motivo}`,
       usuario: usuarioActivo,
       esFiscal: true,
-      esNotaCredito: true
+      esNotaCredito: true,
+      montoIGTF_BS: -Math.abs(datosNCPendiente.montoIGTF_Reversar_BS || 0),
+      montoIGTF_USD: -Math.abs(datosNCPendiente.montoIGTF_Reversar_USD || 0)
     };
 
     await dbPut("ventas", registroNCLocal);
 
-   // 4. Encolar sincronización a Supabase con referencia de Factura Afectada
     await dbPut("syncQueue", {
       id: "sync_nc_" + Date.now(),
       payload: {
@@ -5177,13 +5200,15 @@ async function confirmarEmisionNotaCreditoFiscal() {
           usuario: usuarioActivo,
           tablaVentas: tablaUsuarioActivo,
           esFiscal: true,
-          esNotaCredito: true
+          esNotaCredito: true,
+          montoIGTF_BS: -Math.abs(datosNCPendiente.montoIGTF_Reversar_BS || 0),
+          montoIGTF_USD: -Math.abs(datosNCPendiente.montoIGTF_Reversar_USD || 0)
         }
       }
     });
 
     btn.disabled = false;
-    btn.textContent = "🧾 Emitir Nota de Crédito Fiscal en HKA80";
+    btn.textContent = `🧾 Emitir Nota de Crédito Fiscal en ${nombreModelo}`;
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNotaCreditoFiscal')).hide();
     mostrarAvisoFactura(`🎉 Nota de Crédito Fiscal N° ${numNCGenerado} emitida exitosamente en la máquina fiscal.`);
@@ -5193,7 +5218,7 @@ async function confirmarEmisionNotaCreditoFiscal() {
 
   } catch (errNC) {
     btn.disabled = false;
-    btn.textContent = "🧾 Emitir Nota de Crédito Fiscal en HKA80";
+    btn.textContent = `🧾 Emitir Nota de Crédito Fiscal en ${nombreModelo}`;
     console.error("Error al emitir NC:", errNC);
     if (errorDiv) {
       errorDiv.textContent = "Error durante la emisión de la Nota de Crédito: " + errNC.message;
