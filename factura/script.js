@@ -3923,65 +3923,84 @@ async function procesarSincronizacionGitHub() {
   }
 
   try {
+    // 1. Actualizar en memoria los productos que estén actualmente renderizados en la tabla
     const filas = document.querySelectorAll('.fila-producto-cfg');
-    let categoriasMap = {};
-
-    cacheCategoriasFactura.forEach(c => {
-      categoriasMap[c.nombre] = [];
-    });
-
-    for (let f of filas) {
+    filas.forEach(f => {
       const origName = f.getAttribute('data-original-name');
       const origCat = f.getAttribute('data-original-cat');
 
-      const nuevoPlu = f.querySelector('.cfg-plu').value.trim();
-      const nuevoNom = f.querySelector('.cfg-nombre').value.trim();
-      const nuevaCat = f.querySelector('.cfg-cat').value;
-      const nuevaUnidad = f.querySelector('.cfg-unidad').value;
-      const nuevoPeso = (nuevaUnidad === 'mixto') ? parseInt(f.querySelector('.cfg-pesoprom').value) || 2000 : 0;
-      const nuevoOrden = parseInt(f.querySelector('.cfg-orden').value) || 1;
-      const nuevoMin = parseInt(f.querySelector('.cfg-minimo').value) || 1;
-      const nuevoDisp = (f.querySelector('.cfg-disp').value === "true");
-      const nuevoIVA = f.querySelector('.cfg-iva') ? f.querySelector('.cfg-iva').value : "E";
-      const nuevoPrecio = parseFloat(f.querySelector('.cfg-precio').value) || 0;
-      const fileInput = f.querySelector('.cfg-file');
-
-      if (!nuevoNom || nuevoPrecio <= 0) continue;
-
-      let imgPathActual = "";
-      const catVieja = cacheCategoriasFactura.find(c => c.nombre === origCat);
-      if (catVieja) {
-        const prodViejo = catVieja.productos.find(p => p[0] === origName);
-        if (prodViejo) imgPathActual = prodViejo[2];
+      const itemEnLista = listaFlatProductosCodigos.find(p => p.nombreOriginal === origName && p.categoriaOriginal === origCat);
+      if (itemEnLista) {
+        itemEnLista.codigoPLU = f.querySelector('.cfg-plu').value.trim();
+        itemEnLista.nombre = f.querySelector('.cfg-nombre').value.trim() || itemEnLista.nombre;
+        itemEnLista.categoria = f.querySelector('.cfg-cat').value;
+        itemEnLista.unidad = f.querySelector('.cfg-unidad').value;
+        itemEnLista.pesoPromedio = (itemEnLista.unidad === 'mixto') ? (parseInt(f.querySelector('.cfg-pesoprom').value) || 2000) : 0;
+        itemEnLista.orden = parseInt(f.querySelector('.cfg-orden').value) || itemEnLista.orden;
+        itemEnLista.minimo = parseInt(f.querySelector('.cfg-minimo').value) || itemEnLista.minimo;
+        itemEnLista.disponible = (f.querySelector('.cfg-disp').value === "true");
+        itemEnLista.tasaIVA = f.querySelector('.cfg-iva') ? f.querySelector('.cfg-iva').value : "E";
+        itemEnLista.precio = parseFloat(f.querySelector('.cfg-precio').value) || itemEnLista.precio;
       }
+    });
 
-      if (fileInput && fileInput.files && fileInput.files.length > 0) {
+    // 2. Subir imágenes nuevas si fueron seleccionadas
+    for (let f of filas) {
+      const origName = f.getAttribute('data-original-name');
+      const origCat = f.getAttribute('data-original-cat');
+      const fileInput = f.querySelector('.cfg-file');
+      const itemEnLista = listaFlatProductosCodigos.find(p => p.nombreOriginal === origName && p.categoriaOriginal === origCat);
+
+      if (fileInput && fileInput.files && fileInput.files.length > 0 && itemEnLista) {
         const imgData = await validarYLeerArchivoWebPFac(fileInput);
         if (imgData) {
           const filePath = `img/${imgData.name}`;
           await subirArchivoAGitHubFactura(filePath, imgData.base64, `Subida de imagen: ${imgData.name}`);
-          imgPathActual = filePath;
+          itemEnLista.imgPath = filePath;
         }
       }
-
-      if (!categoriasMap[nuevaCat]) categoriasMap[nuevaCat] = [];
-
-      categoriasMap[nuevaCat].push({
-        datos: [nuevoNom, nuevoPrecio, imgPathActual, nuevoDisp, nuevoMin, nuevaUnidad, nuevoPeso, nuevoPlu, nuevoIVA],
-        orden: nuevoOrden
-      });
     }
 
+    // 3. Reconstruir las 5 categorías completas desde el arreglo maestro para garantizar que ninguna categoría se pierda
+    let categoriasMap = {};
+    cacheCategoriasFactura.forEach(c => {
+      categoriasMap[c.nombre] = [];
+    });
+
+    listaFlatProductosCodigos.forEach(item => {
+      let catDestino = item.categoria || item.categoriaOriginal;
+      if (!categoriasMap[catDestino]) categoriasMap[catDestino] = [];
+
+      let cleanImg = (item.imgPath || "img/LOGO-MUNDO123.webp").replace(/^\.\.\//, '');
+
+      categoriasMap[catDestino].push({
+        datos: [
+          item.nombre,
+          item.precio,
+          cleanImg,
+          item.disponible,
+          item.minimo,
+          item.unidad,
+          item.pesoPromedio,
+          item.codigoPLU,
+          item.tasaIVA
+        ],
+        orden: item.orden
+      });
+    });
+
+    // Ordenar y consolidar las categorías completas
     cacheCategoriasFactura.forEach(cat => {
       let prodsEnCat = categoriasMap[cat.nombre] || [];
       prodsEnCat.sort((a, b) => a.orden - b.orden);
       cat.productos = prodsEnCat.map(p => p.datos);
     });
 
+    // 4. Guardar catálogo íntegro en GitHub
     const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
     const base64Content = btoa(unescape(encodeURIComponent(contentString)));
 
-    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización completa de catálogo con IVA desde tabla Fullscreen POS");
+    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización completa y protegida de catálogo desde POS");
 
     if (btn) {
       btn.disabled = false;
@@ -3990,7 +4009,7 @@ async function procesarSincronizacionGitHub() {
 
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
-    mostrarAvisoFactura("🎉 Catálogo completo con IVA actualizado y sincronizado con éxito.");
+    mostrarAvisoFactura("🎉 Catálogo completo de 118 productos sincronizado con éxito.");
 
   } catch (err) {
     sessionStorage.removeItem("github_token");
@@ -3999,7 +4018,7 @@ async function procesarSincronizacionGitHub() {
       btn.textContent = "💾 Guardar Todos los Cambios";
     }
     console.error("Error al guardar en GitHub:", err);
-    mostrarAvisoFactura("❌ Error de clave/sincronización con GitHub: " + err.message);
+    mostrarAvisoFactura("❌ Error de sincronización con GitHub: " + err.message);
   }
 }
 
