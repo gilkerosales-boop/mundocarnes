@@ -676,6 +676,18 @@ class FiscalDriverTFHKA {
         await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
       }
 
+      // Si aplica reversión de percepción IGTF (3% en Divisas), enviar comando fiscal para sumarlo a la Nota de Crédito física
+      if (datosNC.montoIGTF_BS > 0) {
+        const strMontoIGTF = this.formatearPrecioFiscal(datosNC.montoIGTF_BS);
+        const tramaIGTF = `P+${strMontoIGTF}IGTF 3% DIVISAS`;
+        try {
+          await this.enviarComando(tramaIGTF);
+        } catch (eIGTF) {
+          try { await this.enviarComando("p+0300"); } catch (e2) {}
+        }
+        await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
+      }
+
       await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 600 : 250));
 
       // PASO C: Pago y Cierre Definitivo de Nota de Crédito (101 Pago + 199 Cierre)
