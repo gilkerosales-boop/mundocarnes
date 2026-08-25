@@ -2755,15 +2755,16 @@ async function emitirFacturaFinal() {
 }
 
 function renderizarTicketTermicoHTML(d) {
+  const emp = obtenerDatosEmpresa();
+  const serialFiscal = obtenerSerialFiscalActivo();
   let tasa = d.tasaBCV || 1;
   let items = d.items || ((transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura);
   let ticketHtml = "";
 
   if (d.modoFiscal) {
     // =========================================================================
-    // MODALIDAD FISCAL: DISEÑO EXACTO SEGÚN IMPRESORA ACTIVA
+    // MODALIDAD FISCAL: DISEÑO EXACTO ACLAS PP9 PLUS (IDÉNTICO AL TICKET FÍSICO)
     // =========================================================================
-    const serialFiscal = obtenerSerialFiscalActivo();
     const fechaActual = new Date();
     const dia = String(fechaActual.getDate()).padStart(2, '0');
     const mes = String(fechaActual.getMonth() + 1).padStart(2, '0');
