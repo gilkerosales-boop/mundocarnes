@@ -386,6 +386,7 @@ class FiscalDriverTFHKA {
       serial: serialEquipo || serialPrivado,
       rif: rifEquipo
     };
+  }
 
   // 2. Anular / Cancelar Documento en Curso (Comando 7)
   async cancelarDocumento() {
