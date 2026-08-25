@@ -94,12 +94,16 @@ function obtenerDatosEmpresa() {
 }
 window.obtenerDatosEmpresa = obtenerDatosEmpresa;
 
-// Obtener el serial o número de registro de máquina configurado para el modelo activo
+// Obtener con prioridad absoluta el número de registro / serial configurado para el modelo activo
 function obtenerSerialFiscalActivo() {
-  const modelo = (window.fiscalDriver ? window.fiscalDriver.modelo : localStorage.getItem("pos_modelo_impresora_fiscal")) || "PP9";
-  const serialGuardado = localStorage.getItem(`pos_serial_fiscal_${modelo}`) || localStorage.getItem("pos_serial_fiscal_activo");
-  if (serialGuardado && serialGuardado.trim()) {
-    return serialGuardado.trim().toUpperCase();
+  const modelo = (window.fiscalDriver ? window.fiscalDriver.modelo : localStorage.getItem("pos_modelo_impresora_fiscal")) || "HKA80";
+  const serialPorModelo = localStorage.getItem(`pos_serial_fiscal_${modelo}`);
+  if (serialPorModelo && serialPorModelo.trim()) {
+    return serialPorModelo.trim().toUpperCase();
+  }
+  const serialActivo = localStorage.getItem("pos_serial_fiscal_activo");
+  if (serialActivo && serialActivo.trim()) {
+    return serialActivo.trim().toUpperCase();
   }
   return (modelo === "PP9") ? "ZZP0005063" : "Z7C7044438";
 }
@@ -361,11 +365,13 @@ function alternarModoFiscalPOS(estaActivo) {
 
 async function cambiarModeloImpresoraFiscal(nuevoModelo) {
   if (window.fiscalDriver) {
+    window.fiscalDriver.ultimoReporteStatus = null; // Limpiar serial residual anterior
     window.fiscalDriver.setModelo(nuevoModelo);
     actualizarInterfazModoFiscal();
     
     const nombreModelo = window.fiscalDriver.getNombreModelo();
-    mostrarAvisoFactura(`🖨️ Modelo fiscal configurado: ${nombreModelo}`);
+    const serialActivo = obtenerSerialFiscalActivo();
+    mostrarAvisoFactura(`🖨️ ${nombreModelo} activa con N° Registro: ${serialActivo}`);
 
     if (modoFiscalActivo) {
       const reconectado = await window.fiscalDriver.reconectarAutomatico();
@@ -2755,9 +2761,9 @@ function renderizarTicketTermicoHTML(d) {
 
   if (d.modoFiscal) {
     // =========================================================================
-    // MODALIDAD FISCAL: DISEÑO EXACTO ACLAS PP9 PLUS (IDÉNTICO AL TICKET FÍSICO)
+    // MODALIDAD FISCAL: DISEÑO EXACTO SEGÚN IMPRESORA ACTIVA
     // =========================================================================
-    const serialFiscal = window.fiscalDriver?.ultimoReporteStatus?.serial || "ZZP0005063";
+    const serialFiscal = obtenerSerialFiscalActivo();
     const fechaActual = new Date();
     const dia = String(fechaActual.getDate()).padStart(2, '0');
     const mes = String(fechaActual.getMonth() + 1).padStart(2, '0');
@@ -6626,10 +6632,10 @@ function renderizarTicketCierreCajaHTML(d) {
 
   if (d.modoFiscal) {
     // =========================================================================
-    // MODALIDAD FISCAL: REPORTE Z EXACTO ACLAS PP9 PLUS (ROLLO COMPLETO >40 CM)
+    // MODALIDAD FISCAL: REPORTE Z EXACTO SEGÚN IMPRESORA ACTIVA
     // =========================================================================
     const emp = obtenerDatosEmpresa();
-    const serialFiscal = window.fiscalDriver?.ultimoReporteStatus?.serial || "ZZP0005063";
+    const serialFiscal = obtenerSerialFiscalActivo();
     const fechaActual = new Date();
     const dia = String(fechaActual.getDate()).padStart(2, '0');
     const mes = String(fechaActual.getMonth() + 1).padStart(2, '0');
