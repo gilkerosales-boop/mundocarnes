@@ -2680,7 +2680,26 @@ async function emitirFacturaFinal() {
   if (btn) { btn.disabled = true; btn.textContent = "Preparando Emisión..."; }
 
   try {
-    let numFactura = await obtenerSiguienteCorrelativoLocal();
+    let numFactura = "";
+    if (modoFiscalActivo) {
+      // Calcular el siguiente correlativo fiscal real según el hardware y el historial
+      let ultNum = 0;
+      if (window.fiscalDriver?.ultimoReporteStatus?.ultimaFactura) {
+        ultNum = parseInt(window.fiscalDriver.ultimoReporteStatus.ultimaFactura, 10) || 0;
+      }
+      if (ultNum === 0) {
+        (cacheHistorialFacturas || []).forEach(f => {
+          let numStr = String(f.numFactura || "").replace(/\D/g, '');
+          if (/^\d{1,8}$/.test(numStr) && Boolean(f.esFiscal || String(f.formaPagoStr || "").includes("FISCAL"))) {
+            let n = parseInt(numStr, 10) || 0;
+            if (n > ultNum) ultNum = n;
+          }
+        });
+      }
+      numFactura = String(ultNum + 1).padStart(8, '0');
+    } else {
+      numFactura = await obtenerSiguienteCorrelativoLocal();
+    }
 
     const tasa = obtenerTasaBCV();
     const factorTasa = tasa > 0 ? tasa : 1;
@@ -2773,7 +2792,7 @@ function renderizarTicketTermicoHTML(d) {
     const min = String(fechaActual.getMinutes()).padStart(2, '0');
     const fechaPP9 = `${dia}-${mes}-${anio}`;
     const horaPP9 = `${hora}:${min}`;
-    const numFacturaPP9 = String(d.numFactura || "00000000").replace(/\D/g, '').padStart(8, '0');
+    const numFacturaPP9 = String(d.numFactura || "00000001").replace(/\D/g, '').slice(-8).padStart(8, '0');
 
     let renglonesFiscalesHtml = "";
     let totExentoBs = 0;
