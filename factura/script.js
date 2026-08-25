@@ -2847,15 +2847,51 @@ function renderizarTicketTermicoHTML(d) {
         </div>`;
     }
 
+    // Cálculo y adición del IGTF 3% y Retención al Total Final
+    const montoIGTF_BS = parseFloat(d.montoIGTF_BS || d.MONTO_IGTF_BS) || 0;
+    const montoRetencion_BS = parseFloat(d.montoRetencionBS || d.MONTO_RETENCION_BS) || 0;
+    const totalFinalTicketBs = d.totalNetoCobradoBS || (totGeneralBs + montoIGTF_BS - montoRetencion_BS);
+
+    let renglonesAjusteFiscal = "";
+    if (montoRetencion_BS > 0) {
+      renglonesAjusteFiscal += `
+        <div class="pp9-fila-item">
+          <span>(-) RETENCION IVA (${d.porcentajeRetencion || 75}%)</span>
+          <span>-Bs ${montoRetencion_BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>`;
+    }
+    if (montoIGTF_BS > 0) {
+      renglonesAjusteFiscal += `
+        <div class="pp9-fila-item">
+          <span>(+) IGTF PERCIBIDO (3,00%)</span>
+          <span>Bs ${montoIGTF_BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>`;
+    }
+
     let bloqueIGTFHtml = "";
-    if (d.montoIGTF_BS > 0) {
-      bloqueIGTFHtml = `<div>IG.. 3 BS ${parseFloat(d.montoIGTF_BS).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>`;
+    if (montoIGTF_BS > 0) {
+      bloqueIGTFHtml = `<div>IG.. 3 BS ${montoIGTF_BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>`;
+    }
+
+    let bloqueCompRetHtml = "";
+    if (d.comprobanteRetencion) {
+      bloqueCompRetHtml = `<div>COMP RET ${d.comprobanteRetencion}</div>`;
     }
 
     let cedulaCliente = String(d.cliente.cedula || "V-00000000").trim();
     if (!/^[VJEGPvjegp]/i.test(cedulaCliente)) cedulaCliente = "V-" + cedulaCliente;
 
-   const emp = obtenerDatosEmpresa();
+    // Etiqueta del medio de pago en ticket
+    let nombreFormaPagoTicket = "EFECTIVO 1";
+    let formaUpper = String(d.formaPagoStr || "").toUpperCase();
+    if (formaUpper.includes("ZELLE")) nombreFormaPagoTicket = "ZELLE";
+    else if (formaUpper.includes("PUNTO DE VENTA") || formaUpper.includes("DEBITO")) nombreFormaPagoTicket = "TARJETA DEBITO";
+    else if (formaUpper.includes("CREDITO") || formaUpper.includes("CRÉDITO")) nombreFormaPagoTicket = "TARJETA CREDITO";
+    else if (formaUpper.includes("PAGO MOVIL") || formaUpper.includes("PAGO MÓVIL")) nombreFormaPagoTicket = "PAGO MOVIL";
+    else if (formaUpper.includes("PAYPAL")) nombreFormaPagoTicket = "PAYPAL";
+    else if (formaUpper.includes("CASHEA")) nombreFormaPagoTicket = "CASHEA";
+    else if (formaUpper.includes("BIOPAGO")) nombreFormaPagoTicket = "BIOPAGO";
+    else if (formaUpper.includes("DIVISAS") || formaUpper.includes("DOLARES")) nombreFormaPagoTicket = "EFECTIVO DIVISAS";
 
     ticketHtml = `
       <div class="ticket-pp9-wrapper">
@@ -2873,6 +2909,7 @@ function renderizarTicketTermicoHTML(d) {
           <div>R.S.:${String(d.cliente.nombre || 'CONSUMIDOR FINAL').toUpperCase()}</div>
           <div>${String(d.cliente.direccion || 'CARACAS').toUpperCase()}</div>
           <div>${d.cliente.telefono || 'N/D'}</div>
+          ${bloqueCompRetHtml}
           ${bloqueIGTFHtml}
         </div>
 
@@ -2898,14 +2935,15 @@ function renderizarTicketTermicoHTML(d) {
 
         <div class="pp9-totales-bloque">
           ${bloqueResumenFiscal}
+          ${renglonesAjusteFiscal}
           <div class="pp9-separator-dashed"></div>
           <div class="pp9-fila-item">
-            <span>EFECTIVO 1</span>
-            <span>Bs ${totGeneralBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span>${nombreFormaPagoTicket}</span>
+            <span>Bs ${totalFinalTicketBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
           <div class="pp9-fila-item pp9-bold mt-1">
             <span>TOTAL</span>
-            <span>Bs ${totGeneralBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span>Bs ${totalFinalTicketBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
 
