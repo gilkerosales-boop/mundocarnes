@@ -755,13 +755,25 @@ class FiscalDriverTFHKA {
     return null;
   }
 
-  // 4. Emitir Reporte X (Comando I0X)
+ // 4. Emitir Reporte X (Comando I0X con auto-limpieza de memoria fiscal previa)
   async imprimirReporteX() {
     if (!this.conectado) throw new Error(`Impresora fiscal ${this.getNombreModelo()} no conectada.`);
     this.notificarEstado("IMPRIMIENDO_X", `Imprimiendo Reporte X en ${this.getNombreModelo()}...`);
-    const resp = await this.enviarComando("I0X");
+
+    try {
+      await this.enviarComando("I0X");
+    } catch (errX) {
+      // Si la memoria tenía una factura o ticket previo trabado, anularlo (7) y emitir el Reporte X
+      try { await this.enviarComando("7"); } catch (eCancel) {}
+      await new Promise(r => setTimeout(r, 800));
+      await this.enviarComando("I0X");
+    }
+
+    const pausaCorteMs = this.modelo === "PP9" ? 3500 : 1500;
+    await new Promise(r => setTimeout(r, pausaCorteMs));
+
     this.notificarEstado("FINALIZADO_X", "Reporte X impreso exitosamente.");
-    return resp;
+    return "OK";
   }
 
   // 5. Emitir Reporte Z Oficial TFHKA (Comando I0Z)
