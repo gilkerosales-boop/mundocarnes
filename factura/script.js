@@ -1085,17 +1085,18 @@ async function sincronizarClientesDesdeServidor() {
   } catch (e) {}
 }
 
-// CORRELATIVO GLOBAL ROBUSTO (COLUMNA 'FACTURA')
+// CORRELATIVO GLOBAL ROBUSTO Y BLINDADO CONTRA SALTOS ATÍPICOS
 async function obtenerSiguienteCorrelativoLocal() {
   let ultimoNum = 0;
 
   const ventasLocales = await dbGetAll("ventas");
   ventasLocales.forEach(v => {
-    if (v.numFactura) {
+    if (v.numFactura && !String(v.numFactura).includes("375")) {
       let match = String(v.numFactura).match(/\d+$/);
       if (match) {
         let n = parseInt(match[0], 10);
-        if (n > ultimoNum) ultimoNum = n;
+        // Filtrar saltos anómalos superiores a 100.000
+        if (n > ultimoNum && n < 100000) ultimoNum = n;
       }
     }
   });
@@ -1103,16 +1104,19 @@ async function obtenerSiguienteCorrelativoLocal() {
   const queue = await dbGetAll("syncQueue");
   queue.forEach(item => {
     if (item.payload && item.payload.datosFactura && item.payload.datosFactura.numFactura) {
-      let match = String(item.payload.datosFactura.numFactura).match(/\d+$/);
-      if (match) {
-        let n = parseInt(match[0], 10);
-        if (n > ultimoNum) ultimoNum = n;
+      let facStr = String(item.payload.datosFactura.numFactura);
+      if (!facStr.includes("375")) {
+        let match = facStr.match(/\d+$/);
+        if (match) {
+          let n = parseInt(match[0], 10);
+          if (n > ultimoNum && n < 100000) ultimoNum = n;
+        }
       }
     }
   });
 
   const cfgCorrelativo = await dbGet("config", "ultimoCorrelativo");
-  if (cfgCorrelativo && typeof cfgCorrelativo.value === "number" && cfgCorrelativo.value > ultimoNum) {
+  if (cfgCorrelativo && typeof cfgCorrelativo.value === "number" && cfgCorrelativo.value > ultimoNum && cfgCorrelativo.value < 100000) {
     ultimoNum = cfgCorrelativo.value;
   }
 
@@ -1133,11 +1137,11 @@ async function obtenerSiguienteCorrelativoLocal() {
         } else {
           facs.forEach(v => {
             let facStr = v.FACTURA || v["FACTURA N°"];
-            if (facStr) {
+            if (facStr && !String(facStr).includes("375")) {
               let match = String(facStr).match(/\d+$/);
               if (match) {
                 let n = parseInt(match[0], 10);
-                if (n > ultimoNum) ultimoNum = n;
+                if (n > ultimoNum && n < 100000) ultimoNum = n;
               }
             }
           });
