@@ -570,7 +570,7 @@
       "productos": [
         [
           "QUESO DURO",
-          7.9,
+          8.2,
           "img/queso_duro.webp",
           true,
           100,
@@ -581,7 +581,7 @@
         ],
         [
           "QUESO GUAYANES",
-          7.5,
+          7.9,
           "img/queso_guayanes.webp",
           true,
           100,
@@ -680,7 +680,7 @@
         ],
         [
           "RECORTES DE CHACUTERIA",
-          9.5,
+          8.9,
           "img/recortes_de_chacuteria.webp",
           true,
           100,
@@ -691,7 +691,7 @@
         ],
         [
           "SALCHICHA DE POLLO",
-          5,
+          5.5,
           "img/salchicha_de_pollo.webp",
           true,
           100,
@@ -724,7 +724,7 @@
         ],
         [
           "MORCILLAS",
-          4,
+          6.5,
           "img/morcillas.webp",
           true,
           100,
@@ -861,7 +861,7 @@
         ],
         [
           "HARINA DE TRIGO BLANCA FLOR 1KG",
-          1.5,
+          1.9,
           "img/harina_de_trigo_blanca_flor_1kg.webp",
           true,
           1,
@@ -905,7 +905,7 @@
         ],
         [
           "PASTA CORTA RONCO RIGATON 500g",
-          1.4,
+          1.6,
           "img/ronco_rigaton.webp",
           true,
           1,
@@ -916,7 +916,7 @@
         ],
         [
           "PASTA CORTA RONCO TORNILLO 500g",
-          1.4,
+          1.6,
           "img/ronco_tornillo.webp",
           true,
           1,
@@ -927,7 +927,7 @@
         ],
         [
           "PASTA CORTA RONCO CARACOL 500g",
-          1.4,
+          1.6,
           "img/ronco_caracol.webp",
           true,
           1,
@@ -1114,7 +1114,7 @@
         ],
         [
           "SALSA DE TOMATE PAMPERO 397g",
-          3.3,
+          3.9,
           "img/salsa_de_tomate_pampero_397g.webp",
           true,
           1,
@@ -1246,7 +1246,7 @@
         ],
         [
           "GALLETAS BELVITA HONY 9 UNIDADES",
-          2.9,
+          3.9,
           "img/galletas_belvita_hony_9_unidades.webp",
           true,
           1,
@@ -1257,7 +1257,7 @@
         ],
         [
           "GALLETAS BELVITA KRAKER 9 UNIDADES",
-          2.9,
+          3.5,
           "img/galletas_belvita_kraker_9_unidades.webp",
           true,
           1,
