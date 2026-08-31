@@ -3691,6 +3691,7 @@ function prepararListaProductosCodigos() {
       let pesoProm = p[6] || 0;
       let codPLU = p[7] ? String(p[7]).trim() : "";
       let tasaIVA = p[8] || "E";
+      let webVisible = p[9] !== undefined ? Boolean(p[9]) : true;
 
       listaFlatProductosCodigos.push({
         nombreOriginal: nom,
@@ -3700,6 +3701,7 @@ function prepararListaProductosCodigos() {
         categoria: cat.nombre,
         imgPath: imgPath,
         disponible: esDisp,
+        visibleWeb: webVisible,
         minimo: minVal,
         unidad: unidad,
         pesoPromedio: pesoProm,
@@ -3707,8 +3709,6 @@ function prepararListaProductosCodigos() {
         tasaIVA: tasaIVA,
         orden: idx + 1
       });
-    });
-  });
 
   listaFlatProductosCodigos.sort((a, b) => {
     let numA = a.codigoPLU !== "" ? parseInt(a.codigoPLU, 10) : 999999;
@@ -3788,9 +3788,15 @@ function renderizarTablaGestionCodigos(lista) {
                  value="${item.minimo}" min="1" style="max-width: 65px; margin: 0 auto;">
         </td>
         <td>
-          <select class="form-select form-select-sm fw-bold cfg-disp">
+          <select class="form-select form-select-sm fw-bold cfg-disp" title="Disponibilidad para ventas físicas">
             <option value="true" ${item.disponible ? 'selected' : ''}>✅ Disp.</option>
             <option value="false" ${!item.disponible ? 'selected' : ''}>🚫 Agot.</option>
+          </select>
+        </td>
+        <td>
+          <select class="form-select form-select-sm fw-bold cfg-web" title="Visibilidad en catálogo web">
+            <option value="true" ${item.visibleWeb !== false ? 'selected' : ''}>🌐 Visible</option>
+            <option value="false" ${item.visibleWeb === false ? 'selected' : ''}>🚫 Oculto</option>
           </select>
         </td>
         <td>
@@ -3814,7 +3820,6 @@ function renderizarTablaGestionCodigos(lista) {
 
   tbody.innerHTML = html;
 }
-
 function filtrarTablaCodigos(query) {
   if (!query.trim()) {
     renderizarTablaGestionCodigos(listaFlatProductosCodigos);
@@ -3943,6 +3948,7 @@ async function procesarSincronizacionGitHub() {
         itemEnLista.orden = parseInt(f.querySelector('.cfg-orden').value) || itemEnLista.orden;
         itemEnLista.minimo = parseInt(f.querySelector('.cfg-minimo').value) || itemEnLista.minimo;
         itemEnLista.disponible = (f.querySelector('.cfg-disp').value === "true");
+        itemEnLista.visibleWeb = f.querySelector('.cfg-web') ? (f.querySelector('.cfg-web').value === "true") : true;
         itemEnLista.tasaIVA = f.querySelector('.cfg-iva') ? f.querySelector('.cfg-iva').value : "E";
         itemEnLista.precio = parseFloat(f.querySelector('.cfg-precio').value) || itemEnLista.precio;
       }
@@ -3987,7 +3993,8 @@ async function procesarSincronizacionGitHub() {
           item.unidad,
           item.pesoPromedio,
           item.codigoPLU,
-          item.tasaIVA
+          item.tasaIVA,
+          item.visibleWeb !== false
         ],
         orden: item.orden
       });
@@ -4066,6 +4073,9 @@ function abrirModalCrearProductoPOS() {
   if (document.getElementById('posAddProdIVA')) {
     document.getElementById('posAddProdIVA').value = "E";
   }
+  if (document.getElementById('posAddProdWebVisible')) {
+    document.getElementById('posAddProdWebVisible').value = "true";
+  }
   document.getElementById('posAddProdCodigo').value = "";
   document.getElementById('posAddProdUnidad').value = "gramos";
   document.getElementById('posAddProdPesoPromedio').value = "";
@@ -4083,6 +4093,7 @@ async function ejecutarCrearNuevoProductoPOS() {
   const prodNombre = document.getElementById('posAddProdNombre').value.trim().toUpperCase();
   const prodPrecio = parseFloat(document.getElementById('posAddProdPrecio').value);
   const prodIVA = document.getElementById('posAddProdIVA') ? document.getElementById('posAddProdIVA').value : "E";
+  const prodWebVisible = document.getElementById('posAddProdWebVisible') ? (document.getElementById('posAddProdWebVisible').value === "true") : true;
   const prodCodigo = document.getElementById('posAddProdCodigo').value.trim();
   const prodUnidad = document.getElementById('posAddProdUnidad').value;
   const prodPesoProm = (prodUnidad === "mixto") ? parseInt(document.getElementById('posAddProdPesoPromedio').value) : 0;
@@ -4115,7 +4126,7 @@ async function ejecutarCrearNuevoProductoPOS() {
 
     let cat = cacheCategoriasFactura.find(c => c.nombre === catNombre);
     if (cat) {
-      cat.productos.push([prodNombre, prodPrecio, relativePath, true, prodMin, prodUnidad, prodPesoProm, prodCodigo, prodIVA]);
+      cat.productos.push([prodNombre, prodPrecio, relativePath, true, prodMin, prodUnidad, prodPesoProm, prodCodigo, prodIVA, prodWebVisible]);
     }
 
     const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
