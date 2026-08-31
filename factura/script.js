@@ -3684,7 +3684,7 @@ function prepararListaProductosCodigos() {
     cat.productos.forEach((p, idx) => {
       let nom = p[0];
       let prec = p[1];
-      let imgPath = p[2].startsWith('../') ? p[2] : '../' + p[2];
+      let imgPath = p[2] ? (p[2].startsWith('../') ? p[2] : '../' + p[2]) : '../img/LOGO-MUNDO123.webp';
       let esDisp = p[3] !== undefined ? p[3] : true;
       let minVal = p[4] !== undefined ? p[4] : 1;
       let unidad = p[5] || "unidades";
@@ -3709,6 +3709,8 @@ function prepararListaProductosCodigos() {
         tasaIVA: tasaIVA,
         orden: idx + 1
       });
+    });
+  });
 
   listaFlatProductosCodigos.sort((a, b) => {
     let numA = a.codigoPLU !== "" ? parseInt(a.codigoPLU, 10) : 999999;
@@ -3734,7 +3736,7 @@ function renderizarTablaGestionCodigos(lista) {
   if (badgeCount) badgeCount.textContent = `Total: ${lista.length} Productos`;
 
   if (lista.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
     return;
   }
 
@@ -3820,6 +3822,7 @@ function renderizarTablaGestionCodigos(lista) {
 
   tbody.innerHTML = html;
 }
+
 function filtrarTablaCodigos(query) {
   if (!query.trim()) {
     renderizarTablaGestionCodigos(listaFlatProductosCodigos);
