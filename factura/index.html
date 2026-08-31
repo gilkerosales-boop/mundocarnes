@@ -1140,14 +1140,15 @@
                     <th style="width: 85px;">Código PLU</th>
                     <th style="width: 50px;">Foto</th>
                     <th style="min-width: 170px;">Nombre del Producto</th>
-                    <th style="min-width: 130px;">Categoría</th>
-                    <th style="width: 105px;">Modo</th>
-                    <th style="width: 80px;">Peso (g)</th>
-                    <th style="width: 60px;">Orden</th>
-                    <th style="width: 70px;">Mínimo</th>
-                    <th style="width: 115px;">Disponibilidad</th>
-                    <th style="width: 80px;">IVA</th>
-                    <th style="width: 90px;">Precio ($)</th>
+                    <th style="min-width: 120px;">Categoría</th>
+                    <th style="width: 95px;">Modo</th>
+                    <th style="width: 75px;">Peso (g)</th>
+                    <th style="width: 55px;">Orden</th>
+                    <th style="width: 65px;">Mínimo</th>
+                    <th style="width: 110px;">Tienda</th>
+                    <th style="width: 110px;">Página Web</th>
+                    <th style="width: 75px;">IVA</th>
+                    <th style="width: 85px;">Precio ($)</th>
                     <th style="width: 45px;">Acción</th>
                   </tr>
                 </thead>
@@ -1219,9 +1220,18 @@
               <input type="number" id="posAddProdPesoPromedio" class="form-control fw-bold text-center num-legible" min="1" placeholder="Ej: 2000">
             </div>
 
-            <div class="mb-3">
-              <label for="posAddProdMinimo" class="form-label fw-bold small mb-1">Cantidad Mínima de Venta:</label>
-              <input type="number" id="posAddProdMinimo" class="form-control fw-bold text-center num-legible" min="1" value="250">
+           <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label for="posAddProdMinimo" class="form-label fw-bold small mb-1">Mínimo de Venta:</label>
+                <input type="number" id="posAddProdMinimo" class="form-control fw-bold text-center num-legible" min="1" value="250">
+              </div>
+              <div class="col-6">
+                <label for="posAddProdWebVisible" class="form-label fw-bold small mb-1">Visibilidad en Web *:</label>
+                <select id="posAddProdWebVisible" class="form-select fw-bold">
+                  <option value="true" selected>🌐 Visible en Web</option>
+                  <option value="false">🚫 Oculto en Web</option>
+                </select>
+              </div>
             </div>
 
             <div class="mb-3">
