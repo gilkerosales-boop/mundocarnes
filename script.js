@@ -433,13 +433,22 @@ function cargarLista(idElemento, datos, nombreCategoria) {
     let pesoProm = f[6] || 0;
     let codigoBalanza = f[7] || "";
     let tasaIVA = f[8] || "E";
+    let visibleWeb = f[9] !== undefined ? Boolean(f[9]) : true;
+
+    // Si el usuario es público y el producto está desactivado para la web, no renderizarlo
+    if (cacheUsuario.rol !== "ADMIN" && visibleWeb === false) {
+      return "";
+    }
 
     let claseImg = esDisp ? "" : "img-agotado";
     let etiquetaDisp = esDisp ? "" : `<span class="badge bg-danger position-absolute top-0 start-0 m-1">Agotado</span>`;
+    let etiquetaWebOculto = (cacheUsuario.rol === "ADMIN" && visibleWeb === false) 
+      ? `<span class="badge bg-dark position-absolute top-0 end-0 m-1" title="Oculto en la página web pública">🚫 Web</span>` 
+      : "";
     let boton = "";
     
     if (cacheUsuario.rol === "ADMIN") {
-      boton = `<button class="btn btn-sm btn-warning fw-bold mt-1 w-100" onclick="abrirModalEdicion('${f[0]}', '${f[1]}', '${nombreCategoria}', ${esDisp}, ${cantMin}, '${unidad}', ${pesoProm}, '${codigoBalanza}', '${tasaIVA}')">Editar ⚙️</button>`;
+      boton = `<button class="btn btn-sm btn-warning fw-bold mt-1 w-100" onclick="abrirModalEdicion('${f[0]}', '${f[1]}', '${nombreCategoria}', ${esDisp}, ${cantMin}, '${unidad}', ${pesoProm}, '${codigoBalanza}', '${tasaIVA}', ${visibleWeb})">Editar ⚙️</button>`;
     } else {
       if (esDisp) boton = `<button class="btn btn-sm btn-outline-dark fw-bold mt-1 w-100" onclick="seleccionarProducto('${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">+ Pedir</button>`;
       else boton = `<button class="btn btn-sm btn-secondary fw-bold mt-1 w-100" disabled>Agotado</button>`;
@@ -451,6 +460,7 @@ function cargarLista(idElemento, datos, nombreCategoria) {
       <div class="col-4 col-md-3 col-lg-2">
         <div class="card h-100 position-relative">
           ${etiquetaDisp}
+          ${etiquetaWebOculto}
           <img src="${imgPath}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">
           <h6 class="fw-bold text-truncate">${f[0]}</h6>
           <p class="text-success fw-bold">$${parseFloat(f[1]).toFixed(2)}</p>
@@ -461,14 +471,17 @@ function cargarLista(idElemento, datos, nombreCategoria) {
   }).join('');
 }
 
-// Abrir Modal de Edición del Administrador con IVA
-function abrirModalEdicion(nom, prec, cat, disp, min, unidad, pesoProm = 0, codigoBalanza = "", tasaIVA = "E") {
+// Abrir Modal de Edición del Administrador con IVA y Visibilidad Web
+function abrirModalEdicion(nom, prec, cat, disp, min, unidad, pesoProm = 0, codigoBalanza = "", tasaIVA = "E", visibleWeb = true) {
   productoTemporal = { nombre: nom, categoria: cat };
   
   document.getElementById('editProductoNuevoNombre').value = nom; 
   document.getElementById('editProductoCategoria').textContent = cat;
   document.getElementById('editProductoPrecio').value = prec;
   document.getElementById('editProductoDisponible').value = disp ? "true" : "false";
+  if (document.getElementById('editProductoWebVisible')) {
+    document.getElementById('editProductoWebVisible').value = (visibleWeb !== false) ? "true" : "false";
+  }
   document.getElementById('editProductoMinimo').value = min;
   
   const selIVA = document.getElementById('editProductoIVA');
@@ -523,6 +536,7 @@ async function guardarEdicionAdministrador() {
   const nuevoNombre = document.getElementById('editProductoNuevoNombre').value.trim();
   const prec = parseFloat(document.getElementById('editProductoPrecio').value);
   const disp = document.getElementById('editProductoDisponible').value === "true";
+  const visibleWeb = document.getElementById('editProductoWebVisible') ? (document.getElementById('editProductoWebVisible').value === "true") : true;
   const min = parseInt(document.getElementById('editProductoMinimo').value);
   const unidad = document.getElementById('editProductoUnidad').value;
   const pesoProm = unidad === "mixto" ? parseInt(document.getElementById('editProductoPesoPromedio').value) : 0;
@@ -563,6 +577,7 @@ async function guardarEdicionAdministrador() {
         prod[6] = pesoProm;
         prod[7] = nuevoCodigo;
         prod[8] = nuevaTasaIVA;
+        prod[9] = visibleWeb;
 
         if (relativeImgPath) {
           prod[2] = relativeImgPath;
