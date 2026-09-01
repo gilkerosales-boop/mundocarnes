@@ -4993,28 +4993,7 @@ function renderizarTicketTermicoHistorialHTML(d) {
         </div>
       </div>`;
 
-    ticketHtml = `
-      <div class="ticket-pp9-wrapper">
-        <div class="pp9-header text-center">
-          <div class="pp9-bold">SENIAT</div>
-          <div class="pp9-bold">${emp.rif}</div>
-          <div class="pp9-bold">${emp.nombre}</div>
-          <div>${emp.direccion1}</div>
-          <div>${emp.direccion2}</div>
-          <div>${emp.direccion3}</div>
-        </div>
-
-        ${encabezadoTipoDoc}
-
-        <div class="pp9-separator-dashed"></div>
-
-        <div class="pp9-cuerpo-items">
-          ${itemsHtml}
-        </div>
-
-        <div class="pp9-separator-dashed"></div>
-
-        const montoIGTF_BS = Math.abs(parseFloat(d.montoIGTF_BS || d.MONTO_IGTF_BS) || 0);
+    const montoIGTF_BS = Math.abs(parseFloat(d.montoIGTF_BS || d.MONTO_IGTF_BS) || 0);
     const montoRetencion_BS = Math.abs(parseFloat(d.montoRetencionBS || d.MONTO_RETENCION_BS) || 0);
     const totalFinalTicketBs = d.totalNetoCobradoBS || (totGeneralBs + montoIGTF_BS - montoRetencion_BS);
 
@@ -5068,13 +5047,6 @@ function renderizarTicketTermicoHistorialHTML(d) {
             <span>Bs ${totalFinalTicketBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
-
-        <div class="pp9-footer d-flex justify-content-between mt-2">
-          <span>MH</span>
-          <span class="pp9-bold">${serialFiscal}</span>
-        </div>
-      </div>
-    `;
 
         <div class="pp9-footer d-flex justify-content-between mt-2">
           <span>MH</span>
