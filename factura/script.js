@@ -3493,7 +3493,7 @@ async function confirmarEImprimirFactura() {
       formaPagoFinalStr = `${formaPagoFinalStr} (FISCAL)`;
     }
 
-    // 3. Guardar en IndexedDB local con liquidación de Retenciones, IGTF y Arqueo de Vueltos
+    // 3. Guardar en IndexedDB local con liquidación de Retenciones, IGTF, Tasa BCV y Arqueo de Vueltos
     await dbPut("ventas", {
       numFactura: String(numFactura),
       fechaStr: datosFacturaPendiente.fechaStr,
@@ -3504,6 +3504,7 @@ async function confirmarEImprimirFactura() {
       formaPagoStr: formaPagoFinalStr,
       productosSummary: datosFacturaPendiente.productosSummary,
       usuario: usuarioActivo,
+      tasaBCV: parseFloat(datosFacturaPendiente.tasaBCV) || obtenerTasaBCV() || 1,
       esFiscal: esFiscalActivo,
       esContribuyenteEspecial: datosFacturaPendiente.esContribuyenteEspecial,
       comprobanteRetencion: datosFacturaPendiente.comprobanteRetencion,
@@ -3534,7 +3535,7 @@ async function confirmarEImprimirFactura() {
       "BIOPAGO": datosFacturaPendiente.desglosePagos?.["Biopago"] || 0
     });
 
-    // 4. Encolar para sincronización con Supabase
+    // 4. Encolar para sincronización con Supabase incluyendo TASA_BCV
     await dbPut("syncQueue", {
       id: "sync_fac_" + Date.now(),
       payload: {
@@ -3551,6 +3552,7 @@ async function confirmarEImprimirFactura() {
           montoTotal: datosFacturaPendiente.totalUSD,
           desglosePagos: datosFacturaPendiente.desglosePagos,
           usuario: usuarioActivo,
+          tasaBCV: parseFloat(datosFacturaPendiente.tasaBCV) || obtenerTasaBCV() || 1,
           tablaVentas: datosFacturaPendiente.tablaVentas,
           esFiscal: esFiscalActivo,
           esContribuyenteEspecial: datosFacturaPendiente.esContribuyenteEspecial,
