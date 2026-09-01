@@ -2414,41 +2414,175 @@ function seleccionarMetodoPagoBoton(metodo, btnElem) {
 
 function evaluarFormaPagoFactura(valor) {
   const contMixto = document.getElementById('contenedorPagoMixto');
+  const contEfectivo = document.getElementById('contenedorCalculoEfectivo');
   const btnAgregar = document.getElementById('btnAgregarLineaMixto');
   const lista = document.getElementById('listaFilasPagoMixto');
   const titulo = document.getElementById('tituloDesglosePago');
 
-  if (!contMixto) return;
-
   if (!valor) {
-    contMixto.classList.add('hidden');
+    if (contMixto) contMixto.classList.add('hidden');
+    if (contEfectivo) contEfectivo.classList.add('hidden');
     return;
   }
 
+  // Manejo de Pago Mixto y Cashea
   if (valor === 'Cashea') {
-    contMixto.classList.remove('hidden');
-    if (titulo) titulo.textContent = "🔀 Desglose de Pago Cashea:";
-    if (btnAgregar) btnAgregar.classList.add('hidden');
-    if (lista) lista.innerHTML = "";
-
-    agregarLineaPagoMixtoFija("Cashea", false);
-    agregarLineaPagoMixto();
-    calcularTotalPagoMixto();
-
+    if (contEfectivo) contEfectivo.classList.add('hidden');
+    if (contMixto) {
+      contMixto.classList.remove('hidden');
+      if (titulo) titulo.textContent = "🔀 Desglose de Pago Cashea:";
+      if (btnAgregar) btnAgregar.classList.add('hidden');
+      if (lista) lista.innerHTML = "";
+      agregarLineaPagoMixtoFija("Cashea", false);
+      agregarLineaPagoMixto();
+      calcularTotalPagoMixto();
+    }
   } else if (valor === 'Pago Mixto') {
-    contMixto.classList.remove('hidden');
-    if (titulo) titulo.textContent = "🔀 Desglose de Pago Mixto:";
-    if (btnAgregar) btnAgregar.classList.remove('hidden');
-    if (lista) lista.innerHTML = "";
-
-    agregarLineaPagoMixto();
-    agregarLineaPagoMixto();
-    calcularTotalPagoMixto();
-
+    if (contEfectivo) contEfectivo.classList.add('hidden');
+    if (contMixto) {
+      contMixto.classList.remove('hidden');
+      if (titulo) titulo.textContent = "🔀 Desglose de Pago Mixto:";
+      if (btnAgregar) btnAgregar.classList.remove('hidden');
+      if (lista) lista.innerHTML = "";
+      agregarLineaPagoMixto();
+      agregarLineaPagoMixto();
+      calcularTotalPagoMixto();
+    }
   } else {
-    contMixto.classList.add('hidden');
+    if (contMixto) contMixto.classList.add('hidden');
+  }
+
+  // Manejo de Cobro en Efectivo y Cálculo Automático de Vuelto
+  if (valor === 'Efectivo Divisas' || valor === 'Efectivo Bolívares') {
+    if (contEfectivo) {
+      contEfectivo.classList.remove('hidden');
+      configurarPanelCalculoEfectivo(valor);
+    }
+  } else if (valor !== 'Cashea' && valor !== 'Pago Mixto') {
+    if (contEfectivo) contEfectivo.classList.add('hidden');
   }
 }
+
+// Configurar denominaciones rápidas y símbolos según moneda
+function configurarPanelCalculoEfectivo(metodo) {
+  const badge = document.getElementById('badgeMonedaCobroEfectivo');
+  const simbolo = document.getElementById('simboloMonedaRecibida');
+  const inputMonto = document.getElementById('inputMontoRecibidoEfectivo');
+  const contBotones = document.getElementById('contenedorBotonesBilletesRapidos');
+  const selectVuelto = document.getElementById('selectMedioVuelto');
+
+  const tasa = obtenerTasaBCV() || 1;
+  const liquidacion = recalcularTotalesRetencionEIGTF();
+  const totalUSD = liquidacion.netoUSD > 0 ? liquidacion.netoUSD : parseFloat(document.getElementById('montoModalTotalFactura')?.textContent?.replace(/[^0-9.]/g, '') || 0);
+  const totalBS = liquidacion.netoBS > 0 ? liquidacion.netoBS : (totalUSD * tasa);
+
+  let htmlBilletes = "";
+
+  if (metodo === 'Efectivo Divisas') {
+    if (badge) badge.textContent = "Divisas ($)";
+    if (simbolo) simbolo.textContent = "$";
+    if (inputMonto) inputMonto.value = totalUSD.toFixed(2);
+    if (selectVuelto) selectVuelto.value = "BS_EFECTIVO"; // Vuelto en Bs por defecto en Venezuela
+
+    // Billetes estándar en Divisas
+    const billetes = [5, 10, 20, 50, 100];
+    htmlBilletes += `<button type="button" class="btn-billete-rapido active" onclick="seleccionarBilleteRapido(${totalUSD})">Exacto ($${totalUSD.toFixed(2)})</button>`;
+    billetes.forEach(b => {
+      if (b >= totalUSD || b === 5 || b === 10 || b === 20 || b === 50 || b === 100) {
+        htmlBilletes += `<button type="button" class="btn-billete-rapido" onclick="seleccionarBilleteRapido(${b})">$${b}</button>`;
+      }
+    });
+  } else {
+    if (badge) badge.textContent = "Bolívares (Bs)";
+    if (simbolo) simbolo.textContent = "Bs";
+    if (inputMonto) inputMonto.value = totalBS.toFixed(2);
+    if (selectVuelto) selectVuelto.value = "BS_EFECTIVO";
+
+    htmlBilletes += `<button type="button" class="btn-billete-rapido active" onclick="seleccionarBilleteRapido(${totalBS})">Exacto (Bs. ${totalBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })})</button>`;
+    const multiplos = [100, 200, 500, 1000, 2000, 5000];
+    multiplos.forEach(m => {
+      if (m >= totalBS) {
+        htmlBilletes += `<button type="button" class="btn-billete-rapido" onclick="seleccionarBilleteRapido(${m})">Bs. ${m}</button>`;
+      }
+    });
+  }
+
+  if (contBotones) contBotones.innerHTML = htmlBilletes;
+  calcularVueltoEfectivo();
+}
+
+function seleccionarBilleteRapido(monto) {
+  const inputMonto = document.getElementById('inputMontoRecibidoEfectivo');
+  if (inputMonto) {
+    inputMonto.value = parseFloat(monto).toFixed(2);
+  }
+  document.querySelectorAll('.btn-billete-rapido').forEach(b => b.classList.remove('active'));
+  calcularVueltoEfectivo();
+}
+window.seleccionarBilleteRapido = seleccionarBilleteRapido;
+
+// Calcular vuelto dinámico y actualizar ayuda de arqueo
+function calcularVueltoEfectivo() {
+  const metodo = document.getElementById('facFormaPagoSelect')?.value || "";
+  const inputMonto = document.getElementById('inputMontoRecibidoEfectivo');
+  const selectVuelto = document.getElementById('selectMedioVuelto');
+  const lblPrincipal = document.getElementById('lblMontoVueltoPrincipal');
+  const lblSecundario = document.getElementById('lblMontoVueltoSecundario');
+  const ayudaGaveta = document.getElementById('ayudaDescuadreGaveta');
+
+  const tasa = obtenerTasaBCV() || 1;
+  const liquidacion = recalcularTotalesRetencionEIGTF();
+  const totalUSD = liquidacion.netoUSD > 0 ? liquidacion.netoUSD : parseFloat(document.getElementById('montoModalTotalFactura')?.textContent?.replace(/[^0-9.]/g, '') || 0);
+  const totalBS = liquidacion.netoBS > 0 ? liquidacion.netoBS : (totalUSD * tasa);
+
+  const montoEntregado = parseFloat(inputMonto?.value) || 0;
+  const medioVuelto = selectVuelto?.value || "BS_EFECTIVO";
+
+  let vueltoUSD = 0;
+  let vueltoBS = 0;
+
+  if (metodo === 'Efectivo Divisas') {
+    vueltoUSD = Math.max(0, montoEntregado - totalUSD);
+    vueltoBS = vueltoUSD * tasa;
+  } else {
+    vueltoBS = Math.max(0, montoEntregado - totalBS);
+    vueltoUSD = tasa > 0 ? (vueltoBS / tasa) : 0;
+  }
+
+  if (medioVuelto === 'EXACTO' || montoEntregado <= (metodo === 'Efectivo Divisas' ? totalUSD : totalBS)) {
+    if (lblPrincipal) lblPrincipal.textContent = "Bs. 0,00";
+    if (lblSecundario) lblSecundario.textContent = "($0.00)";
+    if (ayudaGaveta) ayudaGaveta.textContent = "Monto exacto. Sin vuelto a descontar de caja.";
+    return { vueltoUSD: 0, vueltoBS: 0, medioVuelto: 'EXACTO', montoEntregado };
+  }
+
+  if (medioVuelto === 'BS_EFECTIVO') {
+    if (lblPrincipal) lblPrincipal.textContent = `Bs. ${vueltoBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (lblSecundario) lblSecundario.textContent = `($${vueltoUSD.toFixed(2)})`;
+    if (ayudaGaveta) {
+      if (metodo === 'Efectivo Divisas') {
+        ayudaGaveta.innerHTML = `💵 Entran <strong>+$${montoEntregado.toFixed(2)}</strong> a Divisas | 🇻🇪 Salen <strong>-Bs. ${vueltoBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong> de Bolívares.`;
+      } else {
+        ayudaGaveta.innerHTML = `🇻🇪 Se restará de la gaveta de Bolívares <strong>-Bs. ${vueltoBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong>.`;
+      }
+    }
+  } else if (medioVuelto === 'USD_EFECTIVO') {
+    if (lblPrincipal) lblPrincipal.textContent = `$${vueltoUSD.toFixed(2)}`;
+    if (lblSecundario) lblSecundario.textContent = `(Bs. ${vueltoBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
+    if (ayudaGaveta) {
+      ayudaGaveta.innerHTML = `💵 Se restará de la gaveta de Divisas <strong>-$${vueltoUSD.toFixed(2)}</strong>.`;
+    }
+  } else if (medioVuelto === 'PAGO_MOVIL') {
+    if (lblPrincipal) lblPrincipal.textContent = `Bs. ${vueltoBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (lblSecundario) lblSecundario.textContent = `(Pago Móvil Digital)`;
+    if (ayudaGaveta) {
+      ayudaGaveta.innerHTML = `📱 Vuelto digital emitido por Pago Móvil. <strong>No descuenta efectivo físico de gaveta</strong>.`;
+    }
+  }
+
+  return { vueltoUSD, vueltoBS, medioVuelto, montoEntregado };
+}
+window.calcularVueltoEfectivo = calcularVueltoEfectivo;
 
 function actualizarPrefijoFilaMixta(selectElem) {
   const fila = selectElem.closest('.fila-pago-mixto');
@@ -2738,6 +2872,9 @@ async function emitirFacturaFinal() {
     const liquidacionFiscal = recalcularTotalesRetencionEIGTF();
     const nroCompRet = document.getElementById('inputNroComprobanteRetencion')?.value.trim() || "";
 
+    // Capturar datos de efectivo entregado y vuelto otorgado
+    const datosVuelto = calcularVueltoEfectivo();
+
     datosFacturaPendiente = {
       numFactura: numFactura,
       fechaStr: new Date().toLocaleString('es-VE'),
@@ -2765,7 +2902,12 @@ async function emitirFacturaFinal() {
       montoIGTF_USD: liquidacionFiscal.igtfUSD,
       montoIGTF_BS: liquidacionFiscal.igtfBS,
       totalNetoCobradoUSD: liquidacionFiscal.netoUSD > 0 ? liquidacionFiscal.netoUSD : tributos.totalGeneral,
-      totalNetoCobradoBS: liquidacionFiscal.netoBS > 0 ? liquidacionFiscal.netoBS : totalBs
+      totalNetoCobradoBS: liquidacionFiscal.netoBS > 0 ? liquidacionFiscal.netoBS : totalBs,
+      // Control de Vuelto y Arqueo Físico
+      montoEntregado: datosVuelto?.montoEntregado || 0,
+      vueltoUSD: datosVuelto?.vueltoUSD || 0,
+      vueltoBS: datosVuelto?.vueltoBS || 0,
+      medioVuelto: datosVuelto?.medioVuelto || 'EXACTO'
     };
 
     renderizarTicketTermicoHTML(datosFacturaPendiente);
@@ -2970,6 +3112,67 @@ function renderizarTicketTermicoHTML(d) {
 
         <div class="pp9-separator-dashed"></div>
 
+        let renglonesVueltoTicket = "";
+    if (d.vueltoBS > 0 || d.vueltoUSD > 0) {
+      const entregadoTxt = (formaUpper.includes("DIVISAS")) 
+        ? `$${parseFloat(d.montoEntregado || 0).toFixed(2)}` 
+        : `Bs. ${parseFloat(d.montoEntregado || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
+      
+      const vueltoTxt = (d.medioVuelto === "USD_EFECTIVO")
+        ? `$${parseFloat(d.vueltoUSD).toFixed(2)}`
+        : `Bs. ${parseFloat(d.vueltoBS).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
+
+      renglonesVueltoTicket = `
+        <div class="pp9-fila-item small text-muted">
+          <span>ENTREGADO:</span>
+          <span>${entregadoTxt}</span>
+        </div>
+        <div class="pp9-fila-item small text-primary fw-bold">
+          <span>VUELTO:</span>
+          <span>${vueltoTxt}</span>
+        </div>`;
+    }
+
+    ticketHtml = `
+      <div class="ticket-pp9-wrapper">
+        <div class="pp9-header text-center">
+          <div class="pp9-bold">SENIAT</div>
+          <div class="pp9-bold">${emp.rif}</div>
+          <div class="pp9-bold">${emp.nombre}</div>
+          <div>${emp.direccion1}</div>
+          <div>${emp.direccion2}</div>
+          <div>${emp.direccion3}</div>
+        </div>
+
+        <div class="pp9-cliente-bloque">
+          <div>RIF/CI:${cedulaCliente}</div>
+          <div>R.S.:${String(d.cliente.nombre || 'CONSUMIDOR FINAL').toUpperCase()}</div>
+          <div>${String(d.cliente.direccion || 'CARACAS').toUpperCase()}</div>
+          <div>${d.cliente.telefono || 'N/D'}</div>
+          ${bloqueCompRetHtml}
+          ${bloqueIGTFHtml}
+        </div>
+
+        <div class="pp9-titulo-doc text-center">FACTURA</div>
+        <div class="pp9-info-doc">
+          <div class="pp9-fila-item">
+            <span>FACTURA:</span>
+            <span class="pp9-bold">${numFacturaPP9}</span>
+          </div>
+          <div class="pp9-fila-item">
+            <span>FECHA: ${fechaPP9}</span>
+            <span>HORA: ${horaPP9}</span>
+          </div>
+        </div>
+
+        <div class="pp9-separator-dashed"></div>
+
+        <div class="pp9-cuerpo-items">
+          ${renglonesFiscalesHtml}
+        </div>
+
+        <div class="pp9-separator-dashed"></div>
+
         <div class="pp9-totales-bloque">
           ${bloqueResumenFiscal}
           ${renglonesAjusteFiscal}
@@ -2982,7 +3185,15 @@ function renderizarTicketTermicoHTML(d) {
             <span>TOTAL</span>
             <span>Bs ${totalFinalTicketBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
+          ${renglonesVueltoTicket}
         </div>
+
+        <div class="pp9-footer d-flex justify-content-between mt-2">
+          <span>MH</span>
+          <span class="pp9-bold">${serialFiscal}</span>
+        </div>
+      </div>
+    `;
 
         <div class="pp9-footer d-flex justify-content-between mt-2">
           <span>MH</span>
@@ -6797,9 +7008,30 @@ async function procesarSiguienteCierreCaja() {
       }
     });
 
-    // Arqueo físico de gaveta real del usuario activo
-    const totalCajaUSD = inicialUSD + resumenGeneral.ventasEfectivoUSD + ingresosUSD - retirosUSD;
-    const totalCajaBS = inicialBS + resumenGeneral.ventasEfectivoBS + ingresosBS - retirosBS;
+    // Calcular diferencial exacto de vueltos cruzados (ej. billete de $25 recibido y vuelto entregado en Bs)
+    let vueltosCruzadosEntregadosBS = 0;
+    let excesoEfectivoRecibidoUSD = 0;
+    let vueltosDirectosEntregadosUSD = 0;
+
+    Object.values(mapVentasHoy).forEach(v => {
+      let vUSD = parseFloat(v.vueltoUSD || v["VUELTO_USD"]) || 0;
+      let vBS = parseFloat(v.vueltoBS || v["VUELTO_BS"]) || 0;
+      let medV = String(v.medioVuelto || v["MEDIO_VUELTO"] || "");
+      let formaUpper = String(v["FORMA DE PAGO"] || v.formaPagoStr || "").toUpperCase();
+
+      if (formaUpper.includes("DIVISAS")) {
+        if (medV === "BS_EFECTIVO" && vBS > 0) {
+          vueltosCruzadosEntregadosBS += vBS; // Resta dinero físico de la gaveta de Bolívares
+          excesoEfectivoRecibidoUSD += vUSD;  // Suma el billete completo a la gaveta de Divisas
+        } else if (medV === "USD_EFECTIVO" && vUSD > 0) {
+          vueltosDirectosEntregadosUSD += vUSD;
+        }
+      }
+    });
+
+    // Arqueo físico de gaveta exacto: saldo inicial + entradas reales - vueltos entregados + ajustes
+    const totalCajaUSD = inicialUSD + resumenGeneral.ventasEfectivoUSD + excesoEfectivoRecibidoUSD - vueltosDirectosEntregadosUSD + ingresosUSD - retirosUSD;
+    const totalCajaBS = inicialBS + resumenGeneral.ventasEfectivoBS - vueltosCruzadosEntregadosBS + ingresosBS - retirosBS;
 
     datosCierreCajaPendiente = {
       fechaStr: new Date().toLocaleString('es-VE'),
