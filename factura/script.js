@@ -2537,7 +2537,7 @@ function seleccionarBilleteRapido(monto) {
 }
 window.seleccionarBilleteRapido = seleccionarBilleteRapido;
 
-// Calcular vuelto dinámico simple o mixto ($ + Bs) y actualizar arqueo
+// Calcular vuelto dinámico con soporte total para Efectivo Directo, Cashea y Pagos Mixtos
 function calcularVueltoEfectivo() {
   const metodo = document.getElementById('facFormaPagoSelect')?.value || "";
   const inputMonto = document.getElementById('inputMontoRecibidoEfectivo');
@@ -2562,20 +2562,113 @@ function calcularVueltoEfectivo() {
   let vueltoTotalUSD = 0;
   let vueltoTotalBS = 0;
 
-  if (metodo === 'Efectivo Divisas') {
+  // CASO 1: CASHEA O PAGO MIXTO CON EFECTIVO
+  if (metodo === 'Cashea' || metodo === 'Pago Mixto') {
+    let sumaNoEfectivoUSD = 0;
+    let montoEfectivoIngresadoUSD = 0;
+
+    const filas = document.querySelectorAll('.fila-pago-mixto');
+    filas.forEach(f => {
+      let met = f.querySelector('.select-metodo-mixto')?.value || "";
+      let mto = parseFloat(f.querySelector('.input-monto-mixto')?.value) || 0;
+      if (met.includes("Efectivo") || met === "Efectivo Divisas" || met === "Efectivo Bolívares") {
+        montoEfectivoIngresadoUSD += (met === "Efectivo Bolívares" ? (tasa > 0 ? mto / tasa : 0) : mto);
+      } else {
+        sumaNoEfectivoUSD += (METODOS_BS.includes(met) ? (tasa > 0 ? mto / tasa : 0) : mto);
+      }
+    });
+
+    const inicialRequeridaUSD = Math.max(0, totalUSD - sumaNoEfectivoUSD);
+    vueltoTotalUSD = Math.max(0, montoEfectivoIngresadoUSD - inicialRequeridaUSD);
+    vueltoTotalBS = vueltoTotalUSD * tasa;
+
+  } else if (metodo === 'Efectivo Divisas') {
+    // CASO 2: EFECTIVO DIVISAS PURO
     vueltoTotalUSD = Math.max(0, montoEntregado - totalUSD);
     vueltoTotalBS = vueltoTotalUSD * tasa;
   } else {
+    // CASO 3: EFECTIVO BOLÍVARES PURO
     vueltoTotalBS = Math.max(0, montoEntregado - totalBS);
     vueltoTotalUSD = tasa > 0 ? (vueltoTotalBS / tasa) : 0;
   }
 
-  if (medioVuelto === 'EXACTO' || montoEntregado <= (metodo === 'Efectivo Divisas' ? totalUSD : totalBS)) {
+  if (medioVuelto === 'EXACTO' || (vueltoTotalUSD < 0.01 && vueltoTotalBS < 0.01)) {
     if (lblPrincipal) lblPrincipal.textContent = "Bs. 0,00";
     if (lblSecundario) lblSecundario.textContent = "($0.00)";
     if (ayudaGaveta) ayudaGaveta.textContent = "Monto exacto. Sin vuelto a descontar de caja.";
     return { vueltoUSD: 0, vueltoBS: 0, vueltoTotalUSD: 0, vueltoTotalBS: 0, medioVuelto: 'EXACTO', submedioBs: 'BS_EFECTIVO', montoEntregado };
   }
+
+  // VUELTO MIXTO ($ EN DIVISAS + RESTANTE EN BS / PAGO MÓVIL)
+  if (medioVuelto === 'MIXTO') {
+    let parteDivisasUSD = parseFloat(inputParteUSD?.value);
+    if (isNaN(parteDivisasUSD) || parteDivisasUSD < 0 || parteDivisasUSD > vueltoTotalUSD || inputParteUSD?.value === "") {
+      parteDivisasUSD = Math.floor(vueltoTotalUSD);
+      if (inputParteUSD) inputParteUSD.value = parteDivisasUSD.toFixed(2);
+    }
+
+    const restanteUSD = Math.max(0, vueltoTotalUSD - parteDivisasUSD);
+    const restanteBS = restanteUSD * tasa;
+    const submedioBs = selectSubmedioBs?.value || "BS_EFECTIVO";
+
+    if (lblRestanteBs) lblRestanteBs.textContent = `Bs. ${restanteBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (lblRestanteUSD) lblRestanteUSD.textContent = `$${restanteUSD.toFixed(2)}`;
+
+    if (lblPrincipal) lblPrincipal.textContent = `$${parteDivisasUSD.toFixed(2)} + Bs. ${restanteBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (lblSecundario) lblSecundario.textContent = `(Total Vuelto: $${vueltoTotalUSD.toFixed(2)})`;
+
+    if (ayudaGaveta) {
+      const textoSalidaBs = (submedioBs === "BS_EFECTIVO")
+        ? `🇻🇪 Salen <strong>-Bs. ${restanteBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong> de Bolívares (Efectivo)`
+        : `📱 Vuelto de <strong>Bs. ${restanteBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong> enviado por Pago Móvil`;
+
+      ayudaGaveta.innerHTML = `💵 Entra billete de <strong>+$${montoEntregado.toFixed(2)}</strong> | Salen <strong>-$${parteDivisasUSD.toFixed(2)}</strong> de Divisas | ${textoSalidaBs}.`;
+    }
+
+    return {
+      vueltoUSD: parteDivisasUSD,
+      vueltoBS: restanteBS,
+      vueltoTotalUSD: vueltoTotalUSD,
+      vueltoTotalBS: vueltoTotalBS,
+      medioVuelto: 'MIXTO',
+      submedioBs: submedioBs,
+      montoEntregado: montoEntregado
+    };
+  }
+
+  // VUELTO SIMPLE EN BOLÍVARES
+  if (medioVuelto === 'BS_EFECTIVO') {
+    if (lblPrincipal) lblPrincipal.textContent = `Bs. ${vueltoTotalBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (lblSecundario) lblSecundario.textContent = `($${vueltoTotalUSD.toFixed(2)})`;
+    if (ayudaGaveta) {
+      ayudaGaveta.innerHTML = `💵 Entra billete de <strong>+$${montoEntregado.toFixed(2)}</strong> a Divisas | 🇻🇪 Salen <strong>-Bs. ${vueltoTotalBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong> de Bolívares.`;
+    }
+    return { vueltoUSD: 0, vueltoBS: vueltoTotalBS, vueltoTotalUSD, vueltoTotalBS, medioVuelto: 'BS_EFECTIVO', submedioBs: 'BS_EFECTIVO', montoEntregado };
+  }
+
+  // VUELTO SIMPLE EN DIVISAS
+  if (medioVuelto === 'USD_EFECTIVO') {
+    if (lblPrincipal) lblPrincipal.textContent = `$${vueltoTotalUSD.toFixed(2)}`;
+    if (lblSecundario) lblSecundario.textContent = `(Bs. ${vueltoTotalBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
+    if (ayudaGaveta) {
+      ayudaGaveta.innerHTML = `💵 Se restará de la gaveta de Divisas <strong>-$${vueltoTotalUSD.toFixed(2)}</strong>.`;
+    }
+    return { vueltoUSD: vueltoTotalUSD, vueltoBS: 0, vueltoTotalUSD, vueltoTotalBS, medioVuelto: 'USD_EFECTIVO', submedioBs: 'USD_EFECTIVO', montoEntregado };
+  }
+
+  // VUELTO DIGITAL PAGO MÓVIL
+  if (medioVuelto === 'PAGO_MOVIL') {
+    if (lblPrincipal) lblPrincipal.textContent = `Bs. ${vueltoTotalBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (lblSecundario) lblSecundario.textContent = `(Pago Móvil Digital)`;
+    if (ayudaGaveta) {
+      ayudaGaveta.innerHTML = `📱 Vuelto digital emitido por Pago Móvil. <strong>No descuenta efectivo físico de gaveta</strong>.`;
+    }
+    return { vueltoUSD: 0, vueltoBS: vueltoTotalBS, vueltoTotalUSD, vueltoTotalBS, medioVuelto: 'PAGO_MOVIL', submedioBs: 'PAGO_MOVIL', montoEntregado };
+  }
+
+  return { vueltoUSD: 0, vueltoBS: 0, vueltoTotalUSD: 0, vueltoTotalBS: 0, medioVuelto: 'EXACTO', submedioBs: 'BS_EFECTIVO', montoEntregado };
+}
+window.calcularVueltoEfectivo = calcularVueltoEfectivo;
 
   // CASO A: VUELTO MIXTO ($ EN DIVISAS + RESTANTE EN BS O PAGO MÓVIL)
   if (medioVuelto === 'MIXTO') {
@@ -2829,6 +2922,11 @@ function calcularTotalPagoMixto() {
       const badgeMoneda = document.getElementById('badgeMonedaCobroEfectivo');
       if (inputMontoRec) inputMontoRec.value = montoEfectivoUSD.toFixed(2);
       if (badgeMoneda) badgeMoneda.textContent = "Vuelto Cashea / Mixto";
+      
+      const selectVuelto = document.getElementById('selectMedioVuelto');
+      if (selectVuelto && selectVuelto.value === 'EXACTO') {
+        selectVuelto.value = 'BS_EFECTIVO';
+      }
       calcularVueltoEfectivo();
     }
   } else {
@@ -3174,32 +3272,34 @@ function renderizarTicketTermicoHTML(d) {
     else if (formaUpper.includes("BIOPAGO")) nombreFormaPagoTicket = "BIOPAGO";
     else if (formaUpper.includes("DIVISAS") || formaUpper.includes("DOLARES")) nombreFormaPagoTicket = "EFECTIVO DIVISAS";
 
-    // Renglones de vuelto en ticket si aplica
+    // Renglones de vuelto exacto en ticket (Directo, Cashea y Mixto)
     let renglonesVueltoTicket = "";
-    const vBS = parseFloat(d.vueltoBS) || 0;
+    const vTotalUSD = parseFloat(d.vueltoTotalUSD || d.vueltoUSD || 0) || 0;
+    const vTotalBS = parseFloat(d.vueltoTotalBS || d.vueltoBS || 0) || 0;
     const vUSD = parseFloat(d.vueltoUSD) || 0;
+    const vBS = parseFloat(d.vueltoBS) || 0;
     const mEntregado = parseFloat(d.montoEntregado) || 0;
 
-    if (vBS > 0 || vUSD > 0 || (d.vueltoTotalUSD && d.vueltoTotalUSD > 0)) {
-      const entregadoTxt = formaUpper.includes("DIVISAS") 
-        ? ("$" + mEntregado.toFixed(2)) 
-        : ("Bs. " + mEntregado.toLocaleString('es-VE', { minimumFractionDigits: 2 }));
-      
+    if (vTotalUSD > 0.009 || vTotalBS > 0.01 || vUSD > 0.009 || vBS > 0.01) {
+      const entregadoTxt = (formaUpper.includes("DIVISAS") || d.medioVuelto === "USD_EFECTIVO" || d.medioVuelto === "MIXTO" || mEntregado > 0)
+        ? ("$" + (mEntregado > 0 ? mEntregado : (d.totalUSD + vTotalUSD)).toFixed(2))
+        : ("Bs. " + (mEntregado > 0 ? mEntregado : (d.totalBs + vTotalBS)).toLocaleString('es-VE', { minimumFractionDigits: 2 }));
+
       let vueltoTxt = "";
       if (d.medioVuelto === "MIXTO") {
         vueltoTxt = "$" + vUSD.toFixed(2) + " + Bs. " + vBS.toLocaleString('es-VE', { minimumFractionDigits: 2 });
       } else if (d.medioVuelto === "USD_EFECTIVO") {
-        vueltoTxt = "$" + (d.vueltoTotalUSD || vUSD).toFixed(2);
+        vueltoTxt = "$" + (vTotalUSD > 0 ? vTotalUSD : vUSD).toFixed(2);
       } else {
-        vueltoTxt = "Bs. " + (d.vueltoTotalBS || vBS).toLocaleString('es-VE', { minimumFractionDigits: 2 });
+        vueltoTxt = "Bs. " + (vTotalBS > 0 ? vTotalBS : vBS).toLocaleString('es-VE', { minimumFractionDigits: 2 });
       }
 
       renglonesVueltoTicket = `
         <div class="pp9-fila-item small text-muted">
-          <span>ENTREGADO:</span>
+          <span>PAGÓ CON:</span>
           <span>${entregadoTxt}</span>
         </div>
-        <div class="pp9-fila-item small text-primary fw-bold">
+        <div class="pp9-fila-item small text-primary pp9-bold">
           <span>VUELTO:</span>
           <span>${vueltoTxt}</span>
         </div>`;
