@@ -2517,8 +2517,10 @@ function configurarPanelCalculoEfectivo(metodo) {
   if (contDesgloseMixto) contDesgloseMixto.classList.add('hidden');
 
   const tasa = obtenerTasaBCV() || 1;
+  const items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
+  const tributos = calcularTotalesTributarios(items);
   const liquidacion = recalcularTotalesRetencionEIGTF();
-  const totalUSD = liquidacion.netoUSD > 0 ? liquidacion.netoUSD : parseFloat(document.getElementById('montoModalTotalFactura')?.textContent?.replace(/[^0-9.]/g, '') || 0);
+  const totalUSD = liquidacion.netoUSD > 0 ? liquidacion.netoUSD : tributos.totalGeneral;
   const totalBS = liquidacion.netoBS > 0 ? liquidacion.netoBS : (totalUSD * tasa);
 
   let htmlBilletes = "";
@@ -2580,8 +2582,10 @@ function calcularVueltoEfectivo() {
   const lblRestanteUSD = document.getElementById('lblRestanteVueltoUSD');
 
   const tasa = obtenerTasaBCV() || 1;
+  const items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
+  const tributos = calcularTotalesTributarios(items);
   const liquidacion = recalcularTotalesRetencionEIGTF();
-  const totalUSD = liquidacion.netoUSD > 0 ? liquidacion.netoUSD : parseFloat(document.getElementById('montoModalTotalFactura')?.textContent?.replace(/[^0-9.]/g, '') || 0);
+  const totalUSD = liquidacion.netoUSD > 0 ? liquidacion.netoUSD : tributos.totalGeneral;
   const totalBS = liquidacion.netoBS > 0 ? liquidacion.netoBS : (totalUSD * tasa);
 
   const montoEntregado = parseFloat(inputMonto?.value) || 0;
@@ -2838,8 +2842,10 @@ function calcularTotalPagoMixto() {
     }
   });
 
+  const items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
+  const tributos = calcularTotalesTributarios(items);
   const liquidacion = recalcularTotalesRetencionEIGTF();
-  let totalFacturaUSD = liquidacion.netoUSD > 0 ? liquidacion.netoUSD : parseFloat(document.getElementById('montoModalTotalFactura')?.textContent?.replace(/[^0-9.]/g, '') || 0);
+  let totalFacturaUSD = liquidacion.netoUSD > 0 ? liquidacion.netoUSD : tributos.totalGeneral;
   let totalFacturaBs = liquidacion.netoBS > 0 ? liquidacion.netoBS : (totalFacturaUSD * tasa);
 
   let restanteUSD = totalFacturaUSD - sumaAsignadaUSD;
