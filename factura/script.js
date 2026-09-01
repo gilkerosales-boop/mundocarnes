@@ -704,6 +704,15 @@ async function procesarColaSincronizacion() {
           "PUNTO DE VENTA": parseFloat(desgl["Punto de Venta"]) || 0,
           "TRANSFERENCIA": parseFloat(desgl["Transferencia Bancaria"]) || 0,
           "BIOPAGO": parseFloat(desgl["Biopago"]) || 0,
+          // Auditoría de Billetes Entregados, Vueltos y Tasa
+          "MONTO_ENTREGADO": parseFloat(d.montoEntregado) || 0,
+          "VUELTO_USD": parseFloat(d.vueltoUSD) || 0,
+          "VUELTO_BS": parseFloat(d.vueltoBS) || 0,
+          "VUELTO_TOTAL_USD": parseFloat(d.vueltoTotalUSD) || 0,
+          "VUELTO_TOTAL_BS": parseFloat(d.vueltoTotalBS) || 0,
+          "MEDIO_VUELTO": d.medioVuelto || 'EXACTO',
+          "SUBMEDIO_BS": d.submedioBs || 'BS_EFECTIVO',
+          "TASA_BCV": parseFloat(d.tasaBCV) || 1,
           // Columnas Fiscales SENIAT y Trazabilidad de Nota de Crédito
           "ES_FISCAL": Boolean(d.esFiscal),
           "ES_NOTA_CREDITO": Boolean(d.esNotaCredito || String(d.numFactura || "").startsWith("NC-") || String(d.formaPago || "").includes("NOTA DE CREDITO")),
@@ -788,6 +797,15 @@ async function procesarColaSincronizacion() {
           "TOTAL 2": parseFloat(r.totalGeneralVentasBS) || 0,
           "TOTAL 3": parseFloat(d.totalCajaUSD) || 0,
           "TOTAL 4": parseFloat(d.totalCajaBS) || 0,
+          // Auditoría Completa de Arqueo Físico y Tasa
+          "BILLETES_RECIBIDOS_USD": parseFloat(d.billetesRecibidosUSD) || parseFloat(r.ventasEfectivoUSD) || 0,
+          "VUELTOS_USD": parseFloat(d.vueltosUSD) || 0,
+          "VUELTOS_BS": parseFloat(d.vueltosBS) || 0,
+          "INGRESOS_USD": parseFloat(d.ingresosUSD) || 0,
+          "RETIROS_USD": parseFloat(d.retirosUSD) || 0,
+          "INGRESOS_BS": parseFloat(d.ingresosBS) || 0,
+          "RETIROS_BS": parseFloat(d.retirosBS) || 0,
+          "TASA_BCV": parseFloat(d.tasaBCV) || 1,
           "ES_FISCAL": Boolean(d.modoFiscal || d.esFiscal),
           "NUMERO_Z": d.numeroZ || null
         };
@@ -985,35 +1003,43 @@ async function forzarSincronizacionManual() {
       const cierresOrdenados = [...cierresSup].sort((a, b) => (b.id || 0) - (a.id || 0));
 
       for (let cie of cierresOrdenados) {
-        await dbPut("cierres", {
-          id: cie.id,
-          fechaStr: cie["FECHA"] || "",
-          usuario: usuarioActivo,
-          inicialUSD: parseFloat(cie["INICIAL $"]) || 0,
-          inicialBS: parseFloat(cie["INICIAL Bs"]) || 0,
-          cajaFinalUSD: parseFloat(cie["TOTAL 3"]) || 0,
-          cajaFinalBS: parseFloat(cie["TOTAL 4"]) || 0,
-          totalVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
-          totalVentasBS: parseFloat(cie["TOTAL 2"]) || 0,
-          esFiscal: Boolean(cie["ES_FISCAL"] || cie.esFiscal || cie.modoFiscal || cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ),
-          modoFiscal: Boolean(cie["ES_FISCAL"] || cie.esFiscal || cie.modoFiscal || cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ),
-          numeroZ: cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ || null,
-          resumen: {
-            ventasEfectivoUSD: parseFloat(cie["DIVISAS"]) || 0,
-            ventasEfectivoBS: parseFloat(cie["BOLIVARES"]) || 0,
-            ventasPagoMovil: parseFloat(cie["PAGO MOVIL"]) || 0,
-            ventasZelle: parseFloat(cie["ZELLE"]) || 0,
-            ventasPayPal: parseFloat(cie["PAYPAL"]) || 0,
-            ventasPuntoVenta: parseFloat(cie["PUNTO DE VENTA"]) || 0,
-            ventasBiopago: parseFloat(cie["BIOPAGO"]) || 0,
-            ventasCashea: parseFloat(cie["CASHEA"]) || 0,
-            ventasCredito: parseFloat(cie["CREDITO"]) || 0,
-            ventasTransferencia: parseFloat(cie["TRANSFERENCIA"] || cie["TRANSFERECIA"]) || 0,
-            totalGeneralVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
-            totalGeneralVentasBS: parseFloat(cie["TOTAL 2"]) || 0
+            await dbPut("cierres", {
+              id: cie.id,
+              fechaStr: cie["FECHA"] || "",
+              usuario: usuarioActivo,
+              tasaBCV: parseFloat(cie["TASA_BCV"]) || 1,
+              inicialUSD: parseFloat(cie["INICIAL $"]) || 0,
+              inicialBS: parseFloat(cie["INICIAL Bs"]) || 0,
+              cajaFinalUSD: parseFloat(cie["TOTAL 3"]) || 0,
+              cajaFinalBS: parseFloat(cie["TOTAL 4"]) || 0,
+              totalVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
+              totalVentasBS: parseFloat(cie["TOTAL 2"]) || 0,
+              billetesRecibidosUSD: parseFloat(cie["BILLETES_RECIBIDOS_USD"]) || 0,
+              vueltosUSD: parseFloat(cie["VUELTOS_USD"]) || 0,
+              vueltosBS: parseFloat(cie["VUELTOS_BS"]) || 0,
+              ingresosUSD: parseFloat(cie["INGRESOS_USD"]) || 0,
+              retirosUSD: parseFloat(cie["RETIROS_USD"]) || 0,
+              ingresosBS: parseFloat(cie["INGRESOS_BS"]) || 0,
+              retirosBS: parseFloat(cie["RETIROS_BS"]) || 0,
+              esFiscal: Boolean(cie["ES_FISCAL"] || cie.esFiscal || cie.modoFiscal || cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ),
+              modoFiscal: Boolean(cie["ES_FISCAL"] || cie.esFiscal || cie.modoFiscal || cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ),
+              numeroZ: cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ || null,
+              resumen: {
+                ventasEfectivoUSD: parseFloat(cie["DIVISAS"]) || 0,
+                ventasEfectivoBS: parseFloat(cie["BOLIVARES"]) || 0,
+                ventasPagoMovil: parseFloat(cie["PAGO MOVIL"]) || 0,
+                ventasZelle: parseFloat(cie["ZELLE"]) || 0,
+                ventasPayPal: parseFloat(cie["PAYPAL"]) || 0,
+                ventasPuntoVenta: parseFloat(cie["PUNTO DE VENTA"]) || 0,
+                ventasBiopago: parseFloat(cie["BIOPAGO"]) || 0,
+                ventasCashea: parseFloat(cie["CASHEA"]) || 0,
+                ventasCredito: parseFloat(cie["CREDITO"]) || 0,
+                ventasTransferencia: parseFloat(cie["TRANSFERENCIA"] || cie["TRANSFERECIA"]) || 0,
+                totalGeneralVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
+                totalGeneralVentasBS: parseFloat(cie["TOTAL 2"]) || 0
+              }
+            });
           }
-        });
-      }
     }
   } catch (e) {}
 
