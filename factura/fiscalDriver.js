@@ -489,7 +489,7 @@ class FiscalDriverTFHKA {
       }
 
       // PASO C: Subtotal, Forma de Pago e IGTF Nativo Fiscal (Medio de Pago 20 = Divisas)
-      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 300 : 150));
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 500 : 250));
 
       const formaStr = String(formaPago || "").toUpperCase();
       const aplicaIGTFNativo = (datosFactura.montoIGTF_BS > 0);
@@ -498,21 +498,22 @@ class FiscalDriverTFHKA {
       try {
         await this.enviarComando("3");
       } catch (eSub) {}
-      await new Promise(r => setTimeout(r, 250));
+      
+      // Pausa obligatoria para que el cabezal térmico termine de imprimir SUBTTL en papel
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 950 : 400));
 
-      // 2. Transmisión del Pago: Si aplica IGTF, utilizar el comando nativo '220' con monto base
+      // 2. Transmisión del Pago: Comando 120 (Pago Total Divisas con IGTF Nativo)
       if (aplicaIGTFNativo) {
-        // Enviar pago por medio #20 (Divisas) con el monto base en Bs para que el firmware liquide el IGTF nativo
-        const subtotalBaseBs = Math.round(((parseFloat(datosFactura.totalUSD) || 0) * (parseFloat(tasaBCV) || 1)) * 100);
-        const strMontoBase = String(subtotalBaseBs).padStart(12, '0');
         try {
-          await this.enviarComando(`220${strMontoBase}`);
-        } catch (ePago220) {
-          // Fallback comando directo 120 (Pago Total Divisas)
-          try { await this.enviarComando("120"); } catch (e120) {}
+          await this.enviarComando("120");
+        } catch (ePago120) {
+          try {
+            const subtotalBaseBs = Math.round(((parseFloat(datosFactura.totalUSD) || 0) * (parseFloat(tasaBCV) || 1)) * 100);
+            const strMontoBase = String(subtotalBaseBs).padStart(12, '0');
+            await this.enviarComando(`220${strMontoBase}`);
+          } catch (ePago220) {}
         }
       } else {
-        // Pagos sin IGTF en Bolívares u otros medios
         let cmdCodigoPago = "101"; // Efectivo Bs por defecto
         if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO") || formaStr.includes("DÉBITO")) {
           cmdCodigoPago = "109";
@@ -526,12 +527,16 @@ class FiscalDriverTFHKA {
         } catch (errPago) {}
       }
 
-      await new Promise(r => setTimeout(r, 400));
+      // Pausa para que el cabezal termine de imprimir las líneas de pago e IGTF
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 950 : 400));
 
-      // 3. Enviar comando obligatorio '199' para liquidar IGTF, Totalizar y Cortar
+      // 3. Enviar comando obligatorio '199' con reintento automático para liquidar, totalizar y cortar
       try {
         await this.enviarComando("199");
-      } catch (err199) {}
+      } catch (err199) {
+        await new Promise(r => setTimeout(r, 600));
+        try { await this.enviarComando("199"); } catch (e199_2) {}
+      }
 
       const pausaCorteMs = this.modelo === "PP9" ? 3500 : 1500;
       await new Promise(r => setTimeout(r, pausaCorteMs));
@@ -684,22 +689,26 @@ class FiscalDriverTFHKA {
       }
 
       // PASO C: Subtotal, Pago y Reversión Nativa de IGTF en Nota de Crédito
-      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 300 : 150));
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 500 : 250));
 
       // 1. Enviar comando Subtotal ('3')
       try {
         await this.enviarComando("3");
       } catch (eSubNC) {}
-      await new Promise(r => setTimeout(r, 250));
+      
+      // Pausa obligatoria para que el cabezal termine de imprimir SUBTTL en la Nota de Crédito
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 950 : 400));
 
       // 2. Transmisión del Pago / Reversión Nativa de Divisas
       if (datosNC.montoIGTF_BS > 0) {
-        const subtotalBaseBs = Math.round(((parseFloat(datosNC.totalReversarUSD) || parseFloat(datosNC.totalOriginalUSD) || 0) * (parseFloat(tasaBCV) || 1)) * 100);
-        const strMontoBase = String(subtotalBaseBs).padStart(12, '0');
         try {
-          await this.enviarComando(`220${strMontoBase}`);
-        } catch (ePago220NC) {
-          try { await this.enviarComando("120"); } catch (e120NC) {}
+          await this.enviarComando("120");
+        } catch (e120NC) {
+          try {
+            const subtotalBaseBs = Math.round(((parseFloat(datosNC.totalReversarUSD) || parseFloat(datosNC.totalOriginalUSD) || 0) * (parseFloat(tasaBCV) || 1)) * 100);
+            const strMontoBase = String(subtotalBaseBs).padStart(12, '0');
+            await this.enviarComando(`220${strMontoBase}`);
+          } catch (ePago220NC) {}
         }
       } else {
         try {
@@ -707,12 +716,16 @@ class FiscalDriverTFHKA {
         } catch (eNC1) {}
       }
 
-      await new Promise(r => setTimeout(r, 400));
+      // Pausa para que el cabezal termine de imprimir las líneas de pago
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 950 : 400));
 
-      // 3. Cierre obligatorio con comando '199'
+      // 3. Cierre obligatorio con comando '199' con reintento automático
       try {
         await this.enviarComando("199");
-      } catch (eNC2) {}
+      } catch (eNC2) {
+        await new Promise(r => setTimeout(r, 600));
+        try { await this.enviarComando("199"); } catch (eNC2_2) {}
+      }
 
       await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 3500 : 1500));
 
