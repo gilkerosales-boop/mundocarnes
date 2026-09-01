@@ -3057,7 +3057,7 @@ function renderizarTicketTermicoHTML(d) {
       bloqueCompRetHtml = `<div>COMP RET ${d.comprobanteRetencion}</div>`;
     }
 
-    let cedulaCliente = String(d.cliente.cedula || "V-00000000").trim();
+    let cedulaCliente = String(d.cliente?.cedula || "V-00000000").trim();
     if (!/^[VJEGPvjegp]/i.test(cedulaCliente)) cedulaCliente = "V-" + cedulaCliente;
 
     // Etiqueta del medio de pago en ticket
@@ -3072,55 +3072,20 @@ function renderizarTicketTermicoHTML(d) {
     else if (formaUpper.includes("BIOPAGO")) nombreFormaPagoTicket = "BIOPAGO";
     else if (formaUpper.includes("DIVISAS") || formaUpper.includes("DOLARES")) nombreFormaPagoTicket = "EFECTIVO DIVISAS";
 
-    ticketHtml = `
-      <div class="ticket-pp9-wrapper">
-        <div class="pp9-header text-center">
-          <div class="pp9-bold">SENIAT</div>
-          <div class="pp9-bold">${emp.rif}</div>
-          <div class="pp9-bold">${emp.nombre}</div>
-          <div>${emp.direccion1}</div>
-          <div>${emp.direccion2}</div>
-          <div>${emp.direccion3}</div>
-        </div>
+    // Renglones de vuelto en ticket si aplica
+    let renglonesVueltoTicket = "";
+    const vBS = parseFloat(d.vueltoBS) || 0;
+    const vUSD = parseFloat(d.vueltoUSD) || 0;
+    const mEntregado = parseFloat(d.montoEntregado) || 0;
 
-        <div class="pp9-cliente-bloque">
-          <div>RIF/CI:${cedulaCliente}</div>
-          <div>R.S.:${String(d.cliente.nombre || 'CONSUMIDOR FINAL').toUpperCase()}</div>
-          <div>${String(d.cliente.direccion || 'CARACAS').toUpperCase()}</div>
-          <div>${d.cliente.telefono || 'N/D'}</div>
-          ${bloqueCompRetHtml}
-          ${bloqueIGTFHtml}
-        </div>
-
-        <div class="pp9-titulo-doc text-center">FACTURA</div>
-        <div class="pp9-info-doc">
-          <div class="pp9-fila-item">
-            <span>FACTURA:</span>
-            <span class="pp9-bold">${numFacturaPP9}</span>
-          </div>
-          <div class="pp9-fila-item">
-            <span>FECHA: ${fechaPP9}</span>
-            <span>HORA: ${horaPP9}</span>
-          </div>
-        </div>
-
-        <div class="pp9-separator-dashed"></div>
-
-        <div class="pp9-cuerpo-items">
-          ${renglonesFiscalesHtml}
-        </div>
-
-        <div class="pp9-separator-dashed"></div>
-
-        let renglonesVueltoTicket = "";
-    if (d.vueltoBS > 0 || d.vueltoUSD > 0) {
-      const entregadoTxt = (formaUpper.includes("DIVISAS")) 
-        ? `$${parseFloat(d.montoEntregado || 0).toFixed(2)}` 
-        : `Bs. ${parseFloat(d.montoEntregado || 0).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
+    if (vBS > 0 || vUSD > 0) {
+      const entregadoTxt = formaUpper.includes("DIVISAS") 
+        ? ("$" + mEntregado.toFixed(2)) 
+        : ("Bs. " + mEntregado.toLocaleString('es-VE', { minimumFractionDigits: 2 }));
       
       const vueltoTxt = (d.medioVuelto === "USD_EFECTIVO")
-        ? `$${parseFloat(d.vueltoUSD).toFixed(2)}`
-        : `Bs. ${parseFloat(d.vueltoBS).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
+        ? ("$" + vUSD.toFixed(2))
+        : ("Bs. " + vBS.toLocaleString('es-VE', { minimumFractionDigits: 2 }));
 
       renglonesVueltoTicket = `
         <div class="pp9-fila-item small text-muted">
@@ -3146,9 +3111,9 @@ function renderizarTicketTermicoHTML(d) {
 
         <div class="pp9-cliente-bloque">
           <div>RIF/CI:${cedulaCliente}</div>
-          <div>R.S.:${String(d.cliente.nombre || 'CONSUMIDOR FINAL').toUpperCase()}</div>
-          <div>${String(d.cliente.direccion || 'CARACAS').toUpperCase()}</div>
-          <div>${d.cliente.telefono || 'N/D'}</div>
+          <div>R.S.:${String(d.cliente?.nombre || 'CONSUMIDOR FINAL').toUpperCase()}</div>
+          <div>${String(d.cliente?.direccion || 'CARACAS').toUpperCase()}</div>
+          <div>${d.cliente?.telefono || 'N/D'}</div>
           ${bloqueCompRetHtml}
           ${bloqueIGTFHtml}
         </div>
@@ -3187,13 +3152,6 @@ function renderizarTicketTermicoHTML(d) {
           </div>
           ${renglonesVueltoTicket}
         </div>
-
-        <div class="pp9-footer d-flex justify-content-between mt-2">
-          <span>MH</span>
-          <span class="pp9-bold">${serialFiscal}</span>
-        </div>
-      </div>
-    `;
 
         <div class="pp9-footer d-flex justify-content-between mt-2">
           <span>MH</span>
@@ -3268,9 +3226,9 @@ function renderizarTicketTermicoHTML(d) {
         <div class="ticket-info">
           <div><strong>NRO CONTROL:</strong> <span class="fs-6 num-legible">${d.numFactura}</span></div>
           <div><strong>FECHA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
-          <div><strong>CLIENTE:</strong> ${d.cliente.nombre}</div>
-          <div><strong>CI/RIF:</strong> <span class="num-legible">${d.cliente.cedula}</span> | <strong>TELF:</strong> <span class="num-legible">${d.cliente.telefono || 'N/D'}</span></div>
-          <div><strong>DIR:</strong> ${d.cliente.direccion || 'N/D'}</div>
+          <div><strong>CLIENTE:</strong> ${d.cliente?.nombre || 'CONSUMIDOR FINAL'}</div>
+          <div><strong>CI/RIF:</strong> <span class="num-legible">${d.cliente?.cedula || 'N/D'}</span> | <strong>TELF:</strong> <span class="num-legible">${d.cliente?.telefono || 'N/D'}</span></div>
+          <div><strong>DIR:</strong> ${d.cliente?.direccion || 'N/D'}</div>
         </div>
 
         <table class="ticket-table">
