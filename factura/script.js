@@ -6903,9 +6903,11 @@ async function procesarSiguienteCierreCaja() {
       exentoBS: 0,
       base16BS: 0,
       iva16BS: 0,
+      igtfBS: 0,
       ncExentoBS: 0,
       ncBase16BS: 0,
       ncIVA16BS: 0,
+      ncIgtfBS: 0,
       ncTotalBS: 0,
       facturaInicialFiscal: null, facturaFinalFiscal: null,
       ncFinalFiscal: null,
@@ -7080,11 +7082,12 @@ async function procesarSiguienteCierreCaja() {
         if (esFiscal) {
           const esNC = Boolean(v.esNotaCredito || numFac.startsWith("NC-") || formaStr.includes("NOTA DE CREDITO"));
           const prodsStr = String(v["PRODUCTOS"] || v.productosSummary || "");
-          let exentoDocBs = 0;
-          let base16DocBs = 0;
-          let iva16DocBs = 0;
+          let exentoDocBs = parseFloat(v.exentoBS) || 0;
+          let base16DocBs = parseFloat(v.base16BS) || 0;
+          let iva16DocBs = parseFloat(v.iva16BS) || 0;
+          let igtfDocBs = Math.abs(parseFloat(v.montoIGTF_BS || v["MONTO_IGTF_BS"]) || 0);
 
-          if (prodsStr) {
+          if ((exentoDocBs + base16DocBs) === 0 && prodsStr) {
             prodsStr.split(' | ').forEach(itemTxt => {
               const matchUSD = itemTxt.match(/\$([0-9.]+)/);
               let itemUSD = matchUSD ? parseFloat(matchUSD[1]) : 0;
@@ -7109,25 +7112,35 @@ async function procesarSiguienteCierreCaja() {
             resumenFiscal.cantNCFiscales++;
             resumenFiscal.listaNCFiscales.push(numFac);
             let montoNCBs = Math.abs(totalVentaUSD) * factorTasa;
+
+            // Si no tenía detalle de productos, evaluar según el exento acumulado del día
             if ((exentoDocBs + base16DocBs) === 0 && montoNCBs > 0) {
-              base16DocBs = montoNCBs / 1.16;
-              iva16DocBs = montoNCBs - base16DocBs;
+              if (resumenFiscal.exentoBS > 0 && resumenFiscal.base16BS === 0) {
+                exentoDocBs = montoNCBs;
+              } else {
+                base16DocBs = montoNCBs / 1.16;
+                iva16DocBs = montoNCBs - base16DocBs;
+              }
             }
+
             resumenFiscal.ncExentoBS += exentoDocBs;
             resumenFiscal.ncBase16BS += base16DocBs;
             resumenFiscal.ncIVA16BS += iva16DocBs;
-            resumenFiscal.ncTotalBS += montoNCBs;
+            resumenFiscal.ncIgtfBS += igtfDocBs;
+            resumenFiscal.ncTotalBS += (exentoDocBs + base16DocBs + iva16DocBs + igtfDocBs) || montoNCBs;
           } else {
             resumenFiscal.cantFacturasFiscales++;
             resumenFiscal.listaFacturasFiscales.push(numFac);
             let montoFacBs = totalVentaUSD * factorTasa;
+
             if ((exentoDocBs + base16DocBs) === 0 && montoFacBs > 0) {
-              base16DocBs = montoFacBs / 1.16;
-              iva16DocBs = montoFacBs - base16DocBs;
+              exentoDocBs = montoFacBs;
             }
+
             resumenFiscal.exentoBS += exentoDocBs;
             resumenFiscal.base16BS += base16DocBs;
             resumenFiscal.iva16BS += iva16DocBs;
+            resumenFiscal.igtfBS += igtfDocBs;
           }
 
           if (sumaDesglose > 0) {
@@ -7294,13 +7307,25 @@ function renderizarTicketCierreCajaHTML(d) {
     const horaPP9 = `${hora}:${min}`;
     const numReporteZ = String(d.numeroZ || "0002").replace(/\D/g, '').padStart(4, '0');
 
-    // Montos acumulados fiscales
-    const totalVentasBs = (rFisc.totalFiscalBS || (rGen.totalGeneralVentasBS || 0));
-    const base16Bs = totalVentasBs > 0 ? (totalVentasBs / 1.16) : 0;
-    const iva16Bs = totalVentasBs - base16Bs;
-    const exentoBs = 0;
-    const cantFiscales = rFisc.cantFacturasFiscales || 16;
-    const ultFac = String(rFisc.facturaFinalFiscal || "00000016").replace(/\D/g, '').padStart(8, '0');
+    // Montos acumulados fiscales exactos consolidados
+    const exentoBs = rFisc.exentoBS || 0;
+    const base16Bs = rFisc.base16BS || 0;
+    const iva16Bs = rFisc.iva16BS || 0;
+    const igtfBs = rFisc.igtfBS || 0;
+    const subtotalVentasBs = exentoBs + base16Bs;
+    const totalVentasBs = subtotalVentasBs + iva16Bs + igtfBs;
+
+    const ncExentoBs = rFisc.ncExentoBS || 0;
+    const ncBase16Bs = rFisc.ncBase16BS || 0;
+    const ncIVA16Bs = rFisc.ncIVA16BS || 0;
+    const ncIgtfBs = rFisc.ncIgtfBS || 0;
+    const subtotalNCBs = ncExentoBs + ncBase16Bs;
+    const totalNCBs = rFisc.ncTotalBS || (subtotalNCBs + ncIVA16Bs + ncIgtfBs);
+
+    const cantFiscales = rFisc.cantFacturasFiscales || 0;
+    const cantNCFiscales = rFisc.cantNCFiscales || 0;
+    const ultFac = String(rFisc.facturaFinalFiscal || (cantFiscales > 0 ? cantFiscales : "00000001")).replace(/\D/g, '').padStart(8, '0');
+    const ultNC = String(rFisc.ncFinalFiscal || (cantNCFiscales > 0 ? cantNCFiscales : "00000001")).replace(/\D/g, '').padStart(8, '0');
 
     ticketHtml = `
       <div class="ticket-pp9-wrapper ticket-pp9-reporte-z">
@@ -7341,7 +7366,7 @@ function renderizarTicketCierreCajaHTML(d) {
         <div class="pp9-seccion-titulo text-center">VENTAS</div>
         <div class="pp9-fila-item">
           <span>#FACT DEL DIA</span>
-          <span>${rFisc.cantFacturasFiscales || 0}</span>
+          <span>${cantFiscales}</span>
         </div>
         <div class="pp9-fila-item">
           <span>#FACT ANULADAS</span>
@@ -7418,19 +7443,19 @@ function renderizarTicketCierreCajaHTML(d) {
 
         <!-- 8. VENTAS FISCALES REALES DE HOY -->
         <div class="pp9-seccion-titulo text-center">VENTAS</div>
-        <div class="pp9-fila-item"><span>EXENTO</span><span>Bs ${(rFisc.exentoBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-        <div class="pp9-fila-item"><span>BI G (16,00%)</span><span>Bs ${(rFisc.base16BS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-        <div class="pp9-fila-item"><span>IVA G (16,00%)</span><span>Bs ${(rFisc.iva16BS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>EXENTO</span><span>Bs ${exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>BI G (16,00%)</span><span>Bs ${base16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>IVA G (16,00%)</span><span>Bs ${iva16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
         <div class="pp9-fila-item"><span>BI R (8,00%)</span><span>Bs 0,00</span></div>
         <div class="pp9-fila-item"><span>IVA R (8,00%)</span><span>Bs 0,00</span></div>
         <div class="pp9-fila-item"><span>BI A (31,00%)</span><span>Bs 0,00</span></div>
         <div class="pp9-fila-item"><span>IVA A (31,00%)</span><span>Bs 0,00</span></div>
         <div class="pp9-fila-item"><span>PERCIBIDO</span><span>Bs 0,00</span></div>
-        <div class="pp9-fila-item mt-1"><span>SUBTTL VENTA</span><span>Bs ${(totalVentasBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-        <div class="pp9-fila-item"><span>IGTF VENTA (3,00%)</span><span>Bs 0,00</span></div>
-        <div class="pp9-fila-item"><span>IVA VENTA</span><span>Bs ${(rFisc.iva16BS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-        <div class="pp9-fila-item pp9-bold"><span>TOTAL VENTA</span><span>Bs ${(totalVentasBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-        <div class="pp9-fila-item mt-1"><span>BI IGTF (3,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item mt-1"><span>SUBTTL VENTA</span><span>Bs ${subtotalVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>IGTF VENTA (3,00%)</span><span>Bs ${igtfBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>IVA VENTA</span><span>Bs ${iva16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item pp9-bold"><span>TOTAL VENTA</span><span>Bs ${totalVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item mt-1"><span>BI IGTF (3,00%)</span><span>Bs ${igtfBs > 0 ? subtotalVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}</span></div>
 
         <!-- 9. NOTAS DE DEBITO -->
         <div class="pp9-seccion-titulo text-center">NOTAS DE DEBITO</div>
@@ -7450,19 +7475,18 @@ function renderizarTicketCierreCajaHTML(d) {
 
         <!-- 10. NOTAS DE CREDITO FISCALES REALES DE HOY -->
         <div class="pp9-seccion-titulo text-center">NOTAS DE CREDITO</div>
-        <div class="pp9-fila-item"><span>NC.EXENTO</span><span>Bs ${(rFisc.ncExentoBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-        <div class="pp9-fila-item"><span>NC.BI G (16,00%)</span><span>Bs ${(rFisc.ncBase16BS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-        <div class="pp9-fila-item"><span>NC.IVA G (16,00%)</span><span>Bs ${(rFisc.ncIVA16BS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>NC.EXENTO</span><span>Bs ${ncExentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>NC.BI G (16,00%)</span><span>Bs ${ncBase16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>NC.IVA G (16,00%)</span><span>Bs ${ncIVA16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
         <div class="pp9-fila-item"><span>NC.BI R (8,00%)</span><span>Bs 0,00</span></div>
         <div class="pp9-fila-item"><span>NC.IVA R (8,00%)</span><span>Bs 0,00</span></div>
         <div class="pp9-fila-item"><span>NC.BI A (31,00%)</span><span>Bs 0,00</span></div>
         <div class="pp9-fila-item"><span>NC.IVA A (31,00%)</span><span>Bs 0,00</span></div>
         <div class="pp9-fila-item"><span>NC.PERCIBIDO</span><span>Bs 0,00</span></div>
-        <div class="pp9-fila-item mt-1"><span>SUBTTL NOTA CREDITO</span><span>Bs ${(rFisc.ncTotalBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-        <div class="pp9-fila-item"><span>IGTF NOTA CREDITO (3,00%)</span><span>Bs 0,00</span></div>
-        <div class="pp9-fila-item"><span>IVA NOTA CREDITO</span><span>Bs ${(rFisc.ncIVA16BS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-        <div class="pp9-fila-item pp9-bold"><span>TOTAL NOTA CREDITO</span><span>Bs ${(rFisc.ncTotalBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-        <div class="pp9-fila-item mt-1"><span>NC.BI IGTF (3,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item mt-1"><span>SUBTTL NOTA CREDITO</span><span>Bs ${subtotalNCBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>IGTF NOTA CREDITO (3,00%)</span><span>Bs ${ncIgtfBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>IVA NOTA CREDITO</span><span>Bs ${ncIVA16Bs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item pp9-bold"><span>TOTAL NOTA CREDITO</span><span>Bs ${totalNCBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
 
         <div class="pp9-separator-dashed"></div>
 
