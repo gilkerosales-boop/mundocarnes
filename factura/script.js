@@ -2768,9 +2768,11 @@ function eliminarLineaPagoMixto(btn) {
 }
 
 function calcularTotalPagoMixto() {
-  const tasa = obtenerTasaBCV();
+  const tasa = obtenerTasaBCV() || 1;
   let sumaAsignadaUSD = 0;
   let sumaAsignadaBs = 0;
+  let hayLineaEfectivo = false;
+  let montoEfectivoUSD = 0;
 
   const filas = document.querySelectorAll('.fila-pago-mixto');
   filas.forEach(f => {
@@ -2780,6 +2782,11 @@ function calcularTotalPagoMixto() {
     if (selectMetodo && inputMonto) {
       let metodo = selectMetodo.value;
       let montoTipado = parseFloat(inputMonto.value) || 0;
+
+      if (metodo.includes("Efectivo") || metodo === "Efectivo Divisas" || metodo === "Efectivo Bolívares") {
+        hayLineaEfectivo = true;
+        montoEfectivoUSD += (metodo === "Efectivo Bolívares" ? (tasa > 0 ? montoTipado / tasa : 0) : montoTipado);
+      }
 
       if (METODOS_BS.includes(metodo)) {
         sumaAsignadaBs += montoTipado;
@@ -2791,13 +2798,9 @@ function calcularTotalPagoMixto() {
     }
   });
 
-  let totalFacturaUSD = 0;
-  let items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
-
-  for (let key in items) {
-    totalFacturaUSD += parseFloat(items[key].precioTotal) || 0;
-  }
-  let totalFacturaBs = totalFacturaUSD * tasa;
+  const liquidacion = recalcularTotalesRetencionEIGTF();
+  let totalFacturaUSD = liquidacion.netoUSD > 0 ? liquidacion.netoUSD : parseFloat(document.getElementById('montoModalTotalFactura')?.textContent?.replace(/[^0-9.]/g, '') || 0);
+  let totalFacturaBs = liquidacion.netoBS > 0 ? liquidacion.netoBS : (totalFacturaUSD * tasa);
 
   let restanteUSD = totalFacturaUSD - sumaAsignadaUSD;
   let restanteBs = totalFacturaBs - sumaAsignadaBs;
@@ -2808,24 +2811,48 @@ function calcularTotalPagoMixto() {
   const elemAsignado = document.getElementById('montoAsignadoMixto');
   const elemEsperado = document.getElementById('montoEsperadoMixto');
   const elemRestante = document.getElementById('montoRestanteMixto');
+  const contEfectivo = document.getElementById('contenedorCalculoEfectivo');
+
+  // Si hay billete de mayor denominación en efectivo, activar panel de vuelto automáticamente
+  if (hayLineaEfectivo && restanteUSD < -0.01) {
+    const vueltoExcesoUSD = Math.abs(restanteUSD);
+    const vueltoExcesoBS = vueltoExcesoUSD * tasa;
+
+    if (elemRestante) {
+      elemRestante.textContent = `Vuelto: $${vueltoExcesoUSD.toFixed(2)}`;
+      elemRestante.className = 'text-success fw-bold num-legible';
+    }
+
+    if (contEfectivo) {
+      contEfectivo.classList.remove('hidden');
+      const inputMontoRec = document.getElementById('inputMontoRecibidoEfectivo');
+      const badgeMoneda = document.getElementById('badgeMonedaCobroEfectivo');
+      if (inputMontoRec) inputMontoRec.value = montoEfectivoUSD.toFixed(2);
+      if (badgeMoneda) badgeMoneda.textContent = "Vuelto Cashea / Mixto";
+      calcularVueltoEfectivo();
+    }
+  } else {
+    if (contEfectivo && (document.getElementById('facFormaPagoSelect')?.value === 'Cashea' || document.getElementById('facFormaPagoSelect')?.value === 'Pago Mixto')) {
+      contEfectivo.classList.add('hidden');
+    }
+
+    if (elemRestante) {
+      if (monedaVistaModal === "BS") {
+        elemRestante.textContent = `Bs. ${restanteBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        elemRestante.className = (restanteBs === 0) ? 'text-success fw-bold num-legible' : (restanteBs > 0 ? 'monto-restante-alerta num-legible' : 'text-danger fw-bold num-legible');
+      } else {
+        elemRestante.textContent = `$${restanteUSD.toFixed(2)}`;
+        elemRestante.className = (restanteUSD === 0) ? 'text-success fw-bold num-legible' : (restanteUSD > 0 ? 'monto-restante-alerta num-legible' : 'text-danger fw-bold num-legible');
+      }
+    }
+  }
 
   if (monedaVistaModal === "BS") {
     if (elemAsignado) elemAsignado.textContent = `Bs. ${sumaAsignadaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     if (elemEsperado) elemEsperado.textContent = `Bs. ${totalFacturaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-    if (elemRestante) {
-      elemRestante.textContent = `Bs. ${restanteBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      elemRestante.className = (restanteBs === 0) ? 'text-success fw-bold num-legible' : (restanteBs > 0 ? 'monto-restante-alerta num-legible' : 'text-danger fw-bold num-legible');
-    }
-
   } else {
     if (elemAsignado) elemAsignado.textContent = `$${sumaAsignadaUSD.toFixed(2)}`;
     if (elemEsperado) elemEsperado.textContent = `$${totalFacturaUSD.toFixed(2)}`;
-
-    if (elemRestante) {
-      elemRestante.textContent = `$${restanteUSD.toFixed(2)}`;
-      elemRestante.className = (restanteUSD === 0) ? 'text-success fw-bold num-legible' : (restanteUSD > 0 ? 'monto-restante-alerta num-legible' : 'text-danger fw-bold num-legible');
-    }
   }
 
   return { 
@@ -2834,7 +2861,8 @@ function calcularTotalPagoMixto() {
     restanteUSD: restanteUSD,
     sumaBs: sumaAsignadaBs,
     totalBs: totalFacturaBs,
-    restanteBs: restanteBs
+    restanteBs: restanteBs,
+    hayVuelto: (restanteUSD < -0.01)
   };
 }
 
@@ -2843,12 +2871,7 @@ function obtenerDetalleFormaPagoFinal() {
   if (!formaSelect) return null;
 
   if (formaSelect === 'Pago Mixto' || formaSelect === 'Cashea') {
-    const tasa = obtenerTasaBCV();
-    if (tasa <= 0) {
-      mostrarAvisoFactura("Indique una Tasa BCV válida antes de procesar un pago en Bolívares o Mixto.");
-      return null;
-    }
-
+    const tasa = obtenerTasaBCV() || 1;
     const filas = document.querySelectorAll('.fila-pago-mixto');
     let desglose = [];
     let valido = true;
@@ -2876,8 +2899,10 @@ function obtenerDetalleFormaPagoFinal() {
     }
 
     const calc = calcularTotalPagoMixto();
-    if (Math.abs(calc.restanteUSD) >= 0.02) {
-      mostrarAvisoFactura(`La suma asignada debe cubrir el total de la factura. Restante: $${Math.abs(calc.restanteUSD).toFixed(2)}.`);
+    
+    // Permitir pago exacto o pago con billete mayor (que genera vuelto)
+    if (calc.restanteUSD > 0.02) {
+      mostrarAvisoFactura(`La suma asignada no cubre el total requerido. Falta: $${calc.restanteUSD.toFixed(2)}.`);
       return null;
     }
 
