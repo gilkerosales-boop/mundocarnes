@@ -488,45 +488,47 @@ class FiscalDriverTFHKA {
         await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
       }
 
-      // Si aplica percepción IGTF (3% en Divisas), enviar Subtotal ('3') y luego recargo porcentual general ('p+0300')
-      if (datosFactura.montoIGTF_BS > 0) {
-        try {
-          // 1. Enviar comando de Subtotal ('3') para consolidar todos los ítems antes del recargo
-          await this.enviarComando("3");
-          await new Promise(r => setTimeout(r, 200));
+      // PASO C: Subtotal, Forma de Pago e IGTF Nativo Fiscal (Medio de Pago 20 = Divisas)
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 300 : 150));
 
-          // 2. Aplicar recargo general del 3% (IGTF) sobre el subtotal completo de la factura
-          await this.enviarComando("p+0300");
-        } catch (eIGTF) {
-          try {
-            const strMontoIGTF = this.formatearPrecioFiscal(datosFactura.montoIGTF_BS);
-            await this.enviarComando(`P+${strMontoIGTF}IGTF 3% DIVISAS`);
-          } catch (eIGTF2) {}
-        }
-        await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
-      }
-
-      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 600 : 250));
-
-      // PASO C: Forma de Pago y Cierre Definitivo de Factura Fiscal (101 Pago + 199 Cierre)
       const formaStr = String(formaPago || "").toUpperCase();
-      let cmdCodigoPago = "101"; // Efectivo por defecto
+      const aplicaIGTFNativo = (datosFactura.montoIGTF_BS > 0);
 
-      if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO") || formaStr.includes("DÉBITO")) {
-        cmdCodigoPago = "109";
-      } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
-        cmdCodigoPago = "114";
-      } else if (formaStr.includes("PAGO MOVIL") || formaStr.includes("PAGO MÓVIL") || formaStr.includes("TRANSFERENCIA") || formaStr.includes("BIOPAGO") || formaStr.includes("ZELLE") || formaStr.includes("DIVISAS") || formaStr.includes("PAYPAL") || formaStr.includes("CASHEA")) {
-        cmdCodigoPago = "120";
-      }
-
+      // 1. Enviar comando Subtotal ('3') para consolidar la base imponible
       try {
-        await this.enviarComando(cmdCodigoPago);
-      } catch (errPago) {}
+        await this.enviarComando("3");
+      } catch (eSub) {}
+      await new Promise(r => setTimeout(r, 250));
+
+      // 2. Transmisión del Pago: Si aplica IGTF, utilizar el comando nativo '220' con monto base
+      if (aplicaIGTFNativo) {
+        // Enviar pago por medio #20 (Divisas) con el monto base en Bs para que el firmware liquide el IGTF nativo
+        const subtotalBaseBs = Math.round(((parseFloat(datosFactura.totalUSD) || 0) * (parseFloat(tasaBCV) || 1)) * 100);
+        const strMontoBase = String(subtotalBaseBs).padStart(12, '0');
+        try {
+          await this.enviarComando(`220${strMontoBase}`);
+        } catch (ePago220) {
+          // Fallback comando directo 120 (Pago Total Divisas)
+          try { await this.enviarComando("120"); } catch (e120) {}
+        }
+      } else {
+        // Pagos sin IGTF en Bolívares u otros medios
+        let cmdCodigoPago = "101"; // Efectivo Bs por defecto
+        if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO") || formaStr.includes("DÉBITO")) {
+          cmdCodigoPago = "109";
+        } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
+          cmdCodigoPago = "114";
+        } else if (formaStr.includes("PAGO MOVIL") || formaStr.includes("PAGO MÓVIL") || formaStr.includes("TRANSFERENCIA") || formaStr.includes("BIOPAGO")) {
+          cmdCodigoPago = "110";
+        }
+        try {
+          await this.enviarComando(cmdCodigoPago);
+        } catch (errPago) {}
+      }
 
       await new Promise(r => setTimeout(r, 400));
 
-      // Enviar comando 199 para forzar la impresión inmediata del Total, IVA, MH y Corte
+      // 3. Enviar comando obligatorio '199' para liquidar IGTF, Totalizar y Cortar
       try {
         await this.enviarComando("199");
       } catch (err199) {}
