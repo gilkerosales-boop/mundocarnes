@@ -6910,7 +6910,11 @@ async function procesarSiguienteCierreCaja() {
     const hoyMes = hoy.getMonth();
     const hoyAnio = hoy.getFullYear();
 
-    // 4. Procesar ventas de hoy del usuario activo
+    let totalBilletesIngresadosUSD = 0;
+    let totalVueltosEntregadosUSD = 0;
+    let totalVueltosEntregadosBS = 0;
+
+    // 4. Procesar EXCLUSIVAMENTE las ventas de hoy del usuario activo
     Object.values(mapVentasHoy).forEach(v => {
       const fStr = String(v["FECHA"] || v.fechaStr || "");
       const ts = parsearFechaTimestamp(fStr);
@@ -6925,6 +6929,7 @@ async function procesarSiguienteCierreCaja() {
         esVentaDeHoy = fStr.includes(`${hoyDia}/${hoyMes + 1}/${hoyAnio}`) || fStr.includes(`${dStr}/${mStr}/${hoyAnio}`) || fStr.startsWith(hoyStr);
       }
 
+      // Solo acumular si la venta corresponde a la fecha de hoy
       if (esVentaDeHoy) {
         const formaStr = String(v["FORMA DE PAGO"] || v.formaPagoStr || "").toUpperCase();
         const numFac = String(v.FACTURA || v.numFactura || "");
@@ -6944,7 +6949,7 @@ async function procesarSiguienteCierreCaja() {
 
         let sumaDesglose = evUSD + zUSD + ppUSD + cUSD + crUSD + evBS + pmBS + pvBS + trBS + bioBS;
 
-        // A. Acumular en Resumen General
+        // A. Acumular en Resumen General de Ventas
         if (sumaDesglose > 0) {
           resumenGeneral.ventasEfectivoUSD += evUSD;
           resumenGeneral.ventasEfectivoBS += evBS;
@@ -6957,7 +6962,7 @@ async function procesarSiguienteCierreCaja() {
           resumenGeneral.ventasTransferencia += trBS;
           resumenGeneral.ventasBiopago += bioBS;
         } else {
-          // Fallback por texto si no existiera desglose en columnas
+          // Fallback por texto
           if (formaStr.includes("CASHEA")) {
             resumenGeneral.ventasCashea += totalVentaUSD;
           } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
@@ -6983,7 +6988,28 @@ async function procesarSiguienteCierreCaja() {
           }
         }
 
-        // B. Acumular estrictamente en Resumen Fiscal
+        // B. Acumular arqueo de billetes y vueltos entregados DE HOY
+        let mEntregado = parseFloat(v.montoEntregado) || 0;
+        let vUSD = parseFloat(v.vueltoUSD || v["VUELTO_USD"]) || 0;
+        let vBS = parseFloat(v.vueltoBS || v["VUELTO_BS"]) || 0;
+        let medV = String(v.medioVuelto || v["MEDIO_VUELTO"] || "EXACTO");
+        let submedBs = String(v.submedioBs || v["SUBMEDIO_BS"] || "BS_EFECTIVO");
+
+        if (formaStr.includes("DIVISAS") || evUSD > 0) {
+          let billeteRealUSD = (mEntregado >= evUSD && mEntregado > 0) ? mEntregado : evUSD;
+          totalBilletesIngresadosUSD += billeteRealUSD;
+
+          if (medV === "MIXTO") {
+            if (vUSD > 0) totalVueltosEntregadosUSD += vUSD;
+            if (submedBs === "BS_EFECTIVO" && vBS > 0) totalVueltosEntregadosBS += vBS;
+          } else if (medV === "USD_EFECTIVO" && vUSD > 0) {
+            totalVueltosEntregadosUSD += vUSD;
+          } else if (medV === "BS_EFECTIVO" && vBS > 0) {
+            totalVueltosEntregadosBS += vBS;
+          }
+        }
+
+        // C. Acumular estrictamente en Resumen Fiscal
         if (esFiscal) {
           const esNC = Boolean(v.esNotaCredito || numFac.startsWith("NC-") || formaStr.includes("NOTA DE CREDITO"));
           const prodsStr = String(v["PRODUCTOS"] || v.productosSummary || "");
@@ -7077,15 +7103,18 @@ async function procesarSiguienteCierreCaja() {
       }
     });
 
-    // 5. CÁLCULO ESTRICTO DE TOTALES POR MONEDA PURA (Sin conversión cruzada)
-    // Total en Dólares ($): Sumatoria exacta de ingresos en moneda extranjera
+    // Si no hubo exceso de billete registrado pero sí ventas en efectivo de hoy
+    if (totalBilletesIngresadosUSD < resumenGeneral.ventasEfectivoUSD) {
+      totalBilletesIngresadosUSD = resumenGeneral.ventasEfectivoUSD;
+    }
+
+    // 5. CÁLCULO ESTRICTO DE TOTALES POR MONEDA PURA DE HOY
     resumenGeneral.totalGeneralVentasUSD = 
       resumenGeneral.ventasEfectivoUSD + 
       resumenGeneral.ventasZelle + 
       resumenGeneral.ventasPayPal + 
       resumenGeneral.ventasCashea;
 
-    // Total en Bolívares (Bs): Sumatoria exacta de ingresos en moneda local
     resumenGeneral.totalGeneralVentasBS = 
       resumenGeneral.ventasEfectivoBS + 
       resumenGeneral.ventasPagoMovil + 
@@ -7130,43 +7159,7 @@ async function procesarSiguienteCierreCaja() {
       }
     });
 
-    // Arqueo físico exacto y discriminación de billetes recibidos vs vueltos entregados
-    let totalBilletesIngresadosUSD = 0;
-    let totalVueltosEntregadosUSD = 0;
-    let totalVueltosEntregadosBS = 0;
-
-    Object.values(mapVentasHoy).forEach(v => {
-      let evUSD = parseFloat(v["EFECTIVO DIVISAS"] || v.desglosePagos?.["Efectivo Divisas"]) || 0;
-      let mEntregado = parseFloat(v.montoEntregado) || 0;
-      let vUSD = parseFloat(v.vueltoUSD || v["VUELTO_USD"]) || 0;
-      let vBS = parseFloat(v.vueltoBS || v["VUELTO_BS"]) || 0;
-      let medV = String(v.medioVuelto || v["MEDIO_VUELTO"] || "EXACTO");
-      let submedBs = String(v.submedioBs || v["SUBMEDIO_BS"] || "BS_EFECTIVO");
-      let formaUpper = String(v["FORMA DE PAGO"] || v.formaPagoStr || "").toUpperCase();
-
-      if (formaUpper.includes("DIVISAS") || evUSD > 0) {
-        // Registrar el billete físico real que entró a la gaveta
-        let billeteRealUSD = (mEntregado >= evUSD && mEntregado > 0) ? mEntregado : evUSD;
-        totalBilletesIngresadosUSD += billeteRealUSD;
-
-        // Registrar las salidas de vueltos por gaveta física
-        if (medV === "MIXTO") {
-          if (vUSD > 0) totalVueltosEntregadosUSD += vUSD;
-          if (submedBs === "BS_EFECTIVO" && vBS > 0) totalVueltosEntregadosBS += vBS;
-        } else if (medV === "USD_EFECTIVO" && vUSD > 0) {
-          totalVueltosEntregadosUSD += vUSD;
-        } else if (medV === "BS_EFECTIVO" && vBS > 0) {
-          totalVueltosEntregadosBS += vBS;
-        }
-      }
-    });
-
-    // Si no hubo exceso de billete registrado, el ingreso físico base es igual a las ventas en divisas
-    if (totalBilletesIngresadosUSD < resumenGeneral.ventasEfectivoUSD) {
-      totalBilletesIngresadosUSD = resumenGeneral.ventasEfectivoUSD;
-    }
-
-    // Arqueo físico de gaveta exacto: Saldo Inicial + Billetes Recibidos - Vueltos Entregados + Movimientos Manuales
+    // Arqueo físico de gaveta exacto: Saldo Inicial + Billetes Recibidos Hoy - Vueltos Entregados Hoy + Movimientos Manuales
     const totalCajaUSD = inicialUSD + totalBilletesIngresadosUSD - totalVueltosEntregadosUSD + ingresosUSD - retirosUSD;
     const totalCajaBS = inicialBS + resumenGeneral.ventasEfectivoBS - totalVueltosEntregadosBS + ingresosBS - retirosBS;
 
