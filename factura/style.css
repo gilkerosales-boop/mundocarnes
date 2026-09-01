@@ -827,6 +827,41 @@ body {
   color: var(--pos-green-dark) !important;
 }
 
+/* Panel de Cobro en Efectivo y Botones de Billetes Rápidos */
+#contenedorCalculoEfectivo {
+  border: 1.5px solid #94a3b8 !important;
+  animation: posFadeIn 0.2s ease-out;
+}
+
+.btn-billete-rapido {
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 5px 12px;
+  border-radius: var(--pos-radius-pill);
+  border: 1.5px solid var(--pos-card-border);
+  background-color: #ffffff;
+  color: var(--pos-dark);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-billete-rapido:hover {
+  border-color: var(--pos-green);
+  background-color: #f0fdf4;
+  color: var(--pos-green-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2);
+}
+
+.btn-billete-rapido.active {
+  background-color: var(--pos-green) !important;
+  border-color: var(--pos-green-dark) !important;
+  color: #ffffff !important;
+}
+
 /* ==========================================================================
    MODALES UNIFICADOS
    ========================================================================== */
