@@ -3495,11 +3495,14 @@ async function confirmarEImprimirFactura() {
       formaPagoFinalStr = `${formaPagoFinalStr} (FISCAL)`;
     }
 
+   const montoTotalFinalUSD = (datosFacturaPendiente.totalNetoCobradoUSD > 0) ? datosFacturaPendiente.totalNetoCobradoUSD : datosFacturaPendiente.totalUSD;
+    const montoTotalFinalBS = (datosFacturaPendiente.totalNetoCobradoBS > 0) ? datosFacturaPendiente.totalNetoCobradoBS : datosFacturaPendiente.totalBs;
+
     // 3. Guardar en IndexedDB local con liquidación de Retenciones, IGTF, Tasa BCV y Arqueo de Vueltos
     await dbPut("ventas", {
       numFactura: String(numFactura),
       fechaStr: datosFacturaPendiente.fechaStr,
-      montoTotalUSD: datosFacturaPendiente.totalUSD,
+      montoTotalUSD: montoTotalFinalUSD,
       cedula: datosFacturaPendiente.cliente.cedula,
       nombre: datosFacturaPendiente.cliente.nombre,
       direccion: datosFacturaPendiente.cliente.direccion || null,
@@ -3514,8 +3517,8 @@ async function confirmarEImprimirFactura() {
       montoRetencionUSD: datosFacturaPendiente.montoRetencionUSD,
       montoIGTF_BS: datosFacturaPendiente.montoIGTF_BS,
       montoIGTF_USD: datosFacturaPendiente.montoIGTF_USD,
-      totalNetoCobradoBS: datosFacturaPendiente.totalNetoCobradoBS,
-      totalNetoCobradoUSD: datosFacturaPendiente.totalNetoCobradoUSD,
+      totalNetoCobradoBS: montoTotalFinalBS,
+      totalNetoCobradoUSD: montoTotalFinalUSD,
       // Metadata de arqueo físico de efectivo y vueltos entregados
       montoEntregado: datosFacturaPendiente.montoEntregado,
       vueltoUSD: datosFacturaPendiente.vueltoUSD,
@@ -3551,7 +3554,7 @@ async function confirmarEImprimirFactura() {
           direccion: datosFacturaPendiente.cliente.direccion || null,
           productosSummary: datosFacturaPendiente.productosSummary,
           formaPago: formaPagoFinalStr,
-          montoTotal: datosFacturaPendiente.totalUSD,
+          montoTotal: montoTotalFinalUSD,
           desglosePagos: datosFacturaPendiente.desglosePagos,
           usuario: usuarioActivo,
           tasaBCV: parseFloat(datosFacturaPendiente.tasaBCV) || obtenerTasaBCV() || 1,
@@ -4760,35 +4763,54 @@ function renderizarTablaHistorialFacturas() {
 }
 
 function reimprimirFacturaHistorial(numFactura) {
-  const fac = cacheHistorialFacturas.find(f => f.numFactura === numFactura);
+  const fac = cacheHistorialFacturas.find(f => String(f.numFactura) === String(numFactura));
   if (!fac) return mostrarAvisoFactura("No se localizó la información de la factura.");
 
-  const tasa = obtenerTasaBCV();
-  const totalUSD = parseFloat(fac.montoTotalUSD) || 0;
-  const totalBs = totalUSD * (tasa > 0 ? tasa : 1);
+  const tasa = parseFloat(fac.tasaBCV || fac.TASA_BCV) || obtenerTasaBCV() || 1;
+  const igtfBS = parseFloat(fac.montoIGTF_BS || fac.MONTO_IGTF_BS) || 0;
+  const igtfUSD = parseFloat(fac.montoIGTF_USD || fac.MONTO_IGTF_USD) || (igtfBS > 0 ? igtfBS / tasa : 0);
+  const retBS = parseFloat(fac.montoRetencionBS || fac.MONTO_RETENCION_BS) || 0;
+  const retUSD = parseFloat(fac.montoRetencionUSD || fac.MONTO_RETENCION_USD) || 0;
+
+  const totalUSD = parseFloat(fac.totalNetoCobradoUSD || fac.montoTotalUSD || fac["MONTO TOTAL"]) || 0;
+  const totalBs = parseFloat(fac.totalNetoCobradoBS) || (totalUSD * tasa);
+  const formaStr = String(fac.formaPagoStr || fac["FORMA DE PAGO"] || "").toUpperCase();
+  const numFacStr = String(fac.numFactura || "");
+  const esFiscal = Boolean(fac.esFiscal || formaStr.includes("FISCAL") || numFacStr.startsWith("FAC-") || /^\d{8}$/.test(numFacStr));
+  const esNC = Boolean(fac.esNotaCredito || numFacStr.startsWith("NC-") || formaStr.includes("NOTA DE CREDITO"));
 
   datosFacturaPendiente = {
     numFactura: fac.numFactura,
     fechaStr: fac.fechaStr,
     cliente: {
-      cedula: fac.cedula,
-      nombre: fac.nombre,
-      direccion: fac.direccion || 'N/D',
-      telefono: 'N/D'
+      cedula: fac.cedula || fac["CEDULA O RIF"] || "V-00000000",
+      nombre: fac.nombre || fac["NOMBRE / RAZON SOCIAL"] || "CONSUMIDOR FINAL",
+      direccion: fac.direccion || fac.UBICACION || 'CARACAS',
+      telefono: fac.telefono || fac.TELEFONO || 'N/D'
     },
-    formaPagoStr: fac.formaPagoStr,
+    formaPagoStr: fac.formaPagoStr || fac["FORMA DE PAGO"] || "EFECTIVO",
     totalUSD: totalUSD,
     totalBs: totalBs,
     tasaBCV: tasa,
     monedaVistaModal: "USD",
-    productosSummary: fac.productosSummary,
-    modoFiscal: false
+    productosSummary: fac.productosSummary || fac.PRODUCTOS || "",
+    modoFiscal: esFiscal,
+    esFiscal: esFiscal,
+    esNotaCredito: esNC,
+    montoIGTF_BS: igtfBS,
+    montoIGTF_USD: igtfUSD,
+    montoRetencionBS: retBS,
+    montoRetencionUSD: retUSD,
+    totalNetoCobradoBS: totalBs,
+    totalNetoCobradoUSD: totalUSD,
+    comprobanteRetencion: fac.comprobanteRetencion || fac.COMPROBANTE_RETENCION || null,
+    facturaAfectada: fac.facturaAfectada || fac.FACTURA_AFECTADA || null
   };
 
   renderizarTicketTermicoHistorialHTML(datosFacturaPendiente);
   const ticketHtml = document.getElementById('contenidoTicketImprimible').innerHTML;
   ejecutarImpresionTicket(ticketHtml);
-  mostrarAvisoFactura(`🖨️ Reimprimiendo Factura N° ${numFactura}...`);
+  mostrarAvisoFactura(`🖨️ Reimprimiendo Documento N° ${numFactura}...`);
 }
 
 function renderizarTicketTermicoHistorialHTML(d) {
@@ -4992,18 +5014,67 @@ function renderizarTicketTermicoHistorialHTML(d) {
 
         <div class="pp9-separator-dashed"></div>
 
+        const montoIGTF_BS = Math.abs(parseFloat(d.montoIGTF_BS || d.MONTO_IGTF_BS) || 0);
+    const montoRetencion_BS = Math.abs(parseFloat(d.montoRetencionBS || d.MONTO_RETENCION_BS) || 0);
+    const totalFinalTicketBs = d.totalNetoCobradoBS || (totGeneralBs + montoIGTF_BS - montoRetencion_BS);
+
+    let renglonesAjusteFiscal = "";
+    if (montoRetencion_BS > 0) {
+      renglonesAjusteFiscal += `
+        <div class="pp9-fila-item">
+          <span>(-) RETENCION IVA</span>
+          <span>-Bs ${montoRetencion_BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>`;
+    }
+    if (montoIGTF_BS > 0) {
+      renglonesAjusteFiscal += `
+        <div class="pp9-fila-item">
+          <span>(+) IGTF PERCIBIDO (3,00%)</span>
+          <span>Bs ${montoIGTF_BS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>`;
+    }
+
+    ticketHtml = `
+      <div class="ticket-pp9-wrapper">
+        <div class="pp9-header text-center">
+          <div class="pp9-bold">SENIAT</div>
+          <div class="pp9-bold">${emp.rif}</div>
+          <div class="pp9-bold">${emp.nombre}</div>
+          <div>${emp.direccion1}</div>
+          <div>${emp.direccion2}</div>
+          <div>${emp.direccion3}</div>
+        </div>
+
+        ${encabezadoTipoDoc}
+
+        <div class="pp9-separator-dashed"></div>
+
+        <div class="pp9-cuerpo-items">
+          ${itemsHtml}
+        </div>
+
+        <div class="pp9-separator-dashed"></div>
+
         <div class="pp9-totales-bloque">
           ${bloqueDesgloseFiscal}
+          ${renglonesAjusteFiscal}
           <div class="pp9-separator-dashed"></div>
           <div class="pp9-fila-item">
             <span>EFECTIVO 1</span>
-            <span>Bs ${totGeneralBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span>Bs ${totalFinalTicketBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
           <div class="pp9-fila-item pp9-bold mt-1">
             <span>TOTAL</span>
-            <span>Bs ${totGeneralBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span>Bs ${totalFinalTicketBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
+
+        <div class="pp9-footer d-flex justify-content-between mt-2">
+          <span>MH</span>
+          <span class="pp9-bold">${serialFiscal}</span>
+        </div>
+      </div>
+    `;
 
         <div class="pp9-footer d-flex justify-content-between mt-2">
           <span>MH</span>
