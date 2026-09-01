@@ -3467,7 +3467,7 @@ async function confirmarEImprimirFactura() {
       formaPagoFinalStr = `${formaPagoFinalStr} (FISCAL)`;
     }
 
-    // 3. Guardar en IndexedDB local con liquidación de Retenciones e IGTF
+    // 3. Guardar en IndexedDB local con liquidación de Retenciones, IGTF y Arqueo de Vueltos
     await dbPut("ventas", {
       numFactura: String(numFactura),
       fechaStr: datosFacturaPendiente.fechaStr,
@@ -3486,7 +3486,26 @@ async function confirmarEImprimirFactura() {
       montoIGTF_BS: datosFacturaPendiente.montoIGTF_BS,
       montoIGTF_USD: datosFacturaPendiente.montoIGTF_USD,
       totalNetoCobradoBS: datosFacturaPendiente.totalNetoCobradoBS,
-      totalNetoCobradoUSD: datosFacturaPendiente.totalNetoCobradoUSD
+      totalNetoCobradoUSD: datosFacturaPendiente.totalNetoCobradoUSD,
+      // Metadata de arqueo físico de efectivo y vueltos entregados
+      montoEntregado: datosFacturaPendiente.montoEntregado,
+      vueltoUSD: datosFacturaPendiente.vueltoUSD,
+      vueltoBS: datosFacturaPendiente.vueltoBS,
+      vueltoTotalUSD: datosFacturaPendiente.vueltoTotalUSD,
+      vueltoTotalBS: datosFacturaPendiente.vueltoTotalBS,
+      medioVuelto: datosFacturaPendiente.medioVuelto,
+      submedioBs: datosFacturaPendiente.submedioBs,
+      desglosePagos: datosFacturaPendiente.desglosePagos,
+      "EFECTIVO DIVISAS": datosFacturaPendiente.desglosePagos?.["Efectivo Divisas"] || 0,
+      "EFECTIVO BOLIVARES": datosFacturaPendiente.desglosePagos?.["Efectivo Bolívares"] || 0,
+      "PAGO MOVIL": datosFacturaPendiente.desglosePagos?.["Pago Móvil"] || 0,
+      "ZELLE": datosFacturaPendiente.desglosePagos?.["Zelle"] || 0,
+      "PAYPAL": datosFacturaPendiente.desglosePagos?.["PayPal"] || 0,
+      "CASHEA": datosFacturaPendiente.desglosePagos?.["Cashea"] || 0,
+      "CREDITO": datosFacturaPendiente.desglosePagos?.["Crédito"] || 0,
+      "PUNTO DE VENTA": datosFacturaPendiente.desglosePagos?.["Punto de Venta"] || 0,
+      "TRANSFERENCIA": datosFacturaPendiente.desglosePagos?.["Transferencia Bancaria"] || 0,
+      "BIOPAGO": datosFacturaPendiente.desglosePagos?.["Biopago"] || 0
     });
 
     // 4. Encolar para sincronización con Supabase
@@ -3515,7 +3534,14 @@ async function confirmarEImprimirFactura() {
           montoIGTF_BS: datosFacturaPendiente.montoIGTF_BS,
           montoIGTF_USD: datosFacturaPendiente.montoIGTF_USD,
           totalNetoCobradoBS: datosFacturaPendiente.totalNetoCobradoBS,
-          totalNetoCobradoUSD: datosFacturaPendiente.totalNetoCobradoUSD
+          totalNetoCobradoUSD: datosFacturaPendiente.totalNetoCobradoUSD,
+          montoEntregado: datosFacturaPendiente.montoEntregado,
+          vueltoUSD: datosFacturaPendiente.vueltoUSD,
+          vueltoBS: datosFacturaPendiente.vueltoBS,
+          vueltoTotalUSD: datosFacturaPendiente.vueltoTotalUSD,
+          vueltoTotalBS: datosFacturaPendiente.vueltoTotalBS,
+          medioVuelto: datosFacturaPendiente.medioVuelto,
+          submedioBs: datosFacturaPendiente.submedioBs
         }
       }
     });
@@ -7092,39 +7118,43 @@ async function procesarSiguienteCierreCaja() {
       }
     });
 
-    // Arqueo exacto de gaveta física considerando vueltos simples y vueltos mixtos
-    let vueltosCruzadosEntregadosBS = 0;
+    // Arqueo físico exacto de gavetas considerando entradas de billetes mayores y vueltos otorgados
     let excesoEfectivoRecibidoUSD = 0;
-    let vueltosDirectosEntregadosUSD = 0;
+    let vueltosEntregadosEfectivoBS = 0;
 
     Object.values(mapVentasHoy).forEach(v => {
       let vUSD = parseFloat(v.vueltoUSD || v["VUELTO_USD"]) || 0;
       let vBS = parseFloat(v.vueltoBS || v["VUELTO_BS"]) || 0;
-      let vTotalUSD = parseFloat(v.vueltoTotalUSD || v["VUELTO_TOTAL_USD"] || (vUSD + (vBS / (factorTasa || 1)))) || 0;
-      let medV = String(v.medioVuelto || v["MEDIO_VUELTO"] || "");
+      let vTotalUSD = parseFloat(v.vueltoTotalUSD || v["VUELTO_TOTAL_USD"] || (vUSD + (vBS / factorTasa))) || 0;
+      let medV = String(v.medioVuelto || v["MEDIO_VUELTO"] || "EXACTO");
       let submedBs = String(v.submedioBs || v["SUBMEDIO_BS"] || "BS_EFECTIVO");
       let formaUpper = String(v["FORMA DE PAGO"] || v.formaPagoStr || "").toUpperCase();
 
-      if (formaUpper.includes("DIVISAS")) {
+      // 1. Pagos en divisas (con billetes superiores al monto de la factura)
+      if (formaUpper.includes("DIVISAS") || v.desglosePagos?.["Efectivo Divisas"] > 0) {
         if (medV === "MIXTO") {
-          // Entra el billete completo a Divisas y sale la parte entregada en divisas (vUSD)
-          excesoEfectivoRecibidoUSD += (vTotalUSD - vUSD); 
-          // Si la parte restante en Bs se dio en efectivo físico, restarla de la gaveta de Bolívares
+          // El vuelto en Bs entregado en efectivo físico sale de la gaveta de Bolívares
           if (submedBs === "BS_EFECTIVO" && vBS > 0) {
-            vueltosCruzadosEntregadosBS += vBS;
+            vueltosEntregadosEfectivoBS += vBS;
+            // El remanente en divisas que no se dio en $ se queda físicamente en la gaveta de USD
+            excesoEfectivoRecibidoUSD += (vTotalUSD - vUSD);
           }
         } else if (medV === "BS_EFECTIVO" && vBS > 0) {
-          vueltosCruzadosEntregadosBS += vBS;
+          // Todo el vuelto se entregó en Bolívares en efectivo físico
+          vueltosEntregadosEfectivoBS += vBS;
           excesoEfectivoRecibidoUSD += vTotalUSD;
-        } else if (medV === "USD_EFECTIVO" && vUSD > 0) {
-          vueltosDirectosEntregadosUSD += vUSD;
         }
+      }
+
+      // 2. Pagos en efectivo bolívares con vuelto en efectivo bolívares
+      if ((formaUpper.includes("BOLIVARES") || formaUpper.includes("BOLÍVARES")) && medV === "BS_EFECTIVO" && vBS > 0) {
+        // En cobro directo en Bs, ventasEfectivoBS ya refleja la venta neta; si hubo ajuste, se contabiliza
       }
     });
 
-    // Arqueo físico de gaveta exacto: saldo inicial + entradas reales - vueltos entregados + ajustes
-    const totalCajaUSD = inicialUSD + resumenGeneral.ventasEfectivoUSD + excesoEfectivoRecibidoUSD - vueltosDirectosEntregadosUSD + ingresosUSD - retirosUSD;
-    const totalCajaBS = inicialBS + resumenGeneral.ventasEfectivoBS - vueltosCruzadosEntregadosBS + ingresosBS - retirosBS;
+    // Arqueo físico de gaveta exacto: Saldo Inicial + Ventas en Efectivo + Ajustes por vueltos cruzados + Movimientos
+    const totalCajaUSD = inicialUSD + resumenGeneral.ventasEfectivoUSD + excesoEfectivoRecibidoUSD + ingresosUSD - retirosUSD;
+    const totalCajaBS = inicialBS + resumenGeneral.ventasEfectivoBS - vueltosEntregadosEfectivoBS + ingresosBS - retirosBS;
 
     datosCierreCajaPendiente = {
       fechaStr: new Date().toLocaleString('es-VE'),
