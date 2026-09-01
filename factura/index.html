@@ -690,20 +690,45 @@
                   <div class="row g-2 align-items-center">
                     <div class="col-md-5">
                       <label for="selectMedioVuelto" class="form-label small fw-bold mb-1">Entregar Vuelto en *:</label>
-                      <select id="selectMedioVuelto" class="form-select form-select-sm fw-bold" onchange="calcularVueltoEfectivo()">
+                      <select id="selectMedioVuelto" class="form-select form-select-sm fw-bold" onchange="alternarModoVueltoUI(this.value)">
                         <option value="BS_EFECTIVO" selected>🇻🇪 Efectivo Bolívares (Bs)</option>
                         <option value="USD_EFECTIVO">💵 Efectivo Divisas ($)</option>
+                        <option value="MIXTO">🔀 Vuelto Mixto ($ + Bs / Pago Móvil)</option>
                         <option value="PAGO_MOVIL">📱 Pago Móvil (Vuelto Digital)</option>
                         <option value="EXACTO">🚫 Monto Exacto (Sin Vuelto)</option>
                       </select>
                       <div class="form-text text-muted" style="font-size: 0.72rem;" id="ayudaDescuadreGaveta">Se restará de la gaveta de Bolívares</div>
                     </div>
                     <div class="col-md-7 text-end">
-                      <div class="small fw-bold text-muted mb-0">VUELTO A ENTREGAR AL CLIENTE:</div>
+                      <div class="small fw-bold text-muted mb-0">VUELTO TOTAL A ENTREGAR:</div>
                       <div class="d-flex justify-content-end align-items-baseline gap-2">
                         <span id="lblMontoVueltoPrincipal" class="fw-bold fs-3 text-primary num-legible">Bs. 0,00</span>
                         <span id="lblMontoVueltoSecundario" class="fs-6 fw-bold text-muted num-legible">($0.00)</span>
                       </div>
+                    </div>
+                  </div>
+
+                  <!-- Subpanel Desglose de Vuelto Mixto -->
+                  <div id="contenedorDesgloseVueltoMixto" class="mt-2 pt-2 border-top hidden">
+                    <div class="row g-2 align-items-center">
+                      <div class="col-md-6">
+                        <label for="inputVueltoParteUSD" class="form-label small fw-bold mb-1">💵 Parte en Divisas ($):</label>
+                        <div class="input-group input-group-sm">
+                          <span class="input-group-text fw-bold">$</span>
+                          <input type="number" id="inputVueltoParteUSD" class="form-control fw-bold text-center text-success num-legible" step="1" min="0" placeholder="0.00" oninput="calcularVueltoEfectivo()">
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <label for="selectSubmedioVueltoBs" class="form-label small fw-bold mb-1">Restante en Moneda Local:</label>
+                        <select id="selectSubmedioVueltoBs" class="form-select form-select-sm fw-bold" onchange="calcularVueltoEfectivo()">
+                          <option value="BS_EFECTIVO" selected>🇻🇪 Efectivo Bolívares (Efectivo)</option>
+                          <option value="PAGO_MOVIL">📱 Pago Móvil (Digital)</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2 p-2 bg-white rounded border small">
+                      <span>Restante a entregar en Bs: <strong id="lblRestanteVueltoBs" class="text-primary num-legible">Bs. 0,00</strong></span>
+                      <span class="text-muted">(Equivalente a <strong id="lblRestanteVueltoUSD" class="num-legible">$0.00</strong>)</span>
                     </div>
                   </div>
                 </div>
