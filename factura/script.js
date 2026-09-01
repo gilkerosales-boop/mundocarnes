@@ -5599,10 +5599,17 @@ async function confirmarEmisionNotaCreditoFiscal() {
       formaPagoStr: `NOTA DE CREDITO (AFECTA FACT ${datosNCPendiente.facturaAfectada})`,
       productosSummary: `NOTA DE CREDITO POR: ${motivo}`,
       usuario: usuarioActivo,
+      tasaBCV: parseFloat(datosNCPendiente.tasaBCV) || obtenerTasaBCV() || 1,
       esFiscal: true,
       esNotaCredito: true,
+      // Desglose tributario exacto de la Nota de Crédito
+      exentoBS: datosNCPendiente.exentoBS || 0,
+      base16BS: datosNCPendiente.base16BS || 0,
+      iva16BS: datosNCPendiente.iva16BS || 0,
       montoIGTF_BS: -Math.abs(datosNCPendiente.montoIGTF_Reversar_BS || 0),
-      montoIGTF_USD: -Math.abs(datosNCPendiente.montoIGTF_Reversar_USD || 0)
+      montoIGTF_USD: -Math.abs(datosNCPendiente.montoIGTF_Reversar_USD || 0),
+      totalNetoCobradoBS: -Math.abs(datosNCPendiente.totalReversarBS || 0),
+      totalNetoCobradoUSD: -Math.abs(datosNCPendiente.totalReversarUSD || 0)
     };
 
     await dbPut("ventas", registroNCLocal);
@@ -5624,11 +5631,17 @@ async function confirmarEmisionNotaCreditoFiscal() {
           montoTotal: -Math.abs(datosNCPendiente.totalReversarUSD),
           desglosePagos: {},
           usuario: usuarioActivo,
+          tasaBCV: registroNCLocal.tasaBCV,
           tablaVentas: tablaUsuarioActivo,
           esFiscal: true,
           esNotaCredito: true,
+          exentoBS: datosNCPendiente.exentoBS || 0,
+          base16BS: datosNCPendiente.base16BS || 0,
+          iva16BS: datosNCPendiente.iva16BS || 0,
           montoIGTF_BS: -Math.abs(datosNCPendiente.montoIGTF_Reversar_BS || 0),
-          montoIGTF_USD: -Math.abs(datosNCPendiente.montoIGTF_Reversar_USD || 0)
+          montoIGTF_USD: -Math.abs(datosNCPendiente.montoIGTF_Reversar_USD || 0),
+          totalNetoCobradoBS: -Math.abs(datosNCPendiente.totalReversarBS || 0),
+          totalNetoCobradoUSD: -Math.abs(datosNCPendiente.totalReversarUSD || 0)
         }
       }
     });
@@ -7291,7 +7304,7 @@ function renderizarTicketCierreCajaHTML(d) {
   const factorTasa = (parseFloat(d.tasaBCV) > 0) ? parseFloat(d.tasaBCV) : 1;
   let ticketHtml = "";
 
-  if (d.modoFiscal) {
+ if (d.modoFiscal) {
     // =========================================================================
     // MODALIDAD FISCAL: REPORTE Z EXACTO SEGÚN IMPRESORA ACTIVA
     // =========================================================================
@@ -7321,6 +7334,9 @@ function renderizarTicketCierreCajaHTML(d) {
     const ncIgtfBs = rFisc.ncIgtfBS || 0;
     const subtotalNCBs = ncExentoBs + ncBase16Bs;
     const totalNCBs = rFisc.ncTotalBS || (subtotalNCBs + ncIVA16Bs + ncIgtfBs);
+
+    // Total de efectivo neto en gaveta fiscal (Ventas brutas - Devoluciones NC)
+    const totalGavetaFiscalBs = Math.max(0, totalVentasBs - totalNCBs);
 
     const cantFiscales = rFisc.cantFacturasFiscales || 0;
     const cantNCFiscales = rFisc.cantNCFiscales || 0;
@@ -7355,13 +7371,12 @@ function renderizarTicketCierreCajaHTML(d) {
         <div class="pp9-seccion-titulo text-center">MEDIOS DE PAGO</div>
         <div class="pp9-fila-item">
           <span>EFECTIVO 1 (#18)</span>
-          <span>Bs ${totalVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span>Bs ${totalGavetaFiscalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
         <div class="pp9-fila-item pp9-bold">
           <span>TOTAL GAVETA</span>
-          <span>Bs ${totalVentasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span>Bs ${totalGavetaFiscalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
-
         <!-- 3. CONTADORES DE DOCUMENTOS FISCALES REALES DEL DÍA -->
         <div class="pp9-seccion-titulo text-center">VENTAS</div>
         <div class="pp9-fila-item">
