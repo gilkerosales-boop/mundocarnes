@@ -4601,38 +4601,48 @@ async function buscarFacturasHistorial(modo) {
   }
 
   if (navigator.onLine) {
-    try {
-      const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
-      if (Array.isArray(ventasSup) && ventasSup.length > 0) {
-        ventasSup.forEach(v => {
-          let numFac = v.FACTURA || v["FACTURA N°"] || v.numFactura;
-          if (numFac) {
-            mapFacturas[String(numFac)] = {
-              numFactura: String(numFac),
-              fechaStr: v["FECHA"] || v.fechaStr || "",
-              cedula: v["CEDULA O RIF"] || v.cedula || "V-00000000",
-              nombre: v["NOMBRE / RAZON SOCIAL"] || v.nombre || "CONSUMIDOR FINAL",
-              direccion: v["UBICACION"] || v.direccion || null,
-              productosSummary: v["PRODUCTOS"] || v.productosSummary || "",
-              formaPagoStr: v["FORMA DE PAGO"] || v.formaPagoStr || "",
-              montoTotalUSD: parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0,
-              usuario: usuarioActivo,
-              esFiscal: Boolean(String(v["FORMA DE PAGO"] || "").includes("FISCAL") || v.esFiscal),
-              montoIGTF_BS: parseFloat(v["MONTO_IGTF_BS"] || v.montoIGTF_BS || v["IGTF"]) || 0,
-              montoIGTF_USD: parseFloat(v["MONTO_IGTF_USD"] || v.montoIGTF_USD) || 0,
-              totalNetoCobradoBS: parseFloat(v["TOTAL_NETO_COBRADO_BS"] || v.totalNetoCobradoBS) || 0,
-              totalNetoCobradoUSD: parseFloat(v["TOTAL_NETO_COBRADO_USD"] || v.totalNetoCobradoUSD) || 0,
-              comprobanteRetencion: v["COMPROBANTE_RETENCION"] || v.comprobanteRetencion || null,
-              montoRetencionBS: parseFloat(v["MONTO_RETENCION_BS"] || v.montoRetencionBS) || 0,
-              montoRetencionUSD: parseFloat(v["MONTO_RETENCION_USD"] || v.montoRetencionUSD) || 0
-            };
-          }
-        });
+      try {
+        const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
+        if (Array.isArray(ventasSup)) {
+          ventasSup.forEach(v => {
+            let numFac = v.FACTURA || v["FACTURA N°"] || v.numFactura;
+            if (numFac) {
+              const localExistente = mapVentasHoy[String(numFac)] || {};
+              mapVentasHoy[String(numFac)] = {
+                ...v,
+                ...localExistente, // Preserva los datos de vueltos y billetes entregados de IndexedDB
+                numFactura: String(numFac),
+                fechaStr: v["FECHA"] || localExistente.fechaStr || "",
+                montoTotalUSD: parseFloat(v["MONTO TOTAL"] || localExistente.montoTotalUSD) || 0,
+                formaPagoStr: v["FORMA DE PAGO"] || localExistente.formaPagoStr || "",
+                productosSummary: v["PRODUCTOS"] || localExistente.productosSummary || "",
+                usuario: usuario,
+                esFiscal: Boolean(String(v["FORMA DE PAGO"] || localExistente.formaPagoStr || "").includes("FISCAL") || v.esFiscal || localExistente.esFiscal),
+                "EFECTIVO DIVISAS": v["EFECTIVO DIVISAS"] ?? localExistente["EFECTIVO DIVISAS"] ?? localExistente.desglosePagos?.["Efectivo Divisas"] ?? 0,
+                "EFECTIVO BOLIVARES": v["EFECTIVO BOLIVARES"] ?? localExistente["EFECTIVO BOLIVARES"] ?? localExistente.desglosePagos?.["Efectivo Bolívares"] ?? 0,
+                "PAGO MOVIL": v["PAGO MOVIL"] ?? localExistente["PAGO MOVIL"] ?? localExistente.desglosePagos?.["Pago Móvil"] ?? 0,
+                "ZELLE": v["ZELLE"] ?? localExistente["ZELLE"] ?? localExistente.desglosePagos?.["Zelle"] ?? 0,
+                "PAYPAL": v["PAYPAL"] ?? localExistente["PAYPAL"] ?? localExistente.desglosePagos?.["PayPal"] ?? 0,
+                "CASHEA": v["CASHEA"] ?? localExistente["CASHEA"] ?? localExistente.desglosePagos?.["Cashea"] ?? 0,
+                "CREDITO": v["CREDITO"] ?? localExistente["CREDITO"] ?? localExistente.desglosePagos?.["Crédito"] ?? 0,
+                "PUNTO DE VENTA": v["PUNTO DE VENTA"] ?? localExistente["PUNTO DE VENTA"] ?? localExistente.desglosePagos?.["Punto de Venta"] ?? 0,
+                "TRANSFERENCIA": (v["TRANSFERENCIA"] || v["TRANSFERECIA"]) ?? localExistente["TRANSFERENCIA"] ?? localExistente.desglosePagos?.["Transferencia Bancaria"] ?? 0,
+                "BIOPAGO": v["BIOPAGO"] ?? localExistente["BIOPAGO"] ?? localExistente.desglosePagos?.["Biopago"] ?? 0,
+                vueltoUSD: localExistente.vueltoUSD || parseFloat(v.VUELTO_USD) || 0,
+                vueltoBS: localExistente.vueltoBS || parseFloat(v.VUELTO_BS) || 0,
+                vueltoTotalUSD: localExistente.vueltoTotalUSD || parseFloat(v.VUELTO_TOTAL_USD) || 0,
+                vueltoTotalBS: localExistente.vueltoTotalBS || parseFloat(v.VUELTO_TOTAL_BS) || 0,
+                medioVuelto: localExistente.medioVuelto || v.MEDIO_VUELTO || "EXACTO",
+                submedioBs: localExistente.submedioBs || v.SUBMEDIO_BS || "BS_EFECTIVO",
+                montoEntregado: localExistente.montoEntregado || parseFloat(v.MONTO_ENTREGADO) || 0
+              };
+            }
+          });
+        }
+      } catch (errSup) {
+        console.warn("Aviso Supabase cierre:", errSup);
       }
-    } catch (err) {
-      console.warn("Aviso al consultar Supabase en historial:", err);
     }
-  }
 
   let todasLasFacturas = Object.values(mapFacturas).sort((a, b) => {
     // 1. Orden principal por fecha y hora más reciente
