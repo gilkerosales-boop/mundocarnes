@@ -683,33 +683,33 @@ class FiscalDriverTFHKA {
         await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
       }
 
-      // Si aplica reversión de percepción IGTF (3% en Divisas), enviar Subtotal ('3') y luego recargo porcentual general ('p+0300')
-      if (datosNC.montoIGTF_BS > 0) {
-        try {
-          // 1. Enviar comando de Subtotal ('3') para consolidar todos los renglones devueltos
-          await this.enviarComando("3");
-          await new Promise(r => setTimeout(r, 200));
+      // PASO C: Subtotal, Pago y Reversión Nativa de IGTF en Nota de Crédito
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 300 : 150));
 
-          // 2. Aplicar recargo/reversión general del 3% (IGTF) sobre el subtotal completo de la Nota de Crédito
-          await this.enviarComando("p+0300");
-        } catch (eIGTF) {
-          try {
-            const strMontoIGTF = this.formatearPrecioFiscal(datosNC.montoIGTF_BS);
-            await this.enviarComando(`P+${strMontoIGTF}IGTF 3% DIVISAS`);
-          } catch (e2) {}
-        }
-        await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
-      }
-
-      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 600 : 250));
-
-      // PASO C: Pago y Cierre Definitivo de Nota de Crédito (101 Pago + 199 Cierre)
+      // 1. Enviar comando Subtotal ('3')
       try {
-        await this.enviarComando("101");
-      } catch (eNC1) {}
+        await this.enviarComando("3");
+      } catch (eSubNC) {}
+      await new Promise(r => setTimeout(r, 250));
+
+      // 2. Transmisión del Pago / Reversión Nativa de Divisas
+      if (datosNC.montoIGTF_BS > 0) {
+        const subtotalBaseBs = Math.round(((parseFloat(datosNC.totalReversarUSD) || parseFloat(datosNC.totalOriginalUSD) || 0) * (parseFloat(tasaBCV) || 1)) * 100);
+        const strMontoBase = String(subtotalBaseBs).padStart(12, '0');
+        try {
+          await this.enviarComando(`220${strMontoBase}`);
+        } catch (ePago220NC) {
+          try { await this.enviarComando("120"); } catch (e120NC) {}
+        }
+      } else {
+        try {
+          await this.enviarComando("101");
+        } catch (eNC1) {}
+      }
 
       await new Promise(r => setTimeout(r, 400));
 
+      // 3. Cierre obligatorio con comando '199'
       try {
         await this.enviarComando("199");
       } catch (eNC2) {}
