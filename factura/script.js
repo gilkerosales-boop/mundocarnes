@@ -6639,20 +6639,30 @@ async function cargarHistorialCierresCaja() {
       if (!error && cierresSup && cierresSup.length > 0) {
         cacheHistorialCierres = cierresSup.map((c, idx) => {
           const idSeguro = c.id || (c["FECHA"] ? parsearFechaTimestamp(c["FECHA"]) : null) || (Date.now() + idx);
+          const localCierre = cierresLocales.find(cl => cl.id === idSeguro || cl.fechaStr === c["FECHA"]) || {};
           return {
+            ...localCierre,
             id: idSeguro,
-            fechaStr: c["FECHA"] || "",
+            fechaStr: c["FECHA"] || localCierre.fechaStr || "",
             usuario: usuarioActivo,
-            inicialUSD: parseFloat(c["INICIAL $"]) || 0,
-            inicialBS: parseFloat(c["INICIAL Bs"]) || 0,
-            cajaFinalUSD: parseFloat(c["TOTAL 3"]) || 0,
-            cajaFinalBS: parseFloat(c["TOTAL 4"]) || 0,
-            totalVentasUSD: parseFloat(c["TOTAL 1"]) || 0,
-            totalVentasBS: parseFloat(c["TOTAL 2"]) || 0,
-            esFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ),
-            modoFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ),
-            numeroZ: c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ || null,
-            resumen: {
+            tasaBCV: localCierre.tasaBCV || c.tasaBCV || obtenerTasaBCV(),
+            inicialUSD: parseFloat(c["INICIAL $"] ?? localCierre.inicialUSD) || 0,
+            inicialBS: parseFloat(c["INICIAL Bs"] ?? localCierre.inicialBS) || 0,
+            cajaFinalUSD: parseFloat(c["TOTAL 3"] ?? localCierre.cajaFinalUSD ?? localCierre.totalCajaUSD) || 0,
+            cajaFinalBS: parseFloat(c["TOTAL 4"] ?? localCierre.cajaFinalBS ?? localCierre.totalCajaBS) || 0,
+            totalVentasUSD: parseFloat(c["TOTAL 1"] ?? localCierre.totalVentasUSD) || 0,
+            totalVentasBS: parseFloat(c["TOTAL 2"] ?? localCierre.totalVentasBS) || 0,
+            billetesRecibidosUSD: localCierre.billetesRecibidosUSD || parseFloat(c.billetesRecibidosUSD) || 0,
+            vueltosUSD: localCierre.vueltosUSD || parseFloat(c.vueltosUSD) || 0,
+            vueltosBS: localCierre.vueltosBS || parseFloat(c.vueltosBS) || 0,
+            ingresosUSD: localCierre.ingresosUSD || parseFloat(c.ingresosUSD) || 0,
+            retirosUSD: localCierre.retirosUSD || parseFloat(c.retirosUSD) || 0,
+            ingresosBS: localCierre.ingresosBS || parseFloat(c.ingresosBS) || 0,
+            retirosBS: localCierre.retirosBS || parseFloat(c.retirosBS) || 0,
+            esFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || localCierre.esFiscal || c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ),
+            modoFiscal: Boolean(c["ES_FISCAL"] || c.esFiscal || c.modoFiscal || localCierre.modoFiscal || c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ),
+            numeroZ: c["NUMERO_Z"] || c["NUMERO Z"] || c.numeroZ || localCierre.numeroZ || null,
+            resumen: localCierre.resumen || {
               ventasEfectivoUSD: parseFloat(c["DIVISAS"]) || 0,
               ventasEfectivoBS: parseFloat(c["BOLIVARES"]) || 0,
               ventasPagoMovil: parseFloat(c["PAGO MOVIL"]) || 0,
@@ -6732,20 +6742,49 @@ function reimprimirCierreCajaHistorial(idx) {
   const c = cacheHistorialCierres[idx];
   if (!c) return mostrarAvisoFactura("No se localizó la información del cierre.");
 
+  const r = c.resumen || {};
+  const inicialUSD = parseFloat(c.inicialUSD) || 0;
+  const inicialBS = parseFloat(c.inicialBS) || 0;
+  const cajaFinalUSD = parseFloat(c.cajaFinalUSD ?? c.totalCajaUSD) || 0;
+  const cajaFinalBS = parseFloat(c.cajaFinalBS ?? c.totalCajaBS) || 0;
+  const ventasEfectivoUSD = parseFloat(r.ventasEfectivoUSD) || 0;
+  const ventasEfectivoBS = parseFloat(r.ventasEfectivoBS) || 0;
+
+  // 1. Restaurar o deducir billetes recibidos y vueltos entregados
+  let billetesUSD = c.billetesRecibidosUSD || 0;
+  let vueltosUSD = c.vueltosUSD || 0;
+  let vueltosBS = c.vueltosBS || 0;
+
+  // Deducción inteligente retroactiva si no se guardaron explícitamente
+  if (billetesUSD === 0 && cajaFinalUSD > (inicialUSD + ventasEfectivoUSD)) {
+    const excesoUSD = cajaFinalUSD - (inicialUSD + ventasEfectivoUSD);
+    billetesUSD = ventasEfectivoUSD + excesoUSD + vueltosUSD;
+  } else if (billetesUSD === 0) {
+    billetesUSD = ventasEfectivoUSD;
+  }
+
+  if (vueltosBS === 0 && cajaFinalBS < (inicialBS + ventasEfectivoBS)) {
+    vueltosBS = (inicialBS + ventasEfectivoBS) - cajaFinalBS;
+  }
+
   datosCierreCajaPendiente = {
     fechaStr: c.fechaStr || new Date().toLocaleString('es-VE'),
-    usuario: c.usuario || "CAJERO",
+    usuario: (c.usuario || "CAJERO").toUpperCase(),
     tasaBCV: c.tasaBCV || obtenerTasaBCV(),
-    inicialUSD: parseFloat(c.inicialUSD) || 0,
-    inicialBS: parseFloat(c.inicialBS) || 0,
-    resumen: c.resumen || {},
-    ingresosUSD: 0,
-    retirosUSD: 0,
-    ingresosBS: 0,
-    retirosBS: 0,
-    totalCajaUSD: parseFloat(c.cajaFinalUSD) || 0,
-    totalCajaBS: parseFloat(c.cajaFinalBS) || 0,
-    modoFiscal: c.esFiscal || false
+    inicialUSD: inicialUSD,
+    inicialBS: inicialBS,
+    billetesRecibidosUSD: billetesUSD,
+    vueltosUSD: vueltosUSD,
+    vueltosBS: vueltosBS,
+    ingresosUSD: parseFloat(c.ingresosUSD) || 0,
+    retirosUSD: parseFloat(c.retirosUSD) || 0,
+    ingresosBS: parseFloat(c.ingresosBS) || 0,
+    retirosBS: parseFloat(c.retirosBS) || 0,
+    resumen: r,
+    resumenFiscal: c.resumenFiscal || {},
+    totalCajaUSD: cajaFinalUSD,
+    totalCajaBS: cajaFinalBS,
+    modoFiscal: Boolean(c.modoFiscal || c.esFiscal)
   };
 
   renderizarTicketCierreCajaHTML(datosCierreCajaPendiente);
