@@ -7130,43 +7130,45 @@ async function procesarSiguienteCierreCaja() {
       }
     });
 
-    // Arqueo físico exacto de gavetas considerando entradas de billetes mayores y vueltos otorgados
-    let excesoEfectivoRecibidoUSD = 0;
-    let vueltosEntregadosEfectivoBS = 0;
+    // Arqueo físico exacto y discriminación de billetes recibidos vs vueltos entregados
+    let totalBilletesIngresadosUSD = 0;
+    let totalVueltosEntregadosUSD = 0;
+    let totalVueltosEntregadosBS = 0;
 
     Object.values(mapVentasHoy).forEach(v => {
+      let evUSD = parseFloat(v["EFECTIVO DIVISAS"] || v.desglosePagos?.["Efectivo Divisas"]) || 0;
+      let mEntregado = parseFloat(v.montoEntregado) || 0;
       let vUSD = parseFloat(v.vueltoUSD || v["VUELTO_USD"]) || 0;
       let vBS = parseFloat(v.vueltoBS || v["VUELTO_BS"]) || 0;
-      let vTotalUSD = parseFloat(v.vueltoTotalUSD || v["VUELTO_TOTAL_USD"] || (vUSD + (vBS / factorTasa))) || 0;
       let medV = String(v.medioVuelto || v["MEDIO_VUELTO"] || "EXACTO");
       let submedBs = String(v.submedioBs || v["SUBMEDIO_BS"] || "BS_EFECTIVO");
       let formaUpper = String(v["FORMA DE PAGO"] || v.formaPagoStr || "").toUpperCase();
 
-      // 1. Pagos en divisas (con billetes superiores al monto de la factura)
-      if (formaUpper.includes("DIVISAS") || v.desglosePagos?.["Efectivo Divisas"] > 0) {
-        if (medV === "MIXTO") {
-          // El vuelto en Bs entregado en efectivo físico sale de la gaveta de Bolívares
-          if (submedBs === "BS_EFECTIVO" && vBS > 0) {
-            vueltosEntregadosEfectivoBS += vBS;
-            // El remanente en divisas que no se dio en $ se queda físicamente en la gaveta de USD
-            excesoEfectivoRecibidoUSD += (vTotalUSD - vUSD);
-          }
-        } else if (medV === "BS_EFECTIVO" && vBS > 0) {
-          // Todo el vuelto se entregó en Bolívares en efectivo físico
-          vueltosEntregadosEfectivoBS += vBS;
-          excesoEfectivoRecibidoUSD += vTotalUSD;
-        }
-      }
+      if (formaUpper.includes("DIVISAS") || evUSD > 0) {
+        // Registrar el billete físico real que entró a la gaveta
+        let billeteRealUSD = (mEntregado >= evUSD && mEntregado > 0) ? mEntregado : evUSD;
+        totalBilletesIngresadosUSD += billeteRealUSD;
 
-      // 2. Pagos en efectivo bolívares con vuelto en efectivo bolívares
-      if ((formaUpper.includes("BOLIVARES") || formaUpper.includes("BOLÍVARES")) && medV === "BS_EFECTIVO" && vBS > 0) {
-        // En cobro directo en Bs, ventasEfectivoBS ya refleja la venta neta; si hubo ajuste, se contabiliza
+        // Registrar las salidas de vueltos por gaveta física
+        if (medV === "MIXTO") {
+          if (vUSD > 0) totalVueltosEntregadosUSD += vUSD;
+          if (submedBs === "BS_EFECTIVO" && vBS > 0) totalVueltosEntregadosBS += vBS;
+        } else if (medV === "USD_EFECTIVO" && vUSD > 0) {
+          totalVueltosEntregadosUSD += vUSD;
+        } else if (medV === "BS_EFECTIVO" && vBS > 0) {
+          totalVueltosEntregadosBS += vBS;
+        }
       }
     });
 
-    // Arqueo físico de gaveta exacto: Saldo Inicial + Ventas en Efectivo + Ajustes por vueltos cruzados + Movimientos
-    const totalCajaUSD = inicialUSD + resumenGeneral.ventasEfectivoUSD + excesoEfectivoRecibidoUSD + ingresosUSD - retirosUSD;
-    const totalCajaBS = inicialBS + resumenGeneral.ventasEfectivoBS - vueltosEntregadosEfectivoBS + ingresosBS - retirosBS;
+    // Si no hubo exceso de billete registrado, el ingreso físico base es igual a las ventas en divisas
+    if (totalBilletesIngresadosUSD < resumenGeneral.ventasEfectivoUSD) {
+      totalBilletesIngresadosUSD = resumenGeneral.ventasEfectivoUSD;
+    }
+
+    // Arqueo físico de gaveta exacto: Saldo Inicial + Billetes Recibidos - Vueltos Entregados + Movimientos Manuales
+    const totalCajaUSD = inicialUSD + totalBilletesIngresadosUSD - totalVueltosEntregadosUSD + ingresosUSD - retirosUSD;
+    const totalCajaBS = inicialBS + resumenGeneral.ventasEfectivoBS - totalVueltosEntregadosBS + ingresosBS - retirosBS;
 
     datosCierreCajaPendiente = {
       fechaStr: new Date().toLocaleString('es-VE'),
@@ -7178,6 +7180,9 @@ async function procesarSiguienteCierreCaja() {
       retirosUSD: retirosUSD,
       ingresosBS: ingresosBS,
       retirosBS: retirosBS,
+      billetesRecibidosUSD: totalBilletesIngresadosUSD,
+      vueltosUSD: totalVueltosEntregadosUSD,
+      vueltosBS: totalVueltosEntregadosBS,
       resumen: resumenGeneral,
       resumenFiscal: resumenFiscal,
       totalCajaUSD: totalCajaUSD,
@@ -7449,34 +7454,75 @@ function renderizarTicketCierreCajaHTML(d) {
     // =========================================================================
     // FORMATO B: CONTROL INTERNO CONVENCIONAL (XP-80C 80mm - USUARIO ACTIVO)
     // =========================================================================
-    let seccionMovimientosHtml = "";
-    if (d.ingresosUSD > 0 || d.retirosUSD > 0 || d.ingresosBS > 0 || d.retirosBS > 0) {
-      seccionMovimientosHtml = `
-        <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
-          3. MOVIMIENTOS DE EFECTIVO (AJUSTES)
-        </div>
-        <table class="ticket-table mb-2">
-          <tbody>
-            <tr>
-              <td>INGRESOS DE EFECTIVO DIVISAS (+):</td>
-              <td class="text-end fw-bold text-success num-legible">+$${d.ingresosUSD.toFixed(2)}</td>
-            </tr>
-            <tr>
-              <td>RETIROS DE EFECTIVO DIVISAS (-):</td>
-              <td class="text-end fw-bold text-danger num-legible">-$${d.retirosUSD.toFixed(2)}</td>
-            </tr>
-            <tr>
-              <td>INGRESOS DE EFECTIVO BOLÍVARES (+):</td>
-              <td class="text-end fw-bold text-success num-legible">+Bs. ${d.ingresosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-            </tr>
-            <tr>
-              <td>RETIROS DE EFECTIVO BOLÍVARES (-):</td>
-              <td class="text-end fw-bold text-danger num-legible">-Bs. ${d.retirosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-            </tr>
-          </tbody>
-        </table>
-      `;
+    const montoBilletesUSD = d.billetesRecibidosUSD || rGen.ventasEfectivoUSD || 0;
+    const vueltoUSD = d.vueltosUSD || 0;
+    const vueltoBS = d.vueltosBS || 0;
+
+    let filasVueltosYMovimientosHtml = "";
+
+    // 1. Renglones de vueltos entregados
+    if (vueltoUSD > 0) {
+      filasVueltosYMovimientosHtml += `
+        <tr>
+          <td>VUELTOS ENTREGADOS EN DIVISAS (-):</td>
+          <td class="text-end fw-bold text-danger num-legible">-$${vueltoUSD.toFixed(2)}</td>
+        </tr>`;
     }
+    if (vueltoBS > 0) {
+      filasVueltosYMovimientosHtml += `
+        <tr>
+          <td>VUELTOS ENTREGADOS EN BOLÍVARES (-):</td>
+          <td class="text-end fw-bold text-danger num-legible">-Bs. ${vueltoBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        </tr>`;
+    }
+
+    // 2. Renglones de movimientos manuales / vales
+    if (d.ingresosUSD > 0) {
+      filasVueltosYMovimientosHtml += `
+        <tr>
+          <td>INGRESOS EXTRA DIVISAS (+):</td>
+          <td class="text-end fw-bold text-success num-legible">+$${d.ingresosUSD.toFixed(2)}</td>
+        </tr>`;
+    }
+    if (d.retirosUSD > 0) {
+      filasVueltosYMovimientosHtml += `
+        <tr>
+          <td>RETIROS / VALES DIVISAS (-):</td>
+          <td class="text-end fw-bold text-danger num-legible">-$${d.retirosUSD.toFixed(2)}</td>
+        </tr>`;
+    }
+    if (d.ingresosBS > 0) {
+      filasVueltosYMovimientosHtml += `
+        <tr>
+          <td>INGRESOS EXTRA BOLÍVARES (+):</td>
+          <td class="text-end fw-bold text-success num-legible">+Bs. ${d.ingresosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        </tr>`;
+    }
+    if (d.retirosBS > 0) {
+      filasVueltosYMovimientosHtml += `
+        <tr>
+          <td>RETIROS / VALES BOLÍVARES (-):</td>
+          <td class="text-end fw-bold text-danger num-legible">-Bs. ${d.retirosBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        </tr>`;
+    }
+
+    if (!filasVueltosYMovimientosHtml) {
+      filasVueltosYMovimientosHtml = `
+        <tr>
+          <td colspan="2" class="text-center text-muted small py-1">Sin salidas de vueltos ni movimientos registrados</td>
+        </tr>`;
+    }
+
+    let seccionMovimientosHtml = `
+      <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
+        3. ARQUEO DE VUELTOS Y AJUSTES DE EFECTIVO
+      </div>
+      <table class="ticket-table mb-2">
+        <tbody>
+          ${filasVueltosYMovimientosHtml}
+        </tbody>
+      </table>
+    `;
 
     ticketHtml = `
       <div class="ticket-container shadow-sm border text-start">
@@ -7510,13 +7556,13 @@ function renderizarTicketCierreCajaHTML(d) {
         </table>
 
         <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
-          2. INGRESOS DEL DÍA (VENTAS DE LA CAJA)
+          2. INGRESOS DEL DÍA (VENTAS Y ENTRADAS EN CAJA)
         </div>
         <table class="ticket-table mb-2">
           <tbody>
             <tr>
-              <td>EFECTIVO DIVISAS:</td>
-              <td class="text-end fw-bold num-legible">$${(rGen.ventasEfectivoUSD || 0).toFixed(2)}</td>
+              <td>EFECTIVO DIVISAS (BILLETES RECIBIDOS):</td>
+              <td class="text-end fw-bold text-success num-legible">+$${montoBilletesUSD.toFixed(2)}</td>
             </tr>
             <tr>
               <td>EFECTIVO BOLÍVARES:</td>
