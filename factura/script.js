@@ -2356,14 +2356,16 @@ function recalcularTotalesRetencionEIGTF() {
   let montoIGTF_USD = 0;
   let montoIGTF_BS = 0;
 
+  // Cálculo directo en Bolívares para coincidencia exacta con el firmware de la impresora fiscal
   if (baseImponibleIGTF_USD > 0) {
-    montoIGTF_USD = parseFloat((baseImponibleIGTF_USD * 0.03).toFixed(2));
-    montoIGTF_BS = parseFloat((montoIGTF_USD * factorTasa).toFixed(2));
+    const baseImponibleIGTF_BS = baseImponibleIGTF_USD * factorTasa;
+    montoIGTF_BS = parseFloat((baseImponibleIGTF_BS * 0.03).toFixed(2));
+    montoIGTF_USD = parseFloat((montoIGTF_BS / factorTasa).toFixed(2));
   }
 
   // 3. TOTAL NETO A PERCIBIR EN CAJA
-  const totalNetoUSD = parseFloat((tributos.totalGeneral - retencionIVA_USD + montoIGTF_USD).toFixed(2));
   const totalNetoBS = parseFloat(((tributos.totalGeneral * factorTasa) - retencionIVA_BS + montoIGTF_BS).toFixed(2));
+  const totalNetoUSD = parseFloat((totalNetoBS / factorTasa).toFixed(2));
 
   // Actualización visual
   if (retencionIVA_USD > 0 || montoIGTF_USD > 0) {
@@ -5602,7 +5604,7 @@ async function confirmarEmisionNotaCreditoFiscal() {
       tasaBCV: parseFloat(datosNCPendiente.tasaBCV) || obtenerTasaBCV() || 1,
       esFiscal: true,
       esNotaCredito: true,
-      // Desglose tributario exacto de la Nota de Crédito
+      // Desglose tributario exacto de la Nota de Crédito preservado
       exentoBS: datosNCPendiente.exentoBS || 0,
       base16BS: datosNCPendiente.base16BS || 0,
       iva16BS: datosNCPendiente.iva16BS || 0,
@@ -7091,16 +7093,18 @@ async function procesarSiguienteCierreCaja() {
           }
         }
 
-        // C. Acumular estrictamente en Resumen Fiscal
+       // C. Acumular estrictamente en Resumen Fiscal
         if (esFiscal) {
           const esNC = Boolean(v.esNotaCredito || numFac.startsWith("NC-") || formaStr.includes("NOTA DE CREDITO"));
           const prodsStr = String(v["PRODUCTOS"] || v.productosSummary || "");
           let exentoDocBs = parseFloat(v.exentoBS) || 0;
           let base16DocBs = parseFloat(v.base16BS) || 0;
           let iva16DocBs = parseFloat(v.iva16BS) || 0;
-          let igtfDocBs = Math.abs(parseFloat(v.montoIGTF_BS || v["MONTO_IGTF_BS"]) || 0);
+          let igtfDocBs = Math.abs(parseFloat(v.montoIGTF_BS || v["MONTO_IGTF_BS"] || (v.montoIGTF_USD ? v.montoIGTF_USD * factorTasa : 0))) || 0;
+          let totalAbsUSD = Math.abs(totalVentaUSD);
 
-          if ((exentoDocBs + base16DocBs) === 0 && prodsStr) {
+          // 1. Extraer desglose de productos si no venía explícito en el registro
+          if ((exentoDocBs + base16DocBs) === 0 && prodsStr && !prodsStr.startsWith("NOTA DE CREDITO")) {
             prodsStr.split(' | ').forEach(itemTxt => {
               const matchUSD = itemTxt.match(/\$([0-9.]+)/);
               let itemUSD = matchUSD ? parseFloat(matchUSD[1]) : 0;
@@ -7124,15 +7128,20 @@ async function procesarSiguienteCierreCaja() {
           if (esNC) {
             resumenFiscal.cantNCFiscales++;
             resumenFiscal.listaNCFiscales.push(numFac);
-            let montoNCBs = Math.abs(totalVentaUSD) * factorTasa;
 
-            // Si no tenía detalle de productos, evaluar según el exento acumulado del día
-            if ((exentoDocBs + base16DocBs) === 0 && montoNCBs > 0) {
-              if (resumenFiscal.exentoBS > 0 && resumenFiscal.base16BS === 0) {
-                exentoDocBs = montoNCBs;
+            // 2. Si la NC no tenía desglose guardado, buscar la factura afectada en las ventas
+            if ((exentoDocBs + base16DocBs) === 0) {
+              const numFacAfec = v.facturaAfectada || v["FACTURA_AFECTADA"];
+              const ventaAfectada = numFacAfec ? mapVentasHoy[String(numFacAfec)] : null;
+              const subtotalBaseUSD = (totalAbsUSD > 1.5 && igtfDocBs > 0) ? (totalAbsUSD - (igtfDocBs / factorTasa)) : totalAbsUSD;
+              const subtotalBaseBS = subtotalBaseUSD * factorTasa;
+
+              if (ventaAfectada && String(ventaAfectada["PRODUCTOS"] || "").toUpperCase().includes('(G)')) {
+                base16DocBs = subtotalBaseBS / 1.16;
+                iva16DocBs = subtotalBaseBS - base16DocBs;
               } else {
-                base16DocBs = montoNCBs / 1.16;
-                iva16DocBs = montoNCBs - base16DocBs;
+                // Si la factura original era Exenta, la devolución es 100% Exenta
+                exentoDocBs = subtotalBaseBS;
               }
             }
 
@@ -7140,14 +7149,14 @@ async function procesarSiguienteCierreCaja() {
             resumenFiscal.ncBase16BS += base16DocBs;
             resumenFiscal.ncIVA16BS += iva16DocBs;
             resumenFiscal.ncIgtfBS += igtfDocBs;
-            resumenFiscal.ncTotalBS += (exentoDocBs + base16DocBs + iva16DocBs + igtfDocBs) || montoNCBs;
+            resumenFiscal.ncTotalBS += (exentoDocBs + base16DocBs + iva16DocBs + igtfDocBs);
           } else {
             resumenFiscal.cantFacturasFiscales++;
             resumenFiscal.listaFacturasFiscales.push(numFac);
-            let montoFacBs = totalVentaUSD * factorTasa;
 
-            if ((exentoDocBs + base16DocBs) === 0 && montoFacBs > 0) {
-              exentoDocBs = montoFacBs;
+            if ((exentoDocBs + base16DocBs) === 0 && totalAbsUSD > 0) {
+              const subtotalBaseUSD = (totalAbsUSD > 1.5 && igtfDocBs > 0) ? (totalAbsUSD - (igtfDocBs / factorTasa)) : totalAbsUSD;
+              exentoDocBs = subtotalBaseUSD * factorTasa;
             }
 
             resumenFiscal.exentoBS += exentoDocBs;
