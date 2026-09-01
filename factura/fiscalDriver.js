@@ -681,14 +681,20 @@ class FiscalDriverTFHKA {
         await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
       }
 
-      // Si aplica reversión de percepción IGTF (3% en Divisas), enviar comando fiscal para sumarlo a la Nota de Crédito física
+      // Si aplica reversión de percepción IGTF (3% en Divisas), enviar Subtotal ('3') y luego recargo porcentual general ('p+0300')
       if (datosNC.montoIGTF_BS > 0) {
-        const strMontoIGTF = this.formatearPrecioFiscal(datosNC.montoIGTF_BS);
-        const tramaIGTF = `P+${strMontoIGTF}IGTF 3% DIVISAS`;
         try {
-          await this.enviarComando(tramaIGTF);
+          // 1. Enviar comando de Subtotal ('3') para consolidar todos los renglones devueltos
+          await this.enviarComando("3");
+          await new Promise(r => setTimeout(r, 200));
+
+          // 2. Aplicar recargo/reversión general del 3% (IGTF) sobre el subtotal completo de la Nota de Crédito
+          await this.enviarComando("p+0300");
         } catch (eIGTF) {
-          try { await this.enviarComando("p+0300"); } catch (e2) {}
+          try {
+            const strMontoIGTF = this.formatearPrecioFiscal(datosNC.montoIGTF_BS);
+            await this.enviarComando(`P+${strMontoIGTF}IGTF 3% DIVISAS`);
+          } catch (e2) {}
         }
         await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
       }
