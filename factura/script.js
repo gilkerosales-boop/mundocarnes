@@ -7040,6 +7040,7 @@ async function procesarSiguienteCierreCaja() {
     let totalBilletesIngresadosUSD = 0;
     let totalVueltosEntregadosUSD = 0;
     let totalVueltosEntregadosBS = 0;
+    let cantVentasDelDia = 0;
 
     // 4. Procesar EXCLUSIVAMENTE las ventas de hoy del usuario activo
     Object.values(mapVentasHoy).forEach(v => {
@@ -7063,6 +7064,10 @@ async function procesarSiguienteCierreCaja() {
         const esFiscal = Boolean(v.esFiscal || formaStr.includes("FISCAL") || numFac.startsWith("FAC-") || /^\d{8}$/.test(numFac));
         const totalVentaUSD = parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0;
 
+        // Contabilizar la cantidad de ventas del día (excluyendo notas de crédito)
+        if (!v.esNotaCredito && !numFac.startsWith("NC-") && !formaStr.includes("NOTA DE CREDITO")) {
+          cantVentasDelDia++;
+        }
         let evUSD = parseFloat(v["EFECTIVO DIVISAS"] || v.efectivoDivisas) || 0;
         let evBS = parseFloat(v["EFECTIVO BOLIVARES"] || v.efectivoBolivares) || 0;
         let pmBS = parseFloat(v["PAGO MOVIL"] || v.pagoMovil) || 0;
@@ -7321,6 +7326,7 @@ async function procesarSiguienteCierreCaja() {
       billetesRecibidosUSD: totalBilletesIngresadosUSD,
       vueltosUSD: totalVueltosEntregadosUSD,
       vueltosBS: totalVueltosEntregadosBS,
+      cantVentasDelDia: cantVentasDelDia,
       resumen: resumenGeneral,
       resumenFiscal: resumenFiscal,
       totalCajaUSD: totalCajaUSD,
@@ -7688,6 +7694,7 @@ function renderizarTicketCierreCajaHTML(d) {
           <div><strong>FECHA / HORA:</strong> <span class="num-legible">${d.fechaStr}</span></div>
           <div><strong>CAJERO(A):</strong> ${d.usuario}</div>
           <div><strong>TASA BCV:</strong> <span class="num-legible">Bs. ${factorTasa.toFixed(2)}</span></div>
+          <div><strong>CANTIDAD DE VENTAS DEL DÍA:</strong> <span class="num-legible fw-bold text-dark">${d.cantVentasDelDia || 0} venta(s)</span></div>
         </div>
 
         <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
@@ -7707,7 +7714,7 @@ function renderizarTicketCierreCajaHTML(d) {
         </table>
 
         <div class="fw-bold border-bottom pb-1 mb-1 text-center bg-light">
-          2. INGRESOS DEL DÍA (VENTAS Y ENTRADAS EN CAJA)
+          2. INGRESOS DEL DÍA (${d.cantVentasDelDia || 0} VENTAS REALIZADAS)
         </div>
         <table class="ticket-table mb-2">
           <tbody>
