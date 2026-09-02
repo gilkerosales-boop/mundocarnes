@@ -1995,8 +1995,12 @@ function ejecutarFacturar() {
   document.querySelectorAll('.btn-metodo-pago').forEach(b => b.classList.remove('active'));
   document.getElementById('facFormaPagoSelect').value = "";
 
+  // Ocultar paneles secundarios hasta que el usuario elija un método de pago
   const contMixto = document.getElementById('contenedorPagoMixto');
   if (contMixto) contMixto.classList.add('hidden');
+
+  const contEfectivo = document.getElementById('contenedorCalculoEfectivo');
+  if (contEfectivo) contEfectivo.classList.add('hidden');
 
   const tasaGuardada = localStorage.getItem("tasa_bcv_user_" + usuarioActivo);
   const inputTasa = document.getElementById('facTasaBCV');
@@ -3624,6 +3628,13 @@ function cancelarProcesoFactura() {
     transaccionActiva = null;
     clienteFacturaActual = null;
     renderizarResumenFactura();
+
+    const contMixto = document.getElementById('contenedorPagoMixto');
+    if (contMixto) contMixto.classList.add('hidden');
+
+    const contEfectivo = document.getElementById('contenedorCalculoEfectivo');
+    if (contEfectivo) contEfectivo.classList.add('hidden');
+
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
     mostrarAvisoFactura("Proceso cancelado. Selección reiniciada.");
   }
