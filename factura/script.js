@@ -2655,28 +2655,38 @@ function calcularVueltoEfectivo() {
     }
 
     const restanteUSD = Math.max(0, vueltoTotalUSD - parteDivisasUSD);
-    const restanteBS = restanteUSD * tasa;
+    const restanteBS = (tasa > 0) ? (restanteUSD * tasa) : 0;
     const submedioBs = selectSubmedioBs?.value || "BS_EFECTIVO";
 
     if (lblRestanteBs) lblRestanteBs.textContent = `Bs. ${restanteBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     if (lblRestanteUSD) lblRestanteUSD.textContent = `$${restanteUSD.toFixed(2)}`;
 
-    if (lblPrincipal) lblPrincipal.textContent = `$${parteDivisasUSD.toFixed(2)} + Bs. ${restanteBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (lblPrincipal) {
+      if (tasa > 0) {
+        lblPrincipal.textContent = `$${parteDivisasUSD.toFixed(2)} + Bs. ${restanteBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      } else {
+        lblPrincipal.textContent = `$${parteDivisasUSD.toFixed(2)} + Bs. 0,00`;
+      }
+    }
     if (lblSecundario) lblSecundario.textContent = `(Total Vuelto: $${vueltoTotalUSD.toFixed(2)})`;
 
     if (ayudaGaveta) {
-      const textoSalidaBs = (submedioBs === "BS_EFECTIVO")
-        ? `🇻🇪 Salen <strong>-Bs. ${restanteBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong> de Bolívares (Efectivo)`
-        : `📱 Vuelto de <strong>Bs. ${restanteBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong> enviado por Pago Móvil`;
+      if (tasa > 0) {
+        const textoSalidaBs = (submedioBs === "BS_EFECTIVO")
+          ? `🇻🇪 Salen <strong>-Bs. ${restanteBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong> de Bolívares (Efectivo)`
+          : `📱 Vuelto de <strong>Bs. ${restanteBS.toLocaleString('es-VE', { minimumFractionDigits: 2 })}</strong> enviado por Pago Móvil`;
 
-      ayudaGaveta.innerHTML = `💵 Entra billete de <strong>+$${montoEntregado.toFixed(2)}</strong> | Salen <strong>-$${parteDivisasUSD.toFixed(2)}</strong> de Divisas | ${textoSalidaBs}.`;
+        ayudaGaveta.innerHTML = `💵 Entra billete de <strong>+$${montoEntregado.toFixed(2)}</strong> | Salen <strong>-$${parteDivisasUSD.toFixed(2)}</strong> de Divisas | ${textoSalidaBs}.`;
+      } else {
+        ayudaGaveta.innerHTML = `⚠️ Ingrese una Tasa BCV válida para calcular el equivalente en Bolívares.`;
+      }
     }
 
     return {
       vueltoUSD: parteDivisasUSD,
       vueltoBS: restanteBS,
       vueltoTotalUSD: vueltoTotalUSD,
-      vueltoTotalBS: vueltoTotalBS,
+      vueltoTotalBS: (tasa > 0 ? vueltoTotalUSD * tasa : 0),
       medioVuelto: 'MIXTO',
       submedioBs: submedioBs,
       montoEntregado: montoEntregado
