@@ -4215,7 +4215,46 @@ function renderizarTablaGestionCodigos(lista) {
   tbody.innerHTML = html;
 }
 
+// Sincronizar en vivo los cambios editados en pantalla hacia la memoria global
+function sincronizarDOMAFlatList() {
+  const filas = document.querySelectorAll('.fila-producto-cfg');
+  filas.forEach(f => {
+    const origName = f.getAttribute('data-original-name');
+    const origCat = f.getAttribute('data-original-cat');
+    const item = listaFlatProductosCodigos.find(p => p.nombreOriginal === origName && p.categoriaOriginal === origCat);
+    if (item) {
+      const inputPLU = f.querySelector('.cfg-plu');
+      const inputNom = f.querySelector('.cfg-nombre');
+      const selectCat = f.querySelector('.cfg-cat');
+      const selectUni = f.querySelector('.cfg-unidad');
+      const inputPeso = f.querySelector('.cfg-pesoprom');
+      const inputOrd = f.querySelector('.cfg-orden');
+      const inputMin = f.querySelector('.cfg-minimo');
+      const selectDisp = f.querySelector('.cfg-disp');
+      const selectWeb = f.querySelector('.cfg-web');
+      const selectIVA = f.querySelector('.cfg-iva');
+      const inputPrec = f.querySelector('.cfg-precio');
+
+      if (inputPLU) item.codigoPLU = inputPLU.value.trim();
+      if (inputNom && inputNom.value.trim()) item.nombre = inputNom.value.trim();
+      if (selectCat) item.categoria = selectCat.value;
+      if (selectUni) item.unidad = selectUni.value;
+      if (inputPeso && item.unidad === 'mixto') item.pesoPromedio = parseInt(inputPeso.value) || 2000;
+      if (inputOrd) item.orden = parseInt(inputOrd.value) || item.orden;
+      if (inputMin) item.minimo = parseInt(inputMin.value) || item.minimo;
+      if (selectDisp) item.disponible = (selectDisp.value === "true");
+      if (selectWeb) item.visibleWeb = (selectWeb.value === "true");
+      if (selectIVA) item.tasaIVA = selectIVA.value || "E";
+      if (inputPrec && !isNaN(parseFloat(inputPrec.value))) item.precio = parseFloat(inputPrec.value);
+    }
+  });
+}
+window.sincronizarDOMAFlatList = sincronizarDOMAFlatList;
+
 function filtrarTablaCodigos(query) {
+  // 1. Guardar en memoria los cambios que el usuario haya hecho en las filas actualmente visibles
+  sincronizarDOMAFlatList();
+
   if (!query.trim()) {
     renderizarTablaGestionCodigos(listaFlatProductosCodigos);
     return;
