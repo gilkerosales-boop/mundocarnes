@@ -7878,19 +7878,19 @@ function renderizarTicketCierreCajaHTML(d) {
 
         <!-- 9. NOTAS DE DEBITO -->
         <div class="pp9-seccion-titulo text-center">NOTAS DE DEBITO</div>
-        <div class="pp9-fila-item"><span>ND.EXENTO</span><span>Bs 0,00</span></div>
-        <div class="pp9-fila-item"><span>ND.BI G (16,00%)</span><span>Bs 0,00</span></div>
-        <div class="pp9-fila-item"><span>ND.IVA G (16,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item"><span>ND.EXENTO</span><span>Bs ${(rFisc.ndExentoBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>ND.BI G (16,00%)</span><span>Bs ${(rFisc.ndBase16BS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>ND.IVA G (16,00%)</span><span>Bs ${(rFisc.ndIVA16BS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
         <div class="pp9-fila-item"><span>ND.BI R (8,00%)</span><span>Bs 0,00</span></div>
         <div class="pp9-fila-item"><span>ND.IVA R (8,00%)</span><span>Bs 0,00</span></div>
         <div class="pp9-fila-item"><span>ND.BI A (31,00%)</span><span>Bs 0,00</span></div>
         <div class="pp9-fila-item"><span>ND.IVA A (31,00%)</span><span>Bs 0,00</span></div>
         <div class="pp9-fila-item"><span>ND.PERCIBIDO</span><span>Bs 0,00</span></div>
-        <div class="pp9-fila-item mt-1"><span>SUBTTL NOTA DEBITO</span><span>Bs 0,00</span></div>
-        <div class="pp9-fila-item"><span>IGTF NOTA DEBITO (3,00%)</span><span>Bs 0,00</span></div>
-        <div class="pp9-fila-item"><span>IVA NOTA DEBITO</span><span>Bs 0,00</span></div>
-        <div class="pp9-fila-item pp9-bold"><span>TOTAL NOTA DEBITO</span><span>Bs 0,00</span></div>
-        <div class="pp9-fila-item mt-1"><span>ND.BI IGTF (3,00%)</span><span>Bs 0,00</span></div>
+        <div class="pp9-fila-item mt-1"><span>SUBTTL NOTA DEBITO</span><span>Bs ${((rFisc.ndExentoBS || 0) + (rFisc.ndBase16BS || 0)).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>IGTF NOTA DEBITO (3,00%)</span><span>Bs ${(rFisc.ndIgtfBS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item"><span>IVA NOTA DEBITO</span><span>Bs ${(rFisc.ndIVA16BS || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item pp9-bold"><span>TOTAL NOTA DEBITO</span><span>Bs ${(rFisc.ndTotalBS || ((rFisc.ndExentoBS || 0) + (rFisc.ndBase16BS || 0) + (rFisc.ndIVA16BS || 0) + (rFisc.ndIgtfBS || 0))).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+        <div class="pp9-fila-item mt-1"><span>ND.BI IGTF (3,00%)</span><span>Bs ${(rFisc.ndIgtfBS || 0) > 0 ? ((rFisc.ndExentoBS || 0) + (rFisc.ndBase16BS || 0)).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}</span></div>
 
         <!-- 10. NOTAS DE CREDITO FISCALES REALES DE HOY -->
         <div class="pp9-seccion-titulo text-center">NOTAS DE CREDITO</div>
