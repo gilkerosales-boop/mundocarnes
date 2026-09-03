@@ -6202,10 +6202,13 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       const esNC = Boolean(v.esNotaCredito || numFac.startsWith("NC-") || String(v["FORMA DE PAGO"] || "").includes("NOTA DE CREDITO"));
       const esND = Boolean(v.esNotaDebito || numFac.startsWith("ND-") || String(v["FORMA DE PAGO"] || "").includes("NOTA DE DEBITO"));
 
-      // Tomar el monto exacto en Bolívares liquidado para evitar diferencias de redondeo con la máquina fiscal
+      // Usar la tasa con la que se emitió el documento para evitar descuadres si cambia la tasa de referencia
+      const tasaDoc = parseFloat(v.tasaBCV || v["TASA_BCV"]) || tasaActual;
+
+      // Tomar el monto exacto en Bolívares liquidado para coincidencia absoluta con la memoria fiscal
       let totalVentaBs = Math.abs(parseFloat(v.totalNetoCobradoBS || v["TOTAL_NETO_COBRADO_BS"] || v.totalBs)) || 0;
       if (totalVentaBs <= 0) {
-        totalVentaBs = Math.abs(montoTotalUSD) * tasaActual;
+        totalVentaBs = Math.abs(montoTotalUSD) * tasaDoc;
       }
       const prodsStr = String(v["PRODUCTOS"] || v.productosSummary || "");
       
@@ -6216,7 +6219,7 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
         itemsLista.forEach(itemTxt => {
           const matchUSD = itemTxt.match(/\$([0-9.]+)/);
           let montoItemUSD = matchUSD ? parseFloat(matchUSD[1]) : 0;
-          let montoItemBs = montoItemUSD * tasaActual;
+          let montoItemBs = montoItemUSD * tasaDoc;
           const txtUpper = itemTxt.toUpperCase();
 
           let tasaItem = "E";
@@ -6250,8 +6253,17 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       }
 
       if ((exentoBs + base16Bs + base8Bs) === 0 && totalVentaBs > 0) {
-        base16Bs = totalVentaBs / 1.16;
-        iva16Bs = totalVentaBs - base16Bs;
+        if (esND && (prodsStr.includes('(E)') || !prodsStr.includes('(G)'))) {
+          exentoBs = totalVentaBs;
+        } else {
+          base16Bs = totalVentaBs / 1.16;
+          iva16Bs = totalVentaBs - base16Bs;
+        }
+      } else if (esND && (prodsStr.includes('(E)') || !prodsStr.includes('(G)'))) {
+        // En Nota de Débito exenta, el exento debe coincidir exactamente con el total en Bolívares
+        exentoBs = totalVentaBs;
+        base16Bs = 0;
+        iva16Bs = 0;
       }
 
       let igtfBs = parseFloat(v.montoIGTF_BS || v["MONTO_IGTF_BS"] || v["IGTF"]) || 0;
@@ -7557,14 +7569,28 @@ async function procesarSiguienteCierreCaja() {
             resumenFiscal.cantNDFiscales++;
             resumenFiscal.listaNDFiscales.push(numFac);
 
-            // Si el desglose viene en 0, calcularlo directamente desde el total en Bolívares
-            if ((exentoDocBs + base16DocBs) === 0) {
-              const subtotalNDBs = totalAbsUSD * factorTasa;
+            // Obtener el total exacto en Bolívares de la Nota de Débito (Bs 4.818,00)
+            let subtotalNDBs = parseFloat(v.totalNetoCobradoBS || v["TOTAL_NETO_COBRADO_BS"]) || (totalAbsUSD * factorTasa);
+
+            // Si el valor guardado vino en dólares (menor o igual a $6.00), convertir a Bolívares reales
+            if (exentoDocBs > 0 && exentoDocBs <= (totalAbsUSD + 0.5)) {
+              exentoDocBs = exentoDocBs * factorTasa;
+            }
+            if (base16DocBs > 0 && base16DocBs <= (totalAbsUSD + 0.5)) {
+              base16DocBs = base16DocBs * factorTasa;
+              iva16DocBs = iva16DocBs * factorTasa;
+            }
+
+            // Si el desglose vino en cero o no cubrió los Bolívares reales, imputar el subtotal en Bs
+            if ((exentoDocBs + base16DocBs) === 0 || (exentoDocBs + base16DocBs) < (totalAbsUSD * 2)) {
               if (prodsStr.toUpperCase().includes('(G)') || prodsStr.toUpperCase().includes('16%')) {
                 base16DocBs = subtotalNDBs / 1.16;
                 iva16DocBs = subtotalNDBs - base16DocBs;
+                exentoDocBs = 0;
               } else {
                 exentoDocBs = subtotalNDBs;
+                base16DocBs = 0;
+                iva16DocBs = 0;
               }
             }
 
@@ -7573,6 +7599,7 @@ async function procesarSiguienteCierreCaja() {
             resumenFiscal.ndIVA16BS += iva16DocBs;
             resumenFiscal.ndIgtfBS += igtfDocBs;
             resumenFiscal.ndTotalBS += (exentoDocBs + base16DocBs + iva16DocBs + igtfDocBs);
+          }
           } else if (esNC) {
             resumenFiscal.cantNCFiscales++;
             resumenFiscal.listaNCFiscales.push(numFac);
