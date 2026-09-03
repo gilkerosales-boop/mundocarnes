@@ -332,6 +332,7 @@ class FiscalDriverTFHKA {
 
     let numFacturaDetectado = null;
     let numNCDetectado = null;
+    let numNDDetectado = null;
     let numZDetectado = null;
     let serialEquipo = null;
     let rifEquipo = null;
@@ -342,24 +343,28 @@ class FiscalDriverTFHKA {
         .map(l => l.trim())
         .filter(l => l.length > 0);
 
-      // Posición estándar TFHKA S1: línea 2 (Última Factura)
+      // Posición estándar TFHKA / Aclas S1:
+      // lineas[2] = Número de la Última Factura
       if (lineas.length >= 3 && /^\d+$/.test(lineas[2]) && parseInt(lineas[2], 10) > 0) {
         numFacturaDetectado = lineas[2].padStart(8, '0');
       }
 
-      // Posición estándar TFHKA S1: línea 6 o línea 4 (Última Nota de Crédito)
-      if (lineas.length >= 7 && /^\d+$/.test(lineas[6]) && parseInt(lineas[6], 10) > 0) {
-        numNCDetectado = lineas[6].padStart(8, '0');
-      } else if (lineas.length >= 5 && /^\d+$/.test(lineas[4]) && parseInt(lineas[4], 10) > 0) {
-        numNCDetectado = lineas[4].padStart(8, '0');
+      // lineas[4] = Número de la Última Nota de Débito (lineas[3] es la cantidad de facturas)
+      if (lineas.length >= 5 && /^\d+$/.test(lineas[4]) && parseInt(lineas[4], 10) > 0) {
+        numNDDetectado = lineas[4].padStart(8, '0');
       }
 
-      // Detección automática del serial físico grabado en la memoria de la máquina
+      // lineas[6] = Número de la Última Nota de Crédito
+      if (lineas.length >= 7 && /^\d+$/.test(lineas[6]) && parseInt(lineas[6], 10) > 0) {
+        numNCDetectado = lineas[6].padStart(8, '0');
+      }
+
+      // Detección automática del número de Reporte Z y serial físico grabado en la memoria de la máquina
       for (let l of lineas) {
-        if (/^\d{4}$/.test(l) && parseInt(l, 10) > 0 && !numZDetectado) {
+        if (/^\d{1,4}$/.test(l) && parseInt(l, 10) > 0 && !numZDetectado && l !== lineas[2] && l !== lineas[3] && l !== lineas[4] && l !== lineas[6]) {
           numZDetectado = l.padStart(4, '0');
         }
-        // Detección genérica de serial alfanumérico fiscal sin quemar marcas
+        // Detección genérica de serial alfanumérico fiscal
         if (/^[A-Z0-9]{8,14}$/i.test(l) && !serialEquipo && !l.startsWith("S1") && !/^\d+$/.test(l)) {
           serialEquipo = l.toUpperCase();
         }
@@ -382,6 +387,7 @@ class FiscalDriverTFHKA {
       enLinea: true,
       ultimaFactura: numFacturaDetectado,
       ultimaNC: numNCDetectado,
+      ultimaND: numNDDetectado,
       ultimoZ: numZDetectado,
       serial: serialEquipo || serialPrivado,
       rif: rifEquipo
@@ -983,11 +989,11 @@ class FiscalDriverTFHKA {
   extraerNumeroNDDeRespuesta(rawStr) {
     if (!rawStr) return null;
     const lineas = String(rawStr).split(/[\r\n\x0A\x0D,]+/).map(l => l.trim()).filter(l => l.length > 0);
-    // En el reporte S1 de TFHKA/Aclas, la línea 4 o 3 reporta la última Nota de Débito
-    if (lineas.length >= 5 && /^\d+$/.test(lineas[3]) && parseInt(lineas[3], 10) > 0) {
-      return lineas[3].padStart(8, '0');
-    }
-    if (lineas.length >= 6 && /^\d+$/.test(lineas[4]) && parseInt(lineas[4], 10) > 0) {
+    // Posición estricta TFHKA / Aclas PP9 Plus:
+    // lineas[2] = Factura actual (ej: 37)
+    // lineas[3] = Cantidad de facturas hoy (ej: 2) -> NO ES LA ND
+    // lineas[4] = Última Nota de Débito (ej: 1 -> 00000001)
+    if (lineas.length >= 5 && /^\d+$/.test(lineas[4]) && parseInt(lineas[4], 10) > 0) {
       return lineas[4].padStart(8, '0');
     }
     return null;
