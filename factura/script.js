@@ -4808,9 +4808,13 @@ function renderizarTablaHistorialFacturas() {
       ? `<span class="badge bg-primary fw-bold px-2 py-1">🏷️ Fiscal</span>` 
       : `<span class="badge bg-secondary px-2 py-1">📄 No Fiscal</span>`;
 
-    // Botón de Nota de Crédito: ACTIVO ÚNICA Y EXCLUSIVAMENTE PARA VENTAS FISCALES
+    // Botones de Nota de Crédito y Nota de Débito: EXCLUSIVOS PARA DOCUMENTOS FISCALES
     let botonNotaCredito = esRealmenteFiscal
-      ? `<button type="button" class="btn btn-sm btn-warning text-dark py-0 px-2 fw-bold rounded-pill shadow-sm" onclick="abrirModalNotaCreditoFiscal('${f.numFactura}')" title="Emitir Nota de Crédito Fiscal en HKA80">↩️ NC</button>`
+      ? `<button type="button" class="btn btn-sm btn-warning text-dark py-0 px-2 fw-bold rounded-pill shadow-sm" onclick="abrirModalNotaCreditoFiscal('${f.numFactura}')" title="Emitir Nota de Crédito Fiscal">↩️ NC</button>`
+      : "";
+
+    let botonNotaDebito = esRealmenteFiscal
+      ? `<button type="button" class="btn btn-sm btn-info text-dark py-0 px-2 fw-bold rounded-pill shadow-sm" onclick="abrirModalNotaDebitoFiscal('${f.numFactura}')" title="Emitir Nota de Débito Fiscal">➕ ND</button>`
       : "";
 
     html += `
@@ -4825,6 +4829,7 @@ function renderizarTablaHistorialFacturas() {
         <td class="text-center text-nowrap">
           <div class="acciones-historial-group">
             ${botonNotaCredito}
+            ${botonNotaDebito}
             <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill" onclick="reimprimirFacturaHistorial('${f.numFactura}')" title="Reimprimir Ticket">
               🖨️ Imprimir
             </button>
@@ -5793,6 +5798,252 @@ window.alternarTipoOperacionNC = alternarTipoOperacionNC;
 window.alternarCheckItemNC = alternarCheckItemNC;
 window.confirmarEmisionNotaCreditoFiscal = confirmarEmisionNotaCreditoFiscal;
 
+// ==========================================================================
+// MÓDULO EXCLUSIVO: NOTAS DE DÉBITO FISCALES (SENIAT)
+// ==========================================================================
+let datosNDPendiente = null;
+
+function abrirModalNotaDebitoFiscal(numFactura) {
+  const fac = cacheHistorialFacturas.find(f => String(f.numFactura) === String(numFactura));
+  if (!fac) return mostrarAvisoFactura("No se localizó la información de la factura fiscal.");
+
+  const tasa = obtenerTasaBCV();
+  const factorTasa = tasa > 0 ? tasa : 1;
+  const montoTotalUSD = parseFloat(fac.totalNetoCobradoUSD || fac.montoTotalUSD || fac["MONTO TOTAL"]) || 0;
+
+  datosNDPendiente = {
+    facturaAfectada: fac.numFactura,
+    fechaFacturaAfectada: fac.fechaStr,
+    cliente: {
+      cedula: fac.cedula || "V-00000000",
+      nombre: fac.nombre || "CONSUMIDOR FINAL",
+      direccion: fac.direccion || "CARACAS",
+      telefono: fac.telefono || "N/D"
+    },
+    totalOriginalUSD: montoTotalUSD,
+    tasaBCV: factorTasa,
+    serialImpresora: window.fiscalDriver?.ultimoReporteStatus?.serial || obtenerSerialFiscalActivo()
+  };
+
+  document.getElementById('ndFacturaAfectada').value = fac.numFactura;
+  document.getElementById('ndFechaAfectada').value = fac.fechaStr;
+  document.getElementById('ndCedulaCliente').value = fac.cedula;
+  document.getElementById('ndNombreCliente').value = fac.nombre;
+  document.getElementById('ndTotalOriginalUSD').value = `$${montoTotalUSD.toFixed(2)}`;
+
+  document.getElementById('ndMotivoSelect').value = "DIFERENCIA EN PRECIO O PESAJE";
+  document.getElementById('ndConceptoManual').value = "";
+  document.getElementById('ndMontoUSD').value = "";
+  document.getElementById('ndTasaIVA').value = "E";
+  document.getElementById('ndFormaPagoSelect').value = "Efectivo Bolívares";
+  document.getElementById('errorModalND').classList.add('hidden');
+
+  recalcularTotalesND();
+
+  const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "Impresora Fiscal";
+  const btnEmitir = document.getElementById('btnConfirmarEmisionND');
+  if (btnEmitir) {
+    btnEmitir.textContent = `🧾 Emitir Nota de Débito Fiscal en ${nombreModelo}`;
+  }
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNotaDebitoFiscal')).show();
+}
+
+function recalcularTotalesND() {
+  const tasa = datosNDPendiente?.tasaBCV || obtenerTasaBCV() || 1;
+  const montoUSD = parseFloat(document.getElementById('ndMontoUSD')?.value) || 0;
+  const tasaIVA = (document.getElementById('ndTasaIVA')?.value || "E").toUpperCase();
+  const formaPago = document.getElementById('ndFormaPagoSelect')?.value || "Efectivo Bolívares";
+
+  const factorTasa = tasa > 0 ? tasa : 1;
+  const totalBs = montoUSD * factorTasa;
+
+  let exentoBs = 0;
+  let baseBs = 0;
+  let ivaBs = 0;
+
+  if (tasaIVA === "G" || tasaIVA === "16") {
+    baseBs = totalBs / 1.16;
+    ivaBs = totalBs - baseBs;
+  } else if (tasaIVA === "R" || tasaIVA === "8") {
+    baseBs = totalBs / 1.08;
+    ivaBs = totalBs - baseBs;
+  } else {
+    exentoBs = totalBs;
+  }
+
+  // Si el medio de pago seleccionado para la ND es en divisas, calcular el 3% de IGTF
+  let igtfBS = 0;
+  let igtfUSD = 0;
+  if (formaPago === "Efectivo Divisas" || formaPago === "Zelle" || formaPago === "PayPal") {
+    igtfBS = parseFloat((totalBs * 0.03).toFixed(2));
+    igtfUSD = parseFloat((igtfBS / factorTasa).toFixed(2));
+  }
+
+  const finalTotalBs = totalBs + igtfBS;
+  const finalTotalUSD = montoUSD + igtfUSD;
+
+  document.getElementById('ndMontoTotalUSD').textContent = `+$${finalTotalUSD.toFixed(2)}`;
+  document.getElementById('ndMontoTotalBS').textContent = `+Bs. ${finalTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  document.getElementById('ndExentoBS').textContent = `Bs. ${exentoBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  document.getElementById('ndBaseBS').textContent = `Bs. ${baseBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  document.getElementById('ndIVABS').textContent = `Bs. ${ivaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  if (datosNDPendiente) {
+    datosNDPendiente.montoUSD = montoUSD;
+    datosNDPendiente.totalNDUSD = finalTotalUSD;
+    datosNDPendiente.totalNDBS = finalTotalBs;
+    datosNDPendiente.exentoBS = exentoBs;
+    datosNDPendiente.baseBS = baseBs;
+    datosNDPendiente.ivaBS = ivaBs;
+    datosNDPendiente.igtfBS = igtfBS;
+    datosNDPendiente.igtfUSD = igtfUSD;
+    datosNDPendiente.tasaIVA = tasaIVA;
+    datosNDPendiente.formaPago = formaPago;
+  }
+}
+
+async function confirmarEmisionNotaDebitoFiscal() {
+  if (!datosNDPendiente) return;
+
+  const errorDiv = document.getElementById('errorModalND');
+  const btn = document.getElementById('btnConfirmarEmisionND');
+  const motivo = document.getElementById('ndMotivoSelect').value;
+  const conceptoManual = document.getElementById('ndConceptoManual').value.trim().toUpperCase() || motivo;
+  const montoUSD = parseFloat(document.getElementById('ndMontoUSD').value);
+  const tasaIVA = document.getElementById('ndTasaIVA').value;
+  const formaPago = document.getElementById('ndFormaPagoSelect').value;
+  const nombreModelo = window.fiscalDriver ? window.fiscalDriver.getNombreModelo() : "Impresora Fiscal";
+
+  if (isNaN(montoUSD) || montoUSD <= 0) {
+    if (errorDiv) {
+      errorDiv.textContent = "Por favor, indique un monto a debitar válido superior a 0.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (errorDiv) errorDiv.classList.add('hidden');
+
+  btn.disabled = true;
+  btn.textContent = `Transmitiendo Nota de Débito a ${nombreModelo}...`;
+
+  try {
+    if (!window.fiscalDriver || !window.fiscalDriver.conectado) {
+      const conectar = confirm("La impresora fiscal no está conectada. ¿Desea conectarla ahora para emitir la Nota de Débito?");
+      if (conectar) {
+        await window.fiscalDriver.solicitarYConectar();
+      } else {
+        btn.disabled = false;
+        btn.textContent = `🧾 Emitir Nota de Débito Fiscal en ${nombreModelo}`;
+        return;
+      }
+    }
+
+    const datosPayloadND = {
+      cliente: datosNDPendiente.cliente,
+      facturaAfectada: datosNDPendiente.facturaAfectada,
+      fechaFacturaAfectada: datosNDPendiente.fechaFacturaAfectada,
+      serialImpresoraAfectada: datosNDPendiente.serialImpresora,
+      motivo: motivo,
+      concepto: conceptoManual,
+      montoUSD: montoUSD,
+      tasaIVA: tasaIVA,
+      formaPago: formaPago,
+      tasaBCV: datosNDPendiente.tasaBCV,
+      montoIGTF_BS: datosNDPendiente.igtfBS || 0
+    };
+
+    const resND = await window.fiscalDriver.emitirNotaDebitoFiscal(datosPayloadND);
+    const numNDGenerado = resND.numNotaDebito || `ND-${Date.now().toString().slice(-6)}`;
+    const usuarioActivo = obtenerUsuarioActivo();
+    const tablaUsuarioActivo = obtenerTablaVentasUsuario();
+
+    const registroNDLocal = {
+      numFactura: String(numNDGenerado),
+      facturaAfectada: datosNDPendiente.facturaAfectada,
+      fechaStr: new Date().toLocaleString('es-VE'),
+      montoTotalUSD: datosNDPendiente.totalNDUSD,
+      cedula: datosNDPendiente.cliente.cedula,
+      nombre: datosNDPendiente.cliente.nombre,
+      direccion: `ND AFECTA FACTURA: ${datosNDPendiente.facturaAfectada}`,
+      formaPagoStr: `${formaPago} (NOTA DE DEBITO FISCAL AFECTA FACT ${datosNDPendiente.facturaAfectada})`,
+      productosSummary: `NOTA DE DEBITO (${tasaIVA}): ${conceptoManual} - $${montoUSD.toFixed(2)}`,
+      usuario: usuarioActivo,
+      tasaBCV: parseFloat(datosNDPendiente.tasaBCV) || obtenerTasaBCV() || 1,
+      esFiscal: true,
+      esNotaDebito: true,
+      exentoBS: datosNDPendiente.exentoBS || 0,
+      base16BS: (tasaIVA === "G" ? datosNDPendiente.baseBS : 0),
+      iva16BS: (tasaIVA === "G" ? datosNDPendiente.ivaBS : 0),
+      base8BS: (tasaIVA === "R" ? datosNDPendiente.baseBS : 0),
+      iva8BS: (tasaIVA === "R" ? datosNDPendiente.ivaBS : 0),
+      montoIGTF_BS: datosNDPendiente.igtfBS || 0,
+      montoIGTF_USD: datosNDPendiente.igtfUSD || 0,
+      totalNetoCobradoBS: datosNDPendiente.totalNDBS,
+      totalNetoCobradoUSD: datosNDPendiente.totalNDUSD
+    };
+
+    await dbPut("ventas", registroNDLocal);
+
+    await dbPut("syncQueue", {
+      id: "sync_nd_" + Date.now(),
+      payload: {
+        action: "guardarFacturaFinal",
+        datosFactura: {
+          numFactura: String(numNDGenerado),
+          facturaAfectada: String(datosNDPendiente.facturaAfectada),
+          fechaStr: registroNDLocal.fechaStr,
+          cedula: registroNDLocal.cedula,
+          nombre: registroNDLocal.nombre,
+          telefono: datosNDPendiente.cliente.telefono || 'N/D',
+          direccion: registroNDLocal.direccion,
+          productosSummary: registroNDLocal.productosSummary,
+          formaPago: registroNDLocal.formaPagoStr,
+          montoTotal: datosNDPendiente.totalNDUSD,
+          desglosePagos: { [formaPago]: datosNDPendiente.totalNDUSD },
+          usuario: usuarioActivo,
+          tasaBCV: registroNDLocal.tasaBCV,
+          tablaVentas: tablaUsuarioActivo,
+          esFiscal: true,
+          esNotaDebito: true,
+          exentoBS: datosNDPendiente.exentoBS || 0,
+          base16BS: (tasaIVA === "G" ? datosNDPendiente.baseBS : 0),
+          iva16BS: (tasaIVA === "G" ? datosNDPendiente.ivaBS : 0),
+          base8BS: (tasaIVA === "R" ? datosNDPendiente.baseBS : 0),
+          iva8BS: (tasaIVA === "R" ? datosNDPendiente.ivaBS : 0),
+          montoIGTF_BS: datosNDPendiente.igtfBS || 0,
+          montoIGTF_USD: datosNDPendiente.igtfUSD || 0,
+          totalNetoCobradoBS: datosNDPendiente.totalNDBS,
+          totalNetoCobradoUSD: datosNDPendiente.totalNDUSD
+        }
+      }
+    });
+
+    btn.disabled = false;
+    btn.textContent = `🧾 Emitir Nota de Débito Fiscal en ${nombreModelo}`;
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNotaDebitoFiscal')).hide();
+    mostrarAvisoFactura(`🎉 Nota de Débito Fiscal N° ${numNDGenerado} emitida exitosamente en la máquina fiscal.`);
+
+    buscarFacturasHistorial('ultimas');
+    procesarColaSincronizacion();
+
+  } catch (errND) {
+    btn.disabled = false;
+    btn.textContent = `🧾 Emitir Nota de Débito Fiscal en ${nombreModelo}`;
+    console.error("Error al emitir ND:", errND);
+    if (errorDiv) {
+      errorDiv.textContent = "Error durante la emisión de la Nota de Débito: " + errND.message;
+      errorDiv.classList.remove('hidden');
+    }
+  }
+}
+
+window.abrirModalNotaDebitoFiscal = abrirModalNotaDebitoFiscal;
+window.recalcularTotalesND = recalcularTotalesND;
+window.confirmarEmisionNotaDebitoFiscal = confirmarEmisionNotaDebitoFiscal;
+
 // 2. GENERADOR Y EXPORTADOR OFICIAL DEL LIBRO DE VENTAS FISCAL SENIAT (.xlsx y .pdf) CON HOJA DE REPORTES Z
 async function ejecutarDescargaLibroSeniat(formato = 'excel') {
   const errorDiv = document.getElementById('errorModalDescarga');
@@ -5916,6 +6167,7 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       const clienteNombre = String(v["NOMBRE / RAZON SOCIAL"] || v.nombre || "CONSUMIDOR FINAL").trim();
       const montoTotalUSD = parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0;
       const esNC = Boolean(v.esNotaCredito || numFac.startsWith("NC-") || String(v["FORMA DE PAGO"] || "").includes("NOTA DE CREDITO"));
+      const esND = Boolean(v.esNotaDebito || numFac.startsWith("ND-") || String(v["FORMA DE PAGO"] || "").includes("NOTA DE DEBITO"));
 
       let totalVentaBs = Math.abs(montoTotalUSD) * tasaActual;
       const prodsStr = String(v["PRODUCTOS"] || v.productosSummary || "");
@@ -5989,7 +6241,7 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       totRetenidoBsFac += finalRetencionBs;
 
       let facAfectadaFinal = "";
-      if (esNC) {
+      if (esNC || esND) {
         facAfectadaFinal = v.facturaAfectada || v["FACTURA_AFECTADA"] || v["FACTURA AFECTADA"] || "";
         if (!facAfectadaFinal) {
           const textoPago = String(v["FORMA DE PAGO"] || v.formaPagoStr || "");
@@ -6007,11 +6259,11 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
         fecha: fechaStr,
         cedulaRIF: cedulaRIF,
         cliente: clienteNombre,
-        numFactura: esNC ? "" : numFac,
+        numFactura: (esNC || esND) ? "" : numFac,
         numControl: "N/A",
-        notaDebito: "",
+        notaDebito: esND ? numFac : "",
         notaCredito: esNC ? numFac : "",
-        tipoTransaccion: esNC ? "02-NC" : "01-REG",
+        tipoTransaccion: esNC ? "02-NC" : (esND ? "03-ND" : "01-REG"),
         facturaAfectada: facAfectadaFinal,
         totalVentaBs: finalTotalBs,
         exentoBs: finalExentoBs,
@@ -7035,6 +7287,7 @@ async function procesarSiguienteCierreCaja() {
       totalFiscalUSD: 0, totalFiscalBS: 0,
       cantFacturasFiscales: 0,
       cantNCFiscales: 0,
+      cantNDFiscales: 0,
       exentoBS: 0,
       base16BS: 0,
       iva16BS: 0,
@@ -7044,10 +7297,17 @@ async function procesarSiguienteCierreCaja() {
       ncIVA16BS: 0,
       ncIgtfBS: 0,
       ncTotalBS: 0,
+      ndExentoBS: 0,
+      ndBase16BS: 0,
+      ndIVA16BS: 0,
+      ndIgtfBS: 0,
+      ndTotalBS: 0,
       facturaInicialFiscal: null, facturaFinalFiscal: null,
       ncFinalFiscal: null,
+      ndFinalFiscal: null,
       listaFacturasFiscales: [],
-      listaNCFiscales: []
+      listaNCFiscales: [],
+      listaNDFiscales: []
     };
 
     // 3. Obtener ventas filtrando ESTRICTAMENTE por el usuario activo
@@ -7221,6 +7481,7 @@ async function procesarSiguienteCierreCaja() {
        // C. Acumular estrictamente en Resumen Fiscal
         if (esFiscal) {
           const esNC = Boolean(v.esNotaCredito || numFac.startsWith("NC-") || formaStr.includes("NOTA DE CREDITO"));
+          const esND = Boolean(v.esNotaDebito || numFac.startsWith("ND-") || formaStr.includes("NOTA DE DEBITO"));
           const prodsStr = String(v["PRODUCTOS"] || v.productosSummary || "");
           let exentoDocBs = parseFloat(v.exentoBS) || 0;
           let base16DocBs = parseFloat(v.base16BS) || 0;
@@ -7229,7 +7490,7 @@ async function procesarSiguienteCierreCaja() {
           let totalAbsUSD = Math.abs(totalVentaUSD);
 
           // 1. Extraer desglose de productos si no venía explícito en el registro
-          if ((exentoDocBs + base16DocBs) === 0 && prodsStr && !prodsStr.startsWith("NOTA DE CREDITO")) {
+          if ((exentoDocBs + base16DocBs) === 0 && prodsStr && !prodsStr.startsWith("NOTA DE CREDITO") && !prodsStr.startsWith("NOTA DE DEBITO")) {
             prodsStr.split(' | ').forEach(itemTxt => {
               const matchUSD = itemTxt.match(/\$([0-9.]+)/);
               let itemUSD = matchUSD ? parseFloat(matchUSD[1]) : 0;
@@ -7250,7 +7511,16 @@ async function procesarSiguienteCierreCaja() {
             });
           }
 
-          if (esNC) {
+          if (esND) {
+            resumenFiscal.cantNDFiscales++;
+            resumenFiscal.listaNDFiscales.push(numFac);
+
+            resumenFiscal.ndExentoBS += exentoDocBs;
+            resumenFiscal.ndBase16BS += base16DocBs;
+            resumenFiscal.ndIVA16BS += iva16DocBs;
+            resumenFiscal.ndIgtfBS += igtfDocBs;
+            resumenFiscal.ndTotalBS += (exentoDocBs + base16DocBs + iva16DocBs + igtfDocBs);
+          } else if (esNC) {
             resumenFiscal.cantNCFiscales++;
             resumenFiscal.listaNCFiscales.push(numFac);
 
@@ -7265,7 +7535,6 @@ async function procesarSiguienteCierreCaja() {
                 base16DocBs = subtotalBaseBS / 1.16;
                 iva16DocBs = subtotalBaseBS - base16DocBs;
               } else {
-                // Si la factura original era Exenta, la devolución es 100% Exenta
                 exentoDocBs = subtotalBaseBS;
               }
             }
