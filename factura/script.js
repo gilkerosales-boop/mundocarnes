@@ -4860,6 +4860,7 @@ function reimprimirFacturaHistorial(numFactura) {
   const numFacStr = String(fac.numFactura || "");
   const esFiscal = Boolean(fac.esFiscal || formaStr.includes("FISCAL") || numFacStr.startsWith("FAC-") || /^\d{8}$/.test(numFacStr));
   const esNC = Boolean(fac.esNotaCredito || numFacStr.startsWith("NC-") || formaStr.includes("NOTA DE CREDITO"));
+  const esND = Boolean(fac.esNotaDebito || numFacStr.startsWith("ND-") || formaStr.includes("NOTA DE DEBITO"));
 
   datosFacturaPendiente = {
     numFactura: fac.numFactura,
@@ -4879,6 +4880,7 @@ function reimprimirFacturaHistorial(numFactura) {
     modoFiscal: esFiscal,
     esFiscal: esFiscal,
     esNotaCredito: esNC,
+    esNotaDebito: esND,
     montoIGTF_BS: igtfBS,
     montoIGTF_USD: igtfUSD,
     montoRetencionBS: retBS,
@@ -5035,45 +5037,75 @@ function renderizarTicketTermicoHistorialHTML(d) {
     let bloqueIGTF = (d.montoIGTF_BS > 0 || d.MONTO_IGTF_BS > 0) 
       ? `<div>IG.. 3 BS ${parseFloat(d.montoIGTF_BS || d.MONTO_IGTF_BS).toFixed(2)}</div>` : '';
 
-    let encabezadoTipoDoc = esNC ? `
-      <div class="pp9-info-doc">
-        <div>#FAC:${d.facturaAfectada || '00000022'}</div>
-        <div>FECHA FAC:${d.fechaFacturaAfectada || '24/08/2026'}</div>
-        <div>#CONTROL/SERIAL IF:${serialFiscal}</div>
-        <div>RIF/CI:${cedulaCliente}</div>
-        <div>R.S.:${String(d.cliente?.nombre || d.nombre || 'CLIENTE').toUpperCase()}</div>
-        <div>MOTIVO: DEVOLUCION DE MERCANCIA</div>
-      </div>
-      <div class="pp9-titulo-doc text-center mt-1">NOTA DE CREDITO</div>
-      <div class="pp9-info-doc">
-        <div class="pp9-fila-item">
-          <span>NOTA DE CREDITO:</span>
-          <span class="pp9-bold">${numDocPP9}</span>
+    const esND = Boolean(d.esNotaDebito || String(d.numFactura || "").startsWith("ND-") || String(d.formaPagoStr || "").includes("NOTA DE DEBITO"));
+    const fechaDocParte = String(d.fechaStr || '').split(',')[0] || '03-09-2026';
+    const horaDocParte = String(d.fechaStr || '').split(',')[1] || '02:39';
+
+    let encabezadoTipoDoc = "";
+    if (esNC) {
+      encabezadoTipoDoc = `
+        <div class="pp9-info-doc">
+          <div>#FAC:${d.facturaAfectada || '00000000'}</div>
+          <div>FECHA FAC:${d.fechaFacturaAfectada || fechaDocParte}</div>
+          <div>#CONTROL/SERIAL IF:${serialFiscal}</div>
+          <div>RIF/CI:${cedulaCliente}</div>
+          <div>R.S.:${String(d.cliente?.nombre || d.nombre || 'CLIENTE').toUpperCase()}</div>
+          <div>MOTIVO: ${d.motivo || 'DEVOLUCION DE MERCANCIA'}</div>
         </div>
-        <div class="pp9-fila-item">
-          <span>FECHA: ${String(d.fechaStr || '').split(',')[0] || '24-08-2026'}</span>
-          <span>HORA: ${String(d.fechaStr || '').split(',')[1] || '05:20'}</span>
+        <div class="pp9-titulo-doc text-center mt-1">NOTA DE CREDITO</div>
+        <div class="pp9-info-doc">
+          <div class="pp9-fila-item">
+            <span>NOTA DE CREDITO:</span>
+            <span class="pp9-bold">${numDocPP9}</span>
+          </div>
+          <div class="pp9-fila-item">
+            <span>FECHA: ${fechaDocParte}</span>
+            <span>HORA: ${horaDocParte}</span>
+          </div>
+        </div>`;
+    } else if (esND) {
+      encabezadoTipoDoc = `
+        <div class="pp9-info-doc">
+          <div>#FAC:${d.facturaAfectada || '00000000'}</div>
+          <div>FECHA FAC:${d.fechaFacturaAfectada || fechaDocParte}</div>
+          <div>#CONTROL/SERIAL IF:${serialFiscal}</div>
+          <div>RIF/CI:${cedulaCliente}</div>
+          <div>R.S.:${String(d.cliente?.nombre || d.nombre || 'CLIENTE').toUpperCase()}</div>
+          <div>MOTIVO: ${d.motivo || 'SERVICIO DE FLETE / DELIVERY'}</div>
         </div>
-      </div>` : `
-      <div class="pp9-cliente-bloque">
-        <div>RIF/CI:${cedulaCliente}</div>
-        <div>R.S.:${String(d.cliente?.nombre || d.nombre || 'CONSUMIDOR FINAL').toUpperCase()}</div>
-        <div>${String(d.cliente?.direccion || d.direccion || 'CARACAS').toUpperCase()}</div>
-        <div>${d.cliente?.telefono || 'N/D'}</div>
-        ${bloqueCompRet}
-        ${bloqueIGTF}
-      </div>
-      <div class="pp9-titulo-doc text-center">FACTURA</div>
-      <div class="pp9-info-doc">
-        <div class="pp9-fila-item">
-          <span>FACTURA:</span>
-          <span class="pp9-bold">${numDocPP9}</span>
+        <div class="pp9-titulo-doc text-center mt-1">NOTA DE DEBITO</div>
+        <div class="pp9-info-doc">
+          <div class="pp9-fila-item">
+            <span>NOTA DE DEBITO:</span>
+            <span class="pp9-bold">${numDocPP9}</span>
+          </div>
+          <div class="pp9-fila-item">
+            <span>FECHA: ${fechaDocParte}</span>
+            <span>HORA: ${horaDocParte}</span>
+          </div>
+        </div>`;
+    } else {
+      encabezadoTipoDoc = `
+        <div class="pp9-cliente-bloque">
+          <div>RIF/CI:${cedulaCliente}</div>
+          <div>R.S.:${String(d.cliente?.nombre || d.nombre || 'CONSUMIDOR FINAL').toUpperCase()}</div>
+          <div>${String(d.cliente?.direccion || d.direccion || 'CARACAS').toUpperCase()}</div>
+          <div>${d.cliente?.telefono || 'N/D'}</div>
+          ${bloqueCompRet}
+          ${bloqueIGTF}
         </div>
-        <div class="pp9-fila-item">
-          <span>FECHA: ${String(d.fechaStr || '').split(',')[0] || '24-08-2026'}</span>
-          <span>HORA: ${String(d.fechaStr || '').split(',')[1] || '05:14'}</span>
-        </div>
-      </div>`;
+        <div class="pp9-titulo-doc text-center">FACTURA</div>
+        <div class="pp9-info-doc">
+          <div class="pp9-fila-item">
+            <span>FACTURA:</span>
+            <span class="pp9-bold">${numDocPP9}</span>
+          </div>
+          <div class="pp9-fila-item">
+            <span>FECHA: ${fechaDocParte}</span>
+            <span>HORA: ${horaDocParte}</span>
+          </div>
+        </div>`;
+    }
 
     const montoIGTF_BS = Math.abs(parseFloat(d.montoIGTF_BS || d.MONTO_IGTF_BS) || 0);
     const montoRetencion_BS = Math.abs(parseFloat(d.montoRetencionBS || d.MONTO_RETENCION_BS) || 0);
@@ -5809,7 +5841,8 @@ function abrirModalNotaDebitoFiscal(numFactura) {
 
   const tasa = obtenerTasaBCV();
   const factorTasa = tasa > 0 ? tasa : 1;
-  const montoTotalUSD = parseFloat(fac.totalNetoCobradoUSD || fac.montoTotalUSD || fac["MONTO TOTAL"]) || 0;
+  // Priorizar el monto total registrado visible en el historial ($46.64)
+  const montoTotalUSD = parseFloat(fac.montoTotalUSD || fac["MONTO TOTAL"] || fac.totalNetoCobradoUSD) || 0;
 
   datosNDPendiente = {
     facturaAfectada: fac.numFactura,
@@ -6169,7 +6202,11 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
       const esNC = Boolean(v.esNotaCredito || numFac.startsWith("NC-") || String(v["FORMA DE PAGO"] || "").includes("NOTA DE CREDITO"));
       const esND = Boolean(v.esNotaDebito || numFac.startsWith("ND-") || String(v["FORMA DE PAGO"] || "").includes("NOTA DE DEBITO"));
 
-      let totalVentaBs = Math.abs(montoTotalUSD) * tasaActual;
+      // Tomar el monto exacto en Bolívares liquidado para evitar diferencias de redondeo con la máquina fiscal
+      let totalVentaBs = Math.abs(parseFloat(v.totalNetoCobradoBS || v["TOTAL_NETO_COBRADO_BS"] || v.totalBs)) || 0;
+      if (totalVentaBs <= 0) {
+        totalVentaBs = Math.abs(montoTotalUSD) * tasaActual;
+      }
       const prodsStr = String(v["PRODUCTOS"] || v.productosSummary || "");
       
       let exentoBs = 0, base16Bs = 0, iva16Bs = 0, base8Bs = 0, iva8Bs = 0;
@@ -6260,7 +6297,7 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
         cedulaRIF: cedulaRIF,
         cliente: clienteNombre,
         numFactura: (esNC || esND) ? "" : numFac,
-        numControl: "N/A",
+        numControl: serialFiscalPredeterminado || "ZZP0005063",
         notaDebito: esND ? numFac : "",
         notaCredito: esNC ? numFac : "",
         tipoTransaccion: esNC ? "02-NC" : (esND ? "03-ND" : "01-REG"),
@@ -7343,6 +7380,10 @@ async function procesarSiguienteCierreCaja() {
                 productosSummary: v["PRODUCTOS"] || localExistente.productosSummary || "",
                 usuario: usuario,
                 esFiscal: Boolean(String(v["FORMA DE PAGO"] || localExistente.formaPagoStr || "").includes("FISCAL") || v.esFiscal || localExistente.esFiscal),
+                esNotaDebito: Boolean(v.esNotaDebito || localExistente.esNotaDebito || String(v["FORMA DE PAGO"] || localExistente.formaPagoStr || "").includes("NOTA DE DEBITO")),
+                exentoBS: parseFloat(localExistente.exentoBS || v.exentoBS || v["EXENTO_BS"]) || 0,
+                base16BS: parseFloat(localExistente.base16BS || v.base16BS || v["BASE16_BS"]) || 0,
+                iva16BS: parseFloat(localExistente.iva16BS || v.iva16BS || v["IVA16_BS"]) || 0,
                 "EFECTIVO DIVISAS": v["EFECTIVO DIVISAS"] ?? localExistente["EFECTIVO DIVISAS"] ?? localExistente.desglosePagos?.["Efectivo Divisas"] ?? 0,
                 "EFECTIVO BOLIVARES": v["EFECTIVO BOLIVARES"] ?? localExistente["EFECTIVO BOLIVARES"] ?? localExistente.desglosePagos?.["Efectivo Bolívares"] ?? 0,
                 "PAGO MOVIL": v["PAGO MOVIL"] ?? localExistente["PAGO MOVIL"] ?? localExistente.desglosePagos?.["Pago Móvil"] ?? 0,
@@ -7401,8 +7442,9 @@ async function procesarSiguienteCierreCaja() {
         const esFiscal = Boolean(v.esFiscal || formaStr.includes("FISCAL") || numFac.startsWith("FAC-") || /^\d{8}$/.test(numFac));
         const totalVentaUSD = parseFloat(v["MONTO TOTAL"] || v.montoTotalUSD) || 0;
 
-        // Contabilizar la cantidad de ventas del día (excluyendo notas de crédito)
-        if (!v.esNotaCredito && !numFac.startsWith("NC-") && !formaStr.includes("NOTA DE CREDITO")) {
+        // Contabilizar la cantidad de ventas del día (excluyendo notas de crédito y notas de débito)
+        if (!v.esNotaCredito && !numFac.startsWith("NC-") && !formaStr.includes("NOTA DE CREDITO") &&
+            !v.esNotaDebito && !numFac.startsWith("ND-") && !formaStr.includes("NOTA DE DEBITO")) {
           cantVentasDelDia++;
         }
         let evUSD = parseFloat(v["EFECTIVO DIVISAS"] || v.efectivoDivisas) || 0;
@@ -7514,6 +7556,17 @@ async function procesarSiguienteCierreCaja() {
           if (esND) {
             resumenFiscal.cantNDFiscales++;
             resumenFiscal.listaNDFiscales.push(numFac);
+
+            // Si el desglose viene en 0, calcularlo directamente desde el total en Bolívares
+            if ((exentoDocBs + base16DocBs) === 0) {
+              const subtotalNDBs = totalAbsUSD * factorTasa;
+              if (prodsStr.toUpperCase().includes('(G)') || prodsStr.toUpperCase().includes('16%')) {
+                base16DocBs = subtotalNDBs / 1.16;
+                iva16DocBs = subtotalNDBs - base16DocBs;
+              } else {
+                exentoDocBs = subtotalNDBs;
+              }
+            }
 
             resumenFiscal.ndExentoBS += exentoDocBs;
             resumenFiscal.ndBase16BS += base16DocBs;
@@ -7659,9 +7712,21 @@ async function procesarSiguienteCierreCaja() {
     const totalCajaUSD = inicialUSD + totalBilletesIngresadosUSD - totalVueltosEntregadosUSD + ingresosUSD - retirosUSD;
     const totalCajaBS = inicialBS + resumenGeneral.ventasEfectivoBS - totalVueltosEntregadosBS + ingresosBS - retirosBS;
 
+    // Detección del número correlativo Z esperado
+    let numZPreview = null;
+    if (window.fiscalDriver?.ultimoReporteStatus?.ultimoZ) {
+      numZPreview = String(parseInt(window.fiscalDriver.ultimoReporteStatus.ultimoZ, 10)).padStart(4, '0');
+    } else if (cacheHistorialCierres && cacheHistorialCierres.length > 0) {
+      const ultZ = cacheHistorialCierres.find(c => c.numeroZ);
+      if (ultZ && ultZ.numeroZ) {
+        numZPreview = String(parseInt(ultZ.numeroZ, 10)).padStart(4, '0');
+      }
+    }
+
     datosCierreCajaPendiente = {
       fechaStr: new Date().toLocaleString('es-VE'),
       usuario: usuario.toUpperCase(),
+      numeroZ: numZPreview,
       tasaBCV: tasa,
       inicialUSD: inicialUSD,
       inicialBS: inicialBS,
@@ -7796,6 +7861,12 @@ function renderizarTicketCierreCajaHTML(d) {
         <div class="pp9-fila-item">
           <span>#DNF DEL DIA</span>
           <span>0</span>
+        </div>
+
+        <div class="pp9-seccion-titulo text-center">NOTAS DE DEBITO</div>
+        <div class="pp9-fila-item">
+          <span>#ND DEL DIA</span>
+          <span>${rFisc.cantNDFiscales || 0}</span>
         </div>
 
         <div class="pp9-seccion-titulo text-center">NOTAS DE CREDITO</div>
