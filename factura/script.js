@@ -1452,8 +1452,16 @@ function actualizarCalculosBCV() {
     if (elemMontoTotal) elemMontoTotal.textContent = `$${totalUSD.toFixed(2)}`;
   }
 
+  if (typeof recalcularTotalesRetencionEIGTF === "function") {
+    recalcularTotalesRetencionEIGTF();
+  }
+
   if (typeof calcularTotalPagoMixto === "function") {
     calcularTotalPagoMixto();
+  }
+
+  if (typeof calcularVueltoEfectivo === "function") {
+    calcularVueltoEfectivo();
   }
 }
 
