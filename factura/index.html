@@ -1795,6 +1795,135 @@
       </div>
     </div>
 
+    <!-- MODAL EMISIÓN DE NOTA DE DÉBITO FISCAL (SENIAT) -->
+    <div class="modal fade" id="modalNotaDebitoFiscal" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-primary shadow-lg">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title fw-bold text-info">➕ Emitir Nota de Débito Fiscal (SENIAT)</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            
+            <div class="alert alert-info border-dark small fw-bold mb-3 shadow-sm">
+              ℹ️ <strong>Documento Fiscal Oficial:</strong> Se emitirá una Nota de Débito en la impresora fiscal para <strong>adicionar un cargo o cobrar una diferencia</strong> a la factura seleccionada, sumando a la base imponible y reflejándose en el Reporte Z y Libro SENIAT con código <strong>03-ND</strong>.
+            </div>
+
+            <!-- Ficha de la Factura Fiscal Afectada -->
+            <div class="p-3 bg-white border rounded-3 mb-3 shadow-sm">
+              <div class="row g-2">
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold mb-0 text-muted">Factura Afectada:</label>
+                  <input type="text" id="ndFacturaAfectada" class="form-control form-control-sm fw-bold text-primary num-legible bg-light" readonly>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold mb-0 text-muted">Fecha Original:</label>
+                  <input type="text" id="ndFechaAfectada" class="form-control form-control-sm num-legible bg-light" readonly>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold mb-0 text-muted">Cédula / RIF:</label>
+                  <input type="text" id="ndCedulaCliente" class="form-control form-control-sm fw-bold num-legible bg-light" readonly>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small fw-bold mb-0 text-muted">Total Original ($):</label>
+                  <input type="text" id="ndTotalOriginalUSD" class="form-control form-control-sm fw-bold text-success num-legible bg-light" readonly>
+                </div>
+                <div class="col-12 mt-1">
+                  <label class="form-label small fw-bold mb-0 text-muted">Cliente / Razón Social:</label>
+                  <input type="text" id="ndNombreCliente" class="form-control form-control-sm fw-bold bg-light" readonly>
+                </div>
+              </div>
+            </div>
+
+            <!-- Motivo y Descripción del Débito -->
+            <div class="row g-2 mb-3">
+              <div class="col-md-6">
+                <label for="ndMotivoSelect" class="form-label fw-bold small">Motivo de la Nota de Débito *:</label>
+                <select id="ndMotivoSelect" class="form-select form-select-sm fw-bold">
+                  <option value="DIFERENCIA EN PRECIO O PESAJE" selected>Diferencia en Precio o Pesaje</option>
+                  <option value="SERVICIO DE FLETE / DELIVERY">Servicio de Flete / Delivery</option>
+                  <option value="AJUSTE DE PRECIO / RECARGO">Ajuste de Precio / Recargo Acordado</option>
+                  <option value="INTERESES POR MORA O FINANCIAMIENTO">Intereses por Mora / Financiamiento</option>
+                  <option value="OTROS CARGOS AUTORIZADOS">Otros Cargos Autorizados</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="ndConceptoManual" class="form-label fw-bold small">Descripción del Cargo *:</label>
+                <input type="text" id="ndConceptoManual" class="form-control form-control-sm text-uppercase fw-bold" placeholder="Ej: DIFERENCIA PESO CORTE / RECARGO FLETE">
+              </div>
+            </div>
+
+            <!-- Importe a Debitar, IVA y Medio de Pago -->
+            <div class="p-3 bg-white border rounded-3 mb-3 shadow-sm">
+              <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">💵 Detalle del Monto a Debitar</h6>
+              <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                  <label for="ndMontoUSD" class="form-label fw-bold small mb-1">Monto a Debitar ($) *:</label>
+                  <input type="number" id="ndMontoUSD" class="form-control form-control-sm fw-bold text-primary fs-5 text-center num-legible" step="0.01" min="0.01" placeholder="0.00" oninput="recalcularTotalesND()">
+                </div>
+                <div class="col-md-4">
+                  <label for="ndTasaIVA" class="form-label fw-bold small mb-1">Tratamiento IVA *:</label>
+                  <select id="ndTasaIVA" class="form-select form-select-sm fw-bold text-center" onchange="recalcularTotalesND()">
+                    <option value="E" selected>Exento (0%)</option>
+                    <option value="G">General (16%)</option>
+                    <option value="R">Reducido (8%)</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label for="ndFormaPagoSelect" class="form-label fw-bold small mb-1">Forma de Pago del Débito *:</label>
+                  <select id="ndFormaPagoSelect" class="form-select form-select-sm fw-bold" onchange="recalcularTotalesND()">
+                    <option value="Efectivo Bolívares" selected>Efectivo Bolívares</option>
+                    <option value="Pago Móvil">Pago Móvil</option>
+                    <option value="Punto de Venta">Punto de Venta</option>
+                    <option value="Efectivo Divisas">Efectivo Divisas</option>
+                    <option value="Zelle">Zelle</option>
+                    <option value="PayPal">PayPal</option>
+                    <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+                    <option value="Biopago">Biopago</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Resumen Totalizador de la Nota de Débito -->
+            <div class="p-3 bg-white border border-info rounded-3 shadow-sm">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="small fw-bold text-muted">Total a Cargar en Divisas ($):</span>
+                <span id="ndMontoTotalUSD" class="fw-bold text-primary fs-5 num-legible">+$0.00</span>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-bold text-muted">Total a Cargar en Bolívares (Bs):</span>
+                <span id="ndMontoTotalBS" class="fw-bold text-primary fs-5 num-legible">+Bs. 0.00</span>
+              </div>
+              <hr class="my-1">
+              <div class="row g-1 text-center small pt-1">
+                <div class="col-4">
+                  <span class="text-muted">Exento:</span>
+                  <div id="ndExentoBS" class="fw-bold num-legible">Bs. 0.00</div>
+                </div>
+                <div class="col-4">
+                  <span class="text-muted">Base Gravable:</span>
+                  <div id="ndBaseBS" class="fw-bold num-legible">Bs. 0.00</div>
+                </div>
+                <div class="col-4">
+                  <span class="text-muted">Impuesto IVA:</span>
+                  <div id="ndIVABS" class="fw-bold text-danger num-legible">Bs. 0.00</div>
+                </div>
+              </div>
+            </div>
+
+            <div id="errorModalND" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer justify-content-between p-3 bg-white">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnConfirmarEmisionND" class="btn btn-primary fw-bold px-4 rounded-pill shadow-sm" onclick="confirmarEmisionNotaDebitoFiscal()">
+              🧾 Emitir Nota de Débito Fiscal
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- MODAL LECTOR DE CÓDIGOS DE BALANZA -->
     <div class="modal fade" id="modalLectorCodigos" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-centered">
