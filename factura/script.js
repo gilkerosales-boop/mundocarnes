@@ -1253,14 +1253,17 @@ function mostrarAvisoFactura(mensaje, autohide = true, delay = 5000) {
 
 function obtenerTasaBCV() {
   const inputTasa = document.getElementById('facTasaBCV');
-  let val = inputTasa ? parseFloat(inputTasa.value) : 0;
-  
-  if (!val || isNaN(val) || val <= 0) {
-    const usuario = sessionStorage.getItem("factura_usuario") || "global";
-    const tasaGuardada = localStorage.getItem("tasa_bcv_user_" + usuario);
-    val = parseFloat(tasaGuardada) || 0;
+  if (inputTasa) {
+    const txt = inputTasa.value.trim();
+    if (txt === "") return 0;
+    const num = parseFloat(txt);
+    return isNaN(num) || num < 0 ? 0 : num;
   }
-  return val;
+  
+  const usuario = sessionStorage.getItem("factura_usuario") || "global";
+  const tasaGuardada = localStorage.getItem("tasa_bcv_user_" + usuario);
+  const numGuardado = parseFloat(tasaGuardada);
+  return isNaN(numGuardado) || numGuardado < 0 ? 0 : numGuardado;
 }
 
 function alternarMonedaTablaFactura() {
@@ -2528,7 +2531,7 @@ function configurarPanelCalculoEfectivo(metodo) {
 
   if (contDesgloseMixto) contDesgloseMixto.classList.add('hidden');
 
-  const tasa = obtenerTasaBCV() || 1;
+ const tasa = obtenerTasaBCV();
   const items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
   const tributos = calcularTotalesTributarios(items);
   const liquidacion = recalcularTotalesRetencionEIGTF();
