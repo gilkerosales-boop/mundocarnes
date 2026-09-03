@@ -2531,7 +2531,7 @@ function configurarPanelCalculoEfectivo(metodo) {
 
   if (contDesgloseMixto) contDesgloseMixto.classList.add('hidden');
 
- const tasa = obtenerTasaBCV();
+  const tasa = obtenerTasaBCV();
   const items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
   const tributos = calcularTotalesTributarios(items);
   const liquidacion = recalcularTotalesRetencionEIGTF();
@@ -2596,7 +2596,7 @@ function calcularVueltoEfectivo() {
   const lblRestanteBs = document.getElementById('lblRestanteVueltoBs');
   const lblRestanteUSD = document.getElementById('lblRestanteVueltoUSD');
 
-  const tasa = obtenerTasaBCV() || 1;
+  const tasa = obtenerTasaBCV();
   const items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
   const tributos = calcularTotalesTributarios(items);
   const liquidacion = recalcularTotalesRetencionEIGTF();
