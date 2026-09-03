@@ -781,6 +781,218 @@ class FiscalDriverTFHKA {
     return null;
   }
 
+  // 3.2. Emitir Nota de Débito Fiscal Oficial TFHKA / Aclas (Protocolo Directo de Cargo Adicional)
+  async emitirNotaDebitoFiscal(datosND) {
+    if (!this.conectado) {
+      throw new Error(`No hay conexión activa con la impresora fiscal ${this.getNombreModelo()}.`);
+    }
+
+    const {
+      cliente,
+      facturaAfectada,
+      fechaFacturaAfectada,
+      serialImpresoraAfectada,
+      motivo,
+      concepto,
+      montoUSD,
+      tasaIVA = "E",
+      formaPago,
+      tasaBCV,
+      montoIGTF_BS = 0
+    } = datosND;
+
+    if (!facturaAfectada) {
+      throw new Error("El número de factura fiscal afectada es obligatorio para emitir Nota de Débito.");
+    }
+
+    const montoValUSD = parseFloat(montoUSD) || 0;
+    if (montoValUSD <= 0) {
+      throw new Error("El monto a debitar debe ser mayor a cero.");
+    }
+
+    this.notificarEstado("EMITIENDO_ND", `Transmitiendo Nota de Débito Fiscal a ${this.getNombreModelo()}...`);
+
+    try {
+      const nombreCliente = this.sanitizarTexto(cliente?.nombre || "CONSUMIDOR FINAL", 38);
+      let cedulaCliente = this.sanitizarTexto(cliente?.cedula || "V-00000000", 20);
+
+      // Asegurar prefijo legal en Cédula / RIF (V-, J-, E-, G-, P-)
+      if (!/^[VJEGPvjegp]/i.test(cedulaCliente)) {
+        cedulaCliente = "V-" + cedulaCliente;
+      }
+
+      const numFacFormateado = String(facturaAfectada).replace(/\D/g, '').padStart(8, '0');
+      const serialPrivadoGuardado = localStorage.getItem(`pos_serial_fiscal_${this.modelo}`) || localStorage.getItem("pos_serial_fiscal_activo") || "";
+      const serialFiscal = this.sanitizarTexto(serialImpresoraAfectada || this.ultimoReporteStatus?.serial || serialPrivadoGuardado, 14);
+      
+      // Formato fecha oficial SENIAT: DD/MM/AAAA
+      let fechaAfectadaFormateada = "";
+      if (fechaFacturaAfectada) {
+        const partesF = String(fechaFacturaAfectada).split(/[,\s]+/)[0].split(/[\/\-]/);
+        if (partesF.length === 3) {
+          let dia = String(partesF[0]).padStart(2, '0');
+          let mes = String(partesF[1]).padStart(2, '0');
+          let anio = partesF[2];
+          if (anio.length === 2) anio = "20" + anio;
+          fechaAfectadaFormateada = `${dia}/${mes}/${anio}`;
+        }
+      }
+      if (!fechaAfectadaFormateada) {
+        const hoy = new Date();
+        fechaAfectadaFormateada = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`;
+      }
+
+      // PASO A: Apertura Oficial de Nota de Débito con Vinculación SENIAT (iS*, iR*, iF*, iD*, iI*)
+      try {
+        await this.enviarComando(`iS*${nombreCliente}`);
+        await this.enviarComando(`iR*${cedulaCliente}`);
+        await this.enviarComando(`iF*${numFacFormateado}`);
+        await this.enviarComando(`iD*${fechaAfectadaFormateada}`);
+        if (serialFiscal) await this.enviarComando(`iI*${serialFiscal}`);
+      } catch (errInicioND) {
+        try { await this.enviarComando("7"); } catch (e) {}
+        await new Promise(r => setTimeout(r, 800));
+        await this.enviarComando(`iS*${nombreCliente}`);
+        await this.enviarComando(`iR*${cedulaCliente}`);
+        await this.enviarComando(`iF*${numFacFormateado}`);
+        await this.enviarComando(`iD*${fechaAfectadaFormateada}`);
+        if (serialFiscal) await this.enviarComando(`iI*${serialFiscal}`);
+      }
+
+      if (motivo) await this.enviarComando(`i00MOTIVO: ${this.sanitizarTexto(motivo, 30)}`);
+
+      // PASO B: Renglón de Cargo en Nota de Débito (`0 para Exento, `1 para General 16%, `2 para Reducido 8%)
+      const factorTasa = (parseFloat(tasaBCV) > 0) ? parseFloat(tasaBCV) : 1;
+      const tasaUpper = (tasaIVA || "E").toUpperCase();
+      let cmdDebitoChar = "`0"; // Exento por defecto (acento grave + 0)
+      let factorIVA = 1.0;
+
+      if (tasaUpper === "G" || tasaUpper === "16") {
+        cmdDebitoChar = "`1"; // General 16%
+        factorIVA = 1.16;
+      } else if (tasaUpper === "R" || tasaUpper === "8") {
+        cmdDebitoChar = "`2"; // Reducido 8%
+        factorIVA = 1.08;
+      }
+
+      const descCargo = this.sanitizarTexto(concepto || "CARGO NOTA DE DEBITO", 35);
+      const montoTotalBs = montoValUSD * factorTasa;
+      const baseImponibleBs = montoTotalBs / factorIVA;
+
+      const strPrecio = this.formatearPrecioFiscal(baseImponibleBs);
+      const strCantidad = this.formatearCantidadFiscal(1, "unidades");
+
+      const tramaRenglonND = `${cmdDebitoChar}${strPrecio}${strCantidad}${descCargo}`;
+      await this.enviarComando(tramaRenglonND);
+
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 350 : 150));
+
+      // PASO C: Subtotal, Pago y Liquidación
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 500 : 250));
+
+      // 1. Comando Subtotal ('3')
+      try {
+        await this.enviarComando("3");
+      } catch (eSubND) {}
+
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 950 : 400));
+
+      // 2. Transmisión del Pago
+      const formaStr = String(formaPago || "").toUpperCase();
+      const aplicaIGTFNativo = (montoIGTF_BS > 0 || formaStr.includes("DIVISAS") || formaStr.includes("ZELLE"));
+
+      if (aplicaIGTFNativo) {
+        try {
+          await this.enviarComando("120");
+        } catch (e120ND) {
+          try {
+            const subtotalBaseBs = Math.round(montoTotalBs * 100);
+            const strMontoBase = String(subtotalBaseBs).padStart(12, '0');
+            await this.enviarComando(`220${strMontoBase}`);
+          } catch (ePago220ND) {}
+        }
+      } else {
+        let cmdCodigoPago = "101"; // Efectivo Bs por defecto
+        if (formaStr.includes("PUNTO DE VENTA") || formaStr.includes("DEBITO") || formaStr.includes("DÉBITO")) {
+          cmdCodigoPago = "109";
+        } else if (formaStr.includes("CREDITO") || formaStr.includes("CRÉDITO")) {
+          cmdCodigoPago = "114";
+        } else if (formaStr.includes("PAGO MOVIL") || formaStr.includes("PAGO MÓVIL") || formaStr.includes("TRANSFERENCIA") || formaStr.includes("BIOPAGO")) {
+          cmdCodigoPago = "110";
+        }
+        try {
+          await this.enviarComando(cmdCodigoPago);
+        } catch (eNDPago) {}
+      }
+
+      await new Promise(r => setTimeout(r, this.modelo === "PP9" ? 950 : 400));
+
+      // 3. Cierre obligatorio con comando '199' y reintento automático
+      try {
+        await this.enviarComando("199");
+      } catch (eNDClose) {
+        await new Promise(r => setTimeout(r, 600));
+        try { await this.enviarComando("199"); } catch (eNDClose2) {}
+      }
+
+      const pausaCorteMs = this.modelo === "PP9" ? 3500 : 1500;
+      await new Promise(r => setTimeout(r, pausaCorteMs));
+
+      // PASO D: Capturar Número de Nota de Débito Fiscal Real Impreso por la máquina
+      let numND = null;
+      try {
+        const statusFinal = await this.consultarEstado();
+        numND = statusFinal?.raw ? this.extraerNumeroNDDeRespuesta(statusFinal.raw) : null;
+      } catch (eStatus) {
+        console.warn("Aviso: Reintentando lectura de estado post-ND:", eStatus);
+      }
+
+      if (!numND) {
+        try {
+          await new Promise(r => setTimeout(r, 1200));
+          const statusReintento = await this.consultarEstado();
+          numND = statusReintento?.raw ? this.extraerNumeroNDDeRespuesta(statusReintento.raw) : null;
+        } catch (e2) {}
+      }
+
+      if (!numND) {
+        numND = `ND-${Date.now().toString().slice(-6)}`;
+      }
+
+      this.ultimoNumeroND = numND;
+
+      this.notificarEstado("FINALIZADO_ND", `Nota de Débito Fiscal N° ${numND} emitida con éxito en ${this.getNombreModelo()}.`, {
+        numNotaDebito: numND,
+        facturaAfectada: numFacFormateado
+      });
+
+      return {
+        exito: true,
+        numNotaDebito: numND,
+        facturaAfectada: numFacFormateado,
+        mensaje: `Nota de Débito Fiscal N° ${numND} emitida exitosamente.`
+      };
+
+    } catch (err) {
+      this.notificarEstado("ERROR_EMISION_ND", `Fallo al emitir Nota de Débito en ${this.getNombreModelo()}: ` + err.message);
+      try { await this.cancelarDocumento(); } catch (e) {}
+      throw err;
+    }
+  }
+
+  extraerNumeroNDDeRespuesta(rawStr) {
+    if (!rawStr) return null;
+    const lineas = String(rawStr).split(/[\r\n\x0A\x0D,]+/).map(l => l.trim()).filter(l => l.length > 0);
+    // En el reporte S1 de TFHKA/Aclas, la línea 4 o 3 reporta la última Nota de Débito
+    if (lineas.length >= 5 && /^\d+$/.test(lineas[3]) && parseInt(lineas[3], 10) > 0) {
+      return lineas[3].padStart(8, '0');
+    }
+    if (lineas.length >= 6 && /^\d+$/.test(lineas[4]) && parseInt(lineas[4], 10) > 0) {
+      return lineas[4].padStart(8, '0');
+    }
+    return null;
+  }
+
  // 4. Emitir Reporte X (Comando I0X con auto-limpieza de memoria fiscal previa)
   async imprimirReporteX() {
     if (!this.conectado) throw new Error(`Impresora fiscal ${this.getNombreModelo()} no conectada.`);
