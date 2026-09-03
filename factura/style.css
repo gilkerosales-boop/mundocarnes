@@ -476,20 +476,39 @@ body {
   white-space: nowrap;
 }
 
+/* Ampliación de la ventana Modal Historial y ajuste para botones de acciones fiscales */
+#modalBuscarFacturas .modal-dialog {
+  max-width: 94vw !important;
+  width: 94vw !important;
+}
+
+@media (min-width: 1400px) {
+  #modalBuscarFacturas .modal-dialog {
+    max-width: 1350px !important;
+    width: 1350px !important;
+  }
+}
+
+#modalBuscarFacturas th:last-child,
+#modalBuscarFacturas td:last-child {
+  min-width: 235px !important;
+  width: 235px !important;
+}
+
 /* Acciones en Línea en Tablas (Historial y CXC) */
 .acciones-cxc-group,
 .acciones-historial-group {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 4px;
   white-space: nowrap;
 }
 
 .acciones-cxc-group .btn,
 .acciones-historial-group .btn {
   height: 28px;
-  padding: 0 10px;
+  padding: 0 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
