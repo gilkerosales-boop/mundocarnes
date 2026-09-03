@@ -7599,7 +7599,6 @@ async function procesarSiguienteCierreCaja() {
             resumenFiscal.ndIVA16BS += iva16DocBs;
             resumenFiscal.ndIgtfBS += igtfDocBs;
             resumenFiscal.ndTotalBS += (exentoDocBs + base16DocBs + iva16DocBs + igtfDocBs);
-          }
           } else if (esNC) {
             resumenFiscal.cantNCFiscales++;
             resumenFiscal.listaNCFiscales.push(numFac);
