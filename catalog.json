@@ -345,6 +345,20 @@
           6
         ],
         [
+          "COSTILLA DE RES",
+          8.2,
+          "img/7.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "0021",
+          "E",
+          true,
+          0,
+          7
+        ],
+        [
           "PUNTA TRASERA",
           16,
           "img/punta_trasera.webp",
@@ -356,7 +370,7 @@
           "E",
           true,
           0,
-          7
+          8
         ],
         [
           "SOLOMO DE CUERITO",
@@ -370,7 +384,7 @@
           "E",
           true,
           0,
-          8
+          9
         ],
         [
           "CHULETA AHUMADA",
@@ -384,7 +398,7 @@
           "G",
           true,
           0,
-          9
+          10
         ],
         [
           "CHULETA DE COCHINO",
@@ -398,7 +412,7 @@
           "E",
           true,
           0,
-          10
+          11
         ],
         [
           "COSTILLA DE COCHINO",
@@ -409,20 +423,6 @@
           "gramos",
           0,
           "0019",
-          "E",
-          true,
-          0,
-          11
-        ],
-        [
-          "COSTILLA DE RES",
-          8.2,
-          "img/7.webp",
-          true,
-          100,
-          "gramos",
-          0,
-          "0021",
           "E",
           true,
           0,
