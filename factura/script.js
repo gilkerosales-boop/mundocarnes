@@ -3676,6 +3676,32 @@ async function confirmarEImprimirFactura() {
     const fueFiscal = Boolean(datosFacturaPendiente?.modoFiscal);
     const tipoDocStr = fueFiscal ? "Factura Fiscal" : "Venta";
 
+    // Deducción automática de stock vendido (permitiendo saldo negativo si está activado)
+    let stockMapDeduccion = {};
+    try {
+      const sMapStr = localStorage.getItem("pos_cache_stock_map");
+      if (sMapStr) stockMapDeduccion = JSON.parse(sMapStr);
+    } catch(e) {}
+
+    let itemsVendidos = datosFacturaPendiente.items || items;
+    for (let key in itemsVendidos) {
+      let it = itemsVendidos[key];
+      if (it.esManual) continue;
+      let prodData = buscarProductoEnCache(key);
+      if (prodData) {
+        let cantDescontar = (it.unidad === 'gramos' || it.unidad === 'mixto')
+          ? ((it.pesoTotalGramos || it.cantNumerica) / 1000)
+          : parseFloat(it.cantNumerica);
+
+        let stockPrevio = parseFloat(prodData[10]) || 0;
+        let nuevoStock = stockPrevio - cantDescontar;
+        let stockFinal = (it.unidad === 'unidades') ? Math.round(nuevoStock) : parseFloat(nuevoStock.toFixed(3));
+        prodData[10] = stockFinal;
+        stockMapDeduccion[key] = stockFinal;
+      }
+    }
+    localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMapDeduccion));
+
     itemsFactura = {};
     transaccionActiva = null;
     clienteFacturaActual = null;
@@ -4343,7 +4369,10 @@ function sincronizarDOMAFlatList() {
       if (inputPeso && item.unidad === 'mixto') item.pesoPromedio = parseInt(inputPeso.value) || 2000;
       if (inputOrd) item.orden = parseInt(inputOrd.value) || item.orden;
       if (inputMin) item.minimo = parseInt(inputMin.value) || item.minimo;
-      if (inputStock && !isNaN(parseFloat(inputStock.value))) item.stock = parseFloat(inputStock.value);
+      if (inputStock && !isNaN(parseFloat(inputStock.value))) {
+        item.stock = parseFloat(inputStock.value);
+        actualizarStockEnCacheLocal(item.nombreOriginal, item.stock);
+      }
       if (selectDisp) item.disponible = (selectDisp.value === "true");
       if (selectWeb) item.visibleWeb = (selectWeb.value === "true");
       if (selectIVA) item.tasaIVA = selectIVA.value || "E";
