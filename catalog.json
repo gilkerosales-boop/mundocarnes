@@ -261,20 +261,6 @@
       "nombre": "CARNES",
       "productos": [
         [
-          "PUNTA TRASERA",
-          16,
-          "img/punta_trasera.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          "0001",
-          "E",
-          true,
-          0,
-          1
-        ],
-        [
           "BISTEC",
           11.9,
           "img/1.webp",
@@ -283,6 +269,20 @@
           "gramos",
           0,
           "0002",
+          "E",
+          true,
+          0,
+          1
+        ],
+        [
+          "PUNTA TRASERA",
+          16,
+          "img/punta_trasera.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          "0001",
           "E",
           true,
           0,
