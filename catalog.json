@@ -560,20 +560,6 @@
           4
         ],
         [
-          "GRANJERO DE POLLO",
-          9.9,
-          "img/granjero_de_pollo.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          "0011",
-          "G",
-          true,
-          0,
-          5
-        ],
-        [
           "ALAS",
           4.9,
           "img/alas.webp",
@@ -585,7 +571,7 @@
           "E",
           true,
           0,
-          6
+          5
         ],
         [
           "PECHUGA C/H",
@@ -599,7 +585,7 @@
           "E",
           true,
           0,
-          7
+          6
         ],
         [
           "HIGADO DE POLLO",
@@ -613,7 +599,7 @@
           "E",
           true,
           0,
-          8
+          7
         ],
         [
           "MOLLEJAS",
@@ -627,7 +613,7 @@
           "E",
           true,
           0,
-          9
+          8
         ],
         [
           "CHURRASCO DE POLLO",
@@ -641,7 +627,7 @@
           "E",
           true,
           0,
-          10
+          9
         ],
         [
           "BOLSA DE ALAS 5Kg",
@@ -655,7 +641,7 @@
           "E",
           true,
           0,
-          11
+          10
         ],
         [
           "BOLSA DE MILANESA 5Kg",
@@ -669,7 +655,7 @@
           "E",
           true,
           0,
-          12
+          11
         ],
         [
           "BOLSA DE MUSLO 5Kg",
@@ -683,7 +669,7 @@
           "E",
           true,
           0,
-          13
+          12
         ],
         [
           "BOLSA DE PECHUGA 5Kg",
@@ -695,6 +681,20 @@
           5000,
           "",
           "E",
+          true,
+          0,
+          13
+        ],
+        [
+          "GRANJERO DE POLLO",
+          9.9,
+          "img/granjero_de_pollo.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          "0011",
+          "G",
           true,
           0,
           14
