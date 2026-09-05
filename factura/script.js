@@ -4736,7 +4736,12 @@ function agregarFilaEnEditorReceta(prodSeleccionado = '', cant = '') {
   tbody.appendChild(tr);
 
   const sel = tr.querySelector('.select-receta-prod');
-  if (sel) actualizarPlaceholderFilaReceta(sel);
+  if (sel) {
+    if (prodSeleccionado) {
+      sel.value = String(prodSeleccionado).trim().toUpperCase();
+    }
+    actualizarPlaceholderFilaReceta(sel);
+  }
 }
 window.agregarFilaEnEditorReceta = agregarFilaEnEditorReceta;
 
@@ -5212,9 +5217,11 @@ async function eliminarProductoFilaInline(nom, cat) {
 }
 window.eliminarProductoFilaInline = eliminarProductoFilaInline;
 
-// Generar opciones de productos reales para ingredientes de combos
-function obtenerOpcionesProductosIngredientes() {
-  let opcionesHtml = '<option value="" disabled selected>-- Seleccione producto / corte --</option>';
+// Generar opciones de productos reales para ingredientes de combos con soporte de preselección
+function obtenerOpcionesProductosIngredientes(prodSeleccionado = '') {
+  const prodSelLimpio = String(prodSeleccionado || '').trim().toUpperCase();
+  const selectDefectoAttr = !prodSelLimpio ? 'selected' : '';
+  let opcionesHtml = `<option value="" disabled ${selectDefectoAttr}>-- Seleccione producto / corte --</option>`;
   let prodsDisponibles = [];
 
   if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
@@ -5231,10 +5238,12 @@ function obtenerOpcionesProductosIngredientes() {
 
   const nombresVistos = new Set();
   prodsDisponibles.forEach(p => {
-    if (!nombresVistos.has(p.nombre)) {
-      nombresVistos.add(p.nombre);
+    const nomProd = String(p.nombre || '').trim().toUpperCase();
+    if (!nombresVistos.has(nomProd)) {
+      nombresVistos.add(nomProd);
       let unidadLabel = (p.unidad === 'unidades') ? 'uds' : 'Kg';
-      opcionesHtml += `<option value="${p.nombre}" data-unidad="${p.unidad}">${p.nombre} (${unidadLabel})</option>`;
+      let selectedAttr = (nomProd === prodSelLimpio) ? 'selected' : '';
+      opcionesHtml += `<option value="${nomProd}" data-unidad="${p.unidad}" ${selectedAttr}>${nomProd} (${unidadLabel})</option>`;
     }
   });
 
