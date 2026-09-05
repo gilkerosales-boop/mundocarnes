@@ -4062,9 +4062,37 @@ async function guardarDatosEmpresaYLogos() {
 }
 window.guardarDatosEmpresaYLogos = guardarDatosEmpresaYLogos;
 
-// CONFIGURACIÓN FULLSCREEN DE PRODUCTOS Y PLU
+// ==========================================================================
+// CONTROL DE VENTA EN NEGATIVO Y CONFIGURACIÓN GLOBAL DE PRODUCTOS
+// ==========================================================================
+
+function alternarPermitirVentaNegativa(estaActivo) {
+  localStorage.setItem("pos_permitir_venta_negativa", estaActivo ? "true" : "false");
+  const lbl = document.getElementById('lblPermitirVentaNegativa');
+  if (lbl) {
+    lbl.textContent = estaActivo ? "🟢 Venta en Negativo: Activada" : "🔴 Venta en Negativo: Bloqueada";
+    lbl.className = estaActivo ? "form-check-label small fw-bold text-success" : "form-check-label small fw-bold text-danger";
+  }
+  mostrarAvisoFactura(estaActivo ? "🟢 Venta en negativo ACTIVADA (Permite facturar sin stock)." : "🔴 Venta en negativo BLOQUEADA (Exige existencia previa).");
+}
+window.alternarPermitirVentaNegativa = alternarPermitirVentaNegativa;
+
+// CONFIGURACIÓN FULLSCREEN DE PRODUCTOS, BALANZA PLU Y STOCK
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
+
+  // Sincronizar el estado del interruptor de venta en negativo
+  const permitirVentaNegativa = localStorage.getItem("pos_permitir_venta_negativa") !== "false";
+  const chkNegativo = document.getElementById('chkPermitirVentaNegativa');
+  const lblNegativo = document.getElementById('lblPermitirVentaNegativa');
+  if (chkNegativo) {
+    chkNegativo.checked = permitirVentaNegativa;
+    if (lblNegativo) {
+      lblNegativo.textContent = permitirVentaNegativa ? "🟢 Venta en Negativo: Activada" : "🔴 Venta en Negativo: Bloqueada";
+      lblNegativo.className = permitirVentaNegativa ? "form-check-label small fw-bold text-success" : "form-check-label small fw-bold text-danger";
+    }
+  }
+
   prepararListaProductosCodigos();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).show();
 }
@@ -4084,6 +4112,7 @@ function prepararListaProductosCodigos() {
       let codPLU = p[7] ? String(p[7]).trim() : "";
       let tasaIVA = p[8] || "E";
       let webVisible = p[9] !== undefined ? Boolean(p[9]) : true;
+      let stockActual = p[10] !== undefined ? parseFloat(p[10]) : 0;
 
       listaFlatProductosCodigos.push({
         nombreOriginal: nom,
@@ -4099,6 +4128,7 @@ function prepararListaProductosCodigos() {
         pesoPromedio: pesoProm,
         codigoPLU: codPLU,
         tasaIVA: tasaIVA,
+        stock: isNaN(stockActual) ? 0 : stockActual,
         orden: idx + 1
       });
     });
@@ -4128,7 +4158,7 @@ function renderizarTablaGestionCodigos(lista) {
   if (badgeCount) badgeCount.textContent = `Total: ${lista.length} Productos`;
 
   if (lista.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="13" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
     return;
   }
 
@@ -4141,6 +4171,8 @@ function renderizarTablaGestionCodigos(lista) {
     `).join('');
 
     let disabledPeso = (item.unidad !== 'mixto') ? 'disabled' : '';
+    let unidadStockLabel = item.unidad === 'unidades' ? 'uds' : 'Kg';
+    let stepStock = item.unidad === 'unidades' ? '1' : '0.001';
 
     html += `
       <tr class="fila-producto-cfg" data-index="${index}" data-original-name="${safeName}" data-original-cat="${safeCat}">
@@ -4180,6 +4212,13 @@ function renderizarTablaGestionCodigos(lista) {
         <td>
           <input type="number" class="form-control form-control-sm text-center cfg-minimo num-legible" 
                  value="${item.minimo}" min="1" style="max-width: 65px; margin: 0 auto;">
+        </td>
+        <td>
+          <div class="input-group input-group-sm" style="max-width: 105px; margin: 0 auto;">
+            <input type="number" step="${stepStock}" class="form-control form-control-sm text-center fw-bold cfg-stock num-legible" 
+                   value="${item.stock !== undefined ? item.stock : 0}" placeholder="0" 
+                   title="Stock físico en tienda: ${item.stock || 0} ${unidadStockLabel}">
+          </div>
         </td>
         <td>
           <select class="form-select form-select-sm fw-bold cfg-disp" title="Disponibilidad para ventas físicas">
@@ -4230,6 +4269,7 @@ function sincronizarDOMAFlatList() {
       const inputPeso = f.querySelector('.cfg-pesoprom');
       const inputOrd = f.querySelector('.cfg-orden');
       const inputMin = f.querySelector('.cfg-minimo');
+      const inputStock = f.querySelector('.cfg-stock');
       const selectDisp = f.querySelector('.cfg-disp');
       const selectWeb = f.querySelector('.cfg-web');
       const selectIVA = f.querySelector('.cfg-iva');
@@ -4242,6 +4282,7 @@ function sincronizarDOMAFlatList() {
       if (inputPeso && item.unidad === 'mixto') item.pesoPromedio = parseInt(inputPeso.value) || 2000;
       if (inputOrd) item.orden = parseInt(inputOrd.value) || item.orden;
       if (inputMin) item.minimo = parseInt(inputMin.value) || item.minimo;
+      if (inputStock && !isNaN(parseFloat(inputStock.value))) item.stock = parseFloat(inputStock.value);
       if (selectDisp) item.disponible = (selectDisp.value === "true");
       if (selectWeb) item.visibleWeb = (selectWeb.value === "true");
       if (selectIVA) item.tasaIVA = selectIVA.value || "E";
@@ -4381,6 +4422,7 @@ async function procesarSincronizacionGitHub() {
         itemEnLista.pesoPromedio = (itemEnLista.unidad === 'mixto') ? (parseInt(f.querySelector('.cfg-pesoprom').value) || 2000) : 0;
         itemEnLista.orden = parseInt(f.querySelector('.cfg-orden').value) || itemEnLista.orden;
         itemEnLista.minimo = parseInt(f.querySelector('.cfg-minimo').value) || itemEnLista.minimo;
+        itemEnLista.stock = f.querySelector('.cfg-stock') ? (parseFloat(f.querySelector('.cfg-stock').value) || 0) : (itemEnLista.stock || 0);
         itemEnLista.disponible = (f.querySelector('.cfg-disp').value === "true");
         itemEnLista.visibleWeb = f.querySelector('.cfg-web') ? (f.querySelector('.cfg-web').value === "true") : true;
         itemEnLista.tasaIVA = f.querySelector('.cfg-iva') ? f.querySelector('.cfg-iva').value : "E";
@@ -4428,7 +4470,8 @@ async function procesarSincronizacionGitHub() {
           item.pesoPromedio,
           item.codigoPLU,
           item.tasaIVA,
-          item.visibleWeb !== false
+          item.visibleWeb !== false,
+          parseFloat(item.stock) || 0
         ],
         orden: item.orden
       });
@@ -4445,7 +4488,7 @@ async function procesarSincronizacionGitHub() {
     const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
     const base64Content = btoa(unescape(encodeURIComponent(contentString)));
 
-    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización completa y protegida de catálogo desde POS");
+    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización completa de catálogo, PLU y stock desde POS");
 
     if (btn) {
       btn.disabled = false;
@@ -4454,7 +4497,7 @@ async function procesarSincronizacionGitHub() {
 
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
-    mostrarAvisoFactura("🎉 Catálogo completo de 118 productos sincronizado con éxito.");
+    mostrarAvisoFactura("🎉 Catálogo completo con stock sincronizado con éxito.");
 
   } catch (err) {
     sessionStorage.removeItem("github_token");
@@ -4560,7 +4603,7 @@ async function ejecutarCrearNuevoProductoPOS() {
 
     let cat = cacheCategoriasFactura.find(c => c.nombre === catNombre);
     if (cat) {
-      cat.productos.push([prodNombre, prodPrecio, relativePath, true, prodMin, prodUnidad, prodPesoProm, prodCodigo, prodIVA, prodWebVisible]);
+      cat.productos.push([prodNombre, prodPrecio, relativePath, true, prodMin, prodUnidad, prodPesoProm, prodCodigo, prodIVA, prodWebVisible, 0]);
     }
 
     const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
