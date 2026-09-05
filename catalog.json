@@ -14,215 +14,8 @@
           "0061",
           "E",
           true,
-          0
-        ],
-        [
-          "COMBO 2",
-          39,
-          "img/combo_dos.webp",
-          true,
-          1,
-          "unidades",
           0,
-          "0062",
-          "E",
-          true,
-          0
-        ],
-        [
-          "COMBO 3",
-          58,
-          "img/combo_tres.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0063",
-          "E",
-          true,
-          0
-        ],
-        [
-          "COMBO 4",
-          84,
-          "img/combo_cuatro.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0064",
-          "E",
-          true,
-          0
-        ],
-        [
-          "MIX",
-          40,
-          "img/combo_mix.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0065",
-          "E",
-          true,
-          0
-        ],
-        [
-          "COMBO MEGA",
-          78,
-          "img/combo_mega.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0066",
-          "E",
-          true,
-          0
-        ],
-        [
-          "PARRILLERO 1",
-          46,
-          "img/combo_parrillero_1.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0067",
-          "E",
-          true,
-          0
-        ],
-        [
-          "PARRILLERO 2",
-          74,
-          "img/combo_parrillero_2.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0068",
-          "E",
-          true,
-          0
-        ],
-        [
-          "COMBO SEMANAL",
-          54,
-          "img/combo_semanal.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0069",
-          "E",
-          true,
-          0
-        ],
-        [
-          "CHICKEN 1",
-          22,
-          "img/chicken_1.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0070",
-          "E",
-          true,
-          0
-        ],
-        [
-          "CHICKEN 2",
-          29,
-          "img/chicken_2.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0071",
-          "E",
-          true,
-          0
-        ],
-        [
-          "COMBO FULL",
-          89,
-          "img/combo_full.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0072",
-          "E",
-          true,
-          0
-        ],
-        [
-          "DE TODITO",
-          30,
-          "img/detodito.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0074",
-          "E",
-          true,
-          0
-        ],
-        [
-          "CHARCUTERO 1",
-          30,
-          "img/charcu_1.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0075",
-          "E",
-          true,
-          0
-        ],
-        [
-          "CHARCUTERO 2",
-          30,
-          "img/charcu_2.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0076",
-          "E",
-          true,
-          0
-        ],
-        [
-          "MUNDOCARNES",
-          44,
-          "img/mundocarne.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0077",
-          "E",
-          true,
-          0
-        ],
-        [
-          "CHARCUTERO 3",
-          33,
-          "img/charcu_3.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0078",
-          "E",
-          true,
-          0
+          1
         ],
         [
           "COMBO EXPRESS",
@@ -235,7 +28,232 @@
           "",
           "E",
           true,
-          0
+          0,
+          2
+        ],
+        [
+          "COMBO 2",
+          39,
+          "img/combo_dos.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0062",
+          "E",
+          true,
+          0,
+          3
+        ],
+        [
+          "COMBO 3",
+          58,
+          "img/combo_tres.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0063",
+          "E",
+          true,
+          0,
+          4
+        ],
+        [
+          "COMBO 4",
+          84,
+          "img/combo_cuatro.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0064",
+          "E",
+          true,
+          0,
+          5
+        ],
+        [
+          "MIX",
+          40,
+          "img/combo_mix.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0065",
+          "E",
+          true,
+          0,
+          6
+        ],
+        [
+          "MUNDOCARNES",
+          44,
+          "img/mundocarne.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0077",
+          "E",
+          true,
+          0,
+          7
+        ],
+        [
+          "COMBO MEGA",
+          78,
+          "img/combo_mega.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0066",
+          "E",
+          true,
+          0,
+          8
+        ],
+        [
+          "PARRILLERO 1",
+          46,
+          "img/combo_parrillero_1.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0067",
+          "E",
+          true,
+          0,
+          9
+        ],
+        [
+          "PARRILLERO 2",
+          74,
+          "img/combo_parrillero_2.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0068",
+          "E",
+          true,
+          0,
+          10
+        ],
+        [
+          "COMBO SEMANAL",
+          54,
+          "img/combo_semanal.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0069",
+          "E",
+          true,
+          0,
+          11
+        ],
+        [
+          "CHICKEN 1",
+          22,
+          "img/chicken_1.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0070",
+          "E",
+          true,
+          0,
+          12
+        ],
+        [
+          "CHICKEN 2",
+          29,
+          "img/chicken_2.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0071",
+          "E",
+          true,
+          0,
+          13
+        ],
+        [
+          "COMBO FULL",
+          89,
+          "img/combo_full.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0072",
+          "E",
+          true,
+          0,
+          14
+        ],
+        [
+          "DE TODITO",
+          30,
+          "img/detodito.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0074",
+          "E",
+          true,
+          0,
+          15
+        ],
+        [
+          "CHARCUTERO 1",
+          30,
+          "img/charcu_1.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0075",
+          "E",
+          true,
+          0,
+          16
+        ],
+        [
+          "CHARCUTERO 2",
+          30,
+          "img/charcu_2.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0076",
+          "E",
+          true,
+          0,
+          17
+        ],
+        [
+          "CHARCUTERO 3",
+          33,
+          "img/charcu_3.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0078",
+          "E",
+          true,
+          0,
+          18
         ]
       ]
     },
@@ -253,7 +271,8 @@
           "0001",
           "E",
           true,
-          0
+          0,
+          1
         ],
         [
           "BISTEC",
@@ -266,7 +285,8 @@
           "0002",
           "E",
           true,
-          0
+          0,
+          2
         ],
         [
           "SOLOMO DE CUERITO",
@@ -279,7 +299,8 @@
           "0003",
           "E",
           true,
-          0
+          0,
+          3
         ],
         [
           "CHULETA AHUMADA",
@@ -292,7 +313,8 @@
           "0015",
           "G",
           true,
-          0
+          0,
+          4
         ],
         [
           "CHULETA DE COCHINO",
@@ -305,7 +327,8 @@
           "0017",
           "E",
           true,
-          0
+          0,
+          5
         ],
         [
           "COSTILLA DE COCHINO",
@@ -318,7 +341,8 @@
           "0019",
           "E",
           true,
-          0
+          0,
+          6
         ],
         [
           "COSTILLA DE RES",
@@ -331,7 +355,8 @@
           "0021",
           "E",
           true,
-          0
+          0,
+          7
         ],
         [
           "LAGARTO CON HUESO",
@@ -344,7 +369,8 @@
           "0022",
           "E",
           true,
-          0
+          0,
+          8
         ],
         [
           "HIGADO DE RES",
@@ -357,7 +383,8 @@
           "0023",
           "E",
           true,
-          0
+          0,
+          9
         ],
         [
           "LOMITO",
@@ -370,7 +397,8 @@
           "0025",
           "E",
           true,
-          0
+          0,
+          10
         ],
         [
           "PANZA DE RES",
@@ -383,7 +411,8 @@
           "0026",
           "E",
           true,
-          0
+          0,
+          11
         ],
         [
           "PATA DE RES",
@@ -396,7 +425,8 @@
           "0124",
           "E",
           true,
-          0
+          0,
+          12
         ],
         [
           "RABO DE RES",
@@ -409,7 +439,8 @@
           "0149",
           "E",
           true,
-          0
+          0,
+          13
         ],
         [
           "GUISAR",
@@ -422,7 +453,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          14
         ],
         [
           "LAGARTO SIN HUESO",
@@ -435,7 +467,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          15
         ],
         [
           "MECHAR",
@@ -448,7 +481,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          16
         ],
         [
           "MOLIDA",
@@ -461,7 +495,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          17
         ]
       ]
     },
@@ -479,7 +514,8 @@
           "0005",
           "E",
           true,
-          0
+          0,
+          1
         ],
         [
           "POLLO PICADO",
@@ -492,7 +528,8 @@
           "0007",
           "E",
           true,
-          0
+          0,
+          2
         ],
         [
           "MUSLO",
@@ -505,7 +542,8 @@
           "0008",
           "E",
           true,
-          0
+          0,
+          3
         ],
         [
           "MILANESA",
@@ -518,7 +556,8 @@
           "0010",
           "E",
           true,
-          0
+          0,
+          4
         ],
         [
           "GRANJERO DE POLLO",
@@ -531,7 +570,8 @@
           "0011",
           "G",
           true,
-          0
+          0,
+          5
         ],
         [
           "ALAS",
@@ -544,7 +584,8 @@
           "0012",
           "E",
           true,
-          0
+          0,
+          6
         ],
         [
           "PECHUGA C/H",
@@ -557,7 +598,8 @@
           "0014",
           "E",
           true,
-          0
+          0,
+          7
         ],
         [
           "HIGADO DE POLLO",
@@ -570,7 +612,8 @@
           "0050",
           "E",
           true,
-          0
+          0,
+          8
         ],
         [
           "MOLLEJAS",
@@ -583,7 +626,8 @@
           "0140",
           "E",
           true,
-          0
+          0,
+          9
         ],
         [
           "CHURRASCO DE POLLO",
@@ -596,7 +640,8 @@
           "0150",
           "E",
           true,
-          0
+          0,
+          10
         ],
         [
           "BOLSA DE ALAS 5Kg",
@@ -609,7 +654,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          11
         ],
         [
           "BOLSA DE MILANESA 5Kg",
@@ -622,7 +668,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          12
         ],
         [
           "BOLSA DE MUSLO 5Kg",
@@ -635,7 +682,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          13
         ],
         [
           "BOLSA DE PECHUGA 5Kg",
@@ -648,7 +696,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          14
         ],
         [
           "NUGGETS DE POLLO",
@@ -661,7 +710,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          15
         ]
       ]
     },
@@ -679,7 +729,8 @@
           "0020",
           "G",
           true,
-          0
+          0,
+          1
         ],
         [
           "QUESO PECORINO",
@@ -692,7 +743,8 @@
           "0031",
           "G",
           true,
-          0
+          0,
+          2
         ],
         [
           "QUESO AMARILLO",
@@ -705,7 +757,8 @@
           "0033",
           "G",
           true,
-          0
+          0,
+          3
         ],
         [
           "QUESO PAISA",
@@ -718,7 +771,8 @@
           "0034",
           "G",
           true,
-          0
+          0,
+          4
         ],
         [
           "QUESO DURO",
@@ -731,7 +785,8 @@
           "0035",
           "E",
           true,
-          0
+          0,
+          5
         ],
         [
           "QUESO MOZZARELLA",
@@ -744,7 +799,8 @@
           "0037",
           "G",
           true,
-          0
+          0,
+          6
         ],
         [
           "JAMON DE PIERNA",
@@ -757,7 +813,8 @@
           "0038",
           "G",
           true,
-          0
+          0,
+          7
         ],
         [
           "JAMON DE PAVO",
@@ -770,7 +827,8 @@
           "0039",
           "G",
           true,
-          0
+          0,
+          8
         ],
         [
           "CHORIZOS (ahumado, ajo, picante)",
@@ -783,7 +841,8 @@
           "0042",
           "G",
           true,
-          0
+          0,
+          9
         ],
         [
           "SALCHICHA DE POLLO",
@@ -796,7 +855,8 @@
           "0044",
           "G",
           true,
-          0
+          0,
+          10
         ],
         [
           "MORCILLAS",
@@ -809,7 +869,8 @@
           "0047",
           "G",
           true,
-          0
+          0,
+          11
         ],
         [
           "RECORTES DE CHACUTERIA",
@@ -822,7 +883,8 @@
           "0048",
           "E",
           true,
-          0
+          0,
+          12
         ],
         [
           "SUERO DIVINA PASTORA",
@@ -835,7 +897,8 @@
           "00137",
           "G",
           true,
-          0
+          0,
+          13
         ],
         [
           "SUERO LA CASONA",
@@ -848,7 +911,8 @@
           "00137",
           "G",
           true,
-          0
+          0,
+          14
         ],
         [
           "QUESO GUAYANES",
@@ -861,7 +925,8 @@
           "0138",
           "E",
           true,
-          0
+          0,
+          15
         ],
         [
           "QUESO QUAJADA",
@@ -874,7 +939,8 @@
           "0139",
           "E",
           true,
-          0
+          0,
+          16
         ],
         [
           "CREMA DE LECHE AGUA LINDA 500g",
@@ -887,7 +953,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          17
         ],
         [
           "MORTADELA DON RAMÓN 1kg",
@@ -900,7 +967,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          18
         ],
         [
           "MORTADELA DON RAMÓN 400g",
@@ -913,7 +981,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          19
         ],
         [
           "MORTADELA DON RAMÓN 600g",
@@ -926,7 +995,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          20
         ],
         [
           "MORTADELA ESPECIAL AHUMADA BIGCERDY",
@@ -939,7 +1009,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          21
         ],
         [
           "MORTADELA PUNTA DE MONTE 1Kg",
@@ -952,7 +1023,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          22
         ],
         [
           "MORTADELA PUNTA DE MONTE 500g",
@@ -965,7 +1037,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          23
         ],
         [
           "SALCHICHA POLACA",
@@ -978,7 +1051,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          24
         ]
       ]
     },
@@ -996,7 +1070,8 @@
           "0060",
           "E",
           true,
-          0
+          0,
+          1
         ],
         [
           "SALSA DE TOMATE HEIZ 198g",
@@ -1009,7 +1084,8 @@
           "0085",
           "G",
           true,
-          0
+          0,
+          2
         ],
         [
           "SALSA DE TOMATE PAMPERO 397g",
@@ -1022,7 +1098,8 @@
           "0086",
           "G",
           true,
-          0
+          0,
+          3
         ],
         [
           "MOSTAZA EUREKA 285g",
@@ -1035,7 +1112,8 @@
           "0087",
           "G",
           true,
-          0
+          0,
+          4
         ],
         [
           "ARROZ MARY PREMIUM",
@@ -1048,7 +1126,8 @@
           "100",
           "E",
           true,
-          0
+          0,
+          5
         ],
         [
           "ACEITE VATEL 1L",
@@ -1061,7 +1140,8 @@
           "0106",
           "G",
           true,
-          0
+          0,
+          6
         ],
         [
           "CAFE LA PROTECTORA 200g",
@@ -1074,7 +1154,8 @@
           "0112",
           "G",
           true,
-          0
+          0,
+          7
         ],
         [
           "COCA COLA 2 LITROS",
@@ -1087,7 +1168,8 @@
           "0132",
           "G",
           true,
-          0
+          0,
+          8
         ],
         [
           "HARINA P.A.M",
@@ -1100,7 +1182,8 @@
           "0136",
           "E",
           true,
-          0
+          0,
+          9
         ],
         [
           "GUT AJO, CEBOLLA Y PEREJIL",
@@ -1113,7 +1196,8 @@
           "0141",
           "G",
           true,
-          0
+          0,
+          10
         ],
         [
           "7up 2L",
@@ -1126,7 +1210,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          11
         ],
         [
           "ACEITE LA COMADRE 828ml",
@@ -1139,7 +1224,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          12
         ],
         [
           "ARROZ MARY ESMERALDA",
@@ -1152,7 +1238,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          13
         ],
         [
           "ARROZ TRADICIONAL AGUA BLANCA",
@@ -1165,7 +1252,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          14
         ],
         [
           "CAFE FLOR DE ARAUCA 200G",
@@ -1178,7 +1266,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          15
         ],
         [
           "CARBON PARA PARRILLA BOLSA TRANSPARENTE",
@@ -1191,7 +1280,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          16
         ],
         [
           "CEREAL KELLOGG´S ZUCARITAS 250g",
@@ -1204,7 +1294,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          17
         ],
         [
           "CEREAL MAIZORITOS CHOCO SAFARI 240Gr",
@@ -1217,7 +1308,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          18
         ],
         [
           "CEREAL MAIZORITOS FRUTI AROS 250g",
@@ -1230,7 +1322,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          19
         ],
         [
           "CHINOTTO 1.5 LITROS",
@@ -1243,7 +1336,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          20
         ],
         [
           "COCA COLA 1.5 LITROS",
@@ -1256,7 +1350,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          21
         ],
         [
           "CORN FAKES KELLOGG´S 230G",
@@ -1269,7 +1364,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          22
         ],
         [
           "FIPS CHOCOLATE 220G",
@@ -1282,7 +1378,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          23
         ],
         [
           "GALLETAS BELVITA HONY 9 UNIDADES",
@@ -1295,7 +1392,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          24
         ],
         [
           "GALLETAS BELVITA KRAKER 9 UNIDADES",
@@ -1308,7 +1406,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          25
         ],
         [
           "GALLETAS CLUB SOCIAL 6 UNIDADES",
@@ -1321,7 +1420,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          26
         ],
         [
           "GUT CALDO DE CARNE",
@@ -1334,7 +1434,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          27
         ],
         [
           "GUT CALDO DE POLLO",
@@ -1347,7 +1448,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          28
         ],
         [
           "GUT SABROSEADOR",
@@ -1360,7 +1462,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          29
         ],
         [
           "GUT SALSA PARA PASTA",
@@ -1373,7 +1476,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          30
         ],
         [
           "HARINA DE TRIGO BLANCA FLOR 1KG",
@@ -1386,7 +1490,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          31
         ],
         [
           "MARGARINA NELLY 250g",
@@ -1399,7 +1504,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          32
         ],
         [
           "MASA FACIL FROZEN 1kg",
@@ -1412,7 +1518,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          33
         ],
         [
           "MASA FACIL FROZEN 500g",
@@ -1425,7 +1532,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          34
         ],
         [
           "MAVESA MARGARINA TODO USO 500g",
@@ -1438,7 +1546,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          35
         ],
         [
           "MAYONESA KRAFT 198g",
@@ -1451,7 +1560,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          36
         ],
         [
           "MAYONESA KRAFT 445g",
@@ -1464,7 +1574,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          37
         ],
         [
           "MAYONESA MAVESA 198g",
@@ -1477,7 +1588,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          38
         ],
         [
           "MAYONESA MAVESA 445g",
@@ -1490,7 +1602,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          39
         ],
         [
           "Papel Higienico Rosal Plus 4 Rollos",
@@ -1503,7 +1616,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          40
         ],
         [
           "PASTA CORTA RONCO CARACOL 500g",
@@ -1516,7 +1630,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          41
         ],
         [
           "PASTA CORTA RONCO RIGATON 500g",
@@ -1529,7 +1644,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          42
         ],
         [
           "PASTA CORTA RONCO TORNILLO 500g",
@@ -1542,7 +1658,8 @@
           "",
           "E",
           true,
-          0
+          0,
+          43
         ],
         [
           "TRIPAC DE SALSAS (SOYA, AJO, INGLESA) 150cm",
@@ -1555,7 +1672,8 @@
           "",
           "G",
           true,
-          0
+          0,
+          44
         ]
       ]
     }
