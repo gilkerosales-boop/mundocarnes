@@ -331,6 +331,20 @@
           5
         ],
         [
+          "HIGADO DE RES",
+          10.9,
+          "img/10.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "0023",
+          "E",
+          true,
+          0,
+          6
+        ],
+        [
           "PUNTA TRASERA",
           16,
           "img/punta_trasera.webp",
@@ -342,7 +356,7 @@
           "E",
           true,
           0,
-          6
+          7
         ],
         [
           "SOLOMO DE CUERITO",
@@ -356,7 +370,7 @@
           "E",
           true,
           0,
-          7
+          8
         ],
         [
           "CHULETA AHUMADA",
@@ -370,7 +384,7 @@
           "G",
           true,
           0,
-          8
+          9
         ],
         [
           "CHULETA DE COCHINO",
@@ -384,7 +398,7 @@
           "E",
           true,
           0,
-          9
+          10
         ],
         [
           "COSTILLA DE COCHINO",
@@ -398,7 +412,7 @@
           "E",
           true,
           0,
-          10
+          11
         ],
         [
           "COSTILLA DE RES",
@@ -412,7 +426,7 @@
           "E",
           true,
           0,
-          11
+          12
         ],
         [
           "LAGARTO CON HUESO",
@@ -423,20 +437,6 @@
           "gramos",
           0,
           "0022",
-          "E",
-          true,
-          0,
-          12
-        ],
-        [
-          "HIGADO DE RES",
-          10.9,
-          "img/10.webp",
-          true,
-          100,
-          "gramos",
-          0,
-          "0023",
           "E",
           true,
           0,
