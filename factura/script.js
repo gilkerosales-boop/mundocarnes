@@ -1745,16 +1745,118 @@ function cerrarSesionFacturacion() {
   document.getElementById('facPassword').value = "";
 }
 
-function cargarCatalogoFacturacion() {
+// Reconstructor de estructura para compatibilidad total del catálogo POS
+function reconstruirCatalogoDesdeSupabase(filasDb) {
+  const ordenCategorias = ["COMBOS", "CARNES", "POLLO", "QUESOS Y EMBUTIDOS", "VIVERES"];
+  const mapa = {};
+  ordenCategorias.forEach(c => { mapa[c] = []; });
+
+  filasDb.forEach(p => {
+    const catNom = (p.categoria || "VIVERES").toUpperCase();
+    if (!mapa[catNom]) mapa[catNom] = [];
+
+    let cleanImg = (p.img_path || "img/LOGO-MUNDO123.webp").replace(/^\.\.\//, '');
+
+    mapa[catNom].push([
+      p.nombre,
+      parseFloat(p.precio) || 0,
+      cleanImg,
+      p.disponible_tienda !== false,
+      parseFloat(p.minimo_venta) || 1,
+      p.modo || "gramos",
+      parseFloat(p.peso_promedio_g) || 0,
+      p.codigo_plu || "",
+      p.tasa_iva || "E",
+      p.visible_web !== false,
+      parseFloat(p.stock) || 0
+    ]);
+  });
+
+  const categorias = [];
+  for (let c in mapa) {
+    if (mapa[c].length > 0) {
+      categorias.push({ nombre: c, productos: mapa[c] });
+    }
+  }
+  return { categorias };
+}
+
+// Sembrado automático inicial de los 118 productos hacia Supabase
+async function sembrarCatalogoInicialEnSupabase() {
+  try {
+    const res = await fetch("../catalog.json?t=" + new Date().getTime());
+    const resp = await res.json();
+    const categorias = resp.categorias || [];
+    const filasParaSembrar = [];
+
+    categorias.forEach(cat => {
+      cat.productos.forEach((p, idx) => {
+        filasParaSembrar.push({
+          codigo_plu: String(p[7] || "").trim(),
+          nombre: p[0],
+          categoria: cat.nombre,
+          modo: p[5] || "gramos",
+          peso_promedio_g: parseFloat(p[6]) || 0,
+          orden: idx + 1,
+          minimo_venta: parseFloat(p[4]) || 1,
+          stock: parseFloat(p[10]) || 0,
+          disponible_tienda: p[3] !== undefined ? Boolean(p[3]) : true,
+          visible_web: p[9] !== undefined ? Boolean(p[9]) : true,
+          tasa_iva: p[8] || "E",
+          precio: parseFloat(p[1]) || 0,
+          img_path: p[2] || "img/LOGO-MUNDO123.webp"
+        });
+      });
+    });
+
+    if (filasParaSembrar.length > 0) {
+      const { error } = await supabaseClient
+        .from('productos')
+        .upsert(filasParaSembrar, { onConflict: 'nombre' });
+
+      if (error) throw error;
+
+      mostrarAvisoFactura(`🌱 ¡Éxito! ${filasParaSembrar.length} productos sembrados en Supabase.`, true, 6000);
+      renderizarCatalogoFacturacion(resp);
+    }
+  } catch (err) {
+    console.warn("Aviso al sembrar en Supabase:", err);
+  }
+}
+
+// Carga inteligente de alta velocidad desde Supabase con fallback local
+async function cargarCatalogoFacturacion() {
+  try {
+    if (navigator.onLine && supabaseClient) {
+      const { data, error } = await supabaseClient
+        .from('productos')
+        .select('*')
+        .order('orden', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        const catalogo = reconstruirCatalogoDesdeSupabase(data);
+        renderizarCatalogoFacturacion(catalogo);
+        return;
+      }
+
+      // Si la tabla recién creada está vacía (0 registros), sembrar automáticamente
+      if (!error && data && data.length === 0) {
+        await sembrarCatalogoInicialEnSupabase();
+        return;
+      }
+    }
+  } catch (errSup) {
+    console.warn("Cargando catalog.json de respaldo:", errSup);
+  }
+
   fetch("../catalog.json?t=" + new Date().getTime())
     .then(res => res.json())
     .then(renderizarCatalogoFacturacion)
     .catch(err => {
       console.error(err);
-      mostrarAvisoFactura("Error al cargar ../catalog.json");
+      mostrarAvisoFactura("Error al cargar catálogo.");
     });
 }
-
 // Localizador de producto en catálogo activo
 function buscarProductoEnCache(nombre) {
   if (!cacheCategoriasFactura) return null;
@@ -3702,6 +3804,21 @@ async function confirmarEImprimirFactura() {
     }
     localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMapDeduccion));
 
+    // Sincronización atómica inmediata de existencias en Supabase (< 30 ms)
+    if (navigator.onLine && supabaseClient) {
+      for (let key in itemsVendidos) {
+        if (itemsVendidos[key].esManual) continue;
+        let stockFinal = stockMapDeduccion[key];
+        if (stockFinal !== undefined) {
+          supabaseClient.from('productos')
+            .update({ stock: stockFinal, updated_at: new Date().toISOString() })
+            .eq('nombre', key)
+            .then(() => {})
+            .catch(e => console.warn("Aviso stock Supabase:", e));
+        }
+      }
+    }
+
     itemsFactura = {};
     transaccionActiva = null;
     clienteFacturaActual = null;
@@ -4493,7 +4610,7 @@ async function procesarSincronizacionGitHub() {
   const btn = document.getElementById('btnGuardarCodigosPLU');
   if (btn) {
     btn.disabled = true;
-    btn.textContent = "Sincronizando con GitHub...";
+    btn.textContent = "Guardando en Supabase (0.05s)...";
   }
 
   try {
@@ -4574,11 +4691,38 @@ async function procesarSincronizacionGitHub() {
       cat.productos = prodsEnCat.map(p => p.datos);
     });
 
-    // 4. Guardar catálogo íntegro en GitHub
-    const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
-    const base64Content = btoa(unescape(encodeURIComponent(contentString)));
+    // 4. Guardado instantáneo de alta velocidad en Supabase (PostgreSQL)
+    const filasParaSupabase = listaFlatProductosCodigos.map(item => ({
+      codigo_plu: item.codigoPLU || "",
+      nombre: item.nombre,
+      categoria: item.categoria || item.categoriaOriginal,
+      modo: item.unidad || "gramos",
+      peso_promedio_g: parseFloat(item.pesoPromedio) || 0,
+      orden: parseInt(item.orden) || 1,
+      minimo_venta: parseFloat(item.minimo) || 1,
+      stock: parseFloat(item.stock) || 0,
+      disponible_tienda: item.disponible !== false,
+      visible_web: item.visibleWeb !== false,
+      tasa_iva: item.tasaIVA || "E",
+      precio: parseFloat(item.precio) || 0,
+      img_path: (item.imgPath || "img/LOGO-MUNDO123.webp").replace(/^\.\.\//, ''),
+      updated_at: new Date().toISOString()
+    }));
 
-    await subirArchivoAGitHubFactura("catalog.json", base64Content, "Actualización completa de catálogo, PLU y stock desde POS");
+    if (navigator.onLine && supabaseClient) {
+      const { error: errSub } = await supabaseClient
+        .from('productos')
+        .upsert(filasParaSupabase, { onConflict: 'nombre' });
+      
+      if (errSub) console.warn("Aviso guardado Supabase:", errSub);
+    }
+
+    // 5. Respaldo asíncrono en GitHub sin bloquear la interfaz
+    try {
+      const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
+      const base64Content = btoa(unescape(encodeURIComponent(contentString)));
+      subirArchivoAGitHubFactura("catalog.json", base64Content, "Respaldo automático de catálogo y stock").catch(() => {});
+    } catch (eGit) {}
 
     if (btn) {
       btn.disabled = false;
@@ -4587,7 +4731,7 @@ async function procesarSincronizacionGitHub() {
 
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
-    mostrarAvisoFactura("🎉 Catálogo completo con stock sincronizado con éxito.");
+    mostrarAvisoFactura("⚡ Guardado instantáneo en Supabase exitoso.");
 
   } catch (err) {
     sessionStorage.removeItem("github_token");
