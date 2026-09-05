@@ -4932,6 +4932,120 @@ async function eliminarProductoFilaInline(nom, cat) {
 }
 window.eliminarProductoFilaInline = eliminarProductoFilaInline;
 
+// Generar opciones de productos reales para ingredientes de combos
+function obtenerOpcionesProductosIngredientes() {
+  let opcionesHtml = '<option value="" disabled selected>-- Seleccione producto / corte --</option>';
+  let prodsDisponibles = [];
+
+  if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+    prodsDisponibles = listaFlatProductosCodigos.filter(p => (p.categoria || p.categoriaOriginal) !== 'COMBOS');
+  } else if (cacheCategoriasFactura) {
+    cacheCategoriasFactura.forEach(c => {
+      if (c.nombre !== 'COMBOS') {
+        c.productos.forEach(p => {
+          prodsDisponibles.push({ nombre: p[0], unidad: p[5] });
+        });
+      }
+    });
+  }
+
+  const nombresVistos = new Set();
+  prodsDisponibles.forEach(p => {
+    if (!nombresVistos.has(p.nombre)) {
+      nombresVistos.add(p.nombre);
+      let unidadLabel = (p.unidad === 'unidades') ? 'uds' : 'Kg';
+      opcionesHtml += `<option value="${p.nombre}" data-unidad="${p.unidad}">${p.nombre} (${unidadLabel})</option>`;
+    }
+  });
+
+  return opcionesHtml;
+}
+
+// Evaluar si la categoría seleccionada es COMBOS para mostrar el constructor de receta
+function evaluarCategoriaCreacionPOS(categoria) {
+  const contReceta = document.getElementById('contenedorRecetaComboPOS');
+  const selUnidad = document.getElementById('posAddProdUnidad');
+  const inpMinimo = document.getElementById('posAddProdMinimo');
+  const listaReceta = document.getElementById('listaIngredientesComboNuevo');
+
+  if (categoria === 'COMBOS') {
+    if (contReceta) contReceta.classList.remove('hidden');
+    if (selUnidad) {
+      selUnidad.value = 'unidades';
+      alternarCampoPesoPromedioPOS('unidades', 'add');
+    }
+    if (inpMinimo) inpMinimo.value = 1;
+
+    // Si la lista está vacía, agregar la primera fila de ingrediente automáticamente
+    if (listaReceta && listaReceta.children.length === 0) {
+      agregarFilaIngredienteComboCreacion();
+    }
+  } else {
+    if (contReceta) contReceta.classList.add('hidden');
+    if (listaReceta) listaReceta.innerHTML = '';
+    if (selUnidad) {
+      selUnidad.value = (categoria === 'VIVERES') ? 'unidades' : 'gramos';
+      alternarCampoPesoPromedioPOS(selUnidad.value, 'add');
+    }
+    if (inpMinimo) inpMinimo.value = (categoria === 'VIVERES') ? 1 : 250;
+  }
+}
+window.evaluarCategoriaCreacionPOS = evaluarCategoriaCreacionPOS;
+
+// Agregar fila dinámica de ingrediente en la receta del combo
+function agregarFilaIngredienteComboCreacion() {
+  const listaReceta = document.getElementById('listaIngredientesComboNuevo');
+  if (!listaReceta) return;
+
+  const divFila = document.createElement('div');
+  divFila.className = 'row g-2 align-items-center fila-ingrediente-combo p-2 bg-light border rounded-3';
+
+  divFila.innerHTML = `
+    <div class="col-7">
+      <select class="form-select form-select-sm combo-add-ing-select fw-bold" onchange="actualizarPlaceholderIngredienteCombo(this)">
+        ${obtenerOpcionesProductosIngredientes()}
+      </select>
+    </div>
+    <div class="col-4">
+      <input type="number" step="0.001" min="0.001" class="form-control form-control-sm text-center fw-bold combo-add-ing-cant num-legible" placeholder="Cantidad (Kg / Uds)">
+    </div>
+    <div class="col-1 text-end">
+      <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold" onclick="eliminarFilaIngredienteComboCreacion(this)">✕</button>
+    </div>
+  `;
+
+  listaReceta.appendChild(divFila);
+}
+window.agregarFilaIngredienteComboCreacion = agregarFilaIngredienteComboCreacion;
+
+function actualizarPlaceholderIngredienteCombo(selectElem) {
+  const fila = selectElem.closest('.fila-ingrediente-combo');
+  if (!fila) return;
+  const inputCant = fila.querySelector('.combo-add-ing-cant');
+  const optSel = selectElem.selectedOptions[0];
+  const unidad = optSel ? optSel.getAttribute('data-unidad') : 'gramos';
+
+  if (inputCant) {
+    if (unidad === 'unidades') {
+      inputCant.placeholder = "Uds (ej: 1)";
+      inputCant.step = "1";
+    } else {
+      inputCant.placeholder = "Kg (ej: 0.500)";
+      inputCant.step = "0.001";
+    }
+  }
+}
+window.actualizarPlaceholderIngredienteCombo = actualizarPlaceholderIngredienteCombo;
+
+function eliminarFilaIngredienteComboCreacion(btn) {
+  const lista = document.getElementById('listaIngredientesComboNuevo');
+  if (lista && lista.children.length <= 1) {
+    return mostrarAvisoFactura("Un combo debe tener al menos un ingrediente.");
+  }
+  btn.closest('.fila-ingrediente-combo').remove();
+}
+window.eliminarFilaIngredienteComboCreacion = eliminarFilaIngredienteComboCreacion;
+
 function abrirModalCrearProductoPOS() {
   const catSelect = document.getElementById('posAddProdCatSelect');
   catSelect.innerHTML = cacheCategoriasFactura.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('');
@@ -4951,6 +5065,9 @@ function abrirModalCrearProductoPOS() {
   document.getElementById('posAddProdArchivoImagen').value = "";
   document.getElementById('contenedorPosAddPesoPromedio').classList.add('hidden');
   document.getElementById('errorModalCrearProdPOS').classList.add('hidden');
+
+  // Inicializar estado de receta según la categoría que quede seleccionada por defecto
+  evaluarCategoriaCreacionPOS(catSelect.value);
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCrearProductoPOS')).show();
 }
@@ -4974,6 +5091,33 @@ async function ejecutarCrearNuevoProductoPOS() {
     return;
   }
 
+  // Si es un COMBO, validar y extraer los ingredientes de la receta
+  let ingredientesReceta = [];
+  if (catNombre === 'COMBOS') {
+    const filasIng = document.querySelectorAll('#listaIngredientesComboNuevo .fila-ingrediente-combo');
+    filasIng.forEach(f => {
+      const selectProd = f.querySelector('.combo-add-ing-select');
+      const inputCant = f.querySelector('.combo-add-ing-cant');
+      if (selectProd && inputCant) {
+        const prodComp = selectProd.value;
+        const cantVal = parseFloat(inputCant.value);
+        if (prodComp && !isNaN(cantVal) && cantVal > 0) {
+          ingredientesReceta.push({
+            combo_nombre: prodNombre,
+            producto_componente: prodComp,
+            cantidad: cantVal
+          });
+        }
+      }
+    });
+
+    if (ingredientesReceta.length === 0) {
+      errorDiv.textContent = "Para crear un Combo debe añadir al menos 1 ingrediente con cantidad válida.";
+      errorDiv.classList.remove('hidden');
+      return;
+    }
+  }
+
   // Como la creación requiere subir una foto física obligatoria, se valida el Token de GitHub
   const token = sessionStorage.getItem("github_token");
   if (!token) {
@@ -4984,7 +5128,7 @@ async function ejecutarCrearNuevoProductoPOS() {
 
   const btn = document.getElementById('btnCrearProdPOS');
   btn.disabled = true;
-  btn.textContent = "Creando...";
+  btn.textContent = "Creando y guardando...";
 
   try {
     const imgData = await validarYLeerArchivoWebPFac(fileInput);
@@ -4993,7 +5137,7 @@ async function ejecutarCrearNuevoProductoPOS() {
     const relativePath = `img/${imgData.name}`;
     await subirArchivoAGitHubFactura(relativePath, imgData.base64, `Creación producto POS con imagen: ${imgData.name}`);
 
-    // 1. Inserción directa en Supabase
+    // 1. Inserción directa del producto en la tabla "productos" de Supabase
     const nuevoProdSupabase = {
       codigo_plu: prodCodigo || "",
       nombre: prodNombre,
@@ -5013,15 +5157,27 @@ async function ejecutarCrearNuevoProductoPOS() {
 
     if (navigator.onLine && supabaseClient) {
       await supabaseClient.from('productos').upsert([nuevoProdSupabase], { onConflict: 'nombre' });
+
+      // 2. Si es Combo, guardar sus ingredientes en "combo_recetas" de Supabase
+      if (ingredientesReceta.length > 0) {
+        const { error: errReceta } = await supabaseClient
+          .from('combo_recetas')
+          .upsert(ingredientesReceta, { onConflict: 'combo_nombre,producto_componente' });
+
+        if (!errReceta) {
+          ingredientesReceta.forEach(ir => { cacheComboRecetas.push(ir); });
+          localStorage.setItem("pos_cache_combo_recetas", JSON.stringify(cacheComboRecetas));
+        }
+      }
     }
 
-    // 2. Agregar a memoria activa del POS
+    // 3. Agregar a memoria activa del POS
     let cat = cacheCategoriasFactura.find(c => c.nombre === catNombre);
     if (cat) {
-      cat.productos.push([prodNombre, prodPrecio, relativePath, true, prodMin, prodUnidad, prodPesoProm, prodCodigo, prodIVA, prodWebVisible, 0]);
+      cat.productos.push([prodNombre, prodPrecio, relativePath, true, prodMin, prodUnidad, prodPesoProm, prodCodigo, prodIVA, prodWebVisible, 0, 999]);
     }
 
-    // 3. Respaldo en GitHub
+    // 4. Respaldo en GitHub de catalog.json
     try {
       const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
       const base64Content = btoa(unescape(encodeURIComponent(contentString)));
@@ -5035,7 +5191,8 @@ async function ejecutarCrearNuevoProductoPOS() {
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     prepararListaProductosCodigos();
 
-    mostrarAvisoFactura(`🎉 Producto "${prodNombre}" creado y guardado en Supabase.`);
+    const detalleMsg = ingredientesReceta.length > 0 ? ` con ${ingredientesReceta.length} ingredientes en su receta` : "";
+    mostrarAvisoFactura(`🎉 Producto "${prodNombre}" creado${detalleMsg} y guardado con éxito.`);
 
   } catch (err) {
     btn.disabled = false;
