@@ -1745,7 +1745,7 @@ function cerrarSesionFacturacion() {
   document.getElementById('facPassword').value = "";
 }
 
-// Reconstructor de estructura para compatibilidad total del catálogo POS
+// Reconstructor de estructura para compatibilidad total del catálogo POS con orden estricto
 function reconstruirCatalogoDesdeSupabase(filasDb) {
   const ordenCategorias = ["COMBOS", "CARNES", "POLLO", "QUESOS Y EMBUTIDOS", "VIVERES"];
   const mapa = {};
@@ -1757,25 +1757,34 @@ function reconstruirCatalogoDesdeSupabase(filasDb) {
 
     let cleanImg = (p.img_path || "img/LOGO-MUNDO123.webp").replace(/^\.\.\//, '');
 
-    mapa[catNom].push([
-      p.nombre,
-      parseFloat(p.precio) || 0,
-      cleanImg,
-      p.disponible_tienda !== false,
-      parseFloat(p.minimo_venta) || 1,
-      p.modo || "gramos",
-      parseFloat(p.peso_promedio_g) || 0,
-      p.codigo_plu || "",
-      p.tasa_iva || "E",
-      p.visible_web !== false,
-      parseFloat(p.stock) || 0
-    ]);
+    mapa[catNom].push({
+      datos: [
+        p.nombre,
+        parseFloat(p.precio) || 0,
+        cleanImg,
+        p.disponible_tienda !== false,
+        parseFloat(p.minimo_venta) || 1,
+        p.modo || "gramos",
+        parseFloat(p.peso_promedio_g) || 0,
+        p.codigo_plu || "",
+        p.tasa_iva || "E",
+        p.visible_web !== false,
+        parseFloat(p.stock) || 0,
+        parseInt(p.orden) || 999
+      ],
+      orden: parseInt(p.orden) || 999
+    });
   });
 
   const categorias = [];
   for (let c in mapa) {
     if (mapa[c].length > 0) {
-      categorias.push({ nombre: c, productos: mapa[c] });
+      // Ordenar estrictamente los productos de cada categoría por su orden asignado
+      mapa[c].sort((a, b) => a.orden - b.orden);
+      categorias.push({
+        nombre: c,
+        productos: mapa[c].map(item => item.datos)
+      });
     }
   }
   return { categorias };
@@ -4408,6 +4417,8 @@ function prepararListaProductosCodigos() {
       let webVisible = p[9] !== undefined ? Boolean(p[9]) : true;
       let stockActual = p[10] !== undefined ? parseFloat(p[10]) : 0;
 
+      let ordenGuardado = p[11] !== undefined ? parseInt(p[11]) : (idx + 1);
+
       listaFlatProductosCodigos.push({
         nombreOriginal: nom,
         categoriaOriginal: cat.nombre,
@@ -4423,7 +4434,7 @@ function prepararListaProductosCodigos() {
         codigoPLU: codPLU,
         tasaIVA: tasaIVA,
         stock: isNaN(stockActual) ? 0 : stockActual,
-        orden: idx + 1
+        orden: isNaN(ordenGuardado) ? (idx + 1) : ordenGuardado
       });
     });
   });
@@ -4736,7 +4747,23 @@ async function procesarSincronizacionGitHub() {
       }
     }
 
-    // 3. Preparar los 118 productos para Supabase PostgreSQL
+    // 3. Desempatar y reordenar limpiamente dentro de cada categoría
+    let categoriasAgrupadas = {};
+    listaFlatProductosCodigos.forEach(item => {
+      let cat = item.categoria || item.categoriaOriginal;
+      if (!categoriasAgrupadas[cat]) categoriasAgrupadas[cat] = [];
+      categoriasAgrupadas[cat].push(item);
+    });
+
+    for (let cat in categoriasAgrupadas) {
+      categoriasAgrupadas[cat].sort((a, b) => a.orden - b.orden);
+      // Re-indexar limpiamente 1, 2, 3... evitando empates numéricos en la base de datos
+      categoriasAgrupadas[cat].forEach((item, index) => {
+        item.orden = index + 1;
+      });
+    }
+
+    // 4. Preparar los 118 productos para Supabase PostgreSQL con orden corregido
     const filasParaSupabase = listaFlatProductosCodigos.map(item => ({
       codigo_plu: item.codigoPLU || "",
       nombre: item.nombre,
