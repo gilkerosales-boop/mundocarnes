@@ -2020,6 +2020,27 @@ function ejecutarFacturar() {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
   }
 
+  // Validación estricta: Bloqueo si la venta en negativo está desactivada
+  const permitirNegativo = localStorage.getItem("pos_permitir_venta_negativa") !== "false";
+  if (!permitirNegativo) {
+    for (let key in itemsFactura) {
+      let item = itemsFactura[key];
+      if (item.esManual) continue; // Productos manuales no tienen ficha en catálogo
+      let prodData = buscarProductoEnCache(key);
+      if (prodData) {
+        let stockActual = parseFloat(prodData[10]) || 0;
+        let cantRequerida = (item.unidad === 'gramos' || item.unidad === 'mixto')
+          ? ((item.pesoTotalGramos || item.cantNumerica) / 1000)
+          : parseFloat(item.cantNumerica);
+
+        if (stockActual < cantRequerida) {
+          let unidadTxt = (item.unidad === 'unidades') ? 'uds' : 'Kg';
+          return alert(`🚫 VENTA BLOQUEADA:\nEl producto "${key}" no cuenta con existencia suficiente en tienda.\n\n• Stock disponible: ${stockActual} ${unidadTxt}\n• Cantidad requerida: ${cantRequerida} ${unidadTxt}\n\nPara facturar este producto, active el interruptor "Venta en Negativo" en Configuración de Productos.`);
+        }
+      }
+    }
+  }
+
   const usuarioActivo = obtenerUsuarioActivo();
 
   transaccionActiva = {
