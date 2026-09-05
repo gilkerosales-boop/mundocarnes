@@ -303,6 +303,20 @@
           3
         ],
         [
+          "MECHAR",
+          11.9,
+          "img/4.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "",
+          "E",
+          true,
+          0,
+          4
+        ],
+        [
           "PUNTA TRASERA",
           16,
           "img/punta_trasera.webp",
@@ -314,7 +328,7 @@
           "E",
           true,
           0,
-          4
+          5
         ],
         [
           "SOLOMO DE CUERITO",
@@ -328,7 +342,7 @@
           "E",
           true,
           0,
-          5
+          6
         ],
         [
           "CHULETA AHUMADA",
@@ -342,7 +356,7 @@
           "G",
           true,
           0,
-          6
+          7
         ],
         [
           "CHULETA DE COCHINO",
@@ -356,7 +370,7 @@
           "E",
           true,
           0,
-          7
+          8
         ],
         [
           "COSTILLA DE COCHINO",
@@ -370,7 +384,7 @@
           "E",
           true,
           0,
-          8
+          9
         ],
         [
           "COSTILLA DE RES",
@@ -384,7 +398,7 @@
           "E",
           true,
           0,
-          9
+          10
         ],
         [
           "LAGARTO CON HUESO",
@@ -398,7 +412,7 @@
           "E",
           true,
           0,
-          10
+          11
         ],
         [
           "HIGADO DE RES",
@@ -412,7 +426,7 @@
           "E",
           true,
           0,
-          11
+          12
         ],
         [
           "LOMITO",
@@ -426,7 +440,7 @@
           "E",
           true,
           0,
-          12
+          13
         ],
         [
           "PANZA DE RES",
@@ -440,7 +454,7 @@
           "E",
           true,
           0,
-          13
+          14
         ],
         [
           "PATA DE RES",
@@ -454,7 +468,7 @@
           "E",
           true,
           0,
-          14
+          15
         ],
         [
           "RABO DE RES",
@@ -468,26 +482,12 @@
           "E",
           true,
           0,
-          15
+          16
         ],
         [
           "LAGARTO SIN HUESO",
           11.9,
           "img/9.webp",
-          true,
-          100,
-          "gramos",
-          0,
-          "",
-          "E",
-          true,
-          0,
-          16
-        ],
-        [
-          "MECHAR",
-          11.9,
-          "img/4.webp",
           true,
           100,
           "gramos",
