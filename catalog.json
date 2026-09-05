@@ -546,6 +546,20 @@
           3
         ],
         [
+          "PECHUGA C/H",
+          6.2,
+          "img/pechuga.webp",
+          true,
+          300,
+          "gramos",
+          0,
+          "0014",
+          "E",
+          true,
+          0,
+          4
+        ],
+        [
           "MILANESA",
           7.2,
           "img/milanesa.webp",
@@ -557,7 +571,7 @@
           "E",
           true,
           0,
-          4
+          5
         ],
         [
           "ALAS",
@@ -568,20 +582,6 @@
           "gramos",
           0,
           "0012",
-          "E",
-          true,
-          0,
-          5
-        ],
-        [
-          "PECHUGA C/H",
-          6.2,
-          "img/pechuga.webp",
-          true,
-          300,
-          "gramos",
-          0,
-          "0014",
           "E",
           true,
           0,
