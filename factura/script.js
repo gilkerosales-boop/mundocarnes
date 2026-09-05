@@ -4417,7 +4417,11 @@ function prepararListaProductosCodigos() {
       let webVisible = p[9] !== undefined ? Boolean(p[9]) : true;
       let stockActual = p[10] !== undefined ? parseFloat(p[10]) : 0;
 
-      let ordenGuardado = p[11] !== undefined ? parseInt(p[11]) : (idx + 1);
+     // Asignar siempre la posición real indexada (1, 2, 3...) de la categoría
+      let posicionReal = idx + 1;
+      if (p[11] !== undefined && !isNaN(parseInt(p[11]))) {
+        posicionReal = parseInt(p[11]);
+      }
 
       listaFlatProductosCodigos.push({
         nombreOriginal: nom,
@@ -4434,7 +4438,7 @@ function prepararListaProductosCodigos() {
         codigoPLU: codPLU,
         tasaIVA: tasaIVA,
         stock: isNaN(stockActual) ? 0 : stockActual,
-        orden: isNaN(ordenGuardado) ? (idx + 1) : ordenGuardado
+        orden: posicionReal
       });
     });
   });
@@ -4559,9 +4563,77 @@ function renderizarTablaGestionCodigos(lista) {
   tbody.innerHTML = html;
 }
 
-// Sincronizar en vivo los cambios editados en pantalla hacia la memoria global
+// Sincronizar en vivo los cambios editados con reordenamiento inteligente sin empates
 function sincronizarDOMAFlatList() {
   const filas = document.querySelectorAll('.fila-producto-cfg');
+  
+  // 1. Detectar productos con cambio intencional de posición (orden)
+  let cambiosOrden = [];
+  filas.forEach(f => {
+    const origName = f.getAttribute('data-original-name');
+    const origCat = f.getAttribute('data-original-cat');
+    const item = listaFlatProductosCodigos.find(p => p.nombreOriginal === origName && p.categoriaOriginal === origCat);
+    if (item) {
+      const inputOrd = f.querySelector('.cfg-orden');
+      if (inputOrd) {
+        let nuevoOrd = parseInt(inputOrd.value);
+        if (!isNaN(nuevoOrd) && nuevoOrd !== item.orden) {
+          cambiosOrden.push({
+            item: item,
+            categoria: item.categoria || item.categoriaOriginal,
+            oldPos: item.orden,
+            newPos: nuevoOrd
+          });
+        }
+      }
+    }
+  });
+
+  // 2. Desplazar automáticamente los demás productos de la categoría para resolver empates
+  cambiosOrden.forEach(cambio => {
+    let cat = cambio.categoria;
+    let itemsCat = listaFlatProductosCodigos.filter(p => (p.categoria || p.categoriaOriginal) === cat);
+    let totalItems = itemsCat.length;
+    let targetPos = Math.max(1, Math.min(cambio.newPos, totalItems));
+    let origPos = cambio.oldPos;
+
+    if (targetPos < origPos) {
+      // Subiendo en la lista (ej: Bistec de 2 a 1): Punta Trasera pasa de 1 a 2
+      itemsCat.forEach(p => {
+        if (p === cambio.item) {
+          p.orden = targetPos;
+        } else if (p.orden >= targetPos && p.orden < origPos) {
+          p.orden += 1;
+        }
+      });
+    } else if (targetPos > origPos) {
+      // Bajando en la lista: los productos intermedios suben un puesto
+      itemsCat.forEach(p => {
+        if (p === cambio.item) {
+          p.orden = targetPos;
+        } else if (p.orden <= targetPos && p.orden > origPos) {
+          p.orden -= 1;
+        }
+      });
+    }
+  });
+
+  // 3. Re-indexar de forma estricta 1, 2, 3... cada categoría garantizando orden correlativo único
+  let categoriasMap = {};
+  listaFlatProductosCodigos.forEach(item => {
+    let cat = item.categoria || item.categoriaOriginal;
+    if (!categoriasMap[cat]) categoriasMap[cat] = [];
+    categoriasMap[cat].push(item);
+  });
+
+  for (let cat in categoriasMap) {
+    categoriasMap[cat].sort((a, b) => a.orden - b.orden);
+    categoriasMap[cat].forEach((item, index) => {
+      item.orden = index + 1;
+    });
+  }
+
+  // 4. Sincronizar el resto de campos (nombre, precio, stock, etc.)
   filas.forEach(f => {
     const origName = f.getAttribute('data-original-name');
     const origCat = f.getAttribute('data-original-cat');
@@ -4572,7 +4644,6 @@ function sincronizarDOMAFlatList() {
       const selectCat = f.querySelector('.cfg-cat');
       const selectUni = f.querySelector('.cfg-unidad');
       const inputPeso = f.querySelector('.cfg-pesoprom');
-      const inputOrd = f.querySelector('.cfg-orden');
       const inputMin = f.querySelector('.cfg-minimo');
       const inputStock = f.querySelector('.cfg-stock');
       const selectDisp = f.querySelector('.cfg-disp');
@@ -4585,7 +4656,6 @@ function sincronizarDOMAFlatList() {
       if (selectCat) item.categoria = selectCat.value;
       if (selectUni) item.unidad = selectUni.value;
       if (inputPeso && item.unidad === 'mixto') item.pesoPromedio = parseInt(inputPeso.value) || 2000;
-      if (inputOrd) item.orden = parseInt(inputOrd.value) || item.orden;
       if (inputMin) item.minimo = parseInt(inputMin.value) || item.minimo;
       if (inputStock && !isNaN(parseFloat(inputStock.value))) {
         item.stock = parseFloat(inputStock.value);
