@@ -1755,10 +1755,50 @@ function cargarCatalogoFacturacion() {
     });
 }
 
+// Localizador de producto en catálogo activo
+function buscarProductoEnCache(nombre) {
+  if (!cacheCategoriasFactura) return null;
+  for (let cat of cacheCategoriasFactura) {
+    let p = cat.productos.find(prod => prod[0] === nombre);
+    if (p) return p;
+  }
+  return null;
+}
+
+function actualizarStockEnCacheLocal(nombre, nuevoStock) {
+  try {
+    let stockMap = {};
+    const stockMapStr = localStorage.getItem("pos_cache_stock_map");
+    if (stockMapStr) stockMap = JSON.parse(stockMapStr);
+    stockMap[nombre] = nuevoStock;
+    localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
+    let p = buscarProductoEnCache(nombre);
+    if (p) p[10] = nuevoStock;
+  } catch(e) {}
+}
+
 function renderizarCatalogoFacturacion(resp) {
   if (resp.error) return alert(resp.error);
   
   cacheCategoriasFactura = resp.categorias || [];
+
+  // Restaurar y sincronizar existencias locales dinámicas
+  const stockMapStr = localStorage.getItem("pos_cache_stock_map");
+  if (stockMapStr) {
+    try {
+      const stockMap = JSON.parse(stockMapStr);
+      cacheCategoriasFactura.forEach(cat => {
+        cat.productos.forEach(p => {
+          if (stockMap[p[0]] !== undefined) {
+            p[10] = stockMap[p[0]];
+          } else if (p[10] === undefined) {
+            p[10] = 0;
+          }
+        });
+      });
+    } catch(e) {}
+  }
+
   let tabsHtml = "";
   let contentHtml = "";
 
