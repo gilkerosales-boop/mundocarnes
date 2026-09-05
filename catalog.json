@@ -60,20 +60,6 @@
           4
         ],
         [
-          "COMBO 4",
-          84,
-          "img/combo_cuatro.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0064",
-          "E",
-          true,
-          0,
-          5
-        ],
-        [
           "MUNDOCARNES",
           44,
           "img/mundocarne.webp",
@@ -82,6 +68,20 @@
           "unidades",
           0,
           "0077",
+          "E",
+          true,
+          0,
+          5
+        ],
+        [
+          "COMBO 4",
+          84,
+          "img/combo_cuatro.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0064",
           "E",
           true,
           0,
