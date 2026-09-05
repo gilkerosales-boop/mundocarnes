@@ -275,6 +275,20 @@
           1
         ],
         [
+          "MOLIDA",
+          11.9,
+          "img/2.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "",
+          "E",
+          true,
+          0,
+          2
+        ],
+        [
           "PUNTA TRASERA",
           16,
           "img/punta_trasera.webp",
@@ -286,7 +300,7 @@
           "E",
           true,
           0,
-          2
+          3
         ],
         [
           "SOLOMO DE CUERITO",
@@ -300,7 +314,7 @@
           "E",
           true,
           0,
-          3
+          4
         ],
         [
           "CHULETA AHUMADA",
@@ -314,7 +328,7 @@
           "G",
           true,
           0,
-          4
+          5
         ],
         [
           "CHULETA DE COCHINO",
@@ -328,7 +342,7 @@
           "E",
           true,
           0,
-          5
+          6
         ],
         [
           "COSTILLA DE COCHINO",
@@ -342,7 +356,7 @@
           "E",
           true,
           0,
-          6
+          7
         ],
         [
           "COSTILLA DE RES",
@@ -356,7 +370,7 @@
           "E",
           true,
           0,
-          7
+          8
         ],
         [
           "LAGARTO CON HUESO",
@@ -370,7 +384,7 @@
           "E",
           true,
           0,
-          8
+          9
         ],
         [
           "HIGADO DE RES",
@@ -384,7 +398,7 @@
           "E",
           true,
           0,
-          9
+          10
         ],
         [
           "LOMITO",
@@ -398,7 +412,7 @@
           "E",
           true,
           0,
-          10
+          11
         ],
         [
           "PANZA DE RES",
@@ -412,7 +426,7 @@
           "E",
           true,
           0,
-          11
+          12
         ],
         [
           "PATA DE RES",
@@ -426,7 +440,7 @@
           "E",
           true,
           0,
-          12
+          13
         ],
         [
           "RABO DE RES",
@@ -440,7 +454,7 @@
           "E",
           true,
           0,
-          13
+          14
         ],
         [
           "GUISAR",
@@ -454,7 +468,7 @@
           "E",
           true,
           0,
-          14
+          15
         ],
         [
           "LAGARTO SIN HUESO",
@@ -468,26 +482,12 @@
           "E",
           true,
           0,
-          15
+          16
         ],
         [
           "MECHAR",
           11.9,
           "img/4.webp",
-          true,
-          100,
-          "gramos",
-          0,
-          "",
-          "E",
-          true,
-          0,
-          16
-        ],
-        [
-          "MOLIDA",
-          11.9,
-          "img/2.webp",
           true,
           100,
           "gramos",
