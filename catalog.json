@@ -359,6 +359,20 @@
           7
         ],
         [
+          "LAGARTO CON HUESO",
+          8.9,
+          "img/8.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "0022",
+          "E",
+          true,
+          0,
+          8
+        ],
+        [
           "PUNTA TRASERA",
           16,
           "img/punta_trasera.webp",
@@ -370,7 +384,7 @@
           "E",
           true,
           0,
-          8
+          9
         ],
         [
           "SOLOMO DE CUERITO",
@@ -384,7 +398,7 @@
           "E",
           true,
           0,
-          9
+          10
         ],
         [
           "CHULETA AHUMADA",
@@ -398,7 +412,7 @@
           "G",
           true,
           0,
-          10
+          11
         ],
         [
           "CHULETA DE COCHINO",
@@ -412,7 +426,7 @@
           "E",
           true,
           0,
-          11
+          12
         ],
         [
           "COSTILLA DE COCHINO",
@@ -423,20 +437,6 @@
           "gramos",
           0,
           "0019",
-          "E",
-          true,
-          0,
-          12
-        ],
-        [
-          "LAGARTO CON HUESO",
-          8.9,
-          "img/8.webp",
-          true,
-          100,
-          "gramos",
-          0,
-          "0022",
           "E",
           true,
           0,
