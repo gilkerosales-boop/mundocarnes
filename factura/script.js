@@ -4380,7 +4380,11 @@ function alternarPermitirVentaNegativa(estaActivo) {
 }
 window.alternarPermitirVentaNegativa = alternarPermitirVentaNegativa;
 
-// CONFIGURACIÓN FULLSCREEN DE PRODUCTOS, BALANZA PLU Y STOCK
+// Variables de control de edición granular por categoría y recetas de combos
+let categoriaEnEdicionActiva = null;
+let comboRecetaEditandoActivo = null;
+
+// CONFIGURACIÓN MASTER DE PRODUCTOS, BALANZA PLU Y STOCK
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
 
@@ -4395,6 +4399,9 @@ function abrirModalGestionCodigos() {
       lblNegativo.className = permitirVentaNegativa ? "form-check-label small fw-bold text-success" : "form-check-label small fw-bold text-danger";
     }
   }
+
+  // Por defecto se abre en modo seguro bloqueado
+  categoriaEnEdicionActiva = null;
 
   prepararListaProductosCodigos();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).show();
@@ -4417,7 +4424,7 @@ function prepararListaProductosCodigos() {
       let webVisible = p[9] !== undefined ? Boolean(p[9]) : true;
       let stockActual = p[10] !== undefined ? parseFloat(p[10]) : 0;
 
-     // Asignar siempre la posición real indexada (1, 2, 3...) de la categoría
+      // Asignar siempre la posición real indexada (1, 2, 3...) de la categoría
       let posicionReal = idx + 1;
       if (p[11] !== undefined && !isNaN(parseInt(p[11]))) {
         posicionReal = parseInt(p[11]);
@@ -4466,6 +4473,18 @@ function renderizarTablaGestionCodigos(lista) {
 
   if (badgeCount) badgeCount.textContent = `Total: ${lista.length} Productos`;
 
+  // Actualizar banner de edición de categoría activa
+  const banner = document.getElementById('bannerModoEdicionActivo');
+  const lblCat = document.getElementById('lblCategoriaEnEdicion');
+  if (banner && lblCat) {
+    if (categoriaEnEdicionActiva) {
+      banner.classList.remove('hidden');
+      lblCat.textContent = categoriaEnEdicionActiva;
+    } else {
+      banner.classList.add('hidden');
+    }
+  }
+
   if (lista.length === 0) {
     tbody.innerHTML = `<tr><td colspan="14" class="text-center text-muted py-4">No hay productos registrados.</td></tr>`;
     return;
@@ -4479,32 +4498,37 @@ function renderizarTablaGestionCodigos(lista) {
       <option value="${c.nombre}" ${c.nombre === item.categoriaOriginal ? 'selected' : ''}>${c.nombre}</option>
     `).join('');
 
-    let disabledPeso = (item.unidad !== 'mixto') ? 'disabled' : '';
+    // Condición de seguridad: sólo desbloquear si la categoría fue elegida en "Editar Productos"
+    const estaDesbloqueado = (categoriaEnEdicionActiva !== null && (item.categoria === categoriaEnEdicionActiva || item.categoriaOriginal === categoriaEnEdicionActiva));
+    const disabledAttr = !estaDesbloqueado ? 'disabled' : '';
+    const claseFila = estaDesbloqueado ? 'table-warning fw-bold' : 'opacity-75';
+
+    let disabledPeso = (!estaDesbloqueado || item.unidad !== 'mixto') ? 'disabled' : '';
     let unidadStockLabel = item.unidad === 'unidades' ? 'uds' : 'Kg';
     let stepStock = item.unidad === 'unidades' ? '1' : '0.001';
 
     html += `
-      <tr class="fila-producto-cfg" data-index="${index}" data-original-name="${safeName}" data-original-cat="${safeCat}">
+      <tr class="fila-producto-cfg ${claseFila}" data-index="${index}" data-original-name="${safeName}" data-original-cat="${safeCat}" data-categoria="${safeCat}">
         <td class="text-center">
           <input type="text" class="form-control form-control-sm text-center fw-bold text-primary cfg-plu num-legible" 
-                 value="${item.codigoPLU}" placeholder="PLU">
+                 value="${item.codigoPLU}" placeholder="PLU" ${disabledAttr}>
         </td>
         <td class="text-center position-relative">
-          <label class="mb-0" title="Haga clic para cambiar imagen (.webp <120KB)">
+          <label class="mb-0" title="${estaDesbloqueado ? 'Haga clic para cambiar imagen (.webp <120KB)' : 'Edición bloqueada'}">
             <img src="${item.imgPath}" class="img-thumb-config-inline" id="thumb-cfg-${index}">
-            <input type="file" class="d-none cfg-file" accept="image/webp" onchange="previsualizarFotoInline(this, ${index})">
+            <input type="file" class="d-none cfg-file" accept="image/webp" onchange="previsualizarFotoInline(this, ${index})" ${disabledAttr}>
           </label>
         </td>
         <td>
-          <input type="text" class="form-control form-control-sm fw-bold cfg-nombre" value="${item.nombre}" placeholder="Nombre producto">
+          <input type="text" class="form-control form-control-sm fw-bold cfg-nombre" value="${item.nombre}" placeholder="Nombre producto" ${disabledAttr}>
         </td>
         <td>
-          <select class="form-select form-select-sm fw-semibold cfg-cat">
+          <select class="form-select form-select-sm fw-semibold cfg-cat" ${disabledAttr}>
             ${catSelectHtml}
           </select>
         </td>
         <td>
-          <select class="form-select form-select-sm fw-semibold cfg-unidad" onchange="alternarCampoPesoFila(this)">
+          <select class="form-select form-select-sm fw-semibold cfg-unidad" onchange="alternarCampoPesoFila(this)" ${disabledAttr}>
             <option value="unidades" ${item.unidad === 'unidades' ? 'selected' : ''}>Unidades</option>
             <option value="gramos" ${item.unidad === 'gramos' ? 'selected' : ''}>Gramos</option>
             <option value="mixto" ${item.unidad === 'mixto' ? 'selected' : ''}>Mixto</option>
@@ -4516,33 +4540,33 @@ function renderizarTablaGestionCodigos(lista) {
         </td>
         <td>
           <input type="number" class="form-control form-control-sm text-center cfg-orden num-legible" 
-                 value="${item.orden}" min="1" style="max-width: 55px; margin: 0 auto;">
+                 value="${item.orden}" min="1" style="max-width: 55px; margin: 0 auto;" ${disabledAttr}>
         </td>
         <td>
           <input type="number" class="form-control form-control-sm text-center cfg-minimo num-legible" 
-                 value="${item.minimo}" min="1" style="max-width: 65px; margin: 0 auto;">
+                 value="${item.minimo}" min="1" style="max-width: 65px; margin: 0 auto;" ${disabledAttr}>
         </td>
         <td>
           <div class="input-group input-group-sm" style="max-width: 105px; margin: 0 auto;">
             <input type="number" step="${stepStock}" class="form-control form-control-sm text-center fw-bold cfg-stock num-legible" 
                    value="${item.stock !== undefined ? item.stock : 0}" placeholder="0" 
-                   title="Stock físico en tienda: ${item.stock || 0} ${unidadStockLabel}">
+                   title="Stock físico en tienda: ${item.stock || 0} ${unidadStockLabel}" ${disabledAttr}>
           </div>
         </td>
         <td>
-          <select class="form-select form-select-sm fw-bold cfg-disp" title="Disponibilidad para ventas físicas">
+          <select class="form-select form-select-sm fw-bold cfg-disp" title="Disponibilidad para ventas físicas" ${disabledAttr}>
             <option value="true" ${item.disponible ? 'selected' : ''}>✅ Disp.</option>
             <option value="false" ${!item.disponible ? 'selected' : ''}>🚫 Agot.</option>
           </select>
         </td>
         <td>
-          <select class="form-select form-select-sm fw-bold cfg-web" title="Visibilidad en catálogo web">
+          <select class="form-select form-select-sm fw-bold cfg-web" title="Visibilidad en catálogo web" ${disabledAttr}>
             <option value="true" ${item.visibleWeb !== false ? 'selected' : ''}>🌐 Visible</option>
             <option value="false" ${item.visibleWeb === false ? 'selected' : ''}>🚫 Oculto</option>
           </select>
         </td>
         <td>
-          <select class="form-select form-select-sm fw-bold text-center cfg-iva">
+          <select class="form-select form-select-sm fw-bold text-center cfg-iva" ${disabledAttr}>
             <option value="E" ${item.tasaIVA === 'E' ? 'selected' : ''}>E (0%)</option>
             <option value="G" ${item.tasaIVA === 'G' ? 'selected' : ''}>G (16%)</option>
             <option value="R" ${item.tasaIVA === 'R' ? 'selected' : ''}>R (8%)</option>
@@ -4550,10 +4574,10 @@ function renderizarTablaGestionCodigos(lista) {
         </td>
         <td>
           <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-center fw-bold text-success cfg-precio num-legible" 
-                 value="${parseFloat(item.precio).toFixed(2)}" style="max-width: 85px; margin: 0 auto;">
+                 value="${parseFloat(item.precio).toFixed(2)}" style="max-width: 85px; margin: 0 auto;" ${disabledAttr}>
         </td>
         <td class="text-center">
-          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 border-0 fw-bold" onclick="eliminarProductoFilaInline('${safeName}', '${safeCat}')" title="Eliminar Producto">
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 border-0 fw-bold" onclick="eliminarProductoFilaInline('${safeName}', '${safeCat}')" title="Eliminar Producto" ${disabledAttr}>
             🗑️
           </button>
         </td>
@@ -4562,6 +4586,262 @@ function renderizarTablaGestionCodigos(lista) {
 
   tbody.innerHTML = html;
 }
+
+// Bloquear nuevamente la edición de todas las filas
+function bloquearTodasLasFilasEdicion() {
+  categoriaEnEdicionActiva = null;
+  renderizarTablaGestionCodigos(listaFlatProductosCodigos);
+  mostrarAvisoFactura("🔒 Modo edición bloqueado.");
+}
+window.bloquearTodasLasFilasEdicion = bloquearTodasLasFilasEdicion;
+
+// ==========================================================================
+// CONTROL DEL MODAL DE SELECCIÓN DE EDICIÓN Y RECETAS DE COMBOS
+// ==========================================================================
+
+function abrirModalSeleccionarEdicionCategoria() {
+  document.getElementById('selectCategoriaParaEditar').value = "";
+  document.getElementById('contenedorOpcionesCombosEdicion').classList.add('hidden');
+  document.getElementById('radioEdicionComboGeneral').checked = true;
+  document.getElementById('contenedorSelectorComboReceta').classList.add('hidden');
+  document.getElementById('errorModalSeleccionEdicion').classList.add('hidden');
+
+  // Poblar selector de combos para recetas
+  const selCombos = document.getElementById('selectComboEspecificoReceta');
+  let combos = listaFlatProductosCodigos.filter(p => (p.categoria || p.categoriaOriginal) === 'COMBOS');
+  if (combos.length === 0 && cacheCategoriasFactura) {
+    const catC = cacheCategoriasFactura.find(c => c.nombre === 'COMBOS');
+    if (catC) combos = catC.productos.map(p => ({ nombre: p[0] }));
+  }
+
+  let optionsHtml = '<option value="" disabled selected>-- Seleccione el combo --</option>';
+  combos.forEach(c => {
+    optionsHtml += `<option value="${c.nombre}">${c.nombre}</option>`;
+  });
+  selCombos.innerHTML = optionsHtml;
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSeleccionarEdicionCategoria')).show();
+}
+window.abrirModalSeleccionarEdicionCategoria = abrirModalSeleccionarEdicionCategoria;
+
+function evaluarSeleccionCategoriaEdicion(categoria) {
+  const contOpcionesCombos = document.getElementById('contenedorOpcionesCombosEdicion');
+  if (categoria === 'COMBOS') {
+    contOpcionesCombos.classList.remove('hidden');
+  } else {
+    contOpcionesCombos.classList.add('hidden');
+  }
+}
+window.evaluarSeleccionCategoriaEdicion = evaluarSeleccionCategoriaEdicion;
+
+function alternarTipoEdicionCombo(tipo) {
+  const contSelectorCombo = document.getElementById('contenedorSelectorComboReceta');
+  if (tipo === 'RECETA') {
+    contSelectorCombo.classList.remove('hidden');
+  } else {
+    contSelectorCombo.classList.add('hidden');
+  }
+}
+window.alternarTipoEdicionCombo = alternarTipoEdicionCombo;
+
+function procesarConfirmacionEdicionCategoria() {
+  const cat = document.getElementById('selectCategoriaParaEditar').value;
+  const errorDiv = document.getElementById('errorModalSeleccionEdicion');
+
+  if (!cat) {
+    errorDiv.textContent = "Por favor, seleccione una categoría a editar.";
+    errorDiv.classList.remove('hidden');
+    return;
+  }
+
+  errorDiv.classList.add('hidden');
+
+  if (cat === 'COMBOS') {
+    const tipo = document.querySelector('input[name="radioTipoEdicionCombo"]:checked').value;
+
+    if (tipo === 'RECETA') {
+      const comboElegido = document.getElementById('selectComboEspecificoReceta').value;
+      if (!comboElegido) {
+        errorDiv.textContent = "Seleccione el combo al que desea editarle la receta.";
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSeleccionarEdicionCategoria')).hide();
+      abrirEditorRecetaCombo(comboElegido);
+      return;
+    }
+  }
+
+  // Si es configuración general de COMBOS o cualquier otra categoría (CARNES, POLLO, etc.)
+  categoriaEnEdicionActiva = cat;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalSeleccionarEdicionCategoria')).hide();
+
+  renderizarTablaGestionCodigos(listaFlatProductosCodigos);
+  mostrarAvisoFactura(`🔓 Modo Edición activado para ${cat}. Filas desbloqueadas.`);
+}
+window.procesarConfirmacionEdicionCategoria = procesarConfirmacionEdicionCategoria;
+
+// ==========================================================================
+// EDITOR INTERACTIVO DE ESTRUCTURA DE RECETA DE COMBOS
+// ==========================================================================
+
+function abrirEditorRecetaCombo(comboNombre) {
+  comboRecetaEditandoActivo = comboNombre;
+  document.getElementById('tituloComboEditandoReceta').textContent = comboNombre;
+  document.getElementById('errorModalEditarReceta').classList.add('hidden');
+
+  const tbody = document.getElementById('tablaIngredientesEditorReceta');
+  tbody.innerHTML = "";
+
+  // Obtener los ingredientes actuales de este combo
+  const ingredientesActuales = cacheComboRecetas.filter(r => r.combo_nombre === comboNombre);
+
+  if (ingredientesActuales.length > 0) {
+    ingredientesActuales.forEach(ing => {
+      agregarFilaEnEditorReceta(ing.producto_componente, ing.cantidad);
+    });
+  } else {
+    // Si no tiene receta registrada aún, añadir una fila en blanco
+    agregarFilaEnEditorReceta();
+  }
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarRecetaCombo')).show();
+}
+window.abrirEditorRecetaCombo = abrirEditorRecetaCombo;
+
+function agregarFilaEnEditorReceta(prodSeleccionado = '', cant = '') {
+  const tbody = document.getElementById('tablaIngredientesEditorReceta');
+  if (!tbody) return;
+
+  const tr = document.createElement('tr');
+  tr.className = 'fila-receta-editor';
+
+  let opciones = obtenerOpcionesProductosIngredientes(prodSeleccionado);
+
+  tr.innerHTML = `
+    <td>
+      <select class="form-select form-select-sm select-receta-prod fw-bold" onchange="actualizarPlaceholderFilaReceta(this)">
+        ${opciones}
+      </select>
+    </td>
+    <td>
+      <input type="number" step="0.001" min="0.001" class="form-control form-control-sm text-center fw-bold input-receta-cant num-legible" value="${cant}" placeholder="Cantidad">
+    </td>
+    <td class="text-center">
+      <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarFilaEnEditorReceta(this)">✕</button>
+    </td>
+  `;
+
+  tbody.appendChild(tr);
+
+  const sel = tr.querySelector('.select-receta-prod');
+  if (sel) actualizarPlaceholderFilaReceta(sel);
+}
+window.agregarFilaEnEditorReceta = agregarFilaEnEditorReceta;
+
+function actualizarPlaceholderFilaReceta(selectElem) {
+  const tr = selectElem.closest('tr');
+  if (!tr) return;
+  const inputCant = tr.querySelector('.input-receta-cant');
+  const optSel = selectElem.selectedOptions[0];
+  const unidad = optSel ? optSel.getAttribute('data-unidad') : 'gramos';
+
+  if (inputCant) {
+    if (unidad === 'unidades') {
+      inputCant.placeholder = "Uds (ej: 1)";
+      inputCant.step = "1";
+    } else {
+      inputCant.placeholder = "Kg (ej: 0.500)";
+      inputCant.step = "0.001";
+    }
+  }
+}
+window.actualizarPlaceholderFilaReceta = actualizarPlaceholderFilaReceta;
+
+function eliminarFilaEnEditorReceta(btn) {
+  const tbody = document.getElementById('tablaIngredientesEditorReceta');
+  if (tbody && tbody.children.length <= 1) {
+    return mostrarAvisoFactura("Un combo debe tener al menos un ingrediente en su receta.");
+  }
+  btn.closest('tr').remove();
+}
+window.eliminarFilaEnEditorReceta = eliminarFilaEnEditorReceta;
+
+async function guardarRecetaComboModificada() {
+  if (!comboRecetaEditandoActivo) return;
+
+  const errorDiv = document.getElementById('errorModalEditarReceta');
+  const btn = document.getElementById('btnGuardarRecetaComboModal');
+  const filas = document.querySelectorAll('#tablaIngredientesEditorReceta .fila-receta-editor');
+  
+  let nuevosIngredientes = [];
+  const ingredientesVistos = new Set();
+
+  filas.forEach(f => {
+    const sel = f.querySelector('.select-receta-prod');
+    const inp = f.querySelector('.input-receta-cant');
+    if (sel && inp) {
+      const prodNom = sel.value;
+      const cant = parseFloat(inp.value);
+      if (prodNom && !isNaN(cant) && cant > 0) {
+        if (!ingredientesVistos.has(prodNom)) {
+          ingredientesVistos.add(prodNom);
+          nuevosIngredientes.push({
+            combo_nombre: comboRecetaEditandoActivo,
+            producto_componente: prodNom,
+            cantidad: cant
+          });
+        }
+      }
+    }
+  });
+
+  if (nuevosIngredientes.length === 0) {
+    errorDiv.textContent = "Debe indicar al menos un ingrediente con una cantidad mayor a 0.";
+    errorDiv.classList.remove('hidden');
+    return;
+  }
+
+  errorDiv.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = "Guardando en Supabase...";
+
+  try {
+    if (navigator.onLine && supabaseClient) {
+      // 1. Eliminar receta anterior de este combo en Supabase
+      await supabaseClient
+        .from('combo_recetas')
+        .delete()
+        .eq('combo_nombre', comboRecetaEditandoActivo);
+
+      // 2. Insertar los nuevos ingredientes actualizados
+      const { error: errIns } = await supabaseClient
+        .from('combo_recetas')
+        .insert(nuevosIngredientes);
+
+      if (errIns) throw errIns;
+    }
+
+    // 3. Actualizar memoria activa del POS y almacenamiento local
+    cacheComboRecetas = cacheComboRecetas.filter(r => r.combo_nombre !== comboRecetaEditandoActivo).concat(nuevosIngredientes);
+    localStorage.setItem("pos_cache_combo_recetas", JSON.stringify(cacheComboRecetas));
+
+    btn.disabled = false;
+    btn.textContent = "💾 Guardar Receta en Supabase";
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarRecetaCombo')).hide();
+    mostrarAvisoFactura(`🎉 Receta de ${comboRecetaEditandoActivo} actualizada con ${nuevosIngredientes.length} ingredientes en Supabase.`);
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "💾 Guardar Receta en Supabase";
+    console.error("Error guardando receta:", err);
+    errorDiv.textContent = "Error al guardar en Supabase: " + err.message;
+    errorDiv.classList.remove('hidden');
+  }
+}
+window.guardarRecetaComboModificada = guardarRecetaComboModificada;
 
 // Sincronizar en vivo los cambios editados con reordenamiento inteligente sin empates
 function sincronizarDOMAFlatList() {
