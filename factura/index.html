@@ -1206,10 +1206,25 @@
                   </label>
                 </div>
                 <span class="badge bg-dark fs-6" id="cntTotalProductosCodigos">Total: 0 Productos</span>
+                <!-- Botón: Editar Productos por Categoría -->
+                <button type="button" class="btn btn-warning text-dark fw-bold rounded-pill px-3 shadow-sm" onclick="abrirModalSeleccionarEdicionCategoria()">
+                  ✏️ Editar Productos
+                </button>
                 <button type="button" class="btn btn-success fw-bold rounded-pill px-3 shadow-sm" onclick="abrirModalCrearProductoPOS()">
                   ➕ Agregar Producto
                 </button>
               </div>
+            </div>
+
+            <!-- Banner Informativo de Modo Edición Activo -->
+            <div id="bannerModoEdicionActivo" class="alert alert-warning py-2 px-3 mb-2 small fw-bold d-flex justify-content-between align-items-center shadow-sm hidden">
+              <div>
+                <span class="fs-6 me-2">🔓</span>
+                <span>Modo Edición Activado: <strong id="lblCategoriaEnEdicion" class="text-danger text-uppercase">TODAS</strong>. Solo los productos de esta categoría están desbloqueados para edición.</span>
+              </div>
+              <button type="button" class="btn btn-sm btn-dark fw-bold rounded-pill px-3" onclick="bloquearTodasLasFilasEdicion()">
+                🔒 Bloquear Edición
+              </button>
             </div>
 
             <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: calc(100vh - 220px); overflow-y: auto;">
@@ -1247,6 +1262,119 @@
         </div>
       </div>
     </div>
+
+    <!-- MODAL 1: SELECCIONAR CATEGORÍA Y TIPO DE EDICIÓN -->
+    <div class="modal fade" id="modalSeleccionarEdicionCategoria" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title fw-bold">✏️ Seleccionar Categoría a Editar</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            <p class="text-muted small mb-3">
+              Seleccione la categoría que desea editar. El sistema desbloqueará las columnas única y exclusivamente para los artículos de dicha categoría.
+            </p>
+
+            <div class="mb-3">
+              <label for="selectCategoriaParaEditar" class="form-label fw-bold small">Categoría a desbloquear *:</label>
+              <select id="selectCategoriaParaEditar" class="form-select fw-bold" onchange="evaluarSeleccionCategoriaEdicion(this.value)">
+                <option value="" disabled selected>-- Elija una categoría --</option>
+                <option value="CARNES">🥩 CARNES</option>
+                <option value="POLLO">🍗 POLLO</option>
+                <option value="QUESOS Y EMBUTIDOS">🧀 QUESOS Y EMBUTIDOS</option>
+                <option value="VIVERES">🛒 VIVERES</option>
+                <option value="COMBOS">📦 COMBOS</option>
+              </select>
+            </div>
+
+            <!-- Panel condicional si se selecciona COMBOS -->
+            <div id="contenedorOpcionesCombosEdicion" class="p-3 bg-white border border-primary rounded-3 mb-3 shadow-sm hidden">
+              <label class="form-label fw-bold small text-primary mb-2">¿Qué desea editar en la categoría Combos? *:</label>
+              
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="radioTipoEdicionCombo" id="radioEdicionComboGeneral" value="GENERAL" checked onchange="alternarTipoEdicionCombo(this.value)">
+                <label class="form-check-label fw-bold small text-dark" for="radioEdicionComboGeneral">
+                  ⚙️ Configuración general del producto (Precios, Stock, Visibilidad)
+                </label>
+              </div>
+
+              <div class="form-check mb-3">
+                <input class="form-check-input" type="radio" name="radioTipoEdicionCombo" id="radioEdicionComboReceta" value="RECETA" onchange="alternarTipoEdicionCombo(this.value)">
+                <label class="form-check-label fw-bold small text-primary" for="radioEdicionComboReceta">
+                  🍽️ Estructura de la receta (Ingredientes, gramos y kilos)
+                </label>
+              </div>
+
+              <!-- Selector de Combo para editar su receta -->
+              <div id="contenedorSelectorComboReceta" class="hidden">
+                <label for="selectComboEspecificoReceta" class="form-label fw-bold small text-dark">Seleccione el Combo a modificar *:</label>
+                <select id="selectComboEspecificoReceta" class="form-select form-select-sm fw-bold"></select>
+              </div>
+            </div>
+
+            <div id="errorModalSeleccionEdicion" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer bg-white justify-content-between p-3">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-warning text-dark fw-bold px-4 rounded-pill shadow-sm" onclick="procesarConfirmacionEdicionCategoria()">
+              Continuar ➡️
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 2: EDITOR DE ESTRUCTURA DE RECETA DE COMBO -->
+    <div class="modal fade" id="modalEditarRecetaCombo" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-primary shadow-lg">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title fw-bold text-warning">
+              🍽️ Estructura de Receta: <span id="tituloComboEditandoReceta" class="text-white">COMBO</span>
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            
+            <div class="d-flex justify-content-between align-items-center mb-3 p-2 bg-white border rounded-3 shadow-sm">
+              <div>
+                <small class="text-muted fw-bold d-block">Gestión de Ingredientes de Inventario</small>
+                <span class="small text-dark">Modifique los cortes y cantidades reales que descontará este combo en cada venta.</span>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-primary fw-bold rounded-pill shadow-sm" onclick="agregarFilaEnEditorReceta()">
+                ➕ Añadir Ingrediente
+              </button>
+            </div>
+
+            <div class="table-responsive bg-white rounded-3 border shadow-sm mb-3" style="max-height: 300px; overflow-y: auto;">
+              <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-dark small text-center">
+                  <tr>
+                    <th>Producto / Ingrediente</th>
+                    <th style="width: 170px;">Cantidad (Kg o Uds)</th>
+                    <th style="width: 60px;">Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaIngredientesEditorReceta">
+                  <!-- Filas inyectadas dinámicamente -->
+                </tbody>
+              </table>
+            </div>
+
+            <div id="errorModalEditarReceta" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer bg-white justify-content-between p-3">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnGuardarRecetaComboModal" class="btn btn-success fw-bold px-4 rounded-pill shadow" onclick="guardarRecetaComboModificada()">
+              💾 Guardar Receta en Supabase
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CREACIÓN DE NUEVO PRODUCTO DESDE FACTURACIÓN -->
 
     <!-- MODAL CREACIÓN DE NUEVO PRODUCTO DESDE FACTURACIÓN -->
     <div class="modal fade" id="modalCrearProductoPOS" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
