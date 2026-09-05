@@ -1824,8 +1824,41 @@ async function sembrarCatalogoInicialEnSupabase() {
   }
 }
 
+// Memoria activa de recetas de combos
+let cacheComboRecetas = [];
+
+// Cargar recetas de combos desde Supabase con persistencia offline
+async function cargarRecetasCombos() {
+  try {
+    if (navigator.onLine && supabaseClient) {
+      const { data, error } = await supabaseClient
+        .from('combo_recetas')
+        .select('*');
+      if (!error && data) {
+        cacheComboRecetas = data;
+        localStorage.setItem("pos_cache_combo_recetas", JSON.stringify(data));
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn("Aviso al cargar recetas de combos:", e);
+  }
+
+  const guardado = localStorage.getItem("pos_cache_combo_recetas");
+  if (guardado) {
+    try {
+      cacheComboRecetas = JSON.parse(guardado) || [];
+    } catch (e) {
+      cacheComboRecetas = [];
+    }
+  }
+}
+
 // Carga inteligente de alta velocidad desde Supabase con fallback local
 async function cargarCatalogoFacturacion() {
+  // Cargar en paralelo las recetas de combos
+  cargarRecetasCombos();
+
   try {
     if (navigator.onLine && supabaseClient) {
       const { data, error } = await supabaseClient
@@ -2122,22 +2155,57 @@ function ejecutarFacturar() {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
   }
 
-  // Validación estricta: Bloqueo si la venta en negativo está desactivada
+  // Validación estricta con soporte de combos: Bloqueo si la venta en negativo está desactivada
   const permitirNegativo = localStorage.getItem("pos_permitir_venta_negativa") !== "false";
   if (!permitirNegativo) {
+    // 1. Consolidar requerimientos totales de inventario (desglosando combos a sus ingredientes)
+    let mapaRequerimientos = {};
+    let mapaOrigenCombos = {};
+
     for (let key in itemsFactura) {
       let item = itemsFactura[key];
-      if (item.esManual) continue; // Productos manuales no tienen ficha en catálogo
-      let prodData = buscarProductoEnCache(key);
-      if (prodData) {
-        let stockActual = parseFloat(prodData[10]) || 0;
-        let cantRequerida = (item.unidad === 'gramos' || item.unidad === 'mixto')
+      if (item.esManual) continue;
+
+      const receta = cacheComboRecetas.filter(r => r.combo_nombre === key);
+
+      if (receta && receta.length > 0) {
+        // Es un combo compuesto: desglosar cada ingrediente según la cantidad de combos comprados
+        const cantCombos = parseFloat(item.cantNumerica) || 1;
+        receta.forEach(ing => {
+          const prodComp = ing.producto_componente;
+          const cantIngTotal = (parseFloat(ing.cantidad) || 0) * cantCombos;
+          mapaRequerimientos[prodComp] = (mapaRequerimientos[prodComp] || 0) + cantIngTotal;
+          if (!mapaOrigenCombos[prodComp]) mapaOrigenCombos[prodComp] = [];
+          mapaOrigenCombos[prodComp].push(`${key} (${cantCombos} uds)`);
+        });
+      } else {
+        // Es un producto individual
+        let cant = (item.unidad === 'gramos' || item.unidad === 'mixto')
           ? ((item.pesoTotalGramos || item.cantNumerica) / 1000)
           : parseFloat(item.cantNumerica);
+        mapaRequerimientos[key] = (mapaRequerimientos[key] || 0) + cant;
+      }
+    }
 
-        if (stockActual < cantRequerida) {
-          let unidadTxt = (item.unidad === 'unidades') ? 'uds' : 'Kg';
-          return alert(`🚫 VENTA BLOQUEADA:\nEl producto "${key}" no cuenta con existencia suficiente en tienda.\n\n• Stock disponible: ${stockActual} ${unidadTxt}\n• Cantidad requerida: ${cantRequerida} ${unidadTxt}\n\nPara facturar este producto, active el interruptor "Venta en Negativo" en Configuración de Productos.`);
+    // 2. Comprobar existencia real de cada producto o ingrediente requerido
+    for (let prodNom in mapaRequerimientos) {
+      let cantTotalRequerida = mapaRequerimientos[prodNom];
+      let prodData = buscarProductoEnCache(prodNom);
+
+      if (prodData) {
+        let stockActual = parseFloat(prodData[10]) || 0;
+
+        if (stockActual < cantTotalRequerida) {
+          let unidadTxt = (prodData[5] === 'unidades') ? 'uds' : 'Kg';
+          let faltante = (cantTotalRequerida - stockActual).toFixed(3);
+          if (prodData[5] === 'unidades') faltante = Math.ceil(cantTotalRequerida - stockActual);
+
+          let motivoComboTxt = "";
+          if (mapaOrigenCombos[prodNom] && mapaOrigenCombos[prodNom].length > 0) {
+            motivoComboTxt = `\n⚠️ Ingrediente faltante para armar: ${mapaOrigenCombos[prodNom].join(', ')}`;
+          }
+
+          return alert(`🚫 VENTA BLOQUEADA POR INVENTARIO:\nNo hay existencia suficiente del producto "${prodNom}".${motivoComboTxt}\n\n• Stock disponible en tienda: ${stockActual} ${unidadTxt}\n• Total requerido por la orden: ${cantTotalRequerida} ${unidadTxt}\n• Cantidad faltante: ${faltante} ${unidadTxt}\n\nPara forzar la venta, active el interruptor "Venta en Negativo" en Configuración.`);
         }
       }
     }
@@ -3778,7 +3846,7 @@ async function confirmarEImprimirFactura() {
     const fueFiscal = Boolean(datosFacturaPendiente?.modoFiscal);
     const tipoDocStr = fueFiscal ? "Factura Fiscal" : "Venta";
 
-    // Deducción automática de stock vendido (permitiendo saldo negativo si está activado)
+    // Deducción automática de stock vendido (desglosando combos a sus ingredientes reales)
     let stockMapDeduccion = {};
     try {
       const sMapStr = localStorage.getItem("pos_cache_stock_map");
@@ -3786,33 +3854,55 @@ async function confirmarEImprimirFactura() {
     } catch(e) {}
 
     let itemsVendidos = datosFacturaPendiente.items || items;
+
     for (let key in itemsVendidos) {
       let it = itemsVendidos[key];
       if (it.esManual) continue;
-      let prodData = buscarProductoEnCache(key);
-      if (prodData) {
-        let cantDescontar = (it.unidad === 'gramos' || it.unidad === 'mixto')
-          ? ((it.pesoTotalGramos || it.cantNumerica) / 1000)
-          : parseFloat(it.cantNumerica);
 
-        let stockPrevio = parseFloat(prodData[10]) || 0;
-        let nuevoStock = stockPrevio - cantDescontar;
-        let stockFinal = (it.unidad === 'unidades') ? Math.round(nuevoStock) : parseFloat(nuevoStock.toFixed(3));
-        prodData[10] = stockFinal;
-        stockMapDeduccion[key] = stockFinal;
+      const receta = cacheComboRecetas.filter(r => r.combo_nombre === key);
+
+      if (receta && receta.length > 0) {
+        // Es un combo compuesto: descontar cada ingrediente por separado
+        const cantCombos = parseFloat(it.cantNumerica) || 1;
+        receta.forEach(ing => {
+          const prodNom = ing.producto_componente;
+          const cantDescontarIng = (parseFloat(ing.cantidad) || 0) * cantCombos;
+          let prodIngData = buscarProductoEnCache(prodNom);
+
+          if (prodIngData) {
+            let stockPrevio = parseFloat(prodIngData[10]) || 0;
+            let nuevoStock = stockPrevio - cantDescontarIng;
+            let stockFinal = (prodIngData[5] === 'unidades') ? Math.round(nuevoStock) : parseFloat(nuevoStock.toFixed(3));
+            prodIngData[10] = stockFinal;
+            stockMapDeduccion[prodNom] = stockFinal;
+          }
+        });
+      } else {
+        // Es un producto individual regular
+        let prodData = buscarProductoEnCache(key);
+        if (prodData) {
+          let cantDescontar = (it.unidad === 'gramos' || it.unidad === 'mixto')
+            ? ((it.pesoTotalGramos || it.cantNumerica) / 1000)
+            : parseFloat(it.cantNumerica);
+
+          let stockPrevio = parseFloat(prodData[10]) || 0;
+          let nuevoStock = stockPrevio - cantDescontar;
+          let stockFinal = (it.unidad === 'unidades') ? Math.round(nuevoStock) : parseFloat(nuevoStock.toFixed(3));
+          prodData[10] = stockFinal;
+          stockMapDeduccion[key] = stockFinal;
+        }
       }
     }
     localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMapDeduccion));
 
-    // Sincronización atómica inmediata de existencias en Supabase (< 30 ms)
+    // Sincronización atómica inmediata en Supabase para todos los ingredientes y productos descontados
     if (navigator.onLine && supabaseClient) {
-      for (let key in itemsVendidos) {
-        if (itemsVendidos[key].esManual) continue;
-        let stockFinal = stockMapDeduccion[key];
+      for (let prodNom in stockMapDeduccion) {
+        let stockFinal = stockMapDeduccion[prodNom];
         if (stockFinal !== undefined) {
           supabaseClient.from('productos')
             .update({ stock: stockFinal, updated_at: new Date().toISOString() })
-            .eq('nombre', key)
+            .eq('nombre', prodNom)
             .then(() => {})
             .catch(e => console.warn("Aviso stock Supabase:", e));
         }
