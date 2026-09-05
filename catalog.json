@@ -74,20 +74,6 @@
           5
         ],
         [
-          "MIX",
-          40,
-          "img/combo_mix.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0065",
-          "E",
-          true,
-          0,
-          6
-        ],
-        [
           "MUNDOCARNES",
           44,
           "img/mundocarne.webp",
@@ -96,6 +82,20 @@
           "unidades",
           0,
           "0077",
+          "E",
+          true,
+          0,
+          6
+        ],
+        [
+          "MIX",
+          40,
+          "img/combo_mix.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0065",
           "E",
           true,
           0,
