@@ -588,6 +588,20 @@
           6
         ],
         [
+          "CHURRASCO DE POLLO",
+          7.5,
+          "img/churrasco.webp",
+          true,
+          300,
+          "gramos",
+          0,
+          "0150",
+          "E",
+          true,
+          0,
+          7
+        ],
+        [
           "HIGADO DE POLLO",
           3.6,
           "img/higado_de_pollo.webp",
@@ -599,7 +613,7 @@
           "E",
           true,
           0,
-          7
+          8
         ],
         [
           "MOLLEJAS",
@@ -610,20 +624,6 @@
           "gramos",
           0,
           "0140",
-          "E",
-          true,
-          0,
-          8
-        ],
-        [
-          "CHURRASCO DE POLLO",
-          7.5,
-          "img/churrasco.webp",
-          true,
-          300,
-          "gramos",
-          0,
-          "0150",
           "E",
           true,
           0,
