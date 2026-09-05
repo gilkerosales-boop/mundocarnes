@@ -436,8 +436,13 @@ async function cargarCatalogoPublico() {
   }
 
   // Fallback de contingencia a catalog.json local
-  cargarCatalogoPublico();
-});
+  fetch("catalog.json?t=" + new Date().getTime())
+    .then(res => res.json())
+    .then(renderizarCatalogo)
+    .catch(err => {
+      console.error(err);
+      mostrarAviso("Error al obtener catálogo desde el servidor.");
+    });
 }
 
 // Renderizado con Todas las Secciones Abiertas y Visibles Continuamente
@@ -1397,11 +1402,5 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
-  fetch("catalog.json?t=" + new Date().getTime())
-    .then(res => res.json())
-    .then(renderizarCatalogo)
-    .catch(err => {
-      console.error(err);
-      mostrarAviso("Error al obtener catalog.json desde el servidor.");
-    });
+  cargarCatalogoPublico();
 });
