@@ -116,7 +116,7 @@
               <li><hr class="dropdown-divider my-1"></li>
               <li>
                 <button class="dropdown-item fw-bold py-2 text-primary" type="button" onclick="abrirModalGestionCodigos()">
-                  📟 Productos / Balanza PLU
+                  📦 Catálogo Maestro de Productos y Balanza PLU
                 </button>
               </li>
             </ul>
@@ -1188,7 +1188,7 @@
       <div class="modal-dialog modal-fullscreen">
         <div class="modal-content">
           <div class="modal-header d-flex justify-content-between align-items-center">
-            <h5 class="modal-title fw-bold">⚙️ Configuración Global de Productos y Balanza PLU</h5>
+            <h5 class="modal-title fw-bold">📦 Catálogo Maestro de Productos y Balanza PLU</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-3 p-lg-4">
@@ -1250,7 +1250,7 @@
 
     <!-- MODAL CREACIÓN DE NUEVO PRODUCTO DESDE FACTURACIÓN -->
     <div class="modal fade" id="modalCrearProductoPOS" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content">
           <div class="modal-header bg-success text-white">
             <h5 class="modal-title fw-bold">➕ Agregar Producto Nuevo</h5>
@@ -1259,7 +1259,24 @@
           <div class="modal-body p-4 bg-light">
             <div class="mb-3">
               <label for="posAddProdCatSelect" class="form-label fw-bold small mb-1">Seleccionar Categoría *:</label>
-              <select id="posAddProdCatSelect" class="form-select fw-bold"></select>
+              <select id="posAddProdCatSelect" class="form-select fw-bold" onchange="evaluarCategoriaCreacionPOS(this.value)"></select>
+            </div>
+
+            <!-- Espacio Dinámico: Contenido / Receta de Combo -->
+            <div id="contenedorRecetaComboPOS" class="p-3 bg-white border border-primary rounded-3 mb-3 shadow-sm hidden">
+              <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                <div>
+                  <h6 class="fw-bold text-primary mb-0">🥩 Contenido / Receta del Combo</h6>
+                  <small class="text-muted" style="font-size: 0.75rem;">Indique los ingredientes reales que se descontarán del stock al vender este combo.</small>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary fw-bold rounded-pill shadow-sm" onclick="agregarFilaIngredienteComboCreacion()">
+                  ➕ Añadir Ingrediente
+                </button>
+              </div>
+
+              <div id="listaIngredientesComboNuevo" class="d-flex flex-column gap-2">
+                <!-- Filas de ingredientes agregadas dinámicamente -->
+              </div>
             </div>
 
             <div class="mb-3">
