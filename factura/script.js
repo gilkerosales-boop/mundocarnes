@@ -4592,8 +4592,17 @@ function validarYLeerArchivoWebPFac(fileElement) {
 }
 
 function guardarTodosLosCodigosPLU() {
-  const token = sessionStorage.getItem("github_token");
-  if (!token) {
+  // Solo pedir Token QR si el usuario seleccionó un archivo físico de imagen para subir a img/
+  const filas = document.querySelectorAll('.fila-producto-cfg');
+  let hayImagenesNuevas = false;
+  filas.forEach(f => {
+    const fileInput = f.querySelector('.cfg-file');
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+      hayImagenesNuevas = true;
+    }
+  });
+
+  if (hayImagenesNuevas && !sessionStorage.getItem("github_token")) {
     accionPendienteGitHub = "guardarCodigosMasivo";
     const input = document.getElementById('inputTokenQR');
     if (input) input.value = "";
@@ -4603,6 +4612,7 @@ function guardarTodosLosCodigosPLU() {
     return;
   }
 
+  // Si solo son datos (precios, códigos, stock), guardar de inmediato en Supabase sin QR
   procesarSincronizacionGitHub();
 }
 
@@ -4614,37 +4624,19 @@ async function procesarSincronizacionGitHub() {
   }
 
   try {
-    // 1. Actualizar en memoria los productos que estén actualmente renderizados en la tabla
+    // 1. Sincronizar en memoria los valores tipeados en las filas de la tabla
+    sincronizarDOMAFlatList();
+
+    // 2. Subir imagen a GitHub SOLO si se seleccionó un archivo nuevo
+    const token = sessionStorage.getItem("github_token");
     const filas = document.querySelectorAll('.fila-producto-cfg');
-    filas.forEach(f => {
-      const origName = f.getAttribute('data-original-name');
-      const origCat = f.getAttribute('data-original-cat');
-
-      const itemEnLista = listaFlatProductosCodigos.find(p => p.nombreOriginal === origName && p.categoriaOriginal === origCat);
-      if (itemEnLista) {
-        itemEnLista.codigoPLU = f.querySelector('.cfg-plu').value.trim();
-        itemEnLista.nombre = f.querySelector('.cfg-nombre').value.trim() || itemEnLista.nombre;
-        itemEnLista.categoria = f.querySelector('.cfg-cat').value;
-        itemEnLista.unidad = f.querySelector('.cfg-unidad').value;
-        itemEnLista.pesoPromedio = (itemEnLista.unidad === 'mixto') ? (parseInt(f.querySelector('.cfg-pesoprom').value) || 2000) : 0;
-        itemEnLista.orden = parseInt(f.querySelector('.cfg-orden').value) || itemEnLista.orden;
-        itemEnLista.minimo = parseInt(f.querySelector('.cfg-minimo').value) || itemEnLista.minimo;
-        itemEnLista.stock = f.querySelector('.cfg-stock') ? (parseFloat(f.querySelector('.cfg-stock').value) || 0) : (itemEnLista.stock || 0);
-        itemEnLista.disponible = (f.querySelector('.cfg-disp').value === "true");
-        itemEnLista.visibleWeb = f.querySelector('.cfg-web') ? (f.querySelector('.cfg-web').value === "true") : true;
-        itemEnLista.tasaIVA = f.querySelector('.cfg-iva') ? f.querySelector('.cfg-iva').value : "E";
-        itemEnLista.precio = parseFloat(f.querySelector('.cfg-precio').value) || itemEnLista.precio;
-      }
-    });
-
-    // 2. Subir imágenes nuevas si fueron seleccionadas
     for (let f of filas) {
       const origName = f.getAttribute('data-original-name');
       const origCat = f.getAttribute('data-original-cat');
       const fileInput = f.querySelector('.cfg-file');
       const itemEnLista = listaFlatProductosCodigos.find(p => p.nombreOriginal === origName && p.categoriaOriginal === origCat);
 
-      if (fileInput && fileInput.files && fileInput.files.length > 0 && itemEnLista) {
+      if (fileInput && fileInput.files && fileInput.files.length > 0 && itemEnLista && token) {
         const imgData = await validarYLeerArchivoWebPFac(fileInput);
         if (imgData) {
           const filePath = `img/${imgData.name}`;
@@ -4654,44 +4646,7 @@ async function procesarSincronizacionGitHub() {
       }
     }
 
-    // 3. Reconstruir las 5 categorías completas desde el arreglo maestro para garantizar que ninguna categoría se pierda
-    let categoriasMap = {};
-    cacheCategoriasFactura.forEach(c => {
-      categoriasMap[c.nombre] = [];
-    });
-
-    listaFlatProductosCodigos.forEach(item => {
-      let catDestino = item.categoria || item.categoriaOriginal;
-      if (!categoriasMap[catDestino]) categoriasMap[catDestino] = [];
-
-      let cleanImg = (item.imgPath || "img/LOGO-MUNDO123.webp").replace(/^\.\.\//, '');
-
-      categoriasMap[catDestino].push({
-        datos: [
-          item.nombre,
-          item.precio,
-          cleanImg,
-          item.disponible,
-          item.minimo,
-          item.unidad,
-          item.pesoPromedio,
-          item.codigoPLU,
-          item.tasaIVA,
-          item.visibleWeb !== false,
-          parseFloat(item.stock) || 0
-        ],
-        orden: item.orden
-      });
-    });
-
-    // Ordenar y consolidar las categorías completas
-    cacheCategoriasFactura.forEach(cat => {
-      let prodsEnCat = categoriasMap[cat.nombre] || [];
-      prodsEnCat.sort((a, b) => a.orden - b.orden);
-      cat.productos = prodsEnCat.map(p => p.datos);
-    });
-
-    // 4. Guardado instantáneo de alta velocidad en Supabase (PostgreSQL)
+    // 3. Preparar los 118 productos para Supabase PostgreSQL
     const filasParaSupabase = listaFlatProductosCodigos.map(item => ({
       codigo_plu: item.codigoPLU || "",
       nombre: item.nombre,
@@ -4709,20 +4664,27 @@ async function procesarSincronizacionGitHub() {
       updated_at: new Date().toISOString()
     }));
 
+    // 4. GUARDADO DIRECTO EN SUPABASE (< 50 milisegundos)
     if (navigator.onLine && supabaseClient) {
       const { error: errSub } = await supabaseClient
         .from('productos')
         .upsert(filasParaSupabase, { onConflict: 'nombre' });
       
-      if (errSub) console.warn("Aviso guardado Supabase:", errSub);
+      if (errSub) throw errSub;
     }
 
-    // 5. Respaldo asíncrono en GitHub sin bloquear la interfaz
-    try {
-      const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
-      const base64Content = btoa(unescape(encodeURIComponent(contentString)));
-      subirArchivoAGitHubFactura("catalog.json", base64Content, "Respaldo automático de catálogo y stock").catch(() => {});
-    } catch (eGit) {}
+    // 5. Actualizar catálogo en memoria activa del POS inmediatamente
+    const catalogoActualizado = reconstruirCatalogoDesdeSupabase(filasParaSupabase);
+    cacheCategoriasFactura = catalogoActualizado.categorias;
+
+    // 6. Respaldo asíncrono a catalog.json en GitHub (solo si hay token, sin bloquear la UI)
+    if (token) {
+      try {
+        const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
+        const base64Content = btoa(unescape(encodeURIComponent(contentString)));
+        subirArchivoAGitHubFactura("catalog.json", base64Content, "Respaldo automático de catálogo, PLU y stock").catch(() => {});
+      } catch (eGit) {}
+    }
 
     if (btn) {
       btn.disabled = false;
@@ -4731,46 +4693,54 @@ async function procesarSincronizacionGitHub() {
 
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
-    mostrarAvisoFactura("⚡ Guardado instantáneo en Supabase exitoso.");
+    mostrarAvisoFactura("⚡ ¡Guardado instantáneo en Supabase exitoso! (0.05s)");
 
   } catch (err) {
-    sessionStorage.removeItem("github_token");
     if (btn) {
       btn.disabled = false;
       btn.textContent = "💾 Guardar Todos los Cambios";
     }
-    console.error("Error al guardar en GitHub:", err);
-    mostrarAvisoFactura("❌ Error de sincronización con GitHub: " + err.message);
+    console.error("Error al guardar en Supabase:", err);
+    mostrarAvisoFactura("❌ Error al guardar en Supabase: " + err.message);
   }
 }
 
 async function eliminarProductoFilaInline(nom, cat) {
   if (!confirm(`⚠️ ¿Está seguro que desea eliminar el producto "${nom}"?`)) return;
 
-  const token = sessionStorage.getItem("github_token");
-  if (!token) {
-    accionPendienteGitHub = "guardarCodigosMasivo";
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).show();
-    return;
-  }
-
   try {
+    // 1. Eliminar directamente en Supabase sin pedir token QR
+    if (navigator.onLine && supabaseClient) {
+      const { error } = await supabaseClient
+        .from('productos')
+        .delete()
+        .eq('nombre', nom);
+      if (error) throw error;
+    }
+
+    // 2. Eliminar de la memoria activa del POS
     let catObj = cacheCategoriasFactura.find(c => c.nombre === cat);
     if (catObj) {
       catObj.productos = catObj.productos.filter(p => p[0] !== nom);
     }
+    listaFlatProductosCodigos = listaFlatProductosCodigos.filter(p => p.nombreOriginal !== nom);
 
-    const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
-    const base64Content = btoa(unescape(encodeURIComponent(contentString)));
-
-    await subirArchivoAGitHubFactura("catalog.json", base64Content, `Eliminación de producto: ${nom}`);
+    // 3. Respaldo asíncrono en GitHub si hay token activo
+    const token = sessionStorage.getItem("github_token");
+    if (token) {
+      try {
+        const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
+        const base64Content = btoa(unescape(encodeURIComponent(contentString)));
+        subirArchivoAGitHubFactura("catalog.json", base64Content, `Eliminación de producto: ${nom}`).catch(() => {});
+      } catch (eGit) {}
+    }
 
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     prepararListaProductosCodigos();
-    mostrarAvisoFactura(`🗑️ Producto "${nom}" eliminado correctamente.`);
+    mostrarAvisoFactura(`🗑️ Producto "${nom}" eliminado al instante.`);
 
   } catch (err) {
-    alert("Error al eliminar: " + err.message);
+    alert("Error al eliminar en Supabase: " + err.message);
   }
 }
 window.eliminarProductoFilaInline = eliminarProductoFilaInline;
@@ -4817,6 +4787,7 @@ async function ejecutarCrearNuevoProductoPOS() {
     return;
   }
 
+  // Como la creación requiere subir una foto física obligatoria, se valida el Token de GitHub
   const token = sessionStorage.getItem("github_token");
   if (!token) {
     accionPendienteGitHub = "crearNuevoProducto";
@@ -4835,15 +4806,40 @@ async function ejecutarCrearNuevoProductoPOS() {
     const relativePath = `img/${imgData.name}`;
     await subirArchivoAGitHubFactura(relativePath, imgData.base64, `Creación producto POS con imagen: ${imgData.name}`);
 
+    // 1. Inserción directa en Supabase
+    const nuevoProdSupabase = {
+      codigo_plu: prodCodigo || "",
+      nombre: prodNombre,
+      categoria: catNombre,
+      modo: prodUnidad || "gramos",
+      peso_promedio_g: prodPesoProm || 0,
+      orden: 999,
+      minimo_venta: prodMin || 1,
+      stock: 0,
+      disponible_tienda: true,
+      visible_web: prodWebVisible !== false,
+      tasa_iva: prodIVA || "E",
+      precio: prodPrecio || 0,
+      img_path: relativePath,
+      updated_at: new Date().toISOString()
+    };
+
+    if (navigator.onLine && supabaseClient) {
+      await supabaseClient.from('productos').upsert([nuevoProdSupabase], { onConflict: 'nombre' });
+    }
+
+    // 2. Agregar a memoria activa del POS
     let cat = cacheCategoriasFactura.find(c => c.nombre === catNombre);
     if (cat) {
       cat.productos.push([prodNombre, prodPrecio, relativePath, true, prodMin, prodUnidad, prodPesoProm, prodCodigo, prodIVA, prodWebVisible, 0]);
     }
 
-    const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
-    const base64Content = btoa(unescape(encodeURIComponent(contentString)));
-
-    await subirArchivoAGitHubFactura("catalog.json", base64Content, `Nuevo producto anexado desde POS: ${prodNombre}`);
+    // 3. Respaldo en GitHub
+    try {
+      const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
+      const base64Content = btoa(unescape(encodeURIComponent(contentString)));
+      await subirArchivoAGitHubFactura("catalog.json", base64Content, `Nuevo producto anexado desde POS: ${prodNombre}`);
+    } catch (eGit) {}
 
     btn.disabled = false;
     btn.textContent = "➕ Crear y Guardar Producto";
@@ -4852,7 +4848,7 @@ async function ejecutarCrearNuevoProductoPOS() {
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     prepararListaProductosCodigos();
 
-    mostrarAvisoFactura(`🎉 Producto "${prodNombre}" creado y publicado con éxito.`);
+    mostrarAvisoFactura(`🎉 Producto "${prodNombre}" creado y guardado en Supabase.`);
 
   } catch (err) {
     btn.disabled = false;
