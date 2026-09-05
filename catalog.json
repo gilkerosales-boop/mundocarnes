@@ -518,20 +518,6 @@
           1
         ],
         [
-          "POLLO PICADO",
-          5.2,
-          "img/1000469656.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          "0007",
-          "E",
-          true,
-          0,
-          2
-        ],
-        [
           "MUSLO",
           4.2,
           "img/muslo.webp",
@@ -540,6 +526,20 @@
           "gramos",
           0,
           "0008",
+          "E",
+          true,
+          0,
+          2
+        ],
+        [
+          "POLLO PICADO",
+          5.2,
+          "img/1000469656.webp",
+          true,
+          250,
+          "gramos",
+          0,
+          "0007",
           "E",
           true,
           0,
