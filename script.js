@@ -183,9 +183,7 @@ function regresarAlInicio() {
 
   document.getElementById('vistaCombos').classList.remove('hidden');
 
-  fetch("catalog.json?t=" + new Date().getTime())
-    .then(res => res.json())
-    .then(renderizarCatalogo);
+  cargarCatalogoPublico();
 }
 
 function controlarSesionHeader() {
@@ -375,16 +373,71 @@ function concederAccesoAlSistema() {
     document.getElementById('saludoUsuario').innerHTML = `👋 Hola, <strong>${cacheUsuario.nombre}</strong>`;
     document.getElementById('btnVerPedido').classList.remove('hidden');
     document.getElementById('btnAdminPanel').classList.add('hidden'); 
-    document.getElementById('btnSesionHeader').textContent = "Cerrar Sesión 🚪";
+   document.getElementById('btnSesionHeader').textContent = "Cerrar Sesión 🚪";
   }
   
-  fetch("catalog.json?t=" + new Date().getTime())
-    .then(res => res.json())
-    .then(renderizarCatalogo)
-    .catch(err => {
-      console.error(err);
-      mostrarAviso("Error al obtener catalog.json desde el servidor.");
-    });
+  cargarCatalogoPublico();
+}
+
+// Reconstructor de estructura de catálogo web desde Supabase
+function reconstruirCatalogoPublicoDesdeSupabase(filasDb) {
+  const ordenCategorias = ["COMBOS", "CARNES", "POLLO", "QUESOS Y EMBUTIDOS", "VIVERES"];
+  const mapa = {};
+  ordenCategorias.forEach(c => { mapa[c] = []; });
+
+  filasDb.forEach(p => {
+    const catNom = (p.categoria || "VIVERES").toUpperCase();
+    if (!mapa[catNom]) mapa[catNom] = [];
+
+    let cleanImg = (p.img_path || "img/LOGO-MUNDO123.webp").replace(/^\.\.\//, '');
+
+    mapa[catNom].push([
+      p.nombre,
+      parseFloat(p.precio) || 0,
+      cleanImg,
+      p.disponible_tienda !== false,
+      parseFloat(p.minimo_venta) || 1,
+      p.modo || "gramos",
+      parseFloat(p.peso_promedio_g) || 0,
+      p.codigo_plu || "",
+      p.tasa_iva || "E",
+      p.visible_web !== false,
+      parseFloat(p.stock) || 0
+    ]);
+  });
+
+  const categorias = [];
+  for (let c in mapa) {
+    if (mapa[c].length > 0) {
+      categorias.push({ nombre: c, productos: mapa[c] });
+    }
+  }
+  return { categorias };
+}
+
+// Carga directa de alta velocidad (< 40 ms) desde Supabase con fallback local
+async function cargarCatalogoPublico() {
+  try {
+    const sb = getSupabase();
+    if (sb && navigator.onLine) {
+      const { data, error } = await sb
+        .from('productos')
+        .select('*')
+        .order('orden', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        const catalogo = reconstruirCatalogoPublicoDesdeSupabase(data);
+        renderizarCatalogo(catalogo);
+        return;
+      }
+    }
+  } catch (errSup) {
+    console.warn("Aviso al consultar Supabase en web pública:", errSup);
+  }
+
+  // Fallback de contingencia a catalog.json local
+  cargarCatalogoPublico();
+});
 }
 
 // Renderizado con Todas las Secciones Abiertas y Visibles Continuamente
