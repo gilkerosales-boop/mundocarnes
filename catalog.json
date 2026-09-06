@@ -719,32 +719,18 @@
       "nombre": "QUESOS Y EMBUTIDOS",
       "productos": [
         [
-          "RECORTES DE CHULETA AHUMADA",
-          9.5,
-          "img/recortes_de_chuleta_ahumada.webp",
+          "QUESO DURO",
+          8.2,
+          "img/queso_duro.webp",
           true,
           100,
           "gramos",
           0,
-          "0020",
-          "G",
+          "0035",
+          "E",
           true,
           0,
           1
-        ],
-        [
-          "QUESO PECORINO",
-          30,
-          "img/pecorino.webp",
-          true,
-          100,
-          "gramos",
-          0,
-          "0031",
-          "G",
-          true,
-          0,
-          2
         ],
         [
           "QUESO AMARILLO",
@@ -758,7 +744,7 @@
           "G",
           true,
           0,
-          3
+          2
         ],
         [
           "QUESO PAISA",
@@ -772,21 +758,7 @@
           "G",
           true,
           0,
-          4
-        ],
-        [
-          "QUESO DURO",
-          8.2,
-          "img/queso_duro.webp",
-          true,
-          100,
-          "gramos",
-          0,
-          "0035",
-          "E",
-          true,
-          0,
-          5
+          3
         ],
         [
           "QUESO MOZZARELLA",
@@ -800,7 +772,49 @@
           "G",
           true,
           0,
+          4
+        ],
+        [
+          "QUESO GUAYANES",
+          7.9,
+          "img/queso_guayanes.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "0138",
+          "E",
+          true,
+          0,
+          5
+        ],
+        [
+          "QUESO QUAJADA",
+          7.5,
+          "img/queso_quajada.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "0139",
+          "E",
+          true,
+          0,
           6
+        ],
+        [
+          "QUESO PECORINO",
+          30,
+          "img/pecorino.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "0031",
+          "G",
+          true,
+          0,
+          7
         ],
         [
           "JAMON DE PIERNA",
@@ -814,7 +828,7 @@
           "G",
           true,
           0,
-          7
+          8
         ],
         [
           "JAMON DE PAVO",
@@ -825,20 +839,6 @@
           "gramos",
           0,
           "0039",
-          "G",
-          true,
-          0,
-          8
-        ],
-        [
-          "CHORIZOS (ahumado, ajo, picante)",
-          11.9,
-          "img/chorizos.webp",
-          true,
-          100,
-          "gramos",
-          0,
-          "0042",
           "G",
           true,
           0,
@@ -859,6 +859,34 @@
           10
         ],
         [
+          "CHORIZOS (ahumado, ajo, picante)",
+          11.9,
+          "img/chorizos.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "0042",
+          "G",
+          true,
+          0,
+          11
+        ],
+        [
+          "SALCHICHA POLACA",
+          6.9,
+          "img/salchicha_polaca.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "",
+          "G",
+          true,
+          0,
+          12
+        ],
+        [
           "MORCILLAS",
           6.5,
           "img/morcillas.webp",
@@ -870,7 +898,7 @@
           "G",
           true,
           0,
-          11
+          13
         ],
         [
           "RECORTES DE CHACUTERIA",
@@ -884,7 +912,21 @@
           "E",
           true,
           0,
-          12
+          14
+        ],
+        [
+          "RECORTES DE CHULETA AHUMADA",
+          9.5,
+          "img/recortes_de_chuleta_ahumada.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "0020",
+          "G",
+          true,
+          0,
+          15
         ],
         [
           "SUERO DIVINA PASTORA",
@@ -898,7 +940,7 @@
           "G",
           true,
           0,
-          13
+          16
         ],
         [
           "SUERO LA CASONA",
@@ -912,35 +954,7 @@
           "G",
           true,
           0,
-          14
-        ],
-        [
-          "QUESO GUAYANES",
-          7.9,
-          "img/queso_guayanes.webp",
-          true,
-          100,
-          "gramos",
-          0,
-          "0138",
-          "E",
-          true,
-          0,
-          15
-        ],
-        [
-          "QUESO QUAJADA",
-          7.5,
-          "img/queso_quajada.webp",
-          true,
-          100,
-          "gramos",
-          0,
-          "0139",
-          "E",
-          true,
-          0,
-          16
+          17
         ],
         [
           "CREMA DE LECHE AGUA LINDA 500g",
@@ -954,7 +968,7 @@
           "G",
           true,
           0,
-          17
+          18
         ],
         [
           "MORTADELA DON RAMÓN 1kg",
@@ -968,7 +982,7 @@
           "G",
           true,
           0,
-          18
+          19
         ],
         [
           "MORTADELA DON RAMÓN 400g",
@@ -982,7 +996,7 @@
           "G",
           true,
           0,
-          19
+          20
         ],
         [
           "MORTADELA DON RAMÓN 600g",
@@ -996,7 +1010,7 @@
           "G",
           true,
           0,
-          20
+          21
         ],
         [
           "MORTADELA ESPECIAL AHUMADA BIGCERDY",
@@ -1010,7 +1024,7 @@
           "G",
           true,
           0,
-          21
+          22
         ],
         [
           "MORTADELA PUNTA DE MONTE 1Kg",
@@ -1024,7 +1038,7 @@
           "G",
           true,
           0,
-          22
+          23
         ],
         [
           "MORTADELA PUNTA DE MONTE 500g",
@@ -1033,20 +1047,6 @@
           true,
           1,
           "unidades",
-          0,
-          "",
-          "G",
-          true,
-          0,
-          23
-        ],
-        [
-          "SALCHICHA POLACA",
-          6.9,
-          "img/salchicha_polaca.webp",
-          true,
-          100,
-          "gramos",
           0,
           "",
           "G",
@@ -1674,6 +1674,20 @@
           true,
           0,
           44
+        ],
+        [
+          "SOPA DE POLLO MAGGI 62G",
+          2.5,
+          "img/sopa_de_pollo_maggi_62g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "5402",
+          "E",
+          true,
+          0,
+          999
         ]
       ]
     }
