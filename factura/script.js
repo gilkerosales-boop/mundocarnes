@@ -4515,11 +4515,10 @@ function renderizarTablaGestionCodigos(lista) {
         </td>
         <td class="text-center position-relative">
           <label class="mb-0" title="${estaDesbloqueado ? 'Haga clic para cambiar imagen (.webp <120KB)' : 'Edición bloqueada'}">
-            <img src="${item.imgPath}" class="img-thumb-config-inline" id="thumb-cfg-${index}">
+            <img src="${item.imgPath}" class="img-thumb-config-inline" id="thumb-cfg-${index}" onerror="this.onerror=null; this.src='../img/LOGO-MUNDO123.webp'">
             <input type="file" class="d-none cfg-file" accept="image/webp" onchange="previsualizarFotoInline(this, ${index})" ${disabledAttr}>
           </label>
         </td>
-        <td>
           <input type="text" class="form-control form-control-sm fw-bold cfg-nombre" value="${item.nombre}" placeholder="Nombre producto" ${disabledAttr}>
         </td>
         <td>
@@ -5476,12 +5475,21 @@ async function ejecutarCrearNuevoProductoPOS() {
     btn.disabled = false;
     btn.textContent = "➕ Crear y Guardar Producto";
 
+    if (document.activeElement) document.activeElement.blur();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCrearProductoPOS')).hide();
+
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     prepararListaProductosCodigos();
 
+    // Filtrar automáticamente la tabla con el nombre del producto creado para verlo de inmediato
+    const inputFiltro = document.getElementById('facFiltroCodigosInput');
+    if (inputFiltro) {
+      inputFiltro.value = prodNombre;
+      filtrarTablaCodigos(prodNombre);
+    }
+
     const detalleMsg = ingredientesReceta.length > 0 ? ` con ${ingredientesReceta.length} ingredientes en su receta` : "";
-    mostrarAvisoFactura(`🎉 Producto "${prodNombre}" creado${detalleMsg} y guardado con éxito.`);
+    mostrarAvisoFactura(`🎉 Producto "${prodNombre}" creado${detalleMsg} y registrado con éxito en Supabase.`);
 
   } catch (err) {
     btn.disabled = false;
@@ -5506,6 +5514,9 @@ async function ejecutarGuardadoConTokenQR() {
 
   sessionStorage.setItem("github_token", token);
   input.value = "";
+
+  // Retirar el foco del botón antes de cerrar para evitar la advertencia aria-hidden
+  if (document.activeElement) document.activeElement.blur();
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEscanearTokenGitHub')).hide();
 
