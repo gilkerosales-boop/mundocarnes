@@ -1676,6 +1676,20 @@
           44
         ],
         [
+          "SARDINA EN SALSA DE TOMATE MONARCA 170G",
+          1.8,
+          "img/sardina_en_salsa_de_tomate_monarca_170g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "4529",
+          "E",
+          true,
+          0,
+          999
+        ],
+        [
           "SOPA DE POLLO MAGGI 62G",
           2.5,
           "img/sopa_de_pollo_maggi_62g.webp",
@@ -1690,14 +1704,14 @@
           999
         ],
         [
-          "SARDINA EN SALSA DE TOMATE MONARCA 170G",
+          "SARDINA EN ACEITE VEGETAL MONARCA 170G",
           1.8,
-          "img/sardina_en_salsa_de_tomate_monarca_170g.webp",
+          "img/sardina_en_aceite_vegetal_monarca_170g.webp",
           true,
           1,
           "unidades",
           0,
-          "4529",
+          "2693",
           "E",
           true,
           0,
