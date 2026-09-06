@@ -4519,73 +4519,101 @@ function renderizarTablaGestionCodigos(lista) {
 
     html += `
       <tr class="fila-producto-cfg ${claseFila}" data-index="${index}" data-original-name="${safeName}" data-original-cat="${safeCat}" data-categoria="${safeCat}">
-        <td class="text-center">
+        <!-- 1. Código PLU -->
+        <td class="text-center" style="width: 85px;">
           <input type="text" class="form-control form-control-sm text-center fw-bold text-primary cfg-plu num-legible" 
                  value="${item.codigoPLU}" placeholder="PLU" ${disabledAttr}>
         </td>
-        <td class="text-center position-relative">
+
+        <!-- 2. Foto -->
+        <td class="text-center position-relative" style="width: 50px;">
           <label class="mb-0" title="${estaDesbloqueado ? 'Haga clic para cambiar imagen (.webp <120KB)' : 'Edición bloqueada'}">
             <img src="${item.imgPath}" class="img-thumb-config-inline" id="thumb-cfg-${index}" onerror="this.onerror=null; this.src='../img/LOGO-MUNDO123.webp'">
             <input type="file" class="d-none cfg-file" accept="image/webp" onchange="previsualizarFotoInline(this, ${index})" ${disabledAttr}>
           </label>
         </td>
+
+        <!-- 3. Nombre del Producto -->
+        <td style="min-width: 170px;">
           <input type="text" class="form-control form-control-sm fw-bold cfg-nombre" value="${item.nombre}" placeholder="Nombre producto" ${disabledAttr}>
         </td>
-        <td>
+
+        <!-- 4. Categoría -->
+        <td style="min-width: 120px;">
           <select class="form-select form-select-sm fw-semibold cfg-cat" ${disabledAttr}>
             ${catSelectHtml}
           </select>
         </td>
-        <td>
+
+        <!-- 5. Modo de Venta -->
+        <td style="width: 95px;">
           <select class="form-select form-select-sm fw-semibold cfg-unidad" onchange="alternarCampoPesoFila(this)" ${disabledAttr}>
             <option value="unidades" ${item.unidad === 'unidades' ? 'selected' : ''}>Unidades</option>
             <option value="gramos" ${item.unidad === 'gramos' ? 'selected' : ''}>Gramos</option>
             <option value="mixto" ${item.unidad === 'mixto' ? 'selected' : ''}>Mixto</option>
           </select>
         </td>
-        <td>
+
+        <!-- 6. Peso Promedio (g) -->
+        <td style="width: 75px;">
           <input type="number" class="form-control form-control-sm text-center cfg-pesoprom num-legible" 
                  value="${item.pesoPromedio || ''}" placeholder="g" min="1" ${disabledPeso}>
         </td>
-        <td>
+
+        <!-- 7. Orden en Categoría -->
+        <td style="width: 55px;">
           <input type="number" class="form-control form-control-sm text-center cfg-orden num-legible" 
                  value="${item.orden}" min="1" style="max-width: 55px; margin: 0 auto;" ${disabledAttr}>
         </td>
-        <td>
+
+        <!-- 8. Mínimo de Venta -->
+        <td style="width: 65px;">
           <input type="number" class="form-control form-control-sm text-center cfg-minimo num-legible" 
                  value="${item.minimo}" min="1" style="max-width: 65px; margin: 0 auto;" ${disabledAttr}>
         </td>
-        <td>
+
+        <!-- 9. Stock Actual (Kg / Uds) -->
+        <td style="width: 105px;">
           <div class="input-group input-group-sm" style="max-width: 105px; margin: 0 auto;">
             <input type="number" step="${stepStock}" class="form-control form-control-sm text-center fw-bold cfg-stock num-legible" 
                    value="${item.stock !== undefined ? item.stock : 0}" placeholder="0" 
                    title="Stock físico en tienda: ${item.stock || 0} ${unidadStockLabel}" ${disabledAttr}>
           </div>
         </td>
-        <td>
+
+        <!-- 10. Disponibilidad en Tienda -->
+        <td style="width: 105px;">
           <select class="form-select form-select-sm fw-bold cfg-disp" title="Disponibilidad para ventas físicas" ${disabledAttr}>
             <option value="true" ${item.disponible ? 'selected' : ''}>✅ Disp.</option>
             <option value="false" ${!item.disponible ? 'selected' : ''}>🚫 Agot.</option>
           </select>
         </td>
-        <td>
+
+        <!-- 11. Visibilidad en Página Web -->
+        <td style="width: 105px;">
           <select class="form-select form-select-sm fw-bold cfg-web" title="Visibilidad en catálogo web" ${disabledAttr}>
             <option value="true" ${item.visibleWeb !== false ? 'selected' : ''}>🌐 Visible</option>
             <option value="false" ${item.visibleWeb === false ? 'selected' : ''}>🚫 Oculto</option>
           </select>
         </td>
-        <td>
+
+        <!-- 12. Tratamiento IVA -->
+        <td style="width: 75px;">
           <select class="form-select form-select-sm fw-bold text-center cfg-iva" ${disabledAttr}>
             <option value="E" ${item.tasaIVA === 'E' ? 'selected' : ''}>E (0%)</option>
             <option value="G" ${item.tasaIVA === 'G' ? 'selected' : ''}>G (16%)</option>
             <option value="R" ${item.tasaIVA === 'R' ? 'selected' : ''}>R (8%)</option>
           </select>
         </td>
-        <td>
+
+        <!-- 13. Precio de Venta ($) -->
+        <td style="width: 85px;">
           <input type="number" step="0.01" min="0.01" class="form-control form-control-sm text-center fw-bold text-success cfg-precio num-legible" 
                  value="${parseFloat(item.precio).toFixed(2)}" style="max-width: 85px; margin: 0 auto;" ${disabledAttr}>
         </td>
-        <td class="text-center">
+
+        <!-- 14. Acción (Eliminar) -->
+        <td class="text-center" style="width: 45px;">
           <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 border-0 fw-bold" onclick="eliminarProductoFilaInline('${safeName}', '${safeCat}')" title="Eliminar Producto" ${disabledAttr}>
             🗑️
           </button>
