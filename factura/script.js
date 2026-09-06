@@ -247,25 +247,14 @@ async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
 
   const url = `https://api.github.com/repos/${GITHUB_CONFIG_FAC.owner}/${GITHUB_CONFIG_FAC.repo}/contents/${path}`;
 
-  let sha = null;
-  try {
-    const resInfo = await fetch(url, {
-      headers: { "Authorization": `Bearer ${token}` }
-    });
-    if (resInfo.ok) {
-      const info = await resInfo.json();
-      sha = info.sha;
-    }
-  } catch (e) {}
-
+  // Intentar crear directamente sin GET previo para evitar el 404 en consola en archivos nuevos
   const body = {
     message: commitMessage,
     content: contentBase64,
     branch: GITHUB_CONFIG_FAC.branch
   };
-  if (sha) body.sha = sha;
 
-  const response = await fetch(url, {
+  let response = await fetch(url, {
     method: "PUT",
     headers: {
       "Authorization": `Bearer ${token}`,
@@ -274,8 +263,29 @@ async function subirArchivoAGitHubFactura(path, contentBase64, commitMessage) {
     body: JSON.stringify(body)
   });
 
+  // Si el archivo ya existía en GitHub, responde 422 solicitando SHA: consultarlo y reintentar
+  if (!response.ok && response.status === 422) {
+    try {
+      const resInfo = await fetch(url, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (resInfo.ok) {
+        const info = await resInfo.json();
+        body.sha = info.sha;
+        response = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body)
+        });
+      }
+    } catch (e) {}
+  }
+
   if (!response.ok) {
-    const errData = await response.json();
+    const errData = await response.json().catch(() => ({}));
     throw new Error(errData.message || "Fallo en la comunicación con GitHub API.");
   }
   return await response.json();
@@ -5037,7 +5047,7 @@ function validarYLeerArchivoWebPFac(fileElement) {
     reader.onload = function(e) {
       const base64 = e.target.result.split(",")[1];
       const safeName = file.name.replace(/\s+/g, "_").toLowerCase();
-      resolve({ base64: base64, name: safeName });
+      resolve({ base64: base64, name: safeName, dataUrl: e.target.result });
     };
     reader.onerror = function() {
       reject("Error al leer el archivo físico de imagen.");
@@ -5459,10 +5469,11 @@ async function ejecutarCrearNuevoProductoPOS() {
       }
     }
 
-    // 3. Agregar a memoria activa del POS
+   // 3. Agregar a memoria activa del POS usando la imagen en memoria para visualización inmediata sin 404
+    const fotoLocalInmediata = imgData.dataUrl || `../${relativePath}`;
     let cat = cacheCategoriasFactura.find(c => c.nombre === catNombre);
     if (cat) {
-      cat.productos.push([prodNombre, prodPrecio, relativePath, true, prodMin, prodUnidad, prodPesoProm, prodCodigo, prodIVA, prodWebVisible, 0, 999]);
+      cat.productos.push([prodNombre, prodPrecio, fotoLocalInmediata, true, prodMin, prodUnidad, prodPesoProm, prodCodigo, prodIVA, prodWebVisible, 0, 999]);
     }
 
     // 4. Respaldo en GitHub de catalog.json
