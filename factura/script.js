@@ -1988,7 +1988,10 @@ function cargarListaFacturacion(idElemento, productos, nombreCategoria) {
   contenedor.innerHTML = productos.map(f => {
     let nom = f[0];
     let prec = f[1];
-    let imgPath = f[2].startsWith('../') ? f[2] : '../' + f[2];
+    let rawImg = f[2] || '';
+    let imgPath = (rawImg.startsWith('../') || rawImg.startsWith('data:') || rawImg.startsWith('blob:') || rawImg.startsWith('http')) 
+      ? rawImg 
+      : '../' + rawImg;
     let esDisp = f[3];
     let cantMin = f[4];
     let unidad = f[5];
@@ -4424,7 +4427,10 @@ function prepararListaProductosCodigos() {
     cat.productos.forEach((p, idx) => {
       let nom = p[0];
       let prec = p[1];
-      let imgPath = p[2] ? (p[2].startsWith('../') ? p[2] : '../' + p[2]) : '../img/LOGO-MUNDO123.webp';
+      let rawImg = p[2] || '';
+      let imgPath = rawImg 
+        ? ((rawImg.startsWith('../') || rawImg.startsWith('data:') || rawImg.startsWith('blob:') || rawImg.startsWith('http')) ? rawImg : '../' + rawImg)
+        : '../img/LOGO-MUNDO123.webp';
       let esDisp = p[3] !== undefined ? p[3] : true;
       let minVal = p[4] !== undefined ? p[4] : 1;
       let unidad = p[5] || "unidades";
@@ -5155,23 +5161,36 @@ async function procesarSincronizacionGitHub() {
       });
     }
 
-    // 4. Preparar los 118 productos para Supabase PostgreSQL con orden corregido
-    const filasParaSupabase = listaFlatProductosCodigos.map(item => ({
-      codigo_plu: item.codigoPLU || "",
-      nombre: item.nombre,
-      categoria: item.categoria || item.categoriaOriginal,
-      modo: item.unidad || "gramos",
-      peso_promedio_g: parseFloat(item.pesoPromedio) || 0,
-      orden: parseInt(item.orden) || 1,
-      minimo_venta: parseFloat(item.minimo) || 1,
-      stock: parseFloat(item.stock) || 0,
-      disponible_tienda: item.disponible !== false,
-      visible_web: item.visibleWeb !== false,
-      tasa_iva: item.tasaIVA || "E",
-      precio: parseFloat(item.precio) || 0,
-      img_path: (item.imgPath || "img/LOGO-MUNDO123.webp").replace(/^\.\.\//, ''),
-      updated_at: new Date().toISOString()
-    }));
+    // 4. Preparar productos para Supabase garantizando rutas limpias sin Base64
+    const filasParaSupabase = listaFlatProductosCodigos.map(item => {
+      let cleanPath = "img/LOGO-MUNDO123.webp";
+      if (item.imgPath) {
+        if (item.imgPath.startsWith('data:') || item.imgPath.startsWith('blob:')) {
+          // Si tiene una foto en memoria, guardar la ruta del archivo físico estándar
+          const safeFile = item.nombre.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+          cleanPath = `img/${safeFile}.webp`;
+        } else {
+          cleanPath = item.imgPath.replace(/^\.\.\//, '');
+        }
+      }
+
+      return {
+        codigo_plu: item.codigoPLU || "",
+        nombre: item.nombre,
+        categoria: item.categoria || item.categoriaOriginal,
+        modo: item.unidad || "gramos",
+        peso_promedio_g: parseFloat(item.pesoPromedio) || 0,
+        orden: parseInt(item.orden) || 1,
+        minimo_venta: parseFloat(item.minimo) || 1,
+        stock: parseFloat(item.stock) || 0,
+        disponible_tienda: item.disponible !== false,
+        visible_web: item.visibleWeb !== false,
+        tasa_iva: item.tasaIVA || "E",
+        precio: parseFloat(item.precio) || 0,
+        img_path: cleanPath,
+        updated_at: new Date().toISOString()
+      };
+    });
 
     // 4. GUARDADO DIRECTO EN SUPABASE (< 50 milisegundos)
     if (navigator.onLine && supabaseClient) {
