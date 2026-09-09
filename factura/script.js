@@ -1767,6 +1767,7 @@ function reconstruirCatalogoDesdeSupabase(filasDb) {
 
     let cleanImg = (p.img_path || "img/LOGO-MUNDO123.webp").replace(/^\.\.\//, '');
 
+    // Preservar p.orden en [11] y el p.id (UUID de Supabase) en [12]
     mapa[catNom].push({
       datos: [
         p.nombre,
@@ -1780,11 +1781,11 @@ function reconstruirCatalogoDesdeSupabase(filasDb) {
         p.tasa_iva || "E",
         p.visible_web !== false,
         parseFloat(p.stock) || 0,
-        parseInt(p.orden) || 999
+        parseInt(p.orden) || 1,
+        p.id || null
       ],
-      orden: parseInt(p.orden) || 999
+      orden: parseInt(p.orden) || 1
     });
-  });
 
   const categorias = [];
   for (let c in mapa) {
@@ -4440,13 +4441,15 @@ function prepararListaProductosCodigos() {
       let webVisible = p[9] !== undefined ? Boolean(p[9]) : true;
       let stockActual = p[10] !== undefined ? parseFloat(p[10]) : 0;
 
-      // Asignar siempre la posición real indexada (1, 2, 3...) de la categoría
+      // Asignar siempre la posición real indexada (1, 2, 3...) y rescatar el UUID
       let posicionReal = idx + 1;
       if (p[11] !== undefined && !isNaN(parseInt(p[11]))) {
         posicionReal = parseInt(p[11]);
       }
+      let idSupabase = p[12] || null;
 
       listaFlatProductosCodigos.push({
+        id: idSupabase,
         nombreOriginal: nom,
         categoriaOriginal: cat.nombre,
         nombre: nom,
@@ -5161,12 +5164,11 @@ async function procesarSincronizacionGitHub() {
       });
     }
 
-    // 4. Preparar productos para Supabase garantizando rutas limpias sin Base64
+    // 4. Preparar productos para Supabase vinculando el id (UUID) inmutable
     const filasParaSupabase = listaFlatProductosCodigos.map(item => {
       let cleanPath = "img/LOGO-MUNDO123.webp";
       if (item.imgPath) {
-        if (item.imgPath.startsWith('data:') || item.imgPath.startsWith('blob:')) {
-          // Si tiene una foto en memoria, guardar la ruta del archivo físico estándar
+        if (item.imgPath.startsWith('data:') || item.imgPath.startsWith('../data:') || item.imgPath.length > 150) {
           const safeFile = item.nombre.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
           cleanPath = `img/${safeFile}.webp`;
         } else {
@@ -5174,7 +5176,7 @@ async function procesarSincronizacionGitHub() {
         }
       }
 
-      return {
+      let fila = {
         codigo_plu: item.codigoPLU || "",
         nombre: item.nombre,
         categoria: item.categoria || item.categoriaOriginal,
@@ -5190,15 +5192,30 @@ async function procesarSincronizacionGitHub() {
         img_path: cleanPath,
         updated_at: new Date().toISOString()
       };
+
+      // Si el producto ya existía en Supabase, incluir su ID para actualizar en vez de duplicar
+      if (item.id) {
+        fila.id = item.id;
+      }
+
+      return fila;
     });
 
-    // 4. GUARDADO DIRECTO EN SUPABASE (< 50 milisegundos)
+    // 4. GUARDADO DIRECTO EN SUPABASE POR ID (Actualización limpia sin duplicados)
     if (navigator.onLine && supabaseClient) {
       const { error: errSub } = await supabaseClient
         .from('productos')
-        .upsert(filasParaSupabase, { onConflict: 'nombre' });
+        .upsert(filasParaSupabase, { onConflict: 'id' });
       
       if (errSub) throw errSub;
+
+      // Si algún producto cambió de nombre, actualizar automáticamente las recetas de combos
+      for (let item of listaFlatProductosCodigos) {
+        if (item.nombreOriginal && item.nombreOriginal !== item.nombre) {
+          await supabaseClient.from('combo_recetas').update({ producto_componente: item.nombre }).eq('producto_componente', item.nombreOriginal);
+          await supabaseClient.from('combo_recetas').update({ combo_nombre: item.nombre }).eq('combo_nombre', item.nombreOriginal);
+        }
+      }
     }
 
     // 5. Actualizar catálogo en memoria activa del POS inmediatamente
