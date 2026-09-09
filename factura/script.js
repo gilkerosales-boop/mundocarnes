@@ -1786,6 +1786,7 @@ function reconstruirCatalogoDesdeSupabase(filasDb) {
       ],
       orden: parseInt(p.orden) || 1
     });
+  });
 
   const categorias = [];
   for (let c in mapa) {
