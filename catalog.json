@@ -497,48 +497,6 @@
           true,
           0,
           17
-        ],
-        [
-          "HUESO ROJO",
-          6.5,
-          "img/hueso_rojo.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          "0044",
-          "E",
-          true,
-          0,
-          18
-        ],
-        [
-          "CHULETA DE RES",
-          11.9,
-          "img/chuleta_de_res.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          "0045",
-          "E",
-          true,
-          0,
-          19
-        ],
-        [
-          "PULPA DE COCHINO",
-          14,
-          "img/pulpa_de_cochino.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          "0040",
-          "E",
-          true,
-          0,
-          20
         ]
       ]
     },
@@ -754,34 +712,6 @@
           true,
           0,
           15
-        ],
-        [
-          "PATAS DE POLLO",
-          3.9,
-          "img/patas_de_pollo.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          "0057",
-          "E",
-          true,
-          0,
-          16
-        ],
-        [
-          "CARAPACHO",
-          2,
-          "img/carapacho.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          "0058",
-          "E",
-          true,
-          0,
-          17
         ]
       ]
     },
@@ -859,6 +789,20 @@
           5
         ],
         [
+          "QUESO QUAJADA",
+          7.5,
+          "img/queso_quajada.webp",
+          true,
+          100,
+          "gramos",
+          0,
+          "0070",
+          "E",
+          true,
+          0,
+          6
+        ],
+        [
           "QUESO CUAJADA",
           7.5,
           "img/queso_quajada.webp",
@@ -870,7 +814,7 @@
           "E",
           true,
           0,
-          6
+          7
         ],
         [
           "QUESO PECORINO",
@@ -884,7 +828,7 @@
           "G",
           true,
           0,
-          7
+          8
         ],
         [
           "JAMON DE PIERNA",
@@ -898,7 +842,7 @@
           "G",
           true,
           0,
-          8
+          9
         ],
         [
           "JAMON DE PAVO",
@@ -912,7 +856,7 @@
           "G",
           true,
           0,
-          9
+          10
         ],
         [
           "SALCHICHA DE POLLO",
@@ -926,7 +870,7 @@
           "G",
           true,
           0,
-          10
+          11
         ],
         [
           "CHORIZOS (ahumado, ajo, picante)",
@@ -940,7 +884,7 @@
           "G",
           true,
           0,
-          11
+          12
         ],
         [
           "SALCHICHA POLACA",
@@ -954,7 +898,7 @@
           "G",
           true,
           0,
-          12
+          13
         ],
         [
           "MORCILLAS",
@@ -968,7 +912,7 @@
           "G",
           true,
           0,
-          13
+          14
         ],
         [
           "RECORTES DE CHACUTERIA",
@@ -982,7 +926,7 @@
           "E",
           true,
           0,
-          14
+          15
         ],
         [
           "RECORTES DE CHULETA AHUMADA",
@@ -996,7 +940,7 @@
           "G",
           true,
           0,
-          15
+          16
         ],
         [
           "SUERO DIVINA PASTORA",
@@ -1010,7 +954,7 @@
           "G",
           true,
           0,
-          16
+          17
         ],
         [
           "SUERO LA CASONA",
@@ -1024,7 +968,7 @@
           "G",
           true,
           0,
-          17
+          18
         ],
         [
           "CREMA DE LECHE AGUA LINDA 500g",
@@ -1038,7 +982,7 @@
           "G",
           true,
           0,
-          18
+          19
         ],
         [
           "MORTADELA DON RAMÓN 1kg",
@@ -1052,7 +996,7 @@
           "G",
           true,
           0,
-          19
+          20
         ],
         [
           "MORTADELA DON RAMÓN 400g",
@@ -1066,7 +1010,7 @@
           "G",
           true,
           0,
-          20
+          21
         ],
         [
           "MORTADELA DON RAMÓN 600g",
@@ -1080,7 +1024,7 @@
           "G",
           true,
           0,
-          21
+          22
         ],
         [
           "MORTADELA ESPECIAL AHUMADA BIGCERDY",
@@ -1094,7 +1038,7 @@
           "G",
           true,
           0,
-          22
+          23
         ],
         [
           "MORTADELA PUNTA DE MONTE 1Kg",
@@ -1108,7 +1052,7 @@
           "G",
           true,
           0,
-          23
+          24
         ],
         [
           "MORTADELA PUNTA DE MONTE 500g",
@@ -1122,35 +1066,7 @@
           "G",
           true,
           0,
-          24
-        ],
-        [
-          "TOCINETA",
-          15,
-          "img/tocineta.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          "0088",
-          "E",
-          true,
-          0,
           25
-        ],
-        [
-          "QUESO CREMA AGUA LINDA",
-          7,
-          "img/queso_crema_agua_linda.webp",
-          true,
-          250,
-          "gramos",
-          0,
-          "0090",
-          "E",
-          true,
-          0,
-          26
         ]
       ]
     },
@@ -2458,48 +2374,6 @@
           true,
           0,
           93
-        ],
-        [
-          "JUGO EL TUNAL 500ML",
-          1.6,
-          "img/jugo_el_tunal_500ml.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0129",
-          "E",
-          true,
-          0,
-          94
-        ],
-        [
-          "PASTA LARGA RONCO 500G",
-          2,
-          "img/pasta_larga_ronco_500g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0163",
-          "E",
-          true,
-          0,
-          95
-        ],
-        [
-          "TÉ EL TUNAL 1L",
-          3,
-          "img/t__el_tunal_1l.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0192",
-          "E",
-          true,
-          0,
-          96
         ]
       ]
     }
