@@ -1469,11 +1469,12 @@ function actualizarCalculosBCV() {
     recalcularTotalesRetencionEIGTF();
   }
 
-  if (typeof calcularTotalPagoMixto === "function") {
+  const metodoActual = document.getElementById('facFormaPagoSelect')?.value || "";
+  if ((metodoActual === 'Pago Mixto' || metodoActual === 'Cashea') && typeof calcularTotalPagoMixto === "function") {
     calcularTotalPagoMixto();
   }
 
-  if (typeof calcularVueltoEfectivo === "function") {
+  if ((metodoActual === 'Efectivo Divisas' || metodoActual === 'Efectivo Bolívares' || metodoActual === 'Pago Mixto' || metodoActual === 'Cashea') && typeof calcularVueltoEfectivo === "function") {
     calcularVueltoEfectivo();
   }
 }
@@ -2174,6 +2175,41 @@ function eliminarItemFactura(nombre) {
   renderizarResumenFactura();
 }
 
+// Reseteo integral de formas de pago, filas mixtas y paneles de vuelto
+function limpiarEstadoFormasPagoPOS() {
+  document.querySelectorAll('.btn-metodo-pago').forEach(b => b.classList.remove('active'));
+  const inputMetodo = document.getElementById('facFormaPagoSelect');
+  if (inputMetodo) inputMetodo.value = "";
+
+  const contMixto = document.getElementById('contenedorPagoMixto');
+  if (contMixto) contMixto.classList.add('hidden');
+
+  const listaMixto = document.getElementById('listaFilasPagoMixto');
+  if (listaMixto) listaMixto.innerHTML = "";
+
+  const contEfectivo = document.getElementById('contenedorCalculoEfectivo');
+  if (contEfectivo) contEfectivo.classList.add('hidden');
+
+  const inputMontoRec = document.getElementById('inputMontoRecibidoEfectivo');
+  if (inputMontoRec) inputMontoRec.value = "";
+
+  const inputVueltoUSD = document.getElementById('inputVueltoParteUSD');
+  if (inputVueltoUSD) inputVueltoUSD.value = "";
+
+  const selectVuelto = document.getElementById('selectMedioVuelto');
+  if (selectVuelto) selectVuelto.value = "BS_EFECTIVO";
+
+  const contVueltoMixto = document.getElementById('contenedorDesgloseVueltoMixto');
+  if (contVueltoMixto) contVueltoMixto.classList.add('hidden');
+
+  const lblPrincipal = document.getElementById('lblMontoVueltoPrincipal');
+  if (lblPrincipal) lblPrincipal.textContent = "Bs. 0,00";
+
+  const lblSecundario = document.getElementById('lblMontoVueltoSecundario');
+  if (lblSecundario) lblSecundario.textContent = "($0.00)";
+}
+window.limpiarEstadoFormasPagoPOS = limpiarEstadoFormasPagoPOS;
+
 function ejecutarFacturar() {
   if (Object.keys(itemsFactura).length === 0) {
     return mostrarAvisoFactura("Seleccione al menos un producto para facturar.");
@@ -2258,15 +2294,8 @@ function ejecutarFacturar() {
     btnConmutar.className = "btn btn-sm btn-outline-dark fw-bold rounded-pill";
   }
 
-  document.querySelectorAll('.btn-metodo-pago').forEach(b => b.classList.remove('active'));
-  document.getElementById('facFormaPagoSelect').value = "";
-
-  // Ocultar paneles secundarios hasta que el usuario elija un método de pago
-  const contMixto = document.getElementById('contenedorPagoMixto');
-  if (contMixto) contMixto.classList.add('hidden');
-
-  const contEfectivo = document.getElementById('contenedorCalculoEfectivo');
-  if (contEfectivo) contEfectivo.classList.add('hidden');
+  // Limpieza total de métodos de pago y residuos de vuelto previos
+  limpiarEstadoFormasPagoPOS();
 
   const tasaGuardada = localStorage.getItem("tasa_bcv_user_" + usuarioActivo);
   const inputTasa = document.getElementById('facTasaBCV');
@@ -3092,6 +3121,13 @@ function eliminarLineaPagoMixto(btn) {
 }
 
 function calcularTotalPagoMixto() {
+  const formaSelect = document.getElementById('facFormaPagoSelect')?.value || "";
+  if (formaSelect !== 'Pago Mixto' && formaSelect !== 'Cashea') {
+    const contMixto = document.getElementById('contenedorPagoMixto');
+    if (contMixto) contMixto.classList.add('hidden');
+    return { sumaUSD: 0, totalUSD: 0, restanteUSD: 0, sumaBs: 0, totalBs: 0, restanteBs: 0, hayVuelto: false };
+  }
+
   const tasa = obtenerTasaBCV() || 1;
   let sumaAsignadaUSD = 0;
   let sumaAsignadaBs = 0;
@@ -3938,6 +3974,7 @@ async function confirmarEImprimirFactura() {
     clienteFacturaActual = null;
     datosFacturaPendiente = null;
     renderizarResumenFactura();
+    limpiarEstadoFormasPagoPOS();
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVistaPreviaFactura')).hide();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
@@ -3967,12 +4004,7 @@ function cancelarProcesoFactura() {
     transaccionActiva = null;
     clienteFacturaActual = null;
     renderizarResumenFactura();
-
-    const contMixto = document.getElementById('contenedorPagoMixto');
-    if (contMixto) contMixto.classList.add('hidden');
-
-    const contEfectivo = document.getElementById('contenedorCalculoEfectivo');
-    if (contEfectivo) contEfectivo.classList.add('hidden');
+    limpiarEstadoFormasPagoPOS();
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalProcesarFactura')).hide();
     mostrarAvisoFactura("Proceso cancelado. Selección reiniciada.");
