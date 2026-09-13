@@ -5014,7 +5014,7 @@ async function guardarRecetaComboModificada() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarRecetaCombo')).hide();
     mostrarAvisoFactura(`🎉 Receta de ${comboRecetaEditandoActivo} actualizada con ${nuevosIngredientes.length} ingredientes en Supabase.`);
 
-  } catch (err) {
+ } catch (err) {
     btn.disabled = false;
     btn.textContent = "💾 Guardar Receta en Supabase";
     console.error("Error guardando receta:", err);
@@ -5023,6 +5023,276 @@ async function guardarRecetaComboModificada() {
   }
 }
 window.guardarRecetaComboModificada = guardarRecetaComboModificada;
+
+// ==========================================================================
+// MÓDULO: ENTRADA Y RECEPCIÓN RÁPIDA DE MERCANCÍA / CARGA DE STOCK
+// ==========================================================================
+let loteEntradaMercancia = [];
+
+function abrirModalEntradaMercancia() {
+  loteEntradaMercancia = [];
+
+  const inpProv = document.getElementById('entradaProveedorInput');
+  const inpGuia = document.getElementById('entradaNroGuiaInput');
+  const inpCant = document.getElementById('inputEntradaCantidad');
+  const selProd = document.getElementById('selectEntradaProducto');
+  const badgeUser = document.getElementById('badgeUsuarioReceptor');
+  const errDiv = document.getElementById('errorModalEntradaMercancia');
+  const ayudaStock = document.getElementById('ayudaStockActualProd');
+
+  if (inpProv) inpProv.value = "";
+  if (inpGuia) inpGuia.value = "";
+  if (inpCant) inpCant.value = "";
+  if (errDiv) errDiv.classList.add('hidden');
+  if (badgeUser) badgeUser.textContent = `Receptor: ${obtenerUsuarioActivo().toUpperCase()}`;
+  if (ayudaStock) ayudaStock.textContent = "Seleccione un producto para verificar su existencia actual.";
+
+  // Poblar selector con cortes y productos de inventario (excluyendo la categoría COMBOS)
+  if (selProd) {
+    let prodsDisponibles = [];
+    if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+      prodsDisponibles = listaFlatProductosCodigos.filter(p => (p.categoria || p.categoriaOriginal) !== 'COMBOS');
+    } else if (cacheCategoriasFactura) {
+      cacheCategoriasFactura.forEach(c => {
+        if (c.nombre !== 'COMBOS') {
+          c.productos.forEach(p => {
+            prodsDisponibles.push({
+              nombre: p[0],
+              categoria: c.nombre,
+              unidad: p[5] || 'gramos',
+              codigoPLU: p[7] || '',
+              stock: p[10] || 0
+            });
+          });
+        }
+      });
+    }
+
+    // Ordenar alfabéticamente
+    prodsDisponibles.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+    let optionsHtml = '<option value="" disabled selected>-- Elija el producto --</option>';
+    const vistos = new Set();
+
+    prodsDisponibles.forEach(p => {
+      const nom = String(p.nombre).trim().toUpperCase();
+      if (!vistos.has(nom)) {
+        vistos.add(nom);
+        const pluTag = p.codigoPLU ? `[${p.codigoPLU}] ` : '';
+        const uniLabel = (p.unidad === 'unidades') ? 'uds' : 'Kg';
+        optionsHtml += `<option value="${nom}" data-unidad="${p.unidad}">${pluTag}${nom} (${p.categoria} - ${uniLabel})</option>`;
+      }
+    });
+
+    selProd.innerHTML = optionsHtml;
+  }
+
+  renderizarTablaLoteEntrada();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).show();
+}
+window.abrirModalEntradaMercancia = abrirModalEntradaMercancia;
+
+function actualizarAyudaEntradaProducto(selectElem) {
+  const prodNom = selectElem.value;
+  const prodData = buscarProductoEnCache(prodNom);
+  const lblUnidad = document.getElementById('lblEntradaUnidad');
+  const inputCant = document.getElementById('inputEntradaCantidad');
+  const ayudaStock = document.getElementById('ayudaStockActualProd');
+
+  if (!prodData) return;
+
+  const unidad = prodData[5] || 'gramos';
+  const stockActual = parseFloat(prodData[10]) || 0;
+  const unidadTxt = (unidad === 'unidades') ? 'uds' : 'Kg';
+
+  if (lblUnidad) {
+    lblUnidad.textContent = `Cantidad a Ingresar (${unidadTxt}) *:`;
+  }
+  if (inputCant) {
+    inputCant.step = (unidad === 'unidades') ? '1' : '0.001';
+    inputCant.placeholder = (unidad === 'unidades') ? 'Ej: 20' : 'Ej: 150.500';
+  }
+  if (ayudaStock) {
+    ayudaStock.innerHTML = `Stock actual de <strong>${prodNom}</strong>: <span class="fw-bold text-success">${stockActual} ${unidadTxt}</span>.`;
+  }
+}
+window.actualizarAyudaEntradaProducto = actualizarAyudaEntradaProducto;
+
+function agregarProductoALoteEntrada() {
+  const selProd = document.getElementById('selectEntradaProducto');
+  const inputCant = document.getElementById('inputEntradaCantidad');
+  const errDiv = document.getElementById('errorModalEntradaMercancia');
+
+  const prodNom = selProd ? selProd.value : "";
+  const cantRecibida = parseFloat(inputCant ? inputCant.value : 0);
+
+  if (!prodNom || isNaN(cantRecibida) || cantRecibida <= 0) {
+    if (errDiv) {
+      errDiv.textContent = "Seleccione un producto e ingrese una cantidad mayor a 0.";
+      errDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (errDiv) errDiv.classList.add('hidden');
+
+  const prodData = buscarProductoEnCache(prodNom);
+  const unidad = prodData ? (prodData[5] || 'gramos') : 'gramos';
+  const stockActual = prodData ? (parseFloat(prodData[10]) || 0) : 0;
+
+  // Si ya estaba en el lote, sumarle la cantidad recibida
+  const existenteIndex = loteEntradaMercancia.findIndex(it => it.nombre === prodNom);
+  if (existenteIndex !== -1) {
+    loteEntradaMercancia[existenteIndex].cantRecibida += cantRecibida;
+    loteEntradaMercancia[existenteIndex].stockProyectado = stockActual + loteEntradaMercancia[existenteIndex].cantRecibida;
+  } else {
+    loteEntradaMercancia.push({
+      nombre: prodNom,
+      unidad: unidad,
+      stockActual: stockActual,
+      cantRecibida: cantRecibida,
+      stockProyectado: stockActual + cantRecibida
+    });
+  }
+
+  // Limpiar campos para el siguiente producto
+  if (inputCant) inputCant.value = "";
+  renderizarTablaLoteEntrada();
+
+  if (selProd) selProd.focus();
+}
+window.agregarProductoALoteEntrada = agregarProductoALoteEntrada;
+
+function eliminarItemLoteEntrada(index) {
+  if (index >= 0 && index < loteEntradaMercancia.length) {
+    loteEntradaMercancia.splice(index, 1);
+    renderizarTablaLoteEntrada();
+  }
+}
+window.eliminarItemLoteEntrada = eliminarItemLoteEntrada;
+
+function renderizarTablaLoteEntrada() {
+  const tbody = document.getElementById('tablaLoteEntradaMercancia');
+  const btnProcesar = document.getElementById('btnProcesarEntradaMercancia');
+  if (!tbody) return;
+
+  if (loteEntradaMercancia.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">No hay productos agregados a este lote de recepción.</td></tr>`;
+    if (btnProcesar) btnProcesar.disabled = true;
+    return;
+  }
+
+  let html = "";
+  loteEntradaMercancia.forEach((it, idx) => {
+    const uniLabel = (it.unidad === 'unidades') ? 'uds' : 'Kg';
+    const cantTxt = (it.unidad === 'unidades') ? Math.round(it.cantRecibida) : it.cantRecibida.toFixed(3);
+    const stockActualTxt = (it.unidad === 'unidades') ? Math.round(it.stockActual) : it.stockActual.toFixed(3);
+    const stockProyTxt = (it.unidad === 'unidades') ? Math.round(it.stockProyectado) : it.stockProyectado.toFixed(3);
+
+    html += `
+      <tr>
+        <td class="fw-bold text-dark">${it.nombre}</td>
+        <td class="text-center small num-legible text-muted">${stockActualTxt} ${uniLabel}</td>
+        <td class="text-center fw-bold text-success num-legible">+${cantTxt} ${uniLabel}</td>
+        <td class="text-center fw-bold text-primary num-legible">${stockProyTxt} ${uniLabel}</td>
+        <td class="text-center">
+          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarItemLoteEntrada(${idx})" title="Quitar">✕</button>
+        </td>
+      </tr>`;
+  });
+
+  tbody.innerHTML = html;
+  if (btnProcesar) btnProcesar.disabled = false;
+}
+
+async function ejecutarIngresoLoteMercancia() {
+  if (!loteEntradaMercancia || loteEntradaMercancia.length === 0) return;
+
+  const btn = document.getElementById('btnProcesarEntradaMercancia');
+  const errorDiv = document.getElementById('errorModalEntradaMercancia');
+  const proveedor = document.getElementById('entradaProveedorInput')?.value.trim().toUpperCase() || "RECEPCIÓN GENERAL";
+  const nroGuia = document.getElementById('entradaNroGuiaInput')?.value.trim().toUpperCase() || "S/N";
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Ingresando a inventario...";
+  }
+
+  try {
+    let stockMap = {};
+    const stockMapStr = localStorage.getItem("pos_cache_stock_map");
+    if (stockMapStr) stockMap = JSON.parse(stockMapStr);
+
+    for (let item of loteEntradaMercancia) {
+      const prodNom = item.nombre;
+      const cantSumar = item.cantRecibida;
+      let prodData = buscarProductoEnCache(prodNom);
+
+      if (prodData) {
+        let stockPrevio = parseFloat(prodData[10]) || 0;
+        let nuevoStock = stockPrevio + cantSumar;
+        let stockFinal = (item.unidad === 'unidades') ? Math.round(nuevoStock) : parseFloat(nuevoStock.toFixed(3));
+
+        // 1. Memoria activa de catálogo
+        prodData[10] = stockFinal;
+        stockMap[prodNom] = stockFinal;
+
+        // 2. Memoria en lista flat de códigos si existe
+        if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+          let flatItem = listaFlatProductosCodigos.find(p => p.nombre === prodNom || p.nombreOriginal === prodNom);
+          if (flatItem) flatItem.stock = stockFinal;
+        }
+
+        // 3. IndexedDB store 'inventario' (0ms)
+        try {
+          const invItem = await dbGet("inventario", prodNom);
+          if (invItem) {
+            invItem.stock = stockFinal;
+            invItem.updated_at = new Date().toISOString();
+            await dbPut("inventario", invItem);
+          }
+        } catch (eDB) {}
+
+        // 4. Supabase cloud sync
+        if (navigator.onLine && supabaseClient) {
+          await supabaseClient
+            .from('productos')
+            .update({ stock: stockFinal, updated_at: new Date().toISOString() })
+            .eq('nombre', prodNom);
+        }
+      }
+    }
+
+    localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
+
+    // Refrescar catálogo visual
+    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+    if (typeof prepararListaProductosCodigos === "function") {
+      prepararListaProductosCodigos();
+    }
+
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "📥 Confirmar e Ingresar al Inventario";
+    }
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).hide();
+    mostrarAvisoFactura(`🎉 ¡Éxito! Se cargaron ${loteEntradaMercancia.length} producto(s) al inventario (${proveedor} - Guía: ${nroGuia}).`, true, 6000);
+    loteEntradaMercancia = [];
+
+  } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "📥 Confirmar e Ingresar al Inventario";
+    }
+    console.error("Error al cargar lote de mercancía:", err);
+    if (errorDiv) {
+      errorDiv.textContent = "Error al procesar el ingreso de stock: " + err.message;
+      errorDiv.classList.remove('hidden');
+    }
+  }
+}
+window.ejecutarIngresoLoteMercancia = ejecutarIngresoLoteMercancia;
 
 // Sincronizar en vivo los cambios editados con reordenamiento inteligente sin empates
 function sincronizarDOMAFlatList() {
