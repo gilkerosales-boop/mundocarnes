@@ -3178,10 +3178,14 @@ function calcularTotalPagoMixto() {
   // Si hay billete de mayor denominación en efectivo, activar panel de vuelto automáticamente
   if (hayLineaEfectivo && restanteUSD < -0.01) {
     const vueltoExcesoUSD = Math.abs(restanteUSD);
-    const vueltoExcesoBS = vueltoExcesoUSD * tasa;
+    const vueltoExcesoBS = Math.abs(restanteBs) > 0 ? Math.abs(restanteBs) : (vueltoExcesoUSD * tasa);
 
     if (elemRestante) {
-      elemRestante.textContent = `Vuelto: $${vueltoExcesoUSD.toFixed(2)}`;
+      if (monedaVistaModal === "BS") {
+        elemRestante.textContent = `Vuelto: Bs. ${vueltoExcesoBS.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      } else {
+        elemRestante.textContent = `Vuelto: $${vueltoExcesoUSD.toFixed(2)}`;
+      }
       elemRestante.className = 'text-success fw-bold num-legible';
     }
 
