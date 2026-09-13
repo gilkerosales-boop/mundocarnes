@@ -115,6 +115,11 @@
               </li>
               <li><hr class="dropdown-divider my-1"></li>
               <li>
+                <button class="dropdown-item fw-bold py-2 text-success" type="button" onclick="abrirModalEntradaMercancia()">
+                  📥 Entrada de Mercancía / Carga de Stock
+                </button>
+              </li>
+              <li>
                 <button class="dropdown-item fw-bold py-2 text-primary" type="button" onclick="abrirModalGestionCodigos()">
                   📦 Catálogo Maestro de Productos y Balanza PLU
                 </button>
@@ -1177,6 +1182,93 @@
             <button type="button" class="btn btn-secondary fw-bold rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
             <button type="button" id="btnAceptarRegFiscal" class="btn btn-success fw-bold px-4 rounded-pill shadow" onclick="procesarConfirmacionDispositivoFiscal()">
               Aceptar ✓
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL ENTRADA Y RECEPCIÓN DE MERCANCÍA / STOCK -->
+    <div class="modal fade" id="modalEntradaMercancia" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-success text-white py-3">
+            <h5 class="modal-title fw-bold">📥 Recepción de Mercancía y Entrada de Stock</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            <!-- Ficha informativa superior -->
+            <div class="p-3 mb-3 rounded-3 shadow-sm bg-white border border-success" style="border-left: 5px solid #10b981 !important;">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  <h6 class="fw-bold text-dark mb-0">📦 Carga Rápida de Inventario</h6>
+                  <small class="text-muted">Ingrese la mercancía recibida (camión/matadero/proveedor). Se sumará automáticamente a las existencias físicas y a la nube.</small>
+                </div>
+                <span class="badge bg-success fs-6" id="badgeUsuarioReceptor">Cajero activo</span>
+              </div>
+            </div>
+
+            <!-- Datos de control de la recepción -->
+            <div class="row g-2 mb-3">
+              <div class="col-md-7">
+                <label for="entradaProveedorInput" class="form-label small fw-bold mb-1">Proveedor / Origen del Despacho (Opcional):</label>
+                <input type="text" id="entradaProveedorInput" class="form-control form-control-sm fw-bold text-uppercase" placeholder="Ej: MATADERO INDUSTRIAL / DISTRIBUIDORA...">
+              </div>
+              <div class="col-md-5">
+                <label for="entradaNroGuiaInput" class="form-label small fw-bold mb-1">N° Guía / Factura de Compra (Opcional):</label>
+                <input type="text" id="entradaNroGuiaInput" class="form-control form-control-sm fw-bold text-uppercase num-legible" placeholder="Ej: GUIA-00845">
+              </div>
+            </div>
+
+            <!-- Fila selectora interactiva de producto y cantidad a ingresar -->
+            <div class="p-3 bg-white border rounded-3 mb-3 shadow-sm">
+              <h6 class="fw-bold text-success border-bottom pb-2 mb-2">➕ Añadir Producto al Lote de Entrada</h6>
+              <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                  <label for="selectEntradaProducto" class="form-label small fw-bold mb-1">Seleccionar Corte / Producto *:</label>
+                  <select id="selectEntradaProducto" class="form-select form-select-sm fw-bold" onchange="actualizarAyudaEntradaProducto(this)">
+                    <option value="" disabled selected>-- Elija el producto --</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label for="inputEntradaCantidad" class="form-label small fw-bold mb-1" id="lblEntradaUnidad">Cantidad a Ingresar *:</label>
+                  <input type="number" step="0.001" min="0.001" id="inputEntradaCantidad" class="form-control form-control-sm text-center fw-bold fs-6 num-legible" placeholder="0.000">
+                </div>
+                <div class="col-md-3">
+                  <button type="button" class="btn btn-sm btn-dark w-100 fw-bold py-2 rounded-pill shadow-sm" onclick="agregarProductoALoteEntrada()">
+                    ➕ Añadir
+                  </button>
+                </div>
+              </div>
+              <div class="form-text text-muted small mt-2" id="ayudaStockActualProd">Seleccione un producto para verificar su existencia actual.</div>
+            </div>
+
+            <!-- Tabla del lote de recepción -->
+            <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 240px; overflow-y: auto;">
+              <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
+                  <tr>
+                    <th>Producto</th>
+                    <th style="width: 110px;">Stock Actual</th>
+                    <th style="width: 120px;">Cant. Recibida</th>
+                    <th style="width: 120px;">Stock Proyectado</th>
+                    <th style="width: 50px;">Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaLoteEntradaMercancia" class="small">
+                  <tr>
+                    <td colspan="5" class="text-center text-muted py-4">No hay productos agregados a este lote de recepción.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div id="errorModalEntradaMercancia" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer bg-white justify-content-between p-3 border-top">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnProcesarEntradaMercancia" class="btn btn-success fw-bold px-4 rounded-pill shadow" onclick="ejecutarIngresoLoteMercancia()" disabled>
+              📥 Confirmar e Ingresar al Inventario
             </button>
           </div>
         </div>
