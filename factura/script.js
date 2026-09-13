@@ -5028,107 +5028,262 @@ window.guardarRecetaComboModificada = guardarRecetaComboModificada;
 // MÓDULO: ENTRADA Y RECEPCIÓN RÁPIDA DE MERCANCÍA / CARGA DE STOCK
 // ==========================================================================
 let loteEntradaMercancia = [];
+let fotoFacturaBase64 = null;
 
 function abrirModalEntradaMercancia() {
   loteEntradaMercancia = [];
+  fotoFacturaBase64 = null;
 
   const inpProv = document.getElementById('entradaProveedorInput');
   const inpGuia = document.getElementById('entradaNroGuiaInput');
+  const inpMontoTot = document.getElementById('entradaMontoTotalFacturaInput');
+  const inpFoto = document.getElementById('entradaFotoFacturaInput');
+  const previewImg = document.getElementById('previewFotoFacturaImg');
+  const previewCont = document.getElementById('contenedorPreviewFotoFactura');
   const inpCant = document.getElementById('inputEntradaCantidad');
-  const selProd = document.getElementById('selectEntradaProducto');
+  const inpCosto = document.getElementById('inputEntradaCostoUnitario');
+  const selCat = document.getElementById('selectFiltroCatEntrada');
+  const inpBuscar = document.getElementById('inputBuscarProdEntrada');
   const badgeUser = document.getElementById('badgeUsuarioReceptor');
   const errDiv = document.getElementById('errorModalEntradaMercancia');
   const ayudaStock = document.getElementById('ayudaStockActualProd');
+  const ayudaPrecioVenta = document.getElementById('ayudaPrecioVentaActualProd');
 
   if (inpProv) inpProv.value = "";
   if (inpGuia) inpGuia.value = "";
+  if (inpMontoTot) inpMontoTot.value = "";
+  if (inpFoto) inpFoto.value = "";
+  if (previewImg) previewImg.src = "";
+  if (previewCont) previewCont.classList.add('hidden');
   if (inpCant) inpCant.value = "";
+  if (inpCosto) inpCosto.value = "";
+  if (selCat) selCat.value = "TODAS";
+  if (inpBuscar) inpBuscar.value = "";
   if (errDiv) errDiv.classList.add('hidden');
   if (badgeUser) badgeUser.textContent = `Receptor: ${obtenerUsuarioActivo().toUpperCase()}`;
   if (ayudaStock) ayudaStock.textContent = "Seleccione un producto para verificar su existencia actual.";
+  if (ayudaPrecioVenta) ayudaPrecioVenta.textContent = "";
 
-  // Poblar selector con cortes y productos de inventario (excluyendo la categoría COMBOS)
-  if (selProd) {
-    let prodsDisponibles = [];
-    if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
-      prodsDisponibles = listaFlatProductosCodigos.filter(p => (p.categoria || p.categoriaOriginal) !== 'COMBOS');
-    } else if (cacheCategoriasFactura) {
-      cacheCategoriasFactura.forEach(c => {
-        if (c.nombre !== 'COMBOS') {
-          c.productos.forEach(p => {
-            prodsDisponibles.push({
-              nombre: p[0],
-              categoria: c.nombre,
-              unidad: p[5] || 'gramos',
-              codigoPLU: p[7] || '',
-              stock: p[10] || 0
-            });
-          });
-        }
-      });
-    }
-
-    // Ordenar alfabéticamente
-    prodsDisponibles.sort((a, b) => a.nombre.localeCompare(b.nombre));
-
-    let optionsHtml = '<option value="" disabled selected>-- Elija el producto --</option>';
-    const vistos = new Set();
-
-    prodsDisponibles.forEach(p => {
-      const nom = String(p.nombre).trim().toUpperCase();
-      if (!vistos.has(nom)) {
-        vistos.add(nom);
-        const pluTag = p.codigoPLU ? `[${p.codigoPLU}] ` : '';
-        const uniLabel = (p.unidad === 'unidades') ? 'uds' : 'Kg';
-        optionsHtml += `<option value="${nom}" data-unidad="${p.unidad}">${pluTag}${nom} (${p.categoria} - ${uniLabel})</option>`;
-      }
-    });
-
-    selProd.innerHTML = optionsHtml;
-  }
-
+  filtrarProductosEntrada();
   renderizarTablaLoteEntrada();
+  reconciliarTotalesFacturaEntrada();
+
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).show();
 }
 window.abrirModalEntradaMercancia = abrirModalEntradaMercancia;
 
+function previsualizarFotoFacturaEntrada(fileInput) {
+  const previewCont = document.getElementById('contenedorPreviewFotoFactura');
+  const previewImg = document.getElementById('previewFotoFacturaImg');
+
+  if (fileInput.files && fileInput.files[0]) {
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+      fotoFacturaBase64 = e.target.result;
+      if (previewImg) previewImg.src = fotoFacturaBase64;
+      if (previewCont) previewCont.classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+  }
+}
+window.previsualizarFotoFacturaEntrada = previsualizarFotoFacturaEntrada;
+
+function limpiarFotoFacturaEntrada() {
+  fotoFacturaBase64 = null;
+  const inpFoto = document.getElementById('entradaFotoFacturaInput');
+  const previewCont = document.getElementById('contenedorPreviewFotoFactura');
+  const previewImg = document.getElementById('previewFotoFacturaImg');
+
+  if (inpFoto) inpFoto.value = "";
+  if (previewImg) previewImg.src = "";
+  if (previewCont) previewCont.classList.add('hidden');
+}
+window.limpiarFotoFacturaEntrada = limpiarFotoFacturaEntrada;
+
+function ampliarFotoFacturaEntrada(imgSrc) {
+  if (!imgSrc) return;
+  const w = window.open("");
+  w.document.write(`
+    <html style="background:#0f172a; margin:0; height:100%; display:flex; justify-content:center; align-items:center;">
+      <head><title>Factura / Guía Adjunta</title></head>
+      <body style="margin:0; text-align:center;">
+        <img src="${imgSrc}" style="max-width:95vw; max-height:95vh; object-fit:contain; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+      </body>
+    </html>
+  `);
+}
+window.ampliarFotoFacturaEntrada = ampliarFotoFacturaEntrada;
+
+function filtrarProductosEntrada() {
+  const selCat = document.getElementById('selectFiltroCatEntrada');
+  const inpBuscar = document.getElementById('inputBuscarProdEntrada');
+  const selProd = document.getElementById('selectEntradaProducto');
+  if (!selProd) return;
+
+  const catFiltro = selCat ? selCat.value : "TODAS";
+  const textoBuscar = (inpBuscar ? inpBuscar.value : "").trim().toLowerCase();
+
+  let prodsDisponibles = [];
+  if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+    prodsDisponibles = listaFlatProductosCodigos.filter(p => (p.categoria || p.categoriaOriginal) !== 'COMBOS');
+  } else if (cacheCategoriasFactura) {
+    cacheCategoriasFactura.forEach(c => {
+      if (c.nombre !== 'COMBOS') {
+        c.productos.forEach(p => {
+          prodsDisponibles.push({
+            nombre: p[0],
+            categoria: c.nombre,
+            precio: parseFloat(p[1]) || 0,
+            unidad: p[5] || 'gramos',
+            codigoPLU: p[7] || '',
+            stock: p[10] || 0
+          });
+        });
+      }
+    });
+  }
+
+  // Filtrado compuesto: Categoría + Texto predictivo
+  let filtrados = prodsDisponibles.filter(p => {
+    const coincideCat = (catFiltro === "TODAS") || (p.categoria === catFiltro);
+    if (!coincideCat) return false;
+
+    if (!textoBuscar) return true;
+    const nom = String(p.nombre || "").toLowerCase();
+    const plu = String(p.codigoPLU || "").toLowerCase();
+    return nom.includes(textoBuscar) || plu.includes(textoBuscar);
+  });
+
+  filtrados.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  let optionsHtml = '<option value="" disabled selected>-- Elija el producto --</option>';
+  const vistos = new Set();
+
+  filtrados.forEach(p => {
+    const nom = String(p.nombre).trim().toUpperCase();
+    if (!vistos.has(nom)) {
+      vistos.add(nom);
+      const pluTag = p.codigoPLU ? `[${p.codigoPLU}] ` : '';
+      const uniLabel = (p.unidad === 'unidades') ? 'uds' : 'Kg';
+      optionsHtml += `<option value="${nom}" data-unidad="${p.unidad}">${pluTag}${nom} (${p.categoria} - ${uniLabel})</option>`;
+    }
+  });
+
+  selProd.innerHTML = optionsHtml;
+  actualizarAyudaEntradaProducto(selProd);
+}
+window.filtrarProductosEntrada = filtrarProductosEntrada;
+
 function actualizarAyudaEntradaProducto(selectElem) {
-  const prodNom = selectElem.value;
+  const prodNom = selectElem ? selectElem.value : "";
   const prodData = buscarProductoEnCache(prodNom);
   const lblUnidad = document.getElementById('lblEntradaUnidad');
+  const lblCosto = document.getElementById('lblEntradaCostoUnitario');
   const inputCant = document.getElementById('inputEntradaCantidad');
+  const inputCosto = document.getElementById('inputEntradaCostoUnitario');
   const ayudaStock = document.getElementById('ayudaStockActualProd');
+  const ayudaPrecioVenta = document.getElementById('ayudaPrecioVentaActualProd');
 
-  if (!prodData) return;
+  if (!prodData) {
+    if (ayudaStock) ayudaStock.textContent = "Seleccione un producto para verificar su existencia actual.";
+    if (ayudaPrecioVenta) ayudaPrecioVenta.textContent = "";
+    return;
+  }
 
   const unidad = prodData[5] || 'gramos';
   const stockActual = parseFloat(prodData[10]) || 0;
+  const precioVenta = parseFloat(prodData[1]) || 0;
   const unidadTxt = (unidad === 'unidades') ? 'uds' : 'Kg';
 
   if (lblUnidad) {
     lblUnidad.textContent = `Cantidad a Ingresar (${unidadTxt}) *:`;
   }
+  if (lblCosto) {
+    lblCosto.textContent = `Precio Unit. Factura ($/${unidadTxt}) *:`;
+  }
   if (inputCant) {
     inputCant.step = (unidad === 'unidades') ? '1' : '0.001';
     inputCant.placeholder = (unidad === 'unidades') ? 'Ej: 20' : 'Ej: 150.500';
   }
+  if (inputCosto) {
+    inputCosto.placeholder = (unidad === 'unidades') ? '0.00 / ud' : '0.00 / Kg';
+  }
   if (ayudaStock) {
     ayudaStock.innerHTML = `Stock actual de <strong>${prodNom}</strong>: <span class="fw-bold text-success">${stockActual} ${unidadTxt}</span>.`;
+  }
+  if (ayudaPrecioVenta) {
+    ayudaPrecioVenta.innerHTML = `Precio Venta Público: <span class="text-danger fw-bold">$${precioVenta.toFixed(2)}/${unidadTxt}</span>`;
   }
 }
 window.actualizarAyudaEntradaProducto = actualizarAyudaEntradaProducto;
 
+function reconciliarTotalesFacturaEntrada() {
+  const inpMontoTot = document.getElementById('entradaMontoTotalFacturaInput');
+  const lblMontoFact = document.getElementById('lblResumenMontoFactura');
+  const lblTotalLote = document.getElementById('lblResumenTotalLote');
+  const lblDiferencia = document.getElementById('lblResumenDiferencia');
+
+  const montoDeclarado = parseFloat(inpMontoTot ? inpMontoTot.value : 0) || 0;
+  let sumaLote = 0;
+  loteEntradaMercancia.forEach(it => {
+    sumaLote += parseFloat(it.subtotal) || 0;
+  });
+
+  const diferencia = montoDeclarado - sumaLote;
+  const difAbs = Math.abs(diferencia);
+
+  if (lblMontoFact) lblMontoFact.textContent = `$${montoDeclarado.toFixed(2)}`;
+  if (lblTotalLote) lblTotalLote.textContent = `$${sumaLote.toFixed(2)}`;
+
+  if (lblDiferencia) {
+    if (montoDeclarado === 0 && sumaLote === 0) {
+      lblDiferencia.textContent = "$0.00";
+      lblDiferencia.className = "fs-6 ms-1 num-legible text-dark";
+    } else if (difAbs < 0.01) {
+      lblDiferencia.textContent = "✔ Cuadrado ($0.00)";
+      lblDiferencia.className = "fs-6 ms-1 num-legible text-success fw-bold";
+    } else if (diferencia > 0) {
+      lblDiferencia.textContent = `Falta cargar: $${difAbs.toFixed(2)}`;
+      lblDiferencia.className = "fs-6 ms-1 num-legible text-warning fw-bold";
+    } else {
+      lblDiferencia.textContent = `Exceso en lote: -$${difAbs.toFixed(2)}`;
+      lblDiferencia.className = "fs-6 ms-1 num-legible text-danger fw-bold";
+    }
+  }
+}
+window.reconciliarTotalesFacturaEntrada = reconciliarTotalesFacturaEntrada;
+
 function agregarProductoALoteEntrada() {
   const selProd = document.getElementById('selectEntradaProducto');
   const inputCant = document.getElementById('inputEntradaCantidad');
+  const inputCosto = document.getElementById('inputEntradaCostoUnitario');
   const errDiv = document.getElementById('errorModalEntradaMercancia');
 
   const prodNom = selProd ? selProd.value : "";
   const cantRecibida = parseFloat(inputCant ? inputCant.value : 0);
+  const costoUnitario = parseFloat(inputCosto ? inputCosto.value : 0);
 
-  if (!prodNom || isNaN(cantRecibida) || cantRecibida <= 0) {
+  if (!prodNom) {
     if (errDiv) {
-      errDiv.textContent = "Seleccione un producto e ingrese una cantidad mayor a 0.";
+      errDiv.textContent = "Seleccione un producto a ingresar.";
+      errDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (isNaN(cantRecibida) || cantRecibida <= 0) {
+    if (errDiv) {
+      errDiv.textContent = "Ingrese una cantidad recibida mayor a cero.";
+      errDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (isNaN(costoUnitario) || costoUnitario <= 0) {
+    if (errDiv) {
+      errDiv.textContent = "Ingrese el precio unitario del producto según factura mayor a cero.";
       errDiv.classList.remove('hidden');
     }
     return;
@@ -5139,11 +5294,14 @@ function agregarProductoALoteEntrada() {
   const prodData = buscarProductoEnCache(prodNom);
   const unidad = prodData ? (prodData[5] || 'gramos') : 'gramos';
   const stockActual = prodData ? (parseFloat(prodData[10]) || 0) : 0;
+  const subtotal = cantRecibida * costoUnitario;
 
-  // Si ya estaba en el lote, sumarle la cantidad recibida
+  // Si ya existía en el lote, actualizar cantidad, costo y subtotal
   const existenteIndex = loteEntradaMercancia.findIndex(it => it.nombre === prodNom);
   if (existenteIndex !== -1) {
     loteEntradaMercancia[existenteIndex].cantRecibida += cantRecibida;
+    loteEntradaMercancia[existenteIndex].costoUnitario = costoUnitario;
+    loteEntradaMercancia[existenteIndex].subtotal = loteEntradaMercancia[existenteIndex].cantRecibida * costoUnitario;
     loteEntradaMercancia[existenteIndex].stockProyectado = stockActual + loteEntradaMercancia[existenteIndex].cantRecibida;
   } else {
     loteEntradaMercancia.push({
@@ -5151,13 +5309,18 @@ function agregarProductoALoteEntrada() {
       unidad: unidad,
       stockActual: stockActual,
       cantRecibida: cantRecibida,
+      costoUnitario: costoUnitario,
+      subtotal: subtotal,
       stockProyectado: stockActual + cantRecibida
     });
   }
 
-  // Limpiar campos para el siguiente producto
+  // Limpiar campos de captura de producto para el siguiente corte
   if (inputCant) inputCant.value = "";
+  if (inputCosto) inputCosto.value = "";
+
   renderizarTablaLoteEntrada();
+  reconciliarTotalesFacturaEntrada();
 
   if (selProd) selProd.focus();
 }
@@ -5167,6 +5330,7 @@ function eliminarItemLoteEntrada(index) {
   if (index >= 0 && index < loteEntradaMercancia.length) {
     loteEntradaMercancia.splice(index, 1);
     renderizarTablaLoteEntrada();
+    reconciliarTotalesFacturaEntrada();
   }
 }
 window.eliminarItemLoteEntrada = eliminarItemLoteEntrada;
@@ -5177,7 +5341,7 @@ function renderizarTablaLoteEntrada() {
   if (!tbody) return;
 
   if (loteEntradaMercancia.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">No hay productos agregados a este lote de recepción.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No hay productos agregados a este lote de recepción.</td></tr>`;
     if (btnProcesar) btnProcesar.disabled = true;
     return;
   }
@@ -5194,6 +5358,8 @@ function renderizarTablaLoteEntrada() {
         <td class="fw-bold text-dark">${it.nombre}</td>
         <td class="text-center small num-legible text-muted">${stockActualTxt} ${uniLabel}</td>
         <td class="text-center fw-bold text-success num-legible">+${cantTxt} ${uniLabel}</td>
+        <td class="text-end fw-bold text-primary num-legible">$${it.costoUnitario.toFixed(2)}</td>
+        <td class="text-end fw-bold text-dark num-legible">$${it.subtotal.toFixed(2)}</td>
         <td class="text-center fw-bold text-primary num-legible">${stockProyTxt} ${uniLabel}</td>
         <td class="text-center">
           <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarItemLoteEntrada(${idx})" title="Quitar">✕</button>
@@ -5206,16 +5372,63 @@ function renderizarTablaLoteEntrada() {
 }
 
 async function ejecutarIngresoLoteMercancia() {
-  if (!loteEntradaMercancia || loteEntradaMercancia.length === 0) return;
-
   const btn = document.getElementById('btnProcesarEntradaMercancia');
   const errorDiv = document.getElementById('errorModalEntradaMercancia');
-  const proveedor = document.getElementById('entradaProveedorInput')?.value.trim().toUpperCase() || "RECEPCIÓN GENERAL";
-  const nroGuia = document.getElementById('entradaNroGuiaInput')?.value.trim().toUpperCase() || "S/N";
+  const proveedor = document.getElementById('entradaProveedorInput')?.value.trim().toUpperCase();
+  const nroGuia = document.getElementById('entradaNroGuiaInput')?.value.trim().toUpperCase();
+  const montoTotalFactura = parseFloat(document.getElementById('entradaMontoTotalFacturaInput')?.value);
+
+  // 1. VALIDACIONES DE CAMPOS OBLIGATORIOS
+  if (!proveedor) {
+    if (errorDiv) {
+      errorDiv.textContent = "El campo 'Proveedor / Origen del Despacho' es obligatorio.";
+      errorDiv.classList.remove('hidden');
+    }
+    document.getElementById('entradaProveedorInput')?.focus();
+    return;
+  }
+
+  if (!nroGuia) {
+    if (errorDiv) {
+      errorDiv.textContent = "El campo 'N.° Guía / Factura de compra' es obligatorio.";
+      errorDiv.classList.remove('hidden');
+    }
+    document.getElementById('entradaNroGuiaInput')?.focus();
+    return;
+  }
+
+  if (isNaN(montoTotalFactura) || montoTotalFactura <= 0) {
+    if (errorDiv) {
+      errorDiv.textContent = "El campo 'Monto Total de la Factura ($)' es obligatorio y debe ser mayor a 0.";
+      errorDiv.classList.remove('hidden');
+    }
+    document.getElementById('entradaMontoTotalFacturaInput')?.focus();
+    return;
+  }
+
+  if (!loteEntradaMercancia || loteEntradaMercancia.length === 0) {
+    if (errorDiv) {
+      errorDiv.textContent = "Debe añadir al menos un producto al lote de recepción.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  // 2. CONCILIACIÓN DEL CUADRE DEL LOTE
+  let sumaLote = 0;
+  loteEntradaMercancia.forEach(it => { sumaLote += parseFloat(it.subtotal) || 0; });
+  const dif = Math.abs(montoTotalFactura - sumaLote);
+
+  if (dif > 0.05) {
+    const continuar = confirm(`⚠️ AVISO DE DESCUADRE EN FACTURA:\nEl Monto Total Declarado en la Factura ($${montoTotalFactura.toFixed(2)}) difiere de la sumatoria calculada del lote ($${sumaLote.toFixed(2)}) por una diferencia de $${dif.toFixed(2)}.\n\n¿Desea confirmar y procesar el ingreso de todas formas?`);
+    if (!continuar) return;
+  }
+
+  if (errorDiv) errorDiv.classList.add('hidden');
 
   if (btn) {
     btn.disabled = true;
-    btn.textContent = "Ingresando a inventario...";
+    btn.textContent = "Ingresando existencias a inventario...";
   }
 
   try {
@@ -5233,17 +5446,17 @@ async function ejecutarIngresoLoteMercancia() {
         let nuevoStock = stockPrevio + cantSumar;
         let stockFinal = (item.unidad === 'unidades') ? Math.round(nuevoStock) : parseFloat(nuevoStock.toFixed(3));
 
-        // 1. Memoria activa de catálogo
+        // Actualizar en memoria activa
         prodData[10] = stockFinal;
         stockMap[prodNom] = stockFinal;
 
-        // 2. Memoria en lista flat de códigos si existe
+        // Actualizar en lista flat de productos si existe
         if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
           let flatItem = listaFlatProductosCodigos.find(p => p.nombre === prodNom || p.nombreOriginal === prodNom);
           if (flatItem) flatItem.stock = stockFinal;
         }
 
-        // 3. IndexedDB store 'inventario' (0ms)
+        // Actualizar en IndexedDB store 'inventario' a 0 ms
         try {
           const invItem = await dbGet("inventario", prodNom);
           if (invItem) {
@@ -5253,7 +5466,7 @@ async function ejecutarIngresoLoteMercancia() {
           }
         } catch (eDB) {}
 
-        // 4. Supabase cloud sync
+        // Sincronizar en Supabase
         if (navigator.onLine && supabaseClient) {
           await supabaseClient
             .from('productos')
@@ -5265,7 +5478,7 @@ async function ejecutarIngresoLoteMercancia() {
 
     localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
 
-    // Refrescar catálogo visual
+    // Refrescar catálogo visual en tiempo real
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     if (typeof prepararListaProductosCodigos === "function") {
       prepararListaProductosCodigos();
@@ -5277,8 +5490,10 @@ async function ejecutarIngresoLoteMercancia() {
     }
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).hide();
-    mostrarAvisoFactura(`🎉 ¡Éxito! Se cargaron ${loteEntradaMercancia.length} producto(s) al inventario (${proveedor} - Guía: ${nroGuia}).`, true, 6000);
+    mostrarAvisoFactura(`🎉 ¡Éxito! Lote procesado: ${loteEntradaMercancia.length} producto(s) sumados al inventario (${proveedor} - Guía: ${nroGuia} - Total: $${sumaLote.toFixed(2)}).`, true, 7000);
+
     loteEntradaMercancia = [];
+    fotoFacturaBase64 = null;
 
   } catch (err) {
     if (btn) {
