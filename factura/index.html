@@ -1198,25 +1198,32 @@
           </div>
           <div class="modal-body p-3 p-md-4 bg-light">
             
-            <!-- SECCIÓN 1: DATOS OBLIGATORIOS DE LA FACTURA Y FOTOGRAFÍA -->
+            <!-- SECCIÓN 1: DATOS OBLIGATORIOS DE LA FACTURA, ESTATUS Y FOTOGRAFÍA -->
             <div class="p-3 mb-3 rounded-3 shadow-sm bg-white border border-success" style="border-left: 5px solid #10b981 !important;">
-              <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+              <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                 <h6 class="fw-bold text-dark mb-0">📄 Datos de la Factura / Guía de Compra</h6>
                 <span class="badge bg-success fs-6" id="badgeUsuarioReceptor">Cajero activo</span>
               </div>
 
               <div class="row g-2 mb-2">
-                <div class="col-md-5">
+                <div class="col-md-4">
                   <label for="entradaProveedorInput" class="form-label small fw-bold mb-1">Proveedor / Origen del Despacho *:</label>
                   <input type="text" id="entradaProveedorInput" class="form-control form-control-sm fw-bold text-uppercase" placeholder="Ej: MATADERO INDUSTRIAL / DISTRIBUIDORA..." required>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                   <label for="entradaNroGuiaInput" class="form-label small fw-bold mb-1">N.° Guía / Factura de Compra *:</label>
                   <input type="text" id="entradaNroGuiaInput" class="form-control form-control-sm fw-bold text-uppercase num-legible" placeholder="Ej: FAC-00845 / GUIA-102" required>
                 </div>
                 <div class="col-md-3">
-                  <label for="entradaMontoTotalFacturaInput" class="form-label small fw-bold mb-1">Monto Total de la Factura ($) *:</label>
+                  <label for="entradaMontoTotalFacturaInput" class="form-label small fw-bold mb-1">Monto Total Factura ($) *:</label>
                   <input type="number" step="0.01" min="0.01" id="entradaMontoTotalFacturaInput" class="form-control form-control-sm fw-bold text-success text-center fs-6 num-legible" placeholder="0.00" oninput="reconciliarTotalesFacturaEntrada()" required>
+                </div>
+                <div class="col-md-2">
+                  <label for="entradaEstatusFacturaSelect" class="form-label small fw-bold mb-1 text-primary">Estatus Factura *:</label>
+                  <select id="entradaEstatusFacturaSelect" class="form-select form-select-sm fw-bold">
+                    <option value="PAGO" selected>🟢 Pago</option>
+                    <option value="POR PAGAR">⏳ Por Pagar</option>
+                  </select>
                 </div>
               </div>
 
@@ -1228,7 +1235,7 @@
                     <input type="file" id="entradaFotoFacturaInput" class="form-control form-control-sm" accept="image/*" capture="environment" onchange="previsualizarFotoFacturaEntrada(this)">
                     <button type="button" class="btn btn-outline-danger btn-sm fw-bold" onclick="limpiarFotoFacturaEntrada()" title="Quitar foto">✕</button>
                   </div>
-                  <div class="form-text text-muted" style="font-size: 0.72rem;">Permite tomar foto en directo desde el teléfono/tablet o adjuntar archivo de imagen.</div>
+                  <div class="form-text text-muted" style="font-size: 0.72rem;">Permite capturar en directo con la cámara del dispositivo móvil o adjuntar imagen.</div>
                 </div>
                 <div class="col-md-6 text-center text-md-end">
                   <div id="contenedorPreviewFotoFactura" class="d-inline-flex align-items-center gap-2 p-1 bg-light border rounded hidden">
@@ -1239,44 +1246,45 @@
               </div>
             </div>
 
-            <!-- SECCIÓN 2: FILTRO POR CATEGORÍA, BÚSQUEDA Y COSTEO DEL PRODUCTO -->
+            <!-- SECCIÓN 2: SELECTOR UNIFICADO CON CATEGORÍA INTEGRADA, BÚSQUEDA EN TIEMPO REAL Y COSTEO -->
             <div class="p-3 bg-white border rounded-3 mb-3 shadow-sm">
-              <h6 class="fw-bold text-success border-bottom pb-2 mb-2">➕ Selección de Productos y Costo según Factura</h6>
+              <h6 class="fw-bold text-success border-bottom pb-2 mb-2">➕ Selección y Costeo de Productos</h6>
               
-              <!-- Filtros superiores: Categoría + Búsqueda por Nombre -->
-              <div class="row g-2 mb-2">
-                <div class="col-md-4">
-                  <label for="selectFiltroCatEntrada" class="form-label small fw-bold mb-1">Filtrar por Categoría:</label>
-                  <select id="selectFiltroCatEntrada" class="form-select form-select-sm fw-bold" onchange="filtrarProductosEntrada()">
-                    <option value="TODAS" selected>-- Todas las Categorías --</option>
-                    <option value="CARNES">🥩 CARNES</option>
-                    <option value="POLLO">🍗 POLLO</option>
-                    <option value="QUESOS Y EMBUTIDOS">🧀 QUESOS Y EMBUTIDOS</option>
-                    <option value="VIVERES">🛒 VIVERES</option>
-                  </select>
-                </div>
-                <div class="col-md-8">
-                  <label for="inputBuscarProdEntrada" class="form-label small fw-bold mb-1">Buscar por Nombre o Código PLU:</label>
-                  <input type="text" id="inputBuscarProdEntrada" class="form-control form-control-sm fw-bold" placeholder="🔍 Escriba para filtrar automáticamente (ej: bistec, pechuga, 0026)..." oninput="filtrarProductosEntrada()">
-                </div>
-              </div>
-
-              <!-- Selección de Producto, Cantidad y Precio Unitario según Factura -->
               <div class="row g-2 align-items-end pt-1">
-                <div class="col-md-5">
-                  <label for="selectEntradaProducto" class="form-label small fw-bold mb-1">Producto a Ingresar *:</label>
-                  <select id="selectEntradaProducto" class="form-select form-select-sm fw-bold" onchange="actualizarAyudaEntradaProducto(this)">
-                    <option value="" disabled selected>-- Elija el producto --</option>
-                  </select>
+                <!-- Control Unificado de Categoría y Buscador Predictivo -->
+                <div class="col-md-6">
+                  <label class="form-label small fw-bold mb-1">Categoría y Producto a Ingresar *:</label>
+                  <div class="input-group input-group-sm">
+                    <select id="selectFiltroCatEntrada" class="form-select form-select-sm fw-bold bg-light" style="max-width: 145px;" onchange="filtrarMenuDesplegableProductos()">
+                      <option value="TODAS" selected>Categoría...</option>
+                      <option value="CARNES">🥩 CARNES</option>
+                      <option value="POLLO">🍗 POLLO</option>
+                      <option value="QUESOS Y EMBUTIDOS">🧀 CHARCUTERÍA</option>
+                      <option value="VIVERES">🛒 VÍVERES</option>
+                    </select>
+                    
+                    <div class="position-relative flex-grow-1">
+                      <input type="text" id="inputBuscarYSeleccionarProd" class="form-control form-control-sm fw-bold" placeholder="🔍 Escriba o seleccione producto..." autocomplete="off" onfocus="abrirListaDesplegableProductos()" oninput="filtrarMenuDesplegableProductos()">
+                      <input type="hidden" id="selectEntradaProducto" value="">
+                      
+                      <!-- Menú flotante interactivo con filtrado predictivo en vivo -->
+                      <div id="listaDesplegableProductosEntrada" class="dropdown-menu shadow-lg w-100 p-1" style="max-height: 250px; overflow-y: auto; display: none; position: absolute; z-index: 1070; top: 100%; left: 0;">
+                        <!-- Opciones generadas en vivo -->
+                      </div>
+                    </div>
+                  </div>
                 </div>
+
                 <div class="col-md-2">
                   <label for="inputEntradaCantidad" class="form-label small fw-bold mb-1" id="lblEntradaUnidad">Cantidad (Kg/Uds) *:</label>
                   <input type="number" step="0.001" min="0.001" id="inputEntradaCantidad" class="form-control form-control-sm text-center fw-bold fs-6 num-legible" placeholder="0.000">
                 </div>
-                <div class="col-md-3">
-                  <label for="inputEntradaCostoUnitario" class="form-label small fw-bold mb-1" id="lblEntradaCostoUnitario">Precio Unit. Factura ($) *:</label>
+                
+                <div class="col-md-2">
+                  <label for="inputEntradaCostoUnitario" class="form-label small fw-bold mb-1" id="lblEntradaCostoUnitario">Precio Unit. Fact. ($) *:</label>
                   <input type="number" step="0.01" min="0.01" id="inputEntradaCostoUnitario" class="form-control form-control-sm text-center fw-bold fs-6 text-primary num-legible" placeholder="0.00">
                 </div>
+                
                 <div class="col-md-2">
                   <button type="button" class="btn btn-sm btn-dark w-100 fw-bold py-2 rounded-pill shadow-sm" onclick="agregarProductoALoteEntrada()">
                     ➕ Añadir
