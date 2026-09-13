@@ -114,7 +114,7 @@ window.obtenerSerialFiscalActivo = obtenerSerialFiscalActivo;
 // ==========================================================================
 function abrirDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("MundocarnesPOS_DB", 4);
+    const request = indexedDB.open("MundocarnesPOS_DB", 5);
     request.onupgradeneeded = (e) => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains("clientes")) {
@@ -140,6 +140,13 @@ function abrirDB() {
       }
       if (!db.objectStoreNames.contains("config")) {
         db.createObjectStore("config", { keyPath: "key" });
+      }
+      // FASE 2: Stores dedicados para inventario físico y recetas de combos
+      if (!db.objectStoreNames.contains("inventario")) {
+        db.createObjectStore("inventario", { keyPath: "nombre" });
+      }
+      if (!db.objectStoreNames.contains("combo_recetas")) {
+        db.createObjectStore("combo_recetas", { keyPath: "id" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -1849,16 +1856,30 @@ async function sembrarCatalogoInicialEnSupabase() {
 // Memoria activa de recetas de combos
 let cacheComboRecetas = [];
 
-// Cargar recetas de combos desde Supabase con persistencia offline
+// Cargar recetas de combos desde IndexedDB (0ms) con sincronización en background desde Supabase
 async function cargarRecetasCombos() {
+  // 1. Carga inmediata a 0ms desde IndexedDB local
+  try {
+    const recetasDB = await dbGetAll("combo_recetas");
+    if (recetasDB && recetasDB.length > 0) {
+      cacheComboRecetas = recetasDB;
+    }
+  } catch (e) {}
+
+  // 2. Sincronización en segundo plano con Supabase si hay conexión
   try {
     if (navigator.onLine && supabaseClient) {
       const { data, error } = await supabaseClient
         .from('combo_recetas')
         .select('*');
-      if (!error && data) {
+      if (!error && data && data.length > 0) {
         cacheComboRecetas = data;
         localStorage.setItem("pos_cache_combo_recetas", JSON.stringify(data));
+        // Persistir cada receta en IndexedDB de forma atómica
+        for (let r of data) {
+          const idVal = r.id || `cr_${r.combo_nombre}_${r.producto_componente}`.replace(/\s+/g, '_');
+          await dbPut("combo_recetas", { ...r, id: idVal });
+        }
         return;
       }
     }
@@ -1866,19 +1887,22 @@ async function cargarRecetasCombos() {
     console.warn("Aviso al cargar recetas de combos:", e);
   }
 
-  const guardado = localStorage.getItem("pos_cache_combo_recetas");
-  if (guardado) {
-    try {
-      cacheComboRecetas = JSON.parse(guardado) || [];
-    } catch (e) {
-      cacheComboRecetas = [];
+  // 3. Fallback de contingencia a localStorage
+  if (cacheComboRecetas.length === 0) {
+    const guardado = localStorage.getItem("pos_cache_combo_recetas");
+    if (guardado) {
+      try {
+        cacheComboRecetas = JSON.parse(guardado) || [];
+      } catch (e) {
+        cacheComboRecetas = [];
+      }
     }
   }
 }
 
-// Carga inteligente de alta velocidad desde Supabase con fallback local
+// Carga inteligente de alta velocidad desde Supabase con fallback local e IndexedDB a 0ms
 async function cargarCatalogoFacturacion() {
-  // Cargar en paralelo las recetas de combos
+  // Cargar en paralelo las recetas de combos desde IndexedDB / Supabase
   cargarRecetasCombos();
 
   try {
@@ -1891,6 +1915,26 @@ async function cargarCatalogoFacturacion() {
       if (!error && data && data.length > 0) {
         const catalogo = reconstruirCatalogoDesdeSupabase(data);
         renderizarCatalogoFacturacion(catalogo);
+        // Persistir catálogo completo en IndexedDB 'inventario' en background
+        for (let p of data) {
+          await dbPut("inventario", {
+            nombre: p.nombre,
+            id: p.id,
+            codigo_plu: p.codigo_plu || "",
+            categoria: p.categoria,
+            modo: p.modo || "gramos",
+            peso_promedio_g: parseFloat(p.peso_promedio_g) || 0,
+            orden: parseInt(p.orden) || 1,
+            minimo_venta: parseFloat(p.minimo_venta) || 1,
+            stock: parseFloat(p.stock) || 0,
+            disponible_tienda: p.disponible_tienda !== false,
+            visible_web: p.visible_web !== false,
+            tasa_iva: p.tasa_iva || "E",
+            precio: parseFloat(p.precio) || 0,
+            img_path: p.img_path || "img/LOGO-MUNDO123.webp",
+            updated_at: p.updated_at || new Date().toISOString()
+          });
+        }
         return;
       }
 
@@ -1901,9 +1945,21 @@ async function cargarCatalogoFacturacion() {
       }
     }
   } catch (errSup) {
-    console.warn("Cargando catalog.json de respaldo:", errSup);
+    console.warn("Cargando respaldo local de inventario:", errSup);
   }
 
+  // Fallback 1: Carga desde IndexedDB local (0ms de latencia offline)
+  try {
+    const productosLocales = await dbGetAll("inventario");
+    if (productosLocales && productosLocales.length > 0) {
+      productosLocales.sort((a, b) => (a.orden || 1) - (b.orden || 1));
+      const catalogo = reconstruirCatalogoDesdeSupabase(productosLocales);
+      renderizarCatalogoFacturacion(catalogo);
+      return;
+    }
+  } catch (eDB) {}
+
+  // Fallback 2: Archivo estático catalog.json
   fetch("../catalog.json?t=" + new Date().getTime())
     .then(res => res.json())
     .then(renderizarCatalogoFacturacion)
@@ -1912,6 +1968,7 @@ async function cargarCatalogoFacturacion() {
       mostrarAvisoFactura("Error al cargar catálogo.");
     });
 }
+
 // Localizador de producto en catálogo activo
 function buscarProductoEnCache(nombre) {
   if (!cacheCategoriasFactura) return null;
@@ -1931,6 +1988,15 @@ function actualizarStockEnCacheLocal(nombre, nuevoStock) {
     localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
     let p = buscarProductoEnCache(nombre);
     if (p) p[10] = nuevoStock;
+
+    // Actualización atómica en IndexedDB 'inventario' en background
+    dbGet("inventario", nombre).then(itemInv => {
+      if (itemInv) {
+        itemInv.stock = nuevoStock;
+        itemInv.updated_at = new Date().toISOString();
+        dbPut("inventario", itemInv);
+      }
+    }).catch(() => {});
   } catch(e) {}
 }
 
@@ -3959,6 +4025,20 @@ async function confirmarEImprimirFactura() {
     }
     localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMapDeduccion));
 
+    // Actualización atómica inmediata en IndexedDB 'inventario' (0ms offline-first)
+    for (let prodNom in stockMapDeduccion) {
+      let stockFinal = stockMapDeduccion[prodNom];
+      if (stockFinal !== undefined) {
+        dbGet("inventario", prodNom).then(invItem => {
+          if (invItem) {
+            invItem.stock = stockFinal;
+            invItem.updated_at = new Date().toISOString();
+            dbPut("inventario", invItem);
+          }
+        }).catch(() => {});
+      }
+    }
+
     // Sincronización atómica inmediata en Supabase para todos los ingredientes y productos descontados
     if (navigator.onLine && supabaseClient) {
       for (let prodNom in stockMapDeduccion) {
@@ -4914,6 +4994,19 @@ async function guardarRecetaComboModificada() {
     // 3. Actualizar memoria activa del POS y almacenamiento local
     cacheComboRecetas = cacheComboRecetas.filter(r => r.combo_nombre !== comboRecetaEditandoActivo).concat(nuevosIngredientes);
     localStorage.setItem("pos_cache_combo_recetas", JSON.stringify(cacheComboRecetas));
+
+    // 4. Persistir atómicamente en IndexedDB 'combo_recetas'
+    dbGetAll("combo_recetas").then(async (recetasLocales) => {
+      for (let r of recetasLocales) {
+        if (r.combo_nombre === comboRecetaEditandoActivo) {
+          await dbDelete("combo_recetas", r.id);
+        }
+      }
+      for (let ni of nuevosIngredientes) {
+        const idVal = ni.id || `cr_${ni.combo_nombre}_${ni.producto_componente}`.replace(/\s+/g, '_');
+        await dbPut("combo_recetas", { ...ni, id: idVal });
+      }
+    }).catch(() => {});
 
     btn.disabled = false;
     btn.textContent = "💾 Guardar Receta en Supabase";
