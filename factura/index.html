@@ -1190,77 +1190,142 @@
 
     <!-- MODAL ENTRADA Y RECEPCIÓN DE MERCANCÍA / STOCK -->
     <div class="modal fade" id="modalEntradaMercancia" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg">
           <div class="modal-header bg-success text-white py-3">
             <h5 class="modal-title fw-bold">📥 Recepción de Mercancía y Entrada de Stock</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-body p-4 bg-light">
-            <!-- Ficha informativa superior -->
+          <div class="modal-body p-3 p-md-4 bg-light">
+            
+            <!-- SECCIÓN 1: DATOS OBLIGATORIOS DE LA FACTURA Y FOTOGRAFÍA -->
             <div class="p-3 mb-3 rounded-3 shadow-sm bg-white border border-success" style="border-left: 5px solid #10b981 !important;">
-              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div>
-                  <h6 class="fw-bold text-dark mb-0">📦 Carga Rápida de Inventario</h6>
-                  <small class="text-muted">Ingrese la mercancía recibida (camión/matadero/proveedor). Se sumará automáticamente a las existencias físicas y a la nube.</small>
-                </div>
+              <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h6 class="fw-bold text-dark mb-0">📄 Datos de la Factura / Guía de Compra</h6>
                 <span class="badge bg-success fs-6" id="badgeUsuarioReceptor">Cajero activo</span>
               </div>
-            </div>
 
-            <!-- Datos de control de la recepción -->
-            <div class="row g-2 mb-3">
-              <div class="col-md-7">
-                <label for="entradaProveedorInput" class="form-label small fw-bold mb-1">Proveedor / Origen del Despacho (Opcional):</label>
-                <input type="text" id="entradaProveedorInput" class="form-control form-control-sm fw-bold text-uppercase" placeholder="Ej: MATADERO INDUSTRIAL / DISTRIBUIDORA...">
+              <div class="row g-2 mb-2">
+                <div class="col-md-5">
+                  <label for="entradaProveedorInput" class="form-label small fw-bold mb-1">Proveedor / Origen del Despacho *:</label>
+                  <input type="text" id="entradaProveedorInput" class="form-control form-control-sm fw-bold text-uppercase" placeholder="Ej: MATADERO INDUSTRIAL / DISTRIBUIDORA..." required>
+                </div>
+                <div class="col-md-4">
+                  <label for="entradaNroGuiaInput" class="form-label small fw-bold mb-1">N.° Guía / Factura de Compra *:</label>
+                  <input type="text" id="entradaNroGuiaInput" class="form-control form-control-sm fw-bold text-uppercase num-legible" placeholder="Ej: FAC-00845 / GUIA-102" required>
+                </div>
+                <div class="col-md-3">
+                  <label for="entradaMontoTotalFacturaInput" class="form-label small fw-bold mb-1">Monto Total de la Factura ($) *:</label>
+                  <input type="number" step="0.01" min="0.01" id="entradaMontoTotalFacturaInput" class="form-control form-control-sm fw-bold text-success text-center fs-6 num-legible" placeholder="0.00" oninput="reconciliarTotalesFacturaEntrada()" required>
+                </div>
               </div>
-              <div class="col-md-5">
-                <label for="entradaNroGuiaInput" class="form-label small fw-bold mb-1">N° Guía / Factura de Compra (Opcional):</label>
-                <input type="text" id="entradaNroGuiaInput" class="form-control form-control-sm fw-bold text-uppercase num-legible" placeholder="Ej: GUIA-00845">
-              </div>
-            </div>
 
-            <!-- Fila selectora interactiva de producto y cantidad a ingresar -->
-            <div class="p-3 bg-white border rounded-3 mb-3 shadow-sm">
-              <h6 class="fw-bold text-success border-bottom pb-2 mb-2">➕ Añadir Producto al Lote de Entrada</h6>
-              <div class="row g-2 align-items-end">
+              <!-- Captura / Fotografía de la Factura -->
+              <div class="row g-2 align-items-center mt-1 pt-2 border-top">
                 <div class="col-md-6">
-                  <label for="selectEntradaProducto" class="form-label small fw-bold mb-1">Seleccionar Corte / Producto *:</label>
+                  <label class="form-label small fw-bold mb-1 text-primary">📷 Fotografía de la Factura / Guía (Cámara o Archivo):</label>
+                  <div class="input-group input-group-sm">
+                    <input type="file" id="entradaFotoFacturaInput" class="form-control form-control-sm" accept="image/*" capture="environment" onchange="previsualizarFotoFacturaEntrada(this)">
+                    <button type="button" class="btn btn-outline-danger btn-sm fw-bold" onclick="limpiarFotoFacturaEntrada()" title="Quitar foto">✕</button>
+                  </div>
+                  <div class="form-text text-muted" style="font-size: 0.72rem;">Permite tomar foto en directo desde el teléfono/tablet o adjuntar archivo de imagen.</div>
+                </div>
+                <div class="col-md-6 text-center text-md-end">
+                  <div id="contenedorPreviewFotoFactura" class="d-inline-flex align-items-center gap-2 p-1 bg-light border rounded hidden">
+                    <img id="previewFotoFacturaImg" src="" alt="Foto Factura" style="height: 50px; width: 50px; object-fit: cover; border-radius: 4px; cursor: pointer;" onclick="ampliarFotoFacturaEntrada(this.src)" title="Haga clic para ampliar">
+                    <span class="small fw-bold text-success me-2">✔ Foto adjunta</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SECCIÓN 2: FILTRO POR CATEGORÍA, BÚSQUEDA Y COSTEO DEL PRODUCTO -->
+            <div class="p-3 bg-white border rounded-3 mb-3 shadow-sm">
+              <h6 class="fw-bold text-success border-bottom pb-2 mb-2">➕ Selección de Productos y Costo según Factura</h6>
+              
+              <!-- Filtros superiores: Categoría + Búsqueda por Nombre -->
+              <div class="row g-2 mb-2">
+                <div class="col-md-4">
+                  <label for="selectFiltroCatEntrada" class="form-label small fw-bold mb-1">Filtrar por Categoría:</label>
+                  <select id="selectFiltroCatEntrada" class="form-select form-select-sm fw-bold" onchange="filtrarProductosEntrada()">
+                    <option value="TODAS" selected>-- Todas las Categorías --</option>
+                    <option value="CARNES">🥩 CARNES</option>
+                    <option value="POLLO">🍗 POLLO</option>
+                    <option value="QUESOS Y EMBUTIDOS">🧀 QUESOS Y EMBUTIDOS</option>
+                    <option value="VIVERES">🛒 VIVERES</option>
+                  </select>
+                </div>
+                <div class="col-md-8">
+                  <label for="inputBuscarProdEntrada" class="form-label small fw-bold mb-1">Buscar por Nombre o Código PLU:</label>
+                  <input type="text" id="inputBuscarProdEntrada" class="form-control form-control-sm fw-bold" placeholder="🔍 Escriba para filtrar automáticamente (ej: bistec, pechuga, 0026)..." oninput="filtrarProductosEntrada()">
+                </div>
+              </div>
+
+              <!-- Selección de Producto, Cantidad y Precio Unitario según Factura -->
+              <div class="row g-2 align-items-end pt-1">
+                <div class="col-md-5">
+                  <label for="selectEntradaProducto" class="form-label small fw-bold mb-1">Producto a Ingresar *:</label>
                   <select id="selectEntradaProducto" class="form-select form-select-sm fw-bold" onchange="actualizarAyudaEntradaProducto(this)">
                     <option value="" disabled selected>-- Elija el producto --</option>
                   </select>
                 </div>
-                <div class="col-md-3">
-                  <label for="inputEntradaCantidad" class="form-label small fw-bold mb-1" id="lblEntradaUnidad">Cantidad a Ingresar *:</label>
+                <div class="col-md-2">
+                  <label for="inputEntradaCantidad" class="form-label small fw-bold mb-1" id="lblEntradaUnidad">Cantidad (Kg/Uds) *:</label>
                   <input type="number" step="0.001" min="0.001" id="inputEntradaCantidad" class="form-control form-control-sm text-center fw-bold fs-6 num-legible" placeholder="0.000">
                 </div>
                 <div class="col-md-3">
+                  <label for="inputEntradaCostoUnitario" class="form-label small fw-bold mb-1" id="lblEntradaCostoUnitario">Precio Unit. Factura ($) *:</label>
+                  <input type="number" step="0.01" min="0.01" id="inputEntradaCostoUnitario" class="form-control form-control-sm text-center fw-bold fs-6 text-primary num-legible" placeholder="0.00">
+                </div>
+                <div class="col-md-2">
                   <button type="button" class="btn btn-sm btn-dark w-100 fw-bold py-2 rounded-pill shadow-sm" onclick="agregarProductoALoteEntrada()">
                     ➕ Añadir
                   </button>
                 </div>
               </div>
-              <div class="form-text text-muted small mt-2" id="ayudaStockActualProd">Seleccione un producto para verificar su existencia actual.</div>
+
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2 pt-1">
+                <div class="form-text text-muted small mb-0" id="ayudaStockActualProd">Seleccione un producto para verificar su existencia actual.</div>
+                <div class="small fw-bold text-dark" id="ayudaPrecioVentaActualProd"></div>
+              </div>
             </div>
 
-            <!-- Tabla del lote de recepción -->
+            <!-- SECCIÓN 3: TABLA DE PRODUCTOS EN EL LOTE CON COSTO Y CUADRE -->
             <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 240px; overflow-y: auto;">
               <table class="table table-sm table-hover align-middle mb-0">
                 <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
                   <tr>
                     <th>Producto</th>
-                    <th style="width: 110px;">Stock Actual</th>
-                    <th style="width: 120px;">Cant. Recibida</th>
-                    <th style="width: 120px;">Stock Proyectado</th>
-                    <th style="width: 50px;">Acción</th>
+                    <th style="width: 100px;">Stock Actual</th>
+                    <th style="width: 110px;">Cant. Recibida</th>
+                    <th style="width: 115px;">Precio Unit. ($)</th>
+                    <th style="width: 115px;">Subtotal ($)</th>
+                    <th style="width: 110px;">Stock Proyectado</th>
+                    <th style="width: 45px;">Acción</th>
                   </tr>
                 </thead>
                 <tbody id="tablaLoteEntradaMercancia" class="small">
                   <tr>
-                    <td colspan="5" class="text-center text-muted py-4">No hay productos agregados a este lote de recepción.</td>
+                    <td colspan="7" class="text-center text-muted py-4">No hay productos agregados a este lote de recepción.</td>
                   </tr>
                 </tbody>
               </table>
+            </div>
+
+            <!-- BARRA DE CUADRE FINANCIERO DEL LOTE VS MONTO TOTAL FACTURA -->
+            <div class="p-2 px-3 bg-white border rounded-3 shadow-sm d-flex justify-content-between align-items-center flex-wrap gap-2 small">
+              <div>
+                <span class="text-muted fw-bold">Monto Declarado Factura:</span>
+                <strong class="text-dark fs-6 ms-1 num-legible" id="lblResumenMontoFactura">$0.00</strong>
+              </div>
+              <div>
+                <span class="text-muted fw-bold">Total Lote Calculado:</span>
+                <strong class="text-primary fs-6 ms-1 num-legible" id="lblResumenTotalLote">$0.00</strong>
+              </div>
+              <div>
+                <span class="text-muted fw-bold">Diferencia:</span>
+                <strong class="fs-6 ms-1 num-legible" id="lblResumenDiferencia">$0.00</strong>
+              </div>
             </div>
 
             <div id="errorModalEntradaMercancia" class="text-danger small fw-bold mt-2 hidden"></div>
