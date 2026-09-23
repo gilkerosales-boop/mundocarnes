@@ -124,6 +124,11 @@
                   📦 Catálogo Maestro de Productos y Balanza PLU
                 </button>
               </li>
+              <li>
+                <button class="dropdown-item fw-bold py-2 text-dark" type="button" onclick="abrirModalGestionClientes()">
+                  👥 Directorio y Gestión de Clientes
+                </button>
+              </li>
             </ul>
           </div>
           <span id="usuarioActivo" class="me-2 small fw-bold text-light"></span>
@@ -1342,6 +1347,98 @@
             <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
             <button type="button" id="btnProcesarEntradaMercancia" class="btn btn-success fw-bold px-4 rounded-pill shadow" onclick="ejecutarIngresoLoteMercancia()" disabled>
               📥 Confirmar e Ingresar al Inventario
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL GESTIÓN Y DIRECTORIO DE CLIENTES -->
+    <div class="modal fade" id="modalGestionClientes" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-dark text-white py-3">
+            <h5 class="modal-title fw-bold">👥 Directorio y Gestión de Clientes</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-3 p-md-4 bg-light">
+            
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 bg-white p-3 rounded-3 border shadow-sm">
+              <div class="flex-grow-1" style="min-width: 260px;">
+                <input type="text" id="inputFiltroClientesGestion" class="form-control fw-bold" placeholder="🔍 Buscar por Cédula/RIF, Nombre o Teléfono..." oninput="filtrarTablaGestionClientes(this.value)">
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-dark fs-6" id="cntTotalClientesGestion">Total: 0 Clientes</span>
+                <button type="button" class="btn btn-success fw-bold rounded-pill px-3 shadow-sm" onclick="abrirModalCrearClienteDirecto()">
+                  ➕ Nuevo Cliente
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 420px; overflow-y: auto;">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
+                  <tr>
+                    <th style="width: 130px;">Cédula / RIF</th>
+                    <th style="min-width: 180px;">Nombre / Razón Social</th>
+                    <th style="width: 130px;">Teléfono</th>
+                    <th style="min-width: 180px;">Dirección</th>
+                    <th style="width: 150px;">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaGestionClientes" class="small">
+                  <tr>
+                    <td colspan="5" class="text-center text-muted py-4">Cargando directorio de clientes...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+          <div class="modal-footer bg-white justify-content-between p-3 border-top">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL EDICIÓN / CREACIÓN DE CLIENTE -->
+    <div class="modal fade" id="modalEditarClienteDirecto" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-dark text-white py-3">
+            <h5 class="modal-title fw-bold" id="tituloModalEditarCliente">✏️ Editar Cliente</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-4 bg-light">
+            <input type="hidden" id="editCliCedulaOriginal" value="">
+            
+            <div class="mb-3">
+              <label for="editCliCedula" class="form-label small fw-bold mb-1">Cédula / RIF *:</label>
+              <input type="text" id="editCliCedula" class="form-control form-control-sm text-uppercase fw-bold num-legible" placeholder="Ej: V12345678 o J123456789" required>
+            </div>
+
+            <div class="mb-3">
+              <label for="editCliNombre" class="form-label small fw-bold mb-1">Nombre / Razón Social *:</label>
+              <input type="text" id="editCliNombre" class="form-control form-control-sm text-uppercase fw-bold" placeholder="Nombre completo o razón social" required>
+            </div>
+
+            <div class="mb-3">
+              <label for="editCliTelefono" class="form-label small fw-bold mb-1">Teléfono:</label>
+              <input type="text" id="editCliTelefono" class="form-control form-control-sm num-legible" placeholder="Ej: 04121234567">
+            </div>
+
+            <div class="mb-3">
+              <label for="editCliDireccion" class="form-label small fw-bold mb-1">Dirección Fiscal / Ubicación:</label>
+              <input type="text" id="editCliDireccion" class="form-control form-control-sm text-uppercase" placeholder="Ciudad, sector, avenida...">
+            </div>
+
+            <div id="errorModalEditarCliente" class="text-danger small fw-bold mb-2 hidden"></div>
+          </div>
+          <div class="modal-footer bg-white justify-content-between p-3 border-top">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" id="btnGuardarClienteDirecto" class="btn btn-success fw-bold px-4 rounded-pill shadow" onclick="guardarClienteDirectoGestion()">
+              💾 Guardar Cliente
             </button>
           </div>
         </div>
