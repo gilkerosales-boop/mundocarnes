@@ -781,7 +781,7 @@ async function procesarColaSincronizacion() {
           await dbPut("creditos", registroCreditoLocal);
         }
 
-      } else if (payload.action === "registrarClienteFactura") {
+      } else if (payload.action === "registrarClienteFactura" || payload.action === "guardarClienteGestion") {
         const { error: errCli } = await supabaseClient.from('clientes').upsert({
           "CEDULA": payload.cedula,
           "NOMBRES": payload.nombre,
@@ -789,6 +789,10 @@ async function procesarColaSincronizacion() {
           "DIRECCION": payload.direccion || null
         });
         if (errCli) throw errCli;
+
+      } else if (payload.action === "eliminarCliente") {
+        const { error: errDelCli } = await supabaseClient.from('clientes').delete().eq('CEDULA', payload.cedula);
+        if (errDelCli) throw errDelCli;
 
       } else if (payload.action === "guardarCierreCaja") {
         const d = payload.datosCierre;
@@ -5577,6 +5581,301 @@ async function ejecutarIngresoLoteMercancia() {
   }
 }
 window.ejecutarIngresoLoteMercancia = ejecutarIngresoLoteMercancia;
+
+// ==========================================================================
+// MÓDULO: GESTIÓN Y DIRECTORIO DE CLIENTES (BÚSQUEDA, EDICIÓN Y ELIMINACIÓN)
+// ==========================================================================
+let cacheClientesGestion = [];
+
+async function abrirModalGestionClientes() {
+  const inputFiltro = document.getElementById('inputFiltroClientesGestion');
+  if (inputFiltro) inputFiltro.value = "";
+  
+  await cargarDirectorioClientesGestion();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionClientes')).show();
+}
+window.abrirModalGestionClientes = abrirModalGestionClientes;
+
+async function cargarDirectorioClientesGestion() {
+  const tbody = document.getElementById('tablaGestionClientes');
+  const badgeCount = document.getElementById('cntTotalClientesGestion');
+  if (!tbody) return;
+
+  // 1. Lectura inmediata desde IndexedDB a 0 ms
+  try {
+    const locales = await dbGetAll("clientes");
+    if (locales && locales.length > 0) {
+      cacheClientesGestion = locales.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
+      renderizarTablaGestionClientes(cacheClientesGestion);
+    } else {
+      tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">⏳ Consultando directorio de clientes...</td></tr>`;
+    }
+  } catch (e) {}
+
+  // 2. Sincronización en segundo plano con Supabase si hay conexión
+  if (navigator.onLine && supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient.from('clientes').select('*');
+      if (!error && data) {
+        const formateados = data.map(c => ({
+          cedula: c.CEDULA,
+          nombre: c.NOMBRES || "N/D",
+          telefono: c.TELEFONO || "N/D",
+          direccion: c.DIRECCION || ""
+        }));
+
+        cacheClientesGestion = formateados.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
+
+        for (let c of formateados) {
+          await dbPut("clientes", c);
+        }
+
+        renderizarTablaGestionClientes(cacheClientesGestion);
+      }
+    } catch (errSup) {
+      console.warn("Aviso consulta clientes Supabase:", errSup);
+    }
+  }
+
+  if (badgeCount) badgeCount.textContent = `Total: ${cacheClientesGestion.length} Clientes`;
+}
+window.cargarDirectorioClientesGestion = cargarDirectorioClientesGestion;
+
+function renderizarTablaGestionClientes(lista) {
+  const tbody = document.getElementById('tablaGestionClientes');
+  const badgeCount = document.getElementById('cntTotalClientesGestion');
+  if (!tbody) return;
+
+  if (badgeCount) badgeCount.textContent = `Total: ${lista.length} Clientes`;
+
+  if (!lista || lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">No se encontraron clientes registrados.</td></tr>`;
+    return;
+  }
+
+  let html = "";
+  lista.forEach(c => {
+    const safeCed = String(c.cedula || "").replace(/'/g, "\\'");
+    const safeNom = String(c.nombre || "CONSUMIDOR FINAL").replace(/"/g, '&quot;');
+    const safeTel = String(c.telefono || "N/D");
+    const safeDir = String(c.direccion || "N/D");
+
+    html += `
+      <tr>
+        <td class="text-center fw-bold text-dark num-legible">${c.cedula}</td>
+        <td class="fw-bold text-dark text-truncate" style="max-width: 220px;" title="${safeNom}">${c.nombre}</td>
+        <td class="text-center num-legible small">${safeTel}</td>
+        <td class="small text-muted text-truncate" style="max-width: 220px;" title="${safeDir}">${safeDir}</td>
+        <td class="text-center">
+          <div class="d-inline-flex gap-1">
+            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold rounded-pill" onclick="abrirModalEditarCliente('${safeCed}')" title="Editar datos del cliente">
+              ✏️ Editar
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarClienteGestion('${safeCed}')" title="Eliminar cliente">
+              🗑️
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function filtrarTablaGestionClientes(query) {
+  const q = (query || "").trim().toUpperCase();
+  if (!q) {
+    renderizarTablaGestionClientes(cacheClientesGestion);
+    return;
+  }
+
+  const filtrados = cacheClientesGestion.filter(c => {
+    const ced = String(c.cedula || "").toUpperCase();
+    const nom = String(c.nombre || "").toUpperCase();
+    const tel = String(c.telefono || "").toUpperCase();
+    return ced.includes(q) || nom.includes(q) || tel.includes(q);
+  });
+
+  renderizarTablaGestionClientes(filtrados);
+}
+window.filtrarTablaGestionClientes = filtrarTablaGestionClientes;
+
+function abrirModalCrearClienteDirecto() {
+  document.getElementById('editCliCedulaOriginal').value = "";
+  document.getElementById('tituloModalEditarCliente').textContent = "➕ Nuevo Cliente";
+  document.getElementById('editCliCedula').value = "";
+  document.getElementById('editCliCedula').readOnly = false;
+  document.getElementById('editCliNombre').value = "";
+  document.getElementById('editCliTelefono').value = "";
+  document.getElementById('editCliDireccion').value = "";
+  document.getElementById('errorModalEditarCliente').classList.add('hidden');
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarClienteDirecto')).show();
+}
+window.abrirModalCrearClienteDirecto = abrirModalCrearClienteDirecto;
+
+function abrirModalEditarCliente(cedula) {
+  const c = cacheClientesGestion.find(item => item.cedula === cedula);
+  if (!c) return;
+
+  document.getElementById('editCliCedulaOriginal').value = c.cedula;
+  document.getElementById('tituloModalEditarCliente').textContent = `✏️ Editar Cliente: ${c.cedula}`;
+  document.getElementById('editCliCedula').value = c.cedula;
+  document.getElementById('editCliCedula').readOnly = false;
+  document.getElementById('editCliNombre').value = c.nombre;
+  document.getElementById('editCliTelefono').value = (c.telefono && c.telefono !== 'N/D') ? c.telefono : "";
+  document.getElementById('editCliDireccion').value = (c.direccion && c.direccion !== 'N/D') ? c.direccion : "";
+  document.getElementById('errorModalEditarCliente').classList.add('hidden');
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarClienteDirecto')).show();
+}
+window.abrirModalEditarCliente = abrirModalEditarCliente;
+
+async function guardarClienteDirectoGestion() {
+  const cedOriginal = document.getElementById('editCliCedulaOriginal').value.trim().toUpperCase();
+  const nuevaCedula = document.getElementById('editCliCedula').value.trim().toUpperCase();
+  const nuevoNombre = document.getElementById('editCliNombre').value.trim().toUpperCase();
+  const nuevoTelefono = document.getElementById('editCliTelefono').value.trim() || "N/D";
+  const nuevaDireccion = document.getElementById('editCliDireccion').value.trim().toUpperCase() || "";
+  const errorDiv = document.getElementById('errorModalEditarCliente');
+  const btn = document.getElementById('btnGuardarClienteDirecto');
+
+  if (!nuevaCedula || !nuevoNombre) {
+    if (errorDiv) {
+      errorDiv.textContent = "La Cédula/RIF y el Nombre o Razón Social son obligatorios.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Guardando...";
+  }
+
+  try {
+    const clienteActualizado = {
+      cedula: nuevaCedula,
+      nombre: nuevoNombre,
+      telefono: nuevoTelefono,
+      direccion: nuevaDireccion
+    };
+
+    // Si se modificó la cédula en edición, eliminar la clave previa
+    if (cedOriginal && cedOriginal !== nuevaCedula) {
+      await dbDelete("clientes", cedOriginal);
+      cacheClientesGestion = cacheClientesGestion.filter(c => c.cedula !== cedOriginal);
+      
+      if (navigator.onLine && supabaseClient) {
+        await supabaseClient.from('clientes').delete().eq('CEDULA', cedOriginal);
+      } else {
+        await dbPut("syncQueue", {
+          id: "sync_del_cli_" + Date.now(),
+          payload: { action: "eliminarCliente", cedula: cedOriginal }
+        });
+      }
+    }
+
+    // 1. Guardar localmente en IndexedDB a 0 ms
+    await dbPut("clientes", clienteActualizado);
+
+    // 2. Actualizar caché en memoria
+    const idxExistente = cacheClientesGestion.findIndex(c => c.cedula === nuevaCedula || c.cedula === cedOriginal);
+    if (idxExistente !== -1) {
+      cacheClientesGestion[idxExistente] = clienteActualizado;
+    } else {
+      cacheClientesGestion.push(clienteActualizado);
+    }
+    cacheClientesGestion.sort((a, b) => (a.nombre || "").localeCompare(b.nombre || ""));
+
+    // 3. Si el cliente en caja coincide, refrescar sus datos en vivo
+    if (clienteFacturaActual && (clienteFacturaActual.cedula === cedOriginal || clienteFacturaActual.cedula === nuevaCedula)) {
+      clienteFacturaActual.cedula = nuevaCedula;
+      clienteFacturaActual.nombre = nuevoNombre;
+      clienteFacturaActual.telefono = nuevoTelefono;
+      clienteFacturaActual.direccion = nuevaDireccion;
+      poblarClienteEnVista(clienteFacturaActual);
+    }
+
+    // 4. Sincronizar con Supabase
+    if (navigator.onLine && supabaseClient) {
+      const { error: errSup } = await supabaseClient.from('clientes').upsert({
+        "CEDULA": nuevaCedula,
+        "NOMBRES": nuevoNombre,
+        "TELEFONO": nuevoTelefono,
+        "DIRECCION": nuevaDireccion || null
+      });
+      if (errSup) throw errSup;
+    } else {
+      await dbPut("syncQueue", {
+        id: "sync_cli_save_" + Date.now(),
+        payload: {
+          action: "guardarClienteGestion",
+          cedula: nuevaCedula,
+          nombre: nuevoNombre,
+          telefono: nuevoTelefono,
+          direccion: nuevaDireccion
+        }
+      });
+    }
+
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "💾 Guardar Cliente";
+    }
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarClienteDirecto')).hide();
+    renderizarTablaGestionClientes(cacheClientesGestion);
+    mostrarAvisoFactura(`🎉 Cliente ${nuevaCedula} guardado exitosamente.`);
+    procesarColaSincronizacion();
+
+  } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "💾 Guardar Cliente";
+    }
+    console.error("Error al guardar cliente:", err);
+    if (errorDiv) {
+      errorDiv.textContent = "Error al guardar el cliente: " + err.message;
+      errorDiv.classList.remove('hidden');
+    }
+  }
+}
+window.guardarClienteDirectoGestion = guardarClienteDirectoGestion;
+
+async function eliminarClienteGestion(cedula) {
+  if (!confirm(`⚠️ ¿Está seguro que desea eliminar permanentemente al cliente con Cédula/RIF "${cedula}"?`)) {
+    return;
+  }
+
+  try {
+    // 1. Eliminar de IndexedDB local
+    await dbDelete("clientes", cedula);
+
+    // 2. Eliminar de memoria activa
+    cacheClientesGestion = cacheClientesGestion.filter(c => c.cedula !== cedula);
+    renderizarTablaGestionClientes(cacheClientesGestion);
+
+    // 3. Sincronizar eliminación con Supabase o encolar offline
+    if (navigator.onLine && supabaseClient) {
+      await supabaseClient.from('clientes').delete().eq('CEDULA', cedula);
+    } else {
+      await dbPut("syncQueue", {
+        id: "sync_del_cli_" + Date.now(),
+        payload: { action: "eliminarCliente", cedula: cedula }
+      });
+    }
+
+    mostrarAvisoFactura(`🗑️ Cliente ${cedula} eliminado correctamente.`);
+    procesarColaSincronizacion();
+
+  } catch (err) {
+    console.error("Error al eliminar cliente:", err);
+    mostrarAvisoFactura("Error al eliminar cliente: " + err.message);
+  }
+}
+window.eliminarClienteGestion = eliminarClienteGestion;
 
 // Sincronizar en vivo los cambios editados con reordenamiento inteligente sin empates
 function sincronizarDOMAFlatList() {
