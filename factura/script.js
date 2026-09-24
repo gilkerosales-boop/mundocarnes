@@ -5073,7 +5073,7 @@ function alternarModoEntradaRecepcion(modo) {
     if (btnDesposte) btnDesposte.className = "btn-segment-cxc";
     if (panelDirecta) panelDirecta.classList.remove('hidden');
     if (panelDesposte) panelDesposte.classList.add('hidden');
-    if (contColPesoFactura) contColPesoFactura.classList.add('hidden'); // Ocultar peso en canal para víveres/pollo
+    if (contColPesoFactura) contColPesoFactura.classList.add('hidden');
     if (lblMonto) lblMonto.textContent = "Monto Total Factura ($) *:";
     if (btnProcesar) {
       btnProcesar.textContent = "📥 Confirmar e Ingresar al Inventario";
@@ -5084,18 +5084,7 @@ function alternarModoEntradaRecepcion(modo) {
     if (btnDesposte) btnDesposte.className = "btn-segment-cxc active-vales";
     if (panelDirecta) panelDirecta.classList.add('hidden');
     if (panelDesposte) panelDesposte.classList.remove('hidden');
-    if (contColPesoFactura) contColPesoFactura.classList.remove('hidden'); // Mostrar peso en canal para desposte
-    if (lblMonto) lblMonto.textContent = "Costo Total de la Canal ($) *:";
-    if (btnProcesar) {
-      btnProcesar.textContent = "🥩 Cargar Desposte Virtual (Standby)";
-    }
-    cargarTablaCortesDesposte();
-    reconciliarPesajesCanalFactura();
-  }
-    if (btnDirecta) btnDirecta.className = "btn-segment-cxc";
-    if (btnDesposte) btnDesposte.className = "btn-segment-cxc active-vales";
-    if (panelDirecta) panelDirecta.classList.add('hidden');
-    if (panelDesposte) panelDesposte.classList.remove('hidden');
+    if (contColPesoFactura) contColPesoFactura.classList.remove('hidden');
     if (lblMonto) lblMonto.textContent = "Costo Total de la Canal ($) *:";
     if (btnProcesar) {
       btnProcesar.textContent = "🥩 Cargar Desposte Virtual (Standby)";
