@@ -6533,30 +6533,34 @@ async function ejecutarIngresoRecepcionFinal() {
       usuario: nuevoLoteDesposte.usuario
     };
 
+    expedienteCompraDirecta.id = Date.now(); // ID local único garantizado
+    await dbPut("compras_proveedores", expedienteCompraDirecta);
+
     if (navigator.onLine && supabaseClient) {
       try {
-        const { data: resComp } = await supabaseClient.from('compras_proveedores').insert([{
-          "FECHA": expedienteCompraDesposte.fecha,
-          "NRO_GUIA": expedienteCompraDesposte.nroGuia,
-          "PROVEEDOR": expedienteCompraDesposte.proveedor,
-          "MONTO_TOTAL": expedienteCompraDesposte.montoTotalFactura,
-          "ESTATUS": expedienteCompraDesposte.estatusFactura,
-          "TIPO": expedienteCompraDesposte.tipoRecepcion,
-          "PESO_FACTURA": expedienteCompraDesposte.pesoFactura || 0,
-          "DETALLE_ITEMS": itemsDesposteMapeados,
-          "FOTO_FACTURA": expedienteCompraDesposte.fotoFactura,
-          "USUARIO": expedienteCompraDesposte.usuario
+        const { data: resComp, error: errInsert } = await supabaseClient.from('compras_proveedores').insert([{
+          "FECHA": expedienteCompraDirecta.fecha,
+          "NRO_GUIA": expedienteCompraDirecta.nroGuia,
+          "PROVEEDOR": expedienteCompraDirecta.proveedor,
+          "MONTO_TOTAL": expedienteCompraDirecta.montoTotalFactura,
+          "ESTATUS": expedienteCompraDirecta.estatusFactura,
+          "TIPO": expedienteCompraDirecta.tipoRecepcion,
+          "PESO_FACTURA": 0,
+          "DETALLE_ITEMS": itemsDirectaMapeados,
+          "FOTO_FACTURA": expedienteCompraDirecta.fotoFactura,
+          "USUARIO": expedienteCompraDirecta.usuario
         }]).select();
 
-        if (resComp && resComp[0]) {
-          expedienteCompraDesposte.id = resComp[0].id;
+        if (errInsert) {
+          console.error("Error al insertar compra en Supabase:", errInsert);
+        } else if (resComp && resComp[0]) {
+          expedienteCompraDirecta.id = resComp[0].id;
+          await dbPut("compras_proveedores", expedienteCompraDirecta);
         }
       } catch (eSup) {
         console.warn("Aviso guardado compra Supabase:", eSup);
       }
     }
-
-    await dbPut("compras_proveedores", expedienteCompraDesposte);
 
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     if (typeof prepararListaProductosCodigos === "function") {
@@ -7231,14 +7235,20 @@ window.abrirModalHistorialCompras = abrirModalHistorialCompras;
 
 async function cargarHistorialComprasProveedores() {
   try {
-    // 1. Lectura inmediata desde IndexedDB a 0 ms
+    let mapCompras = {};
+
+    // 1. Cargar compras locales de IndexedDB a 0 ms
     const comprasLocales = await dbGetAll("compras_proveedores");
     if (comprasLocales && comprasLocales.length > 0) {
-      cacheComprasProveedores = comprasLocales.sort((a, b) => (b.id || 0) - (a.id || 0));
+      comprasLocales.forEach(c => {
+        let clave = c.nroGuia || c.id;
+        mapCompras[clave] = c;
+      });
+      cacheComprasProveedores = Object.values(mapCompras).sort((a, b) => (b.id || 0) - (a.id || 0));
       filtrarTablaHistorialCompras();
     }
 
-    // 2. Consulta y sincronización síncrona con Supabase
+    // 2. Consulta y fusión con Supabase
     if (navigator.onLine && supabaseClient) {
       const { data, error } = await supabaseClient
         .from('compras_proveedores')
@@ -7246,24 +7256,26 @@ async function cargarHistorialComprasProveedores() {
         .order('id', { ascending: false });
 
       if (!error && data && data.length > 0) {
-        cacheComprasProveedores = data.map(c => ({
-          id: c.id,
-          fecha: c.FECHA,
-          nroGuia: c.NRO_GUIA,
-          proveedor: c.PROVEEDOR,
-          montoTotalFactura: parseFloat(c.MONTO_TOTAL) || 0,
-          estatusFactura: c.ESTATUS || "PAGO",
-          tipoRecepcion: c.TIPO || "CARGA_DIRECTA",
-          pesoFactura: c.PESO_FACTURA,
-          items: typeof c.DETALLE_ITEMS === 'string' ? JSON.parse(c.DETALLE_ITEMS || '[]') : (c.DETALLE_ITEMS || []),
-          fotoFactura: c.FOTO_FACTURA || null,
-          usuario: c.USUARIO || "CAJERO"
-        }));
+        data.forEach(c => {
+          let clave = c.NRO_GUIA || c.id;
+          const parseado = {
+            id: c.id,
+            fecha: c.FECHA,
+            nroGuia: c.NRO_GUIA,
+            proveedor: c.PROVEEDOR,
+            montoTotalFactura: parseFloat(c.MONTO_TOTAL) || 0,
+            estatusFactura: c.ESTATUS || "PAGO",
+            tipoRecepcion: c.TIPO || "CARGA_DIRECTA",
+            pesoFactura: c.PESO_FACTURA,
+            items: typeof c.DETALLE_ITEMS === 'string' ? JSON.parse(c.DETALLE_ITEMS || '[]') : (c.DETALLE_ITEMS || []),
+            fotoFactura: c.FOTO_FACTURA || null,
+            usuario: c.USUARIO || "CAJERO"
+          };
+          mapCompras[clave] = parseado;
+          dbPut("compras_proveedores", parseado);
+        });
 
-        for (let cp of cacheComprasProveedores) {
-          await dbPut("compras_proveedores", cp);
-        }
-
+        cacheComprasProveedores = Object.values(mapCompras).sort((a, b) => (b.id || 0) - (a.id || 0));
         filtrarTablaHistorialCompras();
       }
     }
