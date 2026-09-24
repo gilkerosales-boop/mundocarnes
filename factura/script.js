@@ -150,7 +150,6 @@ function abrirDB() {
       if (!db.objectStoreNames.contains("lotes_desposte")) {
         db.createObjectStore("lotes_desposte", { keyPath: "id", autoIncrement: true });
       }
-      // FASE 3: Store de auditoría e historial de compras y facturas de proveedores
       if (!db.objectStoreNames.contains("compras_proveedores")) {
         db.createObjectStore("compras_proveedores", { keyPath: "id", autoIncrement: true });
       }
@@ -6505,20 +6504,63 @@ async function ejecutarIngresoRecepcionFinal() {
 
     await dbPut("lotes_desposte", nuevoLoteDesposte);
 
-    // Guardar expediente de compra directo en Supabase e IndexedDB
-    const itemsDesposteMapeados = cortesAcreditables.map(c => ({
-      nombre: c.nombre,
-      unidad: c.unidad,
-      cantRecibida: c.kilosSumar,
-      costoUnitario: (kilosUtiles > 0 ? parseFloat((montoTotalFactura / kilosUtiles).toFixed(2)) : 0),
-      subtotal: (kilosUtiles > 0 ? parseFloat(((montoTotalFactura / kilosUtiles) * c.kilosSumar).toFixed(2)) : 0)
-    }));
+  // Guardar expediente de compra directo en Supabase e IndexedDB
+  const itemsDesposteMapeados = cortesAcreditables.map(c => ({
+    nombre: c.nombre,
+    unidad: c.unidad,
+    cantRecibida: c.kilosSumar,
+    costoUnitario: (kilosUtiles > 0 ? parseFloat((montoTotalFactura / kilosUtiles).toFixed(2)) : 0),
+    subtotal: (kilosUtiles > 0 ? parseFloat(((montoTotalFactura / kilosUtiles) * c.kilosSumar).toFixed(2)) : 0)
+  }));
 
-    const expedienteCompraDesposte = {
-      fecha: nuevoLoteDesposte.fecha,
-      nroGuia: nroGuia,
-      proveedor: proveedor,
-      montoTotalFactura: montoTotalFactura,
+  const expedienteCompraDesposte = {
+    id: Date.now(),
+    fecha: nuevoLoteDesposte.fecha,
+    nroGuia: nroGuia,
+    proveedor: proveedor,
+    montoTotalFactura: montoTotalFactura,
+    estatusFactura: estatusFactura,
+    tipoRecepcion: "DESPOSTE_CANAL",
+    pesoFactura: pesoFacturaProveedor,
+    pesoCanal: pesoCanal,
+    piezasCanalPesadas: [...piezasCanalPesadas],
+    sello: sello,
+    porcMermaEstimada: porcMerma,
+    mermaEstimadaKg: mermaEstimadaKg,
+    kilosUtilesEstimados: kilosUtiles,
+    items: itemsDesposteMapeados,
+    fotoFactura: fotoFacturaBase64 || null,
+    usuario: nuevoLoteDesposte.usuario
+  };
+
+  await dbPut("compras_proveedores", expedienteCompraDesposte);
+
+  if (navigator.onLine && supabaseClient) {
+    try {
+      const { data: resComp, error: errComp } = await supabaseClient.from('compras_proveedores').insert([{
+        "FECHA": expedienteCompraDesposte.fecha,
+        "NRO_GUIA": expedienteCompraDesposte.nroGuia,
+        "PROVEEDOR": expedienteCompraDesposte.proveedor,
+        "MONTO_TOTAL": expedienteCompraDesposte.montoTotalFactura,
+        "ESTATUS": expedienteCompraDesposte.estatusFactura,
+        "TIPO": expedienteCompraDesposte.tipoRecepcion,
+        "PESO_FACTURA": expedienteCompraDesposte.pesoFactura || 0,
+        "DETALLE_ITEMS": itemsDesposteMapeados,
+        "FOTO_FACTURA": expedienteCompraDesposte.fotoFactura,
+        "USUARIO": expedienteCompraDesposte.usuario
+      }]).select();
+
+      if (errComp) {
+        console.error("Error al insertar compra desposte en Supabase:", errComp);
+        mostrarAvisoFactura("⚠️ Supabase: " + (errComp.message || "Error al registrar compra"), false, 8000);
+      } else if (resComp && resComp[0]) {
+        expedienteCompraDesposte.id = resComp[0].id;
+        await dbPut("compras_proveedores", expedienteCompraDesposte);
+      }
+    } catch (eSup) {
+      console.warn("Excepción compra desposte Supabase:", eSup);
+    }
+  }
       estatusFactura: estatusFactura,
       tipoRecepcion: "DESPOSTE_CANAL",
       pesoFactura: pesoFacturaProveedor,
@@ -6721,7 +6763,7 @@ async function ejecutarIngresoLoteMercancia() {
       usuario: obtenerUsuarioActivo().toUpperCase()
     };
 
-    // 1. Guardar primero en IndexedDB local a 0ms (Inmunidad offline)
+    // 1. Guardar de inmediato en IndexedDB local a 0ms (Inmunidad local garantizada)
     await dbPut("compras_proveedores", expedienteCompraDirecta);
 
     // 2. Guardar directo en Supabase mostrando alerta si falla
@@ -7243,7 +7285,7 @@ async function cargarHistorialComprasProveedores() {
   try {
     let mapCompras = {};
 
-    // 1. Cargar compras locales de IndexedDB a 0 ms (Inmediatez absoluta)
+    // 1. Cargar compras locales de IndexedDB a 0 ms (Garantía de visualización inmediata)
     const comprasLocales = await dbGetAll("compras_proveedores");
     if (comprasLocales && comprasLocales.length > 0) {
       comprasLocales.forEach(c => {
