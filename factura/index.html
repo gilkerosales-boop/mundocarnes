@@ -1561,26 +1561,57 @@
 
             <!-- Panel de Conciliación y Liquidación del Lote Seleccionado -->
             <div id="panelLiquidacionLoteSeleccionado" class="p-3 bg-white border border-warning rounded-3 shadow-sm hidden">
-              <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">⚖️ Liquidación Real del Lote: <span id="lblLoteLiquidandoGuia" class="text-primary">GUIA-000</span></h6>
+              <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3 flex-wrap gap-2">
+                <h6 class="fw-bold text-dark mb-0">⚖️ Liquidación Real del Lote: <span id="lblLoteLiquidandoGuia" class="text-primary">GUIA-000</span></h6>
+                <span class="badge bg-warning text-dark fw-bold">Ajuste de Desposte en Vitrina</span>
+              </div>
               <input type="hidden" id="desposteLoteIdLiquidando" value="">
 
-              <div class="row g-2 align-items-center mb-3">
-                <div class="col-md-4">
-                  <label for="desposteMermaRealInput" class="form-label small fw-bold mb-1 text-danger">Merma Real Pesada en Báscula (Kg) *:</label>
-                  <input type="number" step="0.01" min="0" id="desposteMermaRealInput" class="form-control fw-bold text-center fs-5 text-danger num-legible" placeholder="Ej: 58.40" oninput="calcularDesviacionMermaLiquidacion()">
-                  <div class="form-text text-muted" style="font-size: 0.72rem;">Kilos totales pesados de hueso blanco, sebo duro y aserrín.</div>
-                </div>
+              <!-- SECCIÓN A: PESAJE REAL DE CORTES NOBLES (LOMITO, SOLOMO, PUNTA TRASERA) -->
+              <div class="p-3 mb-3 bg-light border border-secondary rounded-3">
+                <h6 class="fw-bold text-primary mb-2 small">🥩 1. Pesaje Real de Cortes Nobles (Kg pesados en báscula):</h6>
+                <div class="row g-2">
+                  <div class="col-md-4">
+                    <label for="desposteLomitoRealInput" class="form-label small fw-bold mb-1">Lomito Real (Kg) *:</label>
+                    <input type="number" step="0.01" min="0" id="desposteLomitoRealInput" class="form-control form-control-sm fw-bold text-center fs-6 text-primary num-legible" placeholder="0.00" oninput="calcularDesviacionMermaLiquidacion()">
+                    <div class="form-text text-muted small" style="font-size: 0.72rem;">Proyectado: <span id="lblLoteLomitoProy" class="fw-bold text-dark">0.00</span> Kg (Δ: <span id="lblLoteLomitoDelta" class="fw-bold">0.00</span> Kg)</div>
+                  </div>
 
-                <div class="col-md-4 text-center border-start border-end">
-                  <span class="text-muted small fw-bold">Merma Estimada en Recepción:</span>
-                  <div class="fw-bold fs-5 text-dark num-legible" id="lblLoteMermaEstimadaRef">0.00 Kg</div>
-                  <small class="text-muted" id="lblLotePorcMermaEstimadaRef">(20.0%)</small>
-                </div>
+                  <div class="col-md-4">
+                    <label for="desposteSolomoRealInput" class="form-label small fw-bold mb-1">Solomo de Cuerito Real (Kg) *:</label>
+                    <input type="number" step="0.01" min="0" id="desposteSolomoRealInput" class="form-control form-control-sm fw-bold text-center fs-6 text-primary num-legible" placeholder="0.00" oninput="calcularDesviacionMermaLiquidacion()">
+                    <div class="form-text text-muted small" style="font-size: 0.72rem;">Proyectado: <span id="lblLoteSolomoProy" class="fw-bold text-dark">0.00</span> Kg (Δ: <span id="lblLoteSolomoDelta" class="fw-bold">0.00</span> Kg)</div>
+                  </div>
 
-                <div class="col-md-4 text-center">
-                  <span class="text-muted small fw-bold">Desviación / Diferencia (Δ):</span>
-                  <div class="fw-bold fs-5 num-legible" id="lblLoteDesviacionMerma">0.00 Kg</div>
-                  <small class="fw-bold" id="lblLoteDesviacionEstado">Sin variación</small>
+                  <div class="col-md-4">
+                    <label for="despostePuntaRealInput" class="form-label small fw-bold mb-1">Punta Trasera Real (Kg) *:</label>
+                    <input type="number" step="0.01" min="0" id="despostePuntaRealInput" class="form-control form-control-sm fw-bold text-center fs-6 text-primary num-legible" placeholder="0.00" oninput="calcularDesviacionMermaLiquidacion()">
+                    <div class="form-text text-muted small" style="font-size: 0.72rem;">Proyectado: <span id="lblLotePuntaProy" class="fw-bold text-dark">0.00</span> Kg (Δ: <span id="lblLotePuntaDelta" class="fw-bold">0.00</span> Kg)</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- SECCIÓN B: MERMA REAL Y BALANCE DE CARNE COMERCIAL Y CORTES CON HUESO -->
+              <div class="p-3 mb-3 bg-white border rounded-3">
+                <h6 class="fw-bold text-danger mb-2 small">⚖️ 2. Merma Real y Balance de Carne Comercial y Cortes con Hueso:</h6>
+                <div class="row g-2 align-items-center">
+                  <div class="col-md-4">
+                    <label for="desposteMermaRealInput" class="form-label small fw-bold mb-1 text-danger">Merma Real Pesada en Báscula (Kg) *:</label>
+                    <input type="number" step="0.01" min="0" id="desposteMermaRealInput" class="form-control fw-bold text-center fs-5 text-danger num-legible" placeholder="Ej: 58.40" oninput="calcularDesviacionMermaLiquidacion()">
+                    <div class="form-text text-muted" style="font-size: 0.72rem;">Huesos limpios, sebo duro y aserrín. Est: <span id="lblLoteMermaEstimadaRef" class="fw-bold">0.00 Kg</span> <span id="lblLotePorcMermaEstimadaRef"></span></div>
+                  </div>
+
+                  <div class="col-md-4 text-center border-start border-end">
+                    <span class="text-muted small fw-bold d-block">Carne Comercial y con Hueso Resultante:</span>
+                    <div class="fw-bold fs-5 text-success num-legible" id="lblLoteCarneComercialReal">0.00 Kg</div>
+                    <small class="text-muted" style="font-size: 0.75rem;">Proyectado en lote: <span id="lblLoteCarneComercialProy" class="fw-bold">0.00 Kg</span></small>
+                  </div>
+
+                  <div class="col-md-4 text-center">
+                    <span class="text-muted small fw-bold d-block">Ajuste en Vitrina (Δ Comercial):</span>
+                    <div class="fw-bold fs-5 num-legible" id="lblLoteDesviacionMerma">0.00 Kg</div>
+                    <small class="fw-bold" id="lblLoteDesviacionEstado">Sin variación</small>
+                  </div>
                 </div>
               </div>
 
