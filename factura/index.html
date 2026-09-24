@@ -1219,7 +1219,12 @@
             <div class="p-3 mb-3 rounded-3 shadow-sm bg-white border border-success" style="border-left: 5px solid #10b981 !important;">
               <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                 <h6 class="fw-bold text-dark mb-0">📄 Datos de la Factura / Guía de Compra</h6>
-                <span class="badge bg-success fs-6" id="badgeUsuarioReceptor">Cajero activo</span>
+                <div class="d-flex align-items-center gap-2">
+                  <button type="button" class="btn btn-sm btn-outline-dark fw-bold rounded-pill shadow-sm" onclick="abrirModalHistorialCompras()">
+                    📜 Historial de Facturas de Proveedores
+                  </button>
+                  <span class="badge bg-success fs-6" id="badgeUsuarioReceptor">Cajero activo</span>
+                </div>
               </div>
 
               <div class="row g-2 mb-2">
@@ -1626,6 +1631,94 @@
             </div>
 
             <div id="errorModalStandbyDesposte" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer bg-white justify-content-between p-3 border-top">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL HISTORIAL DE COMPRAS Y FACTURAS DE PROVEEDORES -->
+    <div class="modal fade" id="modalHistorialCompras" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-dark text-white py-3">
+            <h5 class="modal-title fw-bold">📜 Historial de Compras y Facturas de Proveedores</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-3 p-md-4 bg-light">
+            
+            <!-- Barra de Filtros: Búsqueda, Estatus de Pago y Tipo de Recepción -->
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 bg-white p-3 rounded-3 border shadow-sm">
+              <div class="flex-grow-1" style="min-width: 220px;">
+                <input type="text" id="inputFiltroComprasBusqueda" class="form-control form-control-sm fw-bold" placeholder="🔍 Buscar por Proveedor o N.° Guía/Factura..." oninput="filtrarTablaHistorialCompras()">
+              </div>
+              <div style="min-width: 160px;">
+                <select id="selectFiltroEstatusCompra" class="form-select form-select-sm fw-bold" onchange="filtrarTablaHistorialCompras()">
+                  <option value="TODOS" selected>-- Todos los Estatus --</option>
+                  <option value="POR PAGAR">⏳ Por Pagar (Pendientes)</option>
+                  <option value="PAGO">✅ Pagadas</option>
+                </select>
+              </div>
+              <div style="min-width: 170px;">
+                <select id="selectFiltroTipoCompra" class="form-select form-select-sm fw-bold" onchange="filtrarTablaHistorialCompras()">
+                  <option value="TODOS" selected>-- Todos los Tipos --</option>
+                  <option value="CARGA_DIRECTA">📦 Carga Directa (Víveres/Pollo)</option>
+                  <option value="DESPOSTE_CANAL">🥩 Desposte en Canal</option>
+                </select>
+              </div>
+              <div>
+                <div class="badge bg-success fs-6 p-2 px-3 shadow-sm num-legible" id="badgeTotalMontoCompras">
+                  Total Compras: $0.00
+                </div>
+              </div>
+            </div>
+
+            <!-- Tabla de Expedientes de Compras -->
+            <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 420px; overflow-y: auto;">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
+                  <tr>
+                    <th style="width: 130px;">N.° Guía / Fact.</th>
+                    <th style="width: 120px;">Fecha</th>
+                    <th>Proveedor / Matadero</th>
+                    <th style="width: 130px;">Tipo</th>
+                    <th style="width: 120px;">Monto Total ($)</th>
+                    <th style="width: 120px;">Estatus</th>
+                    <th style="width: 60px;">Foto</th>
+                    <th style="width: 160px;">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaHistorialComprasProveedores" class="small">
+                  <tr>
+                    <td colspan="8" class="text-center text-muted py-4">No hay registros de compras cargados.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Panel Visor de Detalle de Productos del Expediente Seleccionado -->
+            <div id="panelDetalleCompraSeleccionada" class="p-3 bg-white border border-primary rounded-3 shadow-sm mt-3 hidden">
+              <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                <h6 class="fw-bold text-primary mb-0">📋 Detalle de Artículos Recibidos: <span id="lblDetalleCompraGuia" class="text-dark">FAC-000</span></h6>
+                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 fw-bold" onclick="cerrarPanelDetalleCompra()">✕ Cerrar Detalle</button>
+              </div>
+              <div class="table-responsive bg-light rounded-3 border" style="max-height: 180px; overflow-y: auto;">
+                <table class="table table-sm table-striped align-middle mb-0">
+                  <thead class="table-dark small text-center">
+                    <tr>
+                      <th>Producto / Corte</th>
+                      <th style="width: 130px;">Cantidad Recibida</th>
+                      <th style="width: 130px;">Costo Unit. ($)</th>
+                      <th style="width: 130px;">Subtotal ($)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tablaDetalleProductosCompra" class="small"></tbody>
+                </table>
+              </div>
+            </div>
+
           </div>
           <div class="modal-footer bg-white justify-content-between p-3 border-top">
             <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cerrar</button>
