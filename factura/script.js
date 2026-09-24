@@ -1976,12 +1976,29 @@ async function cargarCatalogoFacturacion() {
     });
 }
 
-// Localizador de producto en catálogo activo
+// Localizador de producto en catálogo activo (Insensible a mayúsculas/minúsculas)
 function buscarProductoEnCache(nombre) {
-  if (!cacheCategoriasFactura) return null;
+  if (!cacheCategoriasFactura || !nombre) return null;
+  const nomBuscado = String(nombre).trim().toUpperCase();
+
   for (let cat of cacheCategoriasFactura) {
-    let p = cat.productos.find(prod => prod[0] === nombre);
+    let p = cat.productos.find(prod => String(prod[0]).trim().toUpperCase() === nomBuscado);
     if (p) return p;
+  }
+
+  // Búsqueda secundaria en lista flat si existe
+  if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+    let flat = listaFlatProductosCodigos.find(prod => 
+      String(prod.nombre).trim().toUpperCase() === nomBuscado || 
+      String(prod.nombreOriginal).trim().toUpperCase() === nomBuscado
+    );
+    if (flat) {
+      return [
+        flat.nombre, flat.precio, flat.imgPath, flat.disponible, 
+        flat.minimo, flat.unidad, flat.pesoPromedio, flat.codigoPLU, 
+        flat.tasaIVA, flat.visibleWeb, flat.stock, flat.orden, flat.id
+      ];
+    }
   }
   return null;
 }
@@ -5049,17 +5066,32 @@ function alternarModoEntradaRecepcion(modo) {
   const btnProcesar = document.getElementById('btnProcesarEntradaMercancia');
   const lblMonto = document.getElementById('lblMontoFacturaRecepcion');
 
+  const contColPesoFactura = document.getElementById('contColPesoFacturaProveedor');
+
   if (modo === 'DIRECTA') {
     if (btnDirecta) btnDirecta.className = "btn-segment-cxc active-creditos";
     if (btnDesposte) btnDesposte.className = "btn-segment-cxc";
     if (panelDirecta) panelDirecta.classList.remove('hidden');
     if (panelDesposte) panelDesposte.classList.add('hidden');
+    if (contColPesoFactura) contColPesoFactura.classList.add('hidden'); // Ocultar peso en canal para víveres/pollo
     if (lblMonto) lblMonto.textContent = "Monto Total Factura ($) *:";
     if (btnProcesar) {
       btnProcesar.textContent = "📥 Confirmar e Ingresar al Inventario";
       btnProcesar.disabled = (loteEntradaMercancia.length === 0);
     }
   } else {
+    if (btnDirecta) btnDirecta.className = "btn-segment-cxc";
+    if (btnDesposte) btnDesposte.className = "btn-segment-cxc active-vales";
+    if (panelDirecta) panelDirecta.classList.add('hidden');
+    if (panelDesposte) panelDesposte.classList.remove('hidden');
+    if (contColPesoFactura) contColPesoFactura.classList.remove('hidden'); // Mostrar peso en canal para desposte
+    if (lblMonto) lblMonto.textContent = "Costo Total de la Canal ($) *:";
+    if (btnProcesar) {
+      btnProcesar.textContent = "🥩 Cargar Desposte Virtual (Standby)";
+    }
+    cargarTablaCortesDesposte();
+    reconciliarPesajesCanalFactura();
+  }
     if (btnDirecta) btnDirecta.className = "btn-segment-cxc";
     if (btnDesposte) btnDesposte.className = "btn-segment-cxc active-vales";
     if (panelDirecta) panelDirecta.classList.add('hidden');
@@ -5380,11 +5412,11 @@ function agregarProductoALoteEntrada() {
   const inputCosto = document.getElementById('inputEntradaCostoUnitario');
   const errDiv = document.getElementById('errorModalEntradaMercancia');
 
-  const prodNom = (hiddenProd && hiddenProd.value) ? hiddenProd.value : (inpBuscar ? inpBuscar.value.trim().toUpperCase() : "");
+  const prodNomIngresado = (hiddenProd && hiddenProd.value) ? hiddenProd.value : (inpBuscar ? inpBuscar.value.trim() : "");
   const cantRecibida = parseFloat(inputCant ? inputCant.value : 0);
   const costoUnitario = parseFloat(inputCosto ? inputCosto.value : 0);
 
-  if (!prodNom) {
+  if (!prodNomIngresado) {
     if (errDiv) {
       errDiv.textContent = "Seleccione o escriba un producto válido a ingresar.";
       errDiv.classList.remove('hidden');
@@ -5392,14 +5424,18 @@ function agregarProductoALoteEntrada() {
     return;
   }
 
-  const prodData = buscarProductoEnCache(prodNom);
+  // Búsqueda insensible a mayúsculas/minúsculas
+  const prodData = buscarProductoEnCache(prodNomIngresado);
   if (!prodData) {
     if (errDiv) {
-      errDiv.textContent = `El producto "${prodNom}" no existe en el catálogo. Selecciónelo de la lista.`;
+      errDiv.textContent = `El producto "${prodNomIngresado}" no existe en el catálogo. Selecciónelo de la lista.`;
       errDiv.classList.remove('hidden');
     }
     return;
   }
+
+  // Nombre canónico exacto como está registrado en el catálogo
+  const prodNom = prodData[0];
 
   if (isNaN(cantRecibida) || cantRecibida <= 0) {
     if (errDiv) {
