@@ -1355,43 +1355,74 @@
 
             <!-- MODALIDAD 2: PANEL DE DESPOSTE DE RES EN CANAL -->
             <div id="panelModoEntradaDesposte" class="hidden">
-              <!-- Datos de la Canal y Báscula Inicial -->
+              
+              <!-- Datos de Báscula, Sello y % de Merma Estimada -->
               <div class="p-3 bg-white border border-primary rounded-3 mb-3 shadow-sm">
-                <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
-                  <h6 class="fw-bold text-primary mb-0">⚖️ Pesaje Inicial en Báscula de Res en Canal</h6>
-                  <span class="badge bg-primary fs-6">Desposte Vacuno</span>
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2 flex-wrap gap-2">
+                  <div class="d-flex align-items-center gap-2">
+                    <h6 class="fw-bold text-primary mb-0">⚖️ Pesaje de Res en Canal & Desposte Virtual</h6>
+                    <span class="badge bg-primary fs-6">Desposte Vacuno</span>
+                  </div>
+                  <!-- Botón para ver y liquidar lotes en espera -->
+                  <button type="button" class="btn btn-sm btn-outline-warning fw-bold text-dark rounded-pill shadow-sm" onclick="abrirModalLotesDesposteStandby()">
+                    ⏳ Lotes en Standby (<span id="cntLotesDesposteStandby">0</span>)
+                  </button>
                 </div>
 
                 <div class="row g-2 mb-2">
-                  <div class="col-md-4">
-                    <label for="despostePesoCanalInput" class="form-label small fw-bold mb-1">Peso Total en Canal Báscula (Kg) *:</label>
-                    <input type="number" step="0.01" min="0.01" id="despostePesoCanalInput" class="form-control form-control-sm fw-bold text-center fs-5 text-primary num-legible" placeholder="Ej: 220.50" oninput="calcularBalanceRendimientoDesposte()" required>
+                  <div class="col-md-3">
+                    <label for="despostePesoCanalInput" class="form-label small fw-bold mb-1">Peso Total en Canal (Kg) *:</label>
+                    <input type="number" step="0.01" min="0.01" id="despostePesoCanalInput" class="form-control form-control-sm fw-bold text-center fs-5 text-primary num-legible" placeholder="Ej: 280.00" oninput="recalcularDesposteVirtualZootecnico()" required>
                   </div>
-                  <div class="col-md-4">
-                    <label for="desposteCostoKiloCanalInput" class="form-label small fw-bold mb-1">Costo por Kg en Canal ($/Kg):</label>
+                  
+                  <div class="col-md-3">
+                    <label for="desposteSelloSelect" class="form-label small fw-bold mb-1">Clasificación / Sello *:</label>
+                    <select id="desposteSelloSelect" class="form-select form-select-sm fw-bold" onchange="actualizarMermaPorSello()">
+                      <option value="MORADO" selected>🟣 Sello Morado (1ra - Merma ~20%)</option>
+                      <option value="ROJO">🔴 Sello Rojo (Estándar - Merma ~23%)</option>
+                      <option value="AZUL">🔵 Sello Azul (Popular - Merma ~26%)</option>
+                    </select>
+                  </div>
+
+                  <div class="col-md-3">
+                    <label for="despostePorcMermaEstimadaInput" class="form-label small fw-bold mb-1">% Merma Estimada *:</label>
+                    <div class="input-group input-group-sm">
+                      <input type="number" step="0.1" min="5" max="45" id="despostePorcMermaEstimadaInput" class="form-control text-center fw-bold fs-6 text-danger num-legible" value="20.0" oninput="recalcularDesposteVirtualZootecnico()">
+                      <span class="input-group-text fw-bold">%</span>
+                    </div>
+                  </div>
+
+                  <div class="col-md-3">
+                    <label for="desposteCostoKiloCanalInput" class="form-label small fw-bold mb-1">Costo por Kg Canal ($/Kg):</label>
                     <input type="number" step="0.01" min="0.01" id="desposteCostoKiloCanalInput" class="form-control form-control-sm fw-bold text-center fs-6 text-dark num-legible" placeholder="Ej: 3.80" oninput="calcularCostoTotalDesdeKiloCanal()">
                   </div>
-                  <div class="col-md-4">
-                    <label for="desposteTipoCanalSelect" class="form-label small fw-bold mb-1">Tipo de Canal:</label>
-                    <select id="desposteTipoCanalSelect" class="form-select form-select-sm fw-bold">
-                      <option value="MEDIA CANAL" selected>Media Canal (1/2)</option>
-                      <option value="CANAL COMPLETA">Canal Completa (Entera)</option>
-                      <option value="CUARTO TRASERO">Cuarto Trasero</option>
-                      <option value="CUARTO DELANTERO">Cuarto Delantero</option>
-                    </select>
+                </div>
+
+                <!-- Resumen Inmediato de Kilos Útiles -->
+                <div class="p-2 bg-light border rounded-3 d-flex justify-content-between align-items-center flex-wrap gap-2 small">
+                  <div>
+                    <span class="text-muted fw-bold">Merma Proyectada:</span>
+                    <strong class="text-danger ms-1 num-legible" id="lblDesposteMermaEstimadaKg">0.00 Kg</strong>
+                  </div>
+                  <div>
+                    <span class="text-muted fw-bold">Carne Comercial y Cortes Útiles:</span>
+                    <strong class="text-success fs-6 ms-1 num-legible" id="lblDesposteKilosUtiles">0.00 Kg (80.0%)</strong>
+                  </div>
+                  <div>
+                    <span class="badge bg-warning text-dark fw-bold">Estado al Guardar: STANDBY</span>
                   </div>
                 </div>
               </div>
 
-              <!-- Tabla de Rendimiento y Pesaje de Cortes Obtenidos -->
+              <!-- Tabla de Cortes Vacunos Proyectados (Exclusivo Res) -->
               <div class="p-3 bg-white border rounded-3 mb-3 shadow-sm">
-                <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2 flex-wrap gap-2">
                   <div>
-                    <h6 class="fw-bold text-danger mb-0">🥩 Pesaje de Cortes Obtenidos del Desposte</h6>
-                    <small class="text-muted">Ingrese los kilos netos pesados de cada corte. Se sumarán de forma automática a su inventario.</small>
+                    <h6 class="fw-bold text-danger mb-0">🥩 Distribución Proyectada a Vitrina (Cortes Vacunos)</h6>
+                    <small class="text-muted">Los kilos se calculan de forma automática según el peso y sello. Puede afinar cantidades manualmente si lo desea.</small>
                   </div>
-                  <button type="button" class="btn btn-sm btn-outline-secondary fw-bold rounded-pill" onclick="limpiarPesajesDesposte()">
-                    🔄 Limpiar Kilos
+                  <button type="button" class="btn btn-sm btn-outline-primary fw-bold rounded-pill" onclick="recalcularDesposteVirtualZootecnico()">
+                    🔄 Restablecer Proyección
                   </button>
                 </div>
 
@@ -1399,39 +1430,39 @@
                   <table class="table table-sm table-hover align-middle mb-0">
                     <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
                       <tr>
-                        <th style="min-width: 170px;">Corte de Res</th>
+                        <th style="min-width: 170px;">Corte Vacuno</th>
                         <th style="width: 110px;">Stock Actual</th>
-                        <th style="width: 140px;">Kilos Obtenidos (Kg) *</th>
                         <th style="width: 110px;">% Rendimiento</th>
-                        <th style="width: 120px;">Stock Final Proyectado</th>
+                        <th style="width: 140px;">Kilos Proyectados (Kg) *</th>
+                        <th style="width: 120px;">Stock Proyectado</th>
                       </tr>
                     </thead>
                     <tbody id="tablaPesajeCortesDesposte" class="small">
-                      <!-- Inyectado dinámicamente con los cortes vacunos -->
+                      <!-- Inyectado exclusivamente con cortes vacunos -->
                     </tbody>
                   </table>
                 </div>
               </div>
 
-              <!-- Balance de Rendimiento y Merma de la Canal -->
+              <!-- Balance Financiero de la Canal -->
               <div class="p-3 bg-white border border-dark rounded-3 shadow-sm mb-2">
                 <div class="row g-2 text-center align-items-center">
                   <div class="col-md-3 border-end">
-                    <span class="text-muted small fw-bold">Peso Inicial Canal:</span>
+                    <span class="text-muted small fw-bold">Peso Bruto Canal:</span>
                     <div class="fw-bold fs-5 text-dark num-legible" id="lblDespostePesoInicial">0.00 Kg</div>
                   </div>
                   <div class="col-md-3 border-end">
-                    <span class="text-muted small fw-bold">Cortes Aprovechables:</span>
+                    <span class="text-muted small fw-bold">Total Cortes Útiles:</span>
                     <div class="fw-bold fs-5 text-success num-legible" id="lblDesposteTotalCortes">0.00 Kg</div>
                     <small class="text-success fw-bold" id="lblDespostePorcRendimiento">0.0% Rendimiento</small>
                   </div>
                   <div class="col-md-3 border-end">
-                    <span class="text-muted small fw-bold">Merma / Sebo / Hueso Blanco:</span>
+                    <span class="text-muted small fw-bold">Merma / Grasa / Hueso Blanco:</span>
                     <div class="fw-bold fs-5 text-danger num-legible" id="lblDesposteMermaKilos">0.00 Kg</div>
                     <small class="text-danger fw-bold" id="lblDespostePorcMerma">0.0% Merma</small>
                   </div>
                   <div class="col-md-3">
-                    <span class="text-muted small fw-bold">Costo Real por Kg de Carne:</span>
+                    <span class="text-muted small fw-bold">Costo Real por Kg Carne:</span>
                     <div class="fw-bold fs-5 text-primary num-legible" id="lblDesposteCostoRealKg">$0.00 / Kg</div>
                     <small class="text-muted" id="lblDesposteSubtotalCanal">Total: $0.00</small>
                   </div>
@@ -1446,6 +1477,88 @@
             <button type="button" id="btnProcesarEntradaMercancia" class="btn btn-success fw-bold px-4 rounded-pill shadow" onclick="ejecutarIngresoRecepcionFinal()" disabled>
               📥 Confirmar e Ingresar al Inventario
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL LOTES DE DESPOSTE EN ESPERA (STANDBY / LIQUIDACIÓN REAL) -->
+    <div class="modal fade" id="modalLotesDesposteStandby" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-dark text-white py-3">
+            <h5 class="modal-title fw-bold text-warning">⏳ Lotes de Desposte en Standby (Conciliación y Cierre)</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-3 p-md-4 bg-light">
+            
+            <div class="alert alert-dark small py-2 mb-3 shadow-sm border-secondary">
+              <strong>ℹ️ Instrucciones para el Maestro Despostador:</strong> Seleccione el lote de la res faenada. Al ingresar la <strong>Merma Real Pesada (Kg de hueso limpio, sebo y grasa en canasta)</strong>, el sistema ajustará automáticamente cualquier diferencia en el inventario y liquidará el lote.
+            </div>
+
+            <!-- Tabla de lotes en espera -->
+            <div class="table-responsive bg-white rounded-3 border mb-3 shadow-sm" style="max-height: 240px; overflow-y: auto;">
+              <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
+                  <tr>
+                    <th>N.° Guía / Factura</th>
+                    <th>Fecha Recepción</th>
+                    <th>Proveedor / Matadero</th>
+                    <th>Sello</th>
+                    <th>Peso Canal</th>
+                    <th>Cortes Útiles</th>
+                    <th>Merma Estimada</th>
+                    <th>Estatus</th>
+                    <th style="width: 130px;">Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaLotesDesposteStandby" class="small">
+                  <tr>
+                    <td colspan="9" class="text-center text-muted py-4">No hay lotes de desposte en espera.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Panel de Conciliación y Liquidación del Lote Seleccionado -->
+            <div id="panelLiquidacionLoteSeleccionado" class="p-3 bg-white border border-warning rounded-3 shadow-sm hidden">
+              <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">⚖️ Liquidación Real del Lote: <span id="lblLoteLiquidandoGuia" class="text-primary">GUIA-000</span></h6>
+              <input type="hidden" id="desposteLoteIdLiquidando" value="">
+
+              <div class="row g-2 align-items-center mb-3">
+                <div class="col-md-4">
+                  <label for="desposteMermaRealInput" class="form-label small fw-bold mb-1 text-danger">Merma Real Pesada en Báscula (Kg) *:</label>
+                  <input type="number" step="0.01" min="0" id="desposteMermaRealInput" class="form-control fw-bold text-center fs-5 text-danger num-legible" placeholder="Ej: 58.40" oninput="calcularDesviacionMermaLiquidacion()">
+                  <div class="form-text text-muted" style="font-size: 0.72rem;">Kilos totales pesados de hueso blanco, sebo duro y aserrín.</div>
+                </div>
+
+                <div class="col-md-4 text-center border-start border-end">
+                  <span class="text-muted small fw-bold">Merma Estimada en Recepción:</span>
+                  <div class="fw-bold fs-5 text-dark num-legible" id="lblLoteMermaEstimadaRef">0.00 Kg</div>
+                  <small class="text-muted" id="lblLotePorcMermaEstimadaRef">(20.0%)</small>
+                </div>
+
+                <div class="col-md-4 text-center">
+                  <span class="text-muted small fw-bold">Desviación / Diferencia (Δ):</span>
+                  <div class="fw-bold fs-5 num-legible" id="lblLoteDesviacionMerma">0.00 Kg</div>
+                  <small class="fw-bold" id="lblLoteDesviacionEstado">Sin variación</small>
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-outline-secondary fw-bold rounded-pill btn-sm" onclick="cancelarSeleccionLoteLiquidacion()">
+                  Cancelar Selección
+                </button>
+                <button type="button" id="btnConfirmarLiquidacionLote" class="btn btn-warning text-dark fw-bold rounded-pill px-4 shadow-sm" onclick="confirmarLiquidacionRealLote()">
+                  🔒 Liquidar y Ajustar Inventario
+                </button>
+              </div>
+            </div>
+
+            <div id="errorModalStandbyDesposte" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+          <div class="modal-footer bg-white justify-content-between p-3 border-top">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cerrar</button>
           </div>
         </div>
       </div>
