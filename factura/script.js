@@ -5865,9 +5865,14 @@ async function abrirModalLotesDesposteStandby() {
             <td class="text-center text-danger num-legible">${parseFloat(l.mermaEstimadaKg || 0).toFixed(2)} Kg (${parseFloat(l.porcMermaEstimada || 20).toFixed(1)}%)</td>
             <td class="text-center"><span class="badge bg-warning text-dark fw-bold">STANDBY</span></td>
             <td class="text-center">
-              <button type="button" class="btn btn-sm btn-warning text-dark fw-bold rounded-pill px-3 shadow-sm" onclick="seleccionarLoteParaLiquidar(${l.id})">
-                ⚖️ Liquidar
-              </button>
+              <div class="d-inline-flex gap-1">
+                <button type="button" class="btn btn-sm btn-warning text-dark fw-bold rounded-pill px-2 shadow-sm" onclick="seleccionarLoteParaLiquidar(${l.id})" title="Liquidar desposte con pesaje real">
+                  ⚖️ Liquidar
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger fw-bold rounded-pill px-2 shadow-sm" onclick="eliminarYReversarLoteDesposte(${l.id})" title="Eliminar lote y reversar kilos cargados al inventario">
+                  🗑️ Reversar
+                </button>
+              </div>
             </td>
           </tr>
         `;
@@ -5882,6 +5887,94 @@ async function abrirModalLotesDesposteStandby() {
   }
 }
 window.abrirModalLotesDesposteStandby = abrirModalLotesDesposteStandby;
+
+async function eliminarYReversarLoteDesposte(idLote) {
+  try {
+    const lote = await dbGet("lotes_desposte", idLote);
+    if (!lote) return;
+
+    const nroGuia = lote.nroGuia || "S/N";
+    const totalKilos = parseFloat(lote.kilosUtilesEstimados) || 0;
+
+    const msgConfirm = `⚠️ REVERSIÓN TOTAL DE DESPOSTE:\n¿Está seguro de eliminar el Lote N.° ${nroGuia} (${lote.proveedor})?\n\nEsta acción echará para atrás y RESTARÁ de la vitrina/inventario los ${totalKilos.toFixed(2)} Kg proyectados que fueron acreditados con esta res en canal.`;
+
+    if (!confirm(msgConfirm)) return;
+
+    // 1. Reversar (restar) cada corte acreditado en el inventario
+    const cortesProy = lote.cortesProyectados || [];
+    let stockMap = {};
+    const stockMapStr = localStorage.getItem("pos_cache_stock_map");
+    if (stockMapStr) stockMap = JSON.parse(stockMapStr);
+
+    for (let c of cortesProy) {
+      const prodNom = c.nombre;
+      const kilosRestar = parseFloat(c.kilosSumar) || 0;
+
+      if (kilosRestar > 0) {
+        let prodData = buscarProductoEnCache(prodNom);
+        if (prodData) {
+          let stockActual = parseFloat(prodData[10]) || 0;
+          let nuevoStockReversado = parseFloat((stockActual - kilosRestar).toFixed(3));
+
+          // A. Actualizar memoria activa
+          prodData[10] = nuevoStockReversado;
+          stockMap[prodNom] = nuevoStockReversado;
+
+          // B. Actualizar lista flat de códigos si existe
+          if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+            let flatItem = listaFlatProductosCodigos.find(p => p.nombre === prodNom || p.nombreOriginal === prodNom);
+            if (flatItem) flatItem.stock = nuevoStockReversado;
+          }
+
+          // C. Actualizar IndexedDB 'inventario' a 0 ms
+          try {
+            const invItem = await dbGet("inventario", prodNom);
+            if (invItem) {
+              invItem.stock = nuevoStockReversado;
+              invItem.updated_at = new Date().toISOString();
+              await dbPut("inventario", invItem);
+            }
+          } catch (eDB) {}
+
+          // D. Sincronizar en Supabase
+          if (navigator.onLine && supabaseClient) {
+            await supabaseClient
+              .from('productos')
+              .update({ stock: nuevoStockReversado, updated_at: new Date().toISOString() })
+              .eq('nombre', prodNom);
+          }
+        }
+      }
+    }
+
+    localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
+
+    // 2. Eliminar el lote de lotes_desposte en IndexedDB
+    await dbDelete("lotes_desposte", idLote);
+
+    // 3. Si estaba abierto en el panel de liquidación, ocultarlo
+    const idLiquidando = parseInt(document.getElementById('desposteLoteIdLiquidando')?.value);
+    if (idLiquidando === idLote) {
+      cancelarSeleccionLoteLiquidacion();
+    }
+
+    // 4. Refrescar catálogo visual y lista de lotes en standby
+    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+    if (typeof prepararListaProductosCodigos === "function") {
+      prepararListaProductosCodigos();
+    }
+
+    await abrirModalLotesDesposteStandby();
+    actualizarContadorLotesStandby();
+
+    mostrarAvisoFactura(`🗑️ Lote ${nroGuia} revertido y eliminado. Se restaron ${totalKilos.toFixed(2)} Kg del inventario de vitrina.`);
+
+  } catch (err) {
+    console.error("Error al reversar lote de desposte:", err);
+    mostrarAvisoFactura("Error al reversar el lote: " + err.message);
+  }
+}
+window.eliminarYReversarLoteDesposte = eliminarYReversarLoteDesposte;
 
 async function seleccionarLoteParaLiquidar(idLote) {
   try {
