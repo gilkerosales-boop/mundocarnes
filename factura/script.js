@@ -5893,10 +5893,32 @@ async function seleccionarLoteParaLiquidar(idLote) {
     document.getElementById('lblLoteMermaEstimadaRef').textContent = `${parseFloat(lote.mermaEstimadaKg || 0).toFixed(2)} Kg`;
     document.getElementById('lblLotePorcMermaEstimadaRef').textContent = `(${parseFloat(lote.porcMermaEstimada || 20).toFixed(1)}%)`;
 
-    const inpMermaReal = document.getElementById('desposteMermaRealInput');
-    if (inpMermaReal) {
-      inpMermaReal.value = "";
-      inpMermaReal.focus();
+    // Extraer pesos proyectados de cortes nobles
+    const cortesProy = lote.cortesProyectados || [];
+    const lomitoProy = cortesProy.find(c => c.nombre === "LOMITO")?.kilosSumar || 0;
+    const solomoProy = cortesProy.find(c => c.nombre === "SOLOMO DE CUERITO")?.kilosSumar || 0;
+    const puntaProy = cortesProy.find(c => c.nombre === "PUNTA TRASERA")?.kilosSumar || 0;
+
+    const lblLomitoProy = document.getElementById('lblLoteLomitoProy');
+    const lblSolomoProy = document.getElementById('lblLoteSolomoProy');
+    const lblPuntaProy = document.getElementById('lblLotePuntaProy');
+
+    if (lblLomitoProy) lblLomitoProy.textContent = parseFloat(lomitoProy).toFixed(2);
+    if (lblSolomoProy) lblSolomoProy.textContent = parseFloat(solomoProy).toFixed(2);
+    if (lblPuntaProy) lblPuntaProy.textContent = parseFloat(puntaProy).toFixed(2);
+
+    // Inicializar inputs con los valores proyectados por defecto
+    const inpLomito = document.getElementById('desposteLomitoRealInput');
+    const inpSolomo = document.getElementById('desposteSolomoRealInput');
+    const inpPunta = document.getElementById('despostePuntaRealInput');
+    const inpMerma = document.getElementById('desposteMermaRealInput');
+
+    if (inpLomito) inpLomito.value = lomitoProy > 0 ? parseFloat(lomitoProy).toFixed(2) : "";
+    if (inpSolomo) inpSolomo.value = solomoProy > 0 ? parseFloat(solomoProy).toFixed(2) : "";
+    if (inpPunta) inpPunta.value = puntaProy > 0 ? parseFloat(puntaProy).toFixed(2) : "";
+    if (inpMerma) {
+      inpMerma.value = "";
+      inpMerma.focus();
     }
 
     calcularDesviacionMermaLiquidacion();
@@ -5920,30 +5942,81 @@ async function calcularDesviacionMermaLiquidacion() {
   const lote = await dbGet("lotes_desposte", idLote);
   if (!lote) return;
 
-  const mermaReal = parseFloat(document.getElementById('desposteMermaRealInput')?.value) || 0;
-  const mermaEstimada = parseFloat(lote.mermaEstimadaKg || 0);
-  const desviacion = mermaReal - mermaEstimada;
+  const pesoCanal = parseFloat(lote.pesoCanal) || 0;
+  const cortesProy = lote.cortesProyectados || [];
 
+  const lomitoProy = cortesProy.find(c => c.nombre === "LOMITO")?.kilosSumar || 0;
+  const solomoProy = cortesProy.find(c => c.nombre === "SOLOMO DE CUERITO")?.kilosSumar || 0;
+  const puntaProy = cortesProy.find(c => c.nombre === "PUNTA TRASERA")?.kilosSumar || 0;
+
+  const inpLomito = document.getElementById('desposteLomitoRealInput');
+  const inpSolomo = document.getElementById('desposteSolomoRealInput');
+  const inpPunta = document.getElementById('despostePuntaRealInput');
+  const inpMerma = document.getElementById('desposteMermaRealInput');
+
+  const lomitoReal = parseFloat(inpLomito ? inpLomito.value : 0) || 0;
+  const solomoReal = parseFloat(inpSolomo ? inpSolomo.value : 0) || 0;
+  const puntaReal = parseFloat(inpPunta ? inpPunta.value : 0) || 0;
+  const mermaReal = parseFloat(inpMerma ? inpMerma.value : 0) || 0;
+
+  // 1. Desviaciones de cortes nobles
+  const deltaLomito = lomitoReal - lomitoProy;
+  const deltaSolomo = solomoReal - solomoProy;
+  const deltaPunta = puntaReal - puntaProy;
+
+  const lblLomitoDelta = document.getElementById('lblLoteLomitoDelta');
+  const lblSolomoDelta = document.getElementById('lblLoteSolomoDelta');
+  const lblPuntaDelta = document.getElementById('lblLotePuntaDelta');
+
+  if (lblLomitoDelta) {
+    lblLomitoDelta.textContent = `${deltaLomito >= 0 ? '+' : ''}${deltaLomito.toFixed(2)}`;
+    lblLomitoDelta.className = deltaLomito >= 0 ? "fw-bold text-success" : "fw-bold text-danger";
+  }
+  if (lblSolomoDelta) {
+    lblSolomoDelta.textContent = `${deltaSolomo >= 0 ? '+' : ''}${deltaSolomo.toFixed(2)}`;
+    lblSolomoDelta.className = deltaSolomo >= 0 ? "fw-bold text-success" : "fw-bold text-danger";
+  }
+  if (lblPuntaDelta) {
+    lblPuntaDelta.textContent = `${deltaPunta >= 0 ? '+' : ''}${deltaPunta.toFixed(2)}`;
+    lblPuntaDelta.className = deltaPunta >= 0 ? "fw-bold text-success" : "fw-bold text-danger";
+  }
+
+  // 2. Carne Comercial y Cortes con Hueso Resultante (Todo lo demás)
+  const sumaNoblesReales = lomitoReal + solomoReal + puntaReal;
+  const carneComercialReal = Math.max(0, pesoCanal - mermaReal - sumaNoblesReales);
+
+  const sumaNoblesProy = lomitoProy + solomoProy + puntaProy;
+  const mermaEstimada = parseFloat(lote.mermaEstimadaKg) || 0;
+  const carneComercialProy = Math.max(0, pesoCanal - mermaEstimada - sumaNoblesProy);
+
+  const deltaComercial = carneComercialReal - carneComercialProy;
+
+  const lblCarneReal = document.getElementById('lblLoteCarneComercialReal');
+  const lblCarneProy = document.getElementById('lblLoteCarneComercialProy');
   const lblDesv = document.getElementById('lblLoteDesviacionMerma');
   const lblEstado = document.getElementById('lblLoteDesviacionEstado');
 
-  if (mermaReal === 0) {
-    if (lblDesv) lblDesv.textContent = "0.00 Kg";
-    if (lblEstado) {
-      lblEstado.textContent = "Sin variación";
+  if (lblCarneReal) lblCarneReal.textContent = `${carneComercialReal.toFixed(2)} Kg`;
+  if (lblCarneProy) lblCarneProy.textContent = `${carneComercialProy.toFixed(2)} Kg`;
+
+  if (lblDesv) {
+    lblDesv.textContent = `${deltaComercial >= 0 ? '+' : ''}${deltaComercial.toFixed(2)} Kg`;
+    lblDesv.className = deltaComercial >= 0 ? "fw-bold fs-5 text-success num-legible" : "fw-bold fs-5 text-danger num-legible";
+  }
+
+  if (lblEstado) {
+    if (mermaReal === 0) {
+      lblEstado.textContent = "Ingrese la merma para calcular el balance";
       lblEstado.className = "small fw-bold text-muted";
-    }
-  } else if (desviacion > 0) {
-    if (lblDesv) lblDesv.textContent = `+${desviacion.toFixed(2)} Kg`;
-    if (lblEstado) {
-      lblEstado.textContent = "Mayor merma (Menor carne útil)";
-      lblEstado.className = "small fw-bold text-danger";
-    }
-  } else {
-    if (lblDesv) lblDesv.textContent = `${desviacion.toFixed(2)} Kg`;
-    if (lblEstado) {
-      lblEstado.textContent = "Excelente rendimiento (Menor merma)";
+    } else if (Math.abs(deltaComercial) < 0.1) {
+      lblEstado.textContent = "✔ Desposte cuadrado con la proyección";
       lblEstado.className = "small fw-bold text-success";
+    } else if (deltaComercial > 0) {
+      lblEstado.textContent = `Acreditará +${deltaComercial.toFixed(2)} Kg extras a carne comercial`;
+      lblEstado.className = "small fw-bold text-success";
+    } else {
+      lblEstado.textContent = `Descontará ${Math.abs(deltaComercial).toFixed(2)} Kg de carne comercial por merma`;
+      lblEstado.className = "small fw-bold text-danger";
     }
   }
 }
@@ -5951,50 +6024,83 @@ window.calcularDesviacionMermaLiquidacion = calcularDesviacionMermaLiquidacion;
 
 async function confirmarLiquidacionRealLote() {
   const idLote = parseInt(document.getElementById('desposteLoteIdLiquidando')?.value);
-  const mermaReal = parseFloat(document.getElementById('desposteMermaRealInput')?.value);
   const errorDiv = document.getElementById('errorModalStandbyDesposte');
   const btn = document.getElementById('btnConfirmarLiquidacionLote');
 
-  if (!idLote || isNaN(mermaReal) || mermaReal <= 0) {
+  const mermaReal = parseFloat(document.getElementById('desposteMermaRealInput')?.value);
+  const lomitoReal = parseFloat(document.getElementById('desposteLomitoRealInput')?.value);
+  const solomoReal = parseFloat(document.getElementById('desposteSolomoRealInput')?.value);
+  const puntaReal = parseFloat(document.getElementById('despostePuntaRealInput')?.value);
+
+  if (!idLote) return;
+
+  if (isNaN(mermaReal) || mermaReal <= 0) {
     if (errorDiv) {
       errorDiv.textContent = "Ingrese la Merma Real Pesada en Báscula (huesos limpios, sebo y grasa) mayor a 0.";
+      errorDiv.classList.remove('hidden');
+    }
+    document.getElementById('desposteMermaRealInput')?.focus();
+    return;
+  }
+
+  if (isNaN(lomitoReal) || lomitoReal <= 0 || isNaN(solomoReal) || solomoReal <= 0 || isNaN(puntaReal) || puntaReal <= 0) {
+    if (errorDiv) {
+      errorDiv.textContent = "Ingrese pesajes válidos mayores a cero para Lomito, Solomo de Cuerito y Punta Trasera.";
       errorDiv.classList.remove('hidden');
     }
     return;
   }
 
   if (errorDiv) errorDiv.classList.add('hidden');
-  if (btn) { btn.disabled = true; btn.textContent = "Liquidando lote..."; }
+  if (btn) { btn.disabled = true; btn.textContent = "Liquidando lote y ajustando vitrina..."; }
 
   try {
     const lote = await dbGet("lotes_desposte", idLote);
     if (!lote) throw new Error("Lote no localizado en base de datos.");
 
-    const mermaEstimada = parseFloat(lote.mermaEstimadaKg || 0);
-    const desviacionKg = mermaReal - mermaEstimada;
+    const pesoCanal = parseFloat(lote.pesoCanal) || 0;
+    const cortesProy = lote.cortesProyectados || [];
 
-    if (Math.abs(desviacionKg) >= 0.1 && lote.cortesProyectados && lote.cortesProyectados.length > 0) {
-      const totalKilosCarne = parseFloat(lote.kilosUtilesEstimados) || 1;
-      let stockMap = {};
-      const stockMapStr = localStorage.getItem("pos_cache_stock_map");
-      if (stockMapStr) stockMap = JSON.parse(stockMapStr);
+    const lomitoProy = cortesProy.find(c => c.nombre === "LOMITO")?.kilosSumar || 0;
+    const solomoProy = cortesProy.find(c => c.nombre === "SOLOMO DE CUERITO")?.kilosSumar || 0;
+    const puntaProy = cortesProy.find(c => c.nombre === "PUNTA TRASERA")?.kilosSumar || 0;
 
-      for (let corte of lote.cortesProyectados) {
-        const prodNom = corte.nombre;
-        const proporcionCorte = corte.kilosSumar / totalKilosCarne;
-        const ajusteDeltaCorte = -(desviacionKg * proporcionCorte);
+    // Diferenciales exactos de cortes nobles
+    const deltaLomito = lomitoReal - lomitoProy;
+    const deltaSolomo = solomoReal - solomoProy;
+    const deltaPunta = puntaReal - puntaProy;
 
-        let prodData = buscarProductoEnCache(prodNom);
+    // Balance de carne comercial y cortes con hueso
+    const sumaNoblesReales = lomitoReal + solomoReal + puntaReal;
+    const carneComercialReal = Math.max(0, pesoCanal - mermaReal - sumaNoblesReales);
+    const sumaNoblesProy = lomitoProy + solomoProy + puntaProy;
+    const carneComercialProy = Math.max(0, pesoCanal - parseFloat(lote.mermaEstimadaKg || 0) - sumaNoblesProy);
+    const deltaComercial = carneComercialReal - carneComercialProy;
+
+    let stockMap = {};
+    const stockMapStr = localStorage.getItem("pos_cache_stock_map");
+    if (stockMapStr) stockMap = JSON.parse(stockMapStr);
+
+    // 1. Ajuste directo de los 3 cortes nobles según pesaje real
+    const ajustesNobles = [
+      { nombre: "LOMITO", delta: deltaLomito },
+      { nombre: "SOLOMO DE CUERITO", delta: deltaSolomo },
+      { nombre: "PUNTA TRASERA", delta: deltaPunta }
+    ];
+
+    for (let an of ajustesNobles) {
+      if (Math.abs(an.delta) >= 0.01) {
+        let prodData = buscarProductoEnCache(an.nombre);
         if (prodData) {
           let stockActual = parseFloat(prodData[10]) || 0;
-          let nuevoStockAjustado = parseFloat((stockActual + ajusteDeltaCorte).toFixed(3));
-          prodData[10] = nuevoStockAjustado;
-          stockMap[prodNom] = nuevoStockAjustado;
+          let nuevoStock = parseFloat((stockActual + an.delta).toFixed(3));
+          prodData[10] = nuevoStock;
+          stockMap[an.nombre] = nuevoStock;
 
           try {
-            const invItem = await dbGet("inventario", prodNom);
+            const invItem = await dbGet("inventario", an.nombre);
             if (invItem) {
-              invItem.stock = nuevoStockAjustado;
+              invItem.stock = nuevoStock;
               invItem.updated_at = new Date().toISOString();
               await dbPut("inventario", invItem);
             }
@@ -6002,19 +6108,62 @@ async function confirmarLiquidacionRealLote() {
 
           if (navigator.onLine && supabaseClient) {
             await supabaseClient.from('productos')
-              .update({ stock: nuevoStockAjustado, updated_at: new Date().toISOString() })
+              .update({ stock: nuevoStock, updated_at: new Date().toISOString() })
+              .eq('nombre', an.nombre);
+          }
+        }
+      }
+    }
+
+    // 2. Ajuste proporcional del diferencial de Carne Comercial y Cortes con Hueso
+    const cortesComercialesProy = cortesProy.filter(c => 
+      c.nombre !== "LOMITO" && c.nombre !== "SOLOMO DE CUERITO" && c.nombre !== "PUNTA TRASERA"
+    );
+    const sumaKilosComercialesProy = cortesComercialesProy.reduce((acc, c) => acc + (parseFloat(c.kilosSumar) || 0), 0) || 1;
+
+    if (Math.abs(deltaComercial) >= 0.05 && cortesComercialesProy.length > 0) {
+      for (let c of cortesComercialesProy) {
+        const prodNom = c.nombre;
+        const proporcionCorte = (parseFloat(c.kilosSumar) || 0) / sumaKilosComercialesProy;
+        const ajusteDeltaCorte = deltaComercial * proporcionCorte;
+
+        let prodData = buscarProductoEnCache(prodNom);
+        if (prodData) {
+          let stockActual = parseFloat(prodData[10]) || 0;
+          let nuevoStock = parseFloat((stockActual + ajusteDeltaCorte).toFixed(3));
+          prodData[10] = nuevoStock;
+          stockMap[prodNom] = nuevoStock;
+
+          try {
+            const invItem = await dbGet("inventario", prodNom);
+            if (invItem) {
+              invItem.stock = nuevoStock;
+              invItem.updated_at = new Date().toISOString();
+              await dbPut("inventario", invItem);
+            }
+          } catch (eDB) {}
+
+          if (navigator.onLine && supabaseClient) {
+            await supabaseClient.from('productos')
+              .update({ stock: nuevoStock, updated_at: new Date().toISOString() })
               .eq('nombre', prodNom);
           }
         }
       }
-      localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
-      renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     }
 
+    localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
+    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+
+    // 3. Liquidar el lote en lotes_desposte
     lote.estatus = "LIQUIDADO";
     lote.mermaRealKg = mermaReal;
-    lote.porcMermaReal = ((mermaReal / lote.pesoCanal) * 100).toFixed(2);
-    lote.desviacionKg = desviacionKg;
+    lote.porcMermaReal = ((mermaReal / pesoCanal) * 100).toFixed(2);
+    lote.lomitoRealKg = lomitoReal;
+    lote.solomoRealKg = solomoReal;
+    lote.puntaRealKg = puntaReal;
+    lote.carneComercialRealKg = carneComercialReal;
+    lote.deltaComercialKg = deltaComercial;
     lote.fechaLiquidacion = new Date().toLocaleString('es-VE');
 
     await dbPut("lotes_desposte", lote);
@@ -6025,7 +6174,7 @@ async function confirmarLiquidacionRealLote() {
     await abrirModalLotesDesposteStandby();
     actualizarContadorLotesStandby();
 
-    mostrarAvisoFactura(`🎉 Lote ${lote.nroGuia} LIQUIDADO con éxito. Merma real: ${mermaReal.toFixed(2)} Kg (${lote.porcMermaReal}%). Inventario ajustado.`);
+    mostrarAvisoFactura(`🎉 Lote ${lote.nroGuia} LIQUIDADO con éxito. Nobles pesados: Lomito (${lomitoReal.toFixed(2)} Kg), Solomo (${solomoReal.toFixed(2)} Kg), Punta (${puntaReal.toFixed(2)} Kg). Carne Comercial: ${carneComercialReal.toFixed(2)} Kg. Merma Real: ${mermaReal.toFixed(2)} Kg (${lote.porcMermaReal}%). Vitrina ajustada.`);
 
   } catch (errLiq) {
     if (btn) { btn.disabled = false; btn.textContent = "🔒 Liquidar y Ajustar Inventario"; }
@@ -6037,7 +6186,6 @@ async function confirmarLiquidacionRealLote() {
   }
 }
 window.confirmarLiquidacionRealLote = confirmarLiquidacionRealLote;
-
 // ==========================================================================
 // PROCESAMIENTO UNIFICADO: CARGA DIRECTA O DESPOSTE VIRTUAL EN STANDBY
 // ==========================================================================
