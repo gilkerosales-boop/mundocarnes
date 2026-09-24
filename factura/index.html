@@ -1231,9 +1231,9 @@
                   <label for="entradaNroGuiaInput" class="form-label small fw-bold mb-1">N.° Guía / Factura *:</label>
                   <input type="text" id="entradaNroGuiaInput" class="form-control form-control-sm fw-bold text-uppercase num-legible" placeholder="Ej: GUIA-00845 / FAC-102" required>
                 </div>
-                <div class="col-md-2" id="contColPesoFacturaProveedor">
+                <div class="col-md-2 hidden" id="contColPesoFacturaProveedor">
                   <label for="entradaPesoFacturaProveedorInput" class="form-label small fw-bold mb-1 text-primary">Peso Factura (Kg) *:</label>
-                  <input type="number" step="0.01" min="0.01" id="entradaPesoFacturaProveedorInput" class="form-control form-control-sm fw-bold text-primary text-center fs-6 num-legible" placeholder="Ej: 560.00" oninput="reconciliarPesajesCanalFactura()" required>
+                  <input type="number" step="0.01" min="0.01" id="entradaPesoFacturaProveedorInput" class="form-control form-control-sm fw-bold text-primary text-center fs-6 num-legible" placeholder="Ej: 560.00" oninput="reconciliarPesajesCanalFactura()">
                 </div>
                 <div class="col-md-2">
                   <label for="entradaMontoTotalFacturaInput" class="form-label small fw-bold mb-1" id="lblMontoFacturaRecepcion">Costo Total ($) *:</label>
@@ -1322,18 +1322,16 @@
               <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 240px; overflow-y: auto;">
                 <table class="table table-sm table-hover align-middle mb-0">
                   <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
-                  <tr>
-                    <th>N.° Guía / Factura</th>
-                    <th>Fecha Recepción</th>
-                    <th>Proveedor / Matadero</th>
-                    <th>Sello</th>
-                    <th>Peso Canal</th>
-                    <th>Cortes Útiles</th>
-                    <th>Merma Estimada</th>
-                    <th>Estatus</th>
-                    <th style="width: 190px;">Acciones</th>
-                  </tr>
-                </thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th style="width: 110px;">Stock Actual</th>
+                      <th style="width: 120px;">Cant. Recibida</th>
+                      <th style="width: 120px;">Precio Unit. ($)</th>
+                      <th style="width: 120px;">Subtotal ($)</th>
+                      <th style="width: 120px;">Stock Proyectado</th>
+                      <th style="width: 45px;">Acción</th>
+                    </tr>
+                  </thead>
                   <tbody id="tablaLoteEntradaMercancia" class="small">
                     <tr>
                       <td colspan="7" class="text-center text-muted py-4">No hay productos agregados a este lote de recepción.</td>
