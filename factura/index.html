@@ -1223,20 +1223,24 @@
               </div>
 
               <div class="row g-2 mb-2">
-                <div class="col-md-4">
+                <div class="col-md-3">
                   <label for="entradaProveedorInput" class="form-label small fw-bold mb-1">Proveedor / Matadero *:</label>
-                  <input type="text" id="entradaProveedorInput" class="form-control form-control-sm fw-bold text-uppercase" placeholder="Ej: MATADERO INDUSTRIAL / DISTRIBUIDORA..." required>
+                  <input type="text" id="entradaProveedorInput" class="form-control form-control-sm fw-bold text-uppercase" placeholder="Ej: MATADERO INDUSTRIAL..." required>
                 </div>
                 <div class="col-md-3">
-                  <label for="entradaNroGuiaInput" class="form-label small fw-bold mb-1">N.° Guía / Factura de Compra *:</label>
+                  <label for="entradaNroGuiaInput" class="form-label small fw-bold mb-1">N.° Guía / Factura *:</label>
                   <input type="text" id="entradaNroGuiaInput" class="form-control form-control-sm fw-bold text-uppercase num-legible" placeholder="Ej: GUIA-00845 / FAC-102" required>
                 </div>
-                <div class="col-md-3">
-                  <label for="entradaMontoTotalFacturaInput" class="form-label small fw-bold mb-1" id="lblMontoFacturaRecepcion">Monto Total Factura ($) *:</label>
+                <div class="col-md-2" id="contColPesoFacturaProveedor">
+                  <label for="entradaPesoFacturaProveedorInput" class="form-label small fw-bold mb-1 text-primary">Peso Factura (Kg) *:</label>
+                  <input type="number" step="0.01" min="0.01" id="entradaPesoFacturaProveedorInput" class="form-control form-control-sm fw-bold text-primary text-center fs-6 num-legible" placeholder="Ej: 560.00" oninput="reconciliarPesajesCanalFactura()" required>
+                </div>
+                <div class="col-md-2">
+                  <label for="entradaMontoTotalFacturaInput" class="form-label small fw-bold mb-1" id="lblMontoFacturaRecepcion">Costo Total ($) *:</label>
                   <input type="number" step="0.01" min="0.01" id="entradaMontoTotalFacturaInput" class="form-control form-control-sm fw-bold text-success text-center fs-6 num-legible" placeholder="0.00" oninput="reconciliarTotalesFacturaEntrada()" required>
                 </div>
                 <div class="col-md-2">
-                  <label for="entradaEstatusFacturaSelect" class="form-label small fw-bold mb-1 text-primary">Estatus Factura *:</label>
+                  <label for="entradaEstatusFacturaSelect" class="form-label small fw-bold mb-1 text-primary">Estatus *:</label>
                   <select id="entradaEstatusFacturaSelect" class="form-select form-select-sm fw-bold">
                     <option value="PAGO" selected>🟢 Pago</option>
                     <option value="POR PAGAR">⏳ Por Pagar</option>
@@ -1369,13 +1373,48 @@
                   </button>
                 </div>
 
-                <div class="row g-2 mb-2">
-                  <div class="col-md-3">
-                    <label for="despostePesoCanalInput" class="form-label small fw-bold mb-1">Peso Total en Canal (Kg) *:</label>
-                    <input type="number" step="0.01" min="0.01" id="despostePesoCanalInput" class="form-control form-control-sm fw-bold text-center fs-5 text-primary num-legible" placeholder="Ej: 280.00" oninput="recalcularDesposteVirtualZootecnico()" required>
+                <!-- SUB-SECCIÓN INTERACTIVA: PESAJE PIEZA A PIEZA EN BÁSCULA DE GANCHO CON OPCIÓN [+] -->
+                <div class="p-2 mb-3 bg-light border rounded-3">
+                  <div class="row g-2 align-items-end mb-2">
+                    <div class="col-md-4">
+                      <label for="inputPesoPiezaCanal" class="form-label small fw-bold mb-1 text-dark">Pesar Pieza en Gancho (Kg):</label>
+                      <div class="input-group input-group-sm">
+                        <span class="input-group-text fw-bold bg-white">⚖️</span>
+                        <input type="number" step="0.01" min="0.01" id="inputPesoPiezaCanal" class="form-control fw-bold text-center fs-5 text-primary num-legible" placeholder="Ej: 140.50" onkeyup="if(event.key==='Enter') agregarPiezaPesadaCanal()">
+                        <button type="button" class="btn btn-primary fw-bold px-3" onclick="agregarPiezaPesadaCanal()">➕ Pesar</button>
+                      </div>
+                    </div>
+                    <div class="col-md-8">
+                      <div class="d-flex justify-content-between align-items-center small mb-1">
+                        <span class="fw-bold text-muted">Piezas / Medias Canales Pesadas: <span id="cntPiezasCanalPesadas" class="badge bg-dark">0</span></span>
+                        <button type="button" class="btn btn-link btn-sm p-0 text-danger fw-bold text-decoration-none" onclick="limpiarTodasLasPiezasCanal()">Vaciar Pesajes</button>
+                      </div>
+                      <div id="contenedorChipsPiezasCanal" class="d-flex flex-wrap gap-1 p-1 bg-white border rounded" style="min-height: 38px; max-height: 80px; overflow-y: auto;">
+                        <span class="text-muted small p-1">No hay piezas pesadas. Ingrese el peso de cada media canal y presione ➕.</span>
+                      </div>
+                    </div>
                   </div>
-                  
-                  <div class="col-md-3">
+
+                  <!-- Conciliación entre Peso Facturado vs Total Pesado en Báscula -->
+                  <div class="p-2 px-3 bg-white border rounded-3 d-flex justify-content-between align-items-center flex-wrap gap-2 small shadow-sm">
+                    <div>
+                      <span class="text-muted fw-bold">Peso Factura Proveedor:</span>
+                      <strong class="text-dark fs-6 ms-1 num-legible" id="lblPesajeFacturaProveedor">0.00 Kg</strong>
+                    </div>
+                    <div>
+                      <span class="text-muted fw-bold">Total Pesado en Báscula:</span>
+                      <strong class="text-primary fs-6 ms-1 num-legible" id="lblPesajeTotalBascula">0.00 Kg</strong>
+                    </div>
+                    <div>
+                      <span class="text-muted fw-bold">Diferencia Báscula vs Factura:</span>
+                      <strong class="fs-6 ms-1 num-legible" id="lblDiferenciaPesajeCanal">0.00 Kg</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Clasificación, Sello y Merma -->
+                <div class="row g-2 mb-2">
+                  <div class="col-md-4">
                     <label for="desposteSelloSelect" class="form-label small fw-bold mb-1">Clasificación / Sello *:</label>
                     <select id="desposteSelloSelect" class="form-select form-select-sm fw-bold" onchange="actualizarMermaPorSello()">
                       <option value="MORADO" selected>🟣 Sello Morado (1ra - Merma ~20%)</option>
@@ -1384,7 +1423,7 @@
                     </select>
                   </div>
 
-                  <div class="col-md-3">
+                  <div class="col-md-4">
                     <label for="despostePorcMermaEstimadaInput" class="form-label small fw-bold mb-1">% Merma Estimada *:</label>
                     <div class="input-group input-group-sm">
                       <input type="number" step="0.1" min="5" max="45" id="despostePorcMermaEstimadaInput" class="form-control text-center fw-bold fs-6 text-danger num-legible" value="20.0" oninput="recalcularDesposteVirtualZootecnico()">
@@ -1392,7 +1431,7 @@
                     </div>
                   </div>
 
-                  <div class="col-md-3">
+                  <div class="col-md-4">
                     <label for="desposteCostoKiloCanalInput" class="form-label small fw-bold mb-1">Costo por Kg Canal ($/Kg):</label>
                     <input type="number" step="0.01" min="0.01" id="desposteCostoKiloCanalInput" class="form-control form-control-sm fw-bold text-center fs-6 text-dark num-legible" placeholder="Ej: 3.80" oninput="calcularCostoTotalDesdeKiloCanal()">
                   </div>
