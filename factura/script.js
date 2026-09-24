@@ -114,7 +114,7 @@ window.obtenerSerialFiscalActivo = obtenerSerialFiscalActivo;
 // ==========================================================================
 function abrirDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("MundocarnesPOS_DB", 6);
+    const request = indexedDB.open("MundocarnesPOS_DB", 7);
     request.onupgradeneeded = (e) => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains("clientes")) {
@@ -147,9 +147,12 @@ function abrirDB() {
       if (!db.objectStoreNames.contains("combo_recetas")) {
         db.createObjectStore("combo_recetas", { keyPath: "id" });
       }
-      // FASE 3: Store de lotes de desposte de res en canal (Standby y liquidación)
       if (!db.objectStoreNames.contains("lotes_desposte")) {
         db.createObjectStore("lotes_desposte", { keyPath: "id", autoIncrement: true });
+      }
+      // FASE 3: Store de auditoría e historial de compras y facturas de proveedores
+      if (!db.objectStoreNames.contains("compras_proveedores")) {
+        db.createObjectStore("compras_proveedores", { keyPath: "id", autoIncrement: true });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -796,6 +799,32 @@ async function procesarColaSincronizacion() {
       } else if (payload.action === "eliminarCliente") {
         const { error: errDelCli } = await supabaseClient.from('clientes').delete().eq('CEDULA', payload.cedula);
         if (errDelCli) throw errDelCli;
+
+      } else if (payload.action === "guardarCompraProveedor") {
+        const d = payload.datosCompra;
+        try {
+          await supabaseClient.from('compras_proveedores').insert([{
+            "FECHA": d.fecha,
+            "NRO_GUIA": d.nroGuia,
+            "PROVEEDOR": d.proveedor,
+            "MONTO_TOTAL": d.montoTotalFactura,
+            "ESTATUS": d.estatusFactura,
+            "TIPO": d.tipoRecepcion,
+            "PESO_FACTURA": d.pesoFactura || 0,
+            "DETALLE_ITEMS": JSON.stringify(d.items || []),
+            "FOTO_FACTURA": d.fotoFactura || null,
+            "USUARIO": d.usuario
+          }]);
+        } catch (eComp) {
+          console.warn("Aviso sync compras_proveedores:", eComp);
+        }
+
+      } else if (payload.action === "actualizarEstatusCompra") {
+        try {
+          await supabaseClient.from('compras_proveedores')
+            .update({ "ESTATUS": payload.nuevoEstatus })
+            .eq('NRO_GUIA', payload.nroGuia);
+        } catch (eUpdComp) {}
 
       } else if (payload.action === "guardarCierreCaja") {
         const d = payload.datosCierre;
@@ -6476,6 +6505,42 @@ async function ejecutarIngresoRecepcionFinal() {
 
     await dbPut("lotes_desposte", nuevoLoteDesposte);
 
+    // Guardar expediente permanente de compra en compras_proveedores
+    const expedienteCompraDesposte = {
+      fecha: nuevoLoteDesposte.fecha,
+      nroGuia: nroGuia,
+      proveedor: proveedor,
+      montoTotalFactura: montoTotalFactura,
+      estatusFactura: estatusFactura,
+      tipoRecepcion: "DESPOSTE_CANAL",
+      pesoFactura: pesoFacturaProveedor,
+      pesoCanal: pesoCanal,
+      piezasCanalPesadas: [...piezasCanalPesadas],
+      sello: sello,
+      porcMermaEstimada: porcMerma,
+      mermaEstimadaKg: mermaEstimadaKg,
+      kilosUtilesEstimados: kilosUtiles,
+      items: cortesAcreditables.map(c => ({
+        nombre: c.nombre,
+        unidad: c.unidad,
+        cantRecibida: c.kilosSumar,
+        costoUnitario: (kilosUtiles > 0 ? (montoTotalFactura / kilosUtiles) : 0),
+        subtotal: (kilosUtiles > 0 ? (montoTotalFactura / kilosUtiles) * c.kilosSumar : 0)
+      })),
+      fotoFactura: fotoFacturaBase64 || null,
+      usuario: nuevoLoteDesposte.usuario
+    };
+
+    await dbPut("compras_proveedores", expedienteCompraDesposte);
+
+    await dbPut("syncQueue", {
+      id: "sync_compra_" + Date.now(),
+      payload: {
+        action: "guardarCompraProveedor",
+        datosCompra: expedienteCompraDesposte
+      }
+    });
+
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     if (typeof prepararListaProductosCodigos === "function") {
       prepararListaProductosCodigos();
@@ -6621,6 +6686,36 @@ async function ejecutarIngresoLoteMercancia() {
       btn.disabled = false;
       btn.textContent = "📥 Confirmar e Ingresar al Inventario";
     }
+
+    // Guardar expediente permanente de compra en compras_proveedores
+    const expedienteCompraDirecta = {
+      fecha: new Date().toLocaleString('es-VE'),
+      nroGuia: nroGuia,
+      proveedor: proveedor,
+      montoTotalFactura: montoTotalFactura,
+      estatusFactura: estatusFactura,
+      tipoRecepcion: "CARGA_DIRECTA",
+      pesoFactura: null,
+      items: loteEntradaMercancia.map(it => ({
+        nombre: it.nombre,
+        unidad: it.unidad,
+        cantRecibida: it.cantRecibida,
+        costoUnitario: it.costoUnitario,
+        subtotal: it.subtotal
+      })),
+      fotoFactura: fotoFacturaBase64 || null,
+      usuario: obtenerUsuarioActivo().toUpperCase()
+    };
+
+    await dbPut("compras_proveedores", expedienteCompraDirecta);
+
+    await dbPut("syncQueue", {
+      id: "sync_compra_" + Date.now(),
+      payload: {
+        action: "guardarCompraProveedor",
+        datosCompra: expedienteCompraDirecta
+      }
+    });
 
     const estatusTexto = estatusFactura === "PAGO" ? "PAGADA" : "POR PAGAR";
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).hide();
@@ -7077,6 +7172,216 @@ async function eliminarClienteGestion(cedula) {
   }
 }
 window.eliminarClienteGestion = eliminarClienteGestion;
+
+// ==========================================================================
+// MÓDULO: HISTORIAL DE COMPRAS Y FACTURAS DE PROVEEDORES
+// ==========================================================================
+let cacheComprasProveedores = [];
+
+async function abrirModalHistorialCompras() {
+  const inpBusq = document.getElementById('inputFiltroComprasBusqueda');
+  const selEst = document.getElementById('selectFiltroEstatusCompra');
+  const selTipo = document.getElementById('selectFiltroTipoCompra');
+  const panelDet = document.getElementById('panelDetalleCompraSeleccionada');
+
+  if (inpBusq) inpBusq.value = "";
+  if (selEst) selEst.value = "TODOS";
+  if (selTipo) selTipo.value = "TODOS";
+  if (panelDet) panelDet.classList.add('hidden');
+
+  await cargarHistorialComprasProveedores();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalHistorialCompras')).show();
+}
+window.abrirModalHistorialCompras = abrirModalHistorialCompras;
+
+async function cargarHistorialComprasProveedores() {
+  try {
+    const comprasLocales = await dbGetAll("compras_proveedores");
+    cacheComprasProveedores = (comprasLocales || []).sort((a, b) => (b.id || 0) - (a.id || 0));
+
+    // Sincronización en segundo plano si hay internet
+    if (navigator.onLine && supabaseClient) {
+      supabaseClient.from('compras_proveedores').select('*').then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          data.forEach(async (c) => {
+            const existe = cacheComprasProveedores.find(cl => cl.nroGuia === c.NRO_GUIA);
+            if (!existe) {
+              const parseado = {
+                fecha: c.FECHA,
+                nroGuia: c.NRO_GUIA,
+                proveedor: c.PROVEEDOR,
+                montoTotalFactura: parseFloat(c.MONTO_TOTAL) || 0,
+                estatusFactura: c.ESTATUS || "PAGO",
+                tipoRecepcion: c.TIPO || "CARGA_DIRECTA",
+                pesoFactura: c.PESO_FACTURA,
+                items: typeof c.DETALLE_ITEMS === 'string' ? JSON.parse(c.DETALLE_ITEMS || '[]') : (c.DETALLE_ITEMS || []),
+                fotoFactura: c.FOTO_FACTURA || null,
+                usuario: c.USUARIO || "CAJERO"
+              };
+              await dbPut("compras_proveedores", parseado);
+              cacheComprasProveedores.push(parseado);
+            }
+          });
+        }
+      }).catch(() => {});
+    }
+
+    filtrarTablaHistorialCompras();
+  } catch (err) {
+    console.error("Error cargando historial de compras:", err);
+  }
+}
+window.cargarHistorialComprasProveedores = cargarHistorialComprasProveedores;
+
+function filtrarTablaHistorialCompras() {
+  const busq = (document.getElementById('inputFiltroComprasBusqueda')?.value || "").trim().toUpperCase();
+  const filtroEst = document.getElementById('selectFiltroEstatusCompra')?.value || "TODOS";
+  const filtroTipo = document.getElementById('selectFiltroTipoCompra')?.value || "TODOS";
+
+  let filtradas = cacheComprasProveedores.filter(c => {
+    let coincideTexto = true;
+    if (busq) {
+      const guia = String(c.nroGuia || "").toUpperCase();
+      const prov = String(c.proveedor || "").toUpperCase();
+      coincideTexto = guia.includes(busq) || prov.includes(busq);
+    }
+
+    let coincideEst = (filtroEst === "TODOS") || (c.estatusFactura === filtroEst);
+    let coincideTipo = (filtroTipo === "TODOS") || (c.tipoRecepcion === filtroTipo);
+
+    return coincideTexto && coincideEst && coincideTipo;
+  });
+
+  const totalSuma = filtradas.reduce((acc, c) => acc + (parseFloat(c.montoTotalFactura) || 0), 0);
+  const badgeTotal = document.getElementById('badgeTotalMontoCompras');
+  if (badgeTotal) {
+    badgeTotal.textContent = `Total Compras: $${totalSuma.toFixed(2)}`;
+  }
+
+  renderizarTablaHistorialCompras(filtradas);
+}
+window.filtrarTablaHistorialCompras = filtrarTablaHistorialCompras;
+
+function renderizarTablaHistorialCompras(lista) {
+  const tbody = document.getElementById('tablaHistorialComprasProveedores');
+  if (!tbody) return;
+
+  if (!lista || lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No hay expedientes de compras con los filtros seleccionados.</td></tr>`;
+    return;
+  }
+
+  let html = "";
+  lista.forEach(c => {
+    const esDesposte = (c.tipoRecepcion === "DESPOSTE_CANAL");
+    const badgeTipo = esDesposte 
+      ? `<span class="badge bg-primary">🥩 Desposte Canal</span>` 
+      : `<span class="badge bg-secondary">📦 Carga Directa</span>`;
+
+    const esPagada = (c.estatusFactura === "PAGO");
+    const badgeEst = esPagada 
+      ? `<span class="badge bg-success">✅ Pagada</span>` 
+      : `<span class="badge bg-warning text-dark fw-bold">⏳ Por Pagar</span>`;
+
+    const btnCambiarEst = esPagada
+      ? `<button type="button" class="btn btn-sm btn-outline-warning text-dark fw-bold rounded-pill py-0 px-2" onclick="conmutarEstatusPagoCompra(${c.id})" title="Marcar como pendiente por pagar">↩️ Por Pagar</button>`
+      : `<button type="button" class="btn btn-sm btn-success fw-bold rounded-pill py-0 px-2" onclick="conmutarEstatusPagoCompra(${c.id})" title="Marcar como liquidada/pagada">💵 Pagar</button>`;
+
+    const fotoBtn = c.fotoFactura 
+      ? `<button type="button" class="btn btn-sm btn-link p-0" onclick="ampliarFotoFacturaEntrada('${c.fotoFactura}')" title="Ver foto adjunta de la factura">📷 Ver</button>` 
+      : `<span class="text-muted small">--</span>`;
+
+    html += `
+      <tr>
+        <td class="fw-bold text-center text-primary num-legible">${c.nroGuia}</td>
+        <td class="text-center small num-legible">${c.fecha}</td>
+        <td class="fw-bold text-dark text-truncate" style="max-width: 170px;" title="${c.proveedor}">${c.proveedor}</td>
+        <td class="text-center">${badgeTipo}</td>
+        <td class="text-end fw-bold text-dark num-legible">$${parseFloat(c.montoTotalFactura || 0).toFixed(2)}</td>
+        <td class="text-center">${badgeEst}</td>
+        <td class="text-center">${fotoBtn}</td>
+        <td class="text-center">
+          <div class="d-inline-flex align-items-center gap-1">
+            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold rounded-pill" onclick="verDetalleProductosCompra(${c.id})" title="Ver artículos de esta factura">
+              📋 Detalle
+            </button>
+            ${btnCambiarEst}
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function verDetalleProductosCompra(idCompra) {
+  const c = cacheComprasProveedores.find(item => item.id === idCompra);
+  if (!c) return;
+
+  const panel = document.getElementById('panelDetalleCompraSeleccionada');
+  const lblGuia = document.getElementById('lblDetalleCompraGuia');
+  const tbody = document.getElementById('tablaDetalleProductosCompra');
+
+  if (lblGuia) lblGuia.textContent = `${c.nroGuia} (${c.proveedor})`;
+
+  let html = "";
+  const items = c.items || [];
+
+  if (items.length === 0) {
+    html = `<tr><td colspan="4" class="text-center text-muted py-2">Sin desglose de productos registrado.</td></tr>`;
+  } else {
+    items.forEach(it => {
+      const uniLabel = (it.unidad === 'unidades') ? 'uds' : 'Kg';
+      const cantTxt = (it.unidad === 'unidades') ? Math.round(it.cantRecibida) : parseFloat(it.cantRecibida || 0).toFixed(3);
+      html += `
+        <tr>
+          <td class="fw-bold">${it.nombre}</td>
+          <td class="text-center fw-bold num-legible text-success">${cantTxt} ${uniLabel}</td>
+          <td class="text-end num-legible">$${parseFloat(it.costoUnitario || 0).toFixed(2)}</td>
+          <td class="text-end fw-bold text-dark num-legible">$${parseFloat(it.subtotal || 0).toFixed(2)}</td>
+        </tr>
+      `;
+    });
+  }
+
+  if (tbody) tbody.innerHTML = html;
+  if (panel) panel.classList.remove('hidden');
+}
+window.verDetalleProductosCompra = verDetalleProductosCompra;
+
+function cerrarPanelDetalleCompra() {
+  const panel = document.getElementById('panelDetalleCompraSeleccionada');
+  if (panel) panel.classList.add('hidden');
+}
+window.cerrarPanelDetalleCompra = cerrarPanelDetalleCompra;
+
+async function conmutarEstatusPagoCompra(idCompra) {
+  const c = cacheComprasProveedores.find(item => item.id === idCompra);
+  if (!c) return;
+
+  const nuevoEst = (c.estatusFactura === "PAGO") ? "POR PAGAR" : "PAGO";
+  const accionTexto = (nuevoEst === "PAGO") ? "PAGADA" : "PENDIENTE POR PAGAR";
+
+  if (!confirm(`¿Desea cambiar el estatus de la factura N.° ${c.nroGuia} a "${accionTexto}"?`)) return;
+
+  c.estatusFactura = nuevoEst;
+  await dbPut("compras_proveedores", c);
+
+  await dbPut("syncQueue", {
+    id: "sync_est_compra_" + Date.now(),
+    payload: {
+      action: "actualizarEstatusCompra",
+      nroGuia: c.nroGuia,
+      nuevoEstatus: nuevoEst
+    }
+  });
+
+  filtrarTablaHistorialCompras();
+  mostrarAvisoFactura(`Factura ${c.nroGuia} actualizada a "${accionTexto}".`);
+  procesarColaSincronizacion();
+}
+window.conmutarEstatusPagoCompra = conmutarEstatusPagoCompra;
 
 // Sincronizar en vivo los cambios editados con reordenamiento inteligente sin empates
 function sincronizarDOMAFlatList() {
