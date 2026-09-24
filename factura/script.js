@@ -190,9 +190,9 @@ async function dbPut(storeName, item) {
         const store = tx.objectStore(storeName);
         
         // Si el objeto no tiene ID válido en un almacén autoincremental, retirar propiedad vacía
-        if (storeName === "cierres" && (item.id === undefined || item.id === null)) {
-          delete item.id;
-        }
+            if ((storeName === "cierres" || storeName === "compras_proveedores" || storeName === "lotes_desposte") && (item.id === undefined || item.id === null)) {
+              delete item.id;
+            }
 
         const req = store.put(item);
         req.onsuccess = () => resolve(req.result);
@@ -6505,7 +6505,15 @@ async function ejecutarIngresoRecepcionFinal() {
 
     await dbPut("lotes_desposte", nuevoLoteDesposte);
 
-    // Guardar expediente permanente de compra en compras_proveedores
+    // Guardar expediente de compra directo en Supabase e IndexedDB
+    const itemsDesposteMapeados = cortesAcreditables.map(c => ({
+      nombre: c.nombre,
+      unidad: c.unidad,
+      cantRecibida: c.kilosSumar,
+      costoUnitario: (kilosUtiles > 0 ? parseFloat((montoTotalFactura / kilosUtiles).toFixed(2)) : 0),
+      subtotal: (kilosUtiles > 0 ? parseFloat(((montoTotalFactura / kilosUtiles) * c.kilosSumar).toFixed(2)) : 0)
+    }));
+
     const expedienteCompraDesposte = {
       fecha: nuevoLoteDesposte.fecha,
       nroGuia: nroGuia,
@@ -6520,26 +6528,35 @@ async function ejecutarIngresoRecepcionFinal() {
       porcMermaEstimada: porcMerma,
       mermaEstimadaKg: mermaEstimadaKg,
       kilosUtilesEstimados: kilosUtiles,
-      items: cortesAcreditables.map(c => ({
-        nombre: c.nombre,
-        unidad: c.unidad,
-        cantRecibida: c.kilosSumar,
-        costoUnitario: (kilosUtiles > 0 ? (montoTotalFactura / kilosUtiles) : 0),
-        subtotal: (kilosUtiles > 0 ? (montoTotalFactura / kilosUtiles) * c.kilosSumar : 0)
-      })),
+      items: itemsDesposteMapeados,
       fotoFactura: fotoFacturaBase64 || null,
       usuario: nuevoLoteDesposte.usuario
     };
 
-    await dbPut("compras_proveedores", expedienteCompraDesposte);
+    if (navigator.onLine && supabaseClient) {
+      try {
+        const { data: resComp } = await supabaseClient.from('compras_proveedores').insert([{
+          "FECHA": expedienteCompraDesposte.fecha,
+          "NRO_GUIA": expedienteCompraDesposte.nroGuia,
+          "PROVEEDOR": expedienteCompraDesposte.proveedor,
+          "MONTO_TOTAL": expedienteCompraDesposte.montoTotalFactura,
+          "ESTATUS": expedienteCompraDesposte.estatusFactura,
+          "TIPO": expedienteCompraDesposte.tipoRecepcion,
+          "PESO_FACTURA": expedienteCompraDesposte.pesoFactura || 0,
+          "DETALLE_ITEMS": itemsDesposteMapeados,
+          "FOTO_FACTURA": expedienteCompraDesposte.fotoFactura,
+          "USUARIO": expedienteCompraDesposte.usuario
+        }]).select();
 
-    await dbPut("syncQueue", {
-      id: "sync_compra_" + Date.now(),
-      payload: {
-        action: "guardarCompraProveedor",
-        datosCompra: expedienteCompraDesposte
+        if (resComp && resComp[0]) {
+          expedienteCompraDesposte.id = resComp[0].id;
+        }
+      } catch (eSup) {
+        console.warn("Aviso guardado compra Supabase:", eSup);
       }
-    });
+    }
+
+    await dbPut("compras_proveedores", expedienteCompraDesposte);
 
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     if (typeof prepararListaProductosCodigos === "function") {
@@ -6687,7 +6704,15 @@ async function ejecutarIngresoLoteMercancia() {
       btn.textContent = "📥 Confirmar e Ingresar al Inventario";
     }
 
-    // Guardar expediente permanente de compra en compras_proveedores
+    // Guardar expediente de compra directa en Supabase e IndexedDB
+    const itemsDirectaMapeados = loteEntradaMercancia.map(it => ({
+      nombre: it.nombre,
+      unidad: it.unidad,
+      cantRecibida: it.cantRecibida,
+      costoUnitario: it.costoUnitario,
+      subtotal: it.subtotal
+    }));
+
     const expedienteCompraDirecta = {
       fecha: new Date().toLocaleString('es-VE'),
       nroGuia: nroGuia,
@@ -6696,26 +6721,35 @@ async function ejecutarIngresoLoteMercancia() {
       estatusFactura: estatusFactura,
       tipoRecepcion: "CARGA_DIRECTA",
       pesoFactura: null,
-      items: loteEntradaMercancia.map(it => ({
-        nombre: it.nombre,
-        unidad: it.unidad,
-        cantRecibida: it.cantRecibida,
-        costoUnitario: it.costoUnitario,
-        subtotal: it.subtotal
-      })),
+      items: itemsDirectaMapeados,
       fotoFactura: fotoFacturaBase64 || null,
       usuario: obtenerUsuarioActivo().toUpperCase()
     };
 
-    await dbPut("compras_proveedores", expedienteCompraDirecta);
+    if (navigator.onLine && supabaseClient) {
+      try {
+        const { data: resComp } = await supabaseClient.from('compras_proveedores').insert([{
+          "FECHA": expedienteCompraDirecta.fecha,
+          "NRO_GUIA": expedienteCompraDirecta.nroGuia,
+          "PROVEEDOR": expedienteCompraDirecta.proveedor,
+          "MONTO_TOTAL": expedienteCompraDirecta.montoTotalFactura,
+          "ESTATUS": expedienteCompraDirecta.estatusFactura,
+          "TIPO": expedienteCompraDirecta.tipoRecepcion,
+          "PESO_FACTURA": 0,
+          "DETALLE_ITEMS": itemsDirectaMapeados,
+          "FOTO_FACTURA": expedienteCompraDirecta.fotoFactura,
+          "USUARIO": expedienteCompraDirecta.usuario
+        }]).select();
 
-    await dbPut("syncQueue", {
-      id: "sync_compra_" + Date.now(),
-      payload: {
-        action: "guardarCompraProveedor",
-        datosCompra: expedienteCompraDirecta
+        if (resComp && resComp[0]) {
+          expedienteCompraDirecta.id = resComp[0].id;
+        }
+      } catch (eSup) {
+        console.warn("Aviso guardado compra Supabase:", eSup);
       }
-    });
+    }
+
+    await dbPut("compras_proveedores", expedienteCompraDirecta);
 
     const estatusTexto = estatusFactura === "PAGO" ? "PAGADA" : "POR PAGAR";
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).hide();
@@ -6723,6 +6757,7 @@ async function ejecutarIngresoLoteMercancia() {
 
     loteEntradaMercancia = [];
     fotoFacturaBase64 = null;
+    procesarColaSincronizacion();
 
   } catch (err) {
     if (btn) {
@@ -7196,37 +7231,42 @@ window.abrirModalHistorialCompras = abrirModalHistorialCompras;
 
 async function cargarHistorialComprasProveedores() {
   try {
+    // 1. Lectura inmediata desde IndexedDB a 0 ms
     const comprasLocales = await dbGetAll("compras_proveedores");
-    cacheComprasProveedores = (comprasLocales || []).sort((a, b) => (b.id || 0) - (a.id || 0));
-
-    // Sincronización en segundo plano si hay internet
-    if (navigator.onLine && supabaseClient) {
-      supabaseClient.from('compras_proveedores').select('*').then(({ data, error }) => {
-        if (!error && data && data.length > 0) {
-          data.forEach(async (c) => {
-            const existe = cacheComprasProveedores.find(cl => cl.nroGuia === c.NRO_GUIA);
-            if (!existe) {
-              const parseado = {
-                fecha: c.FECHA,
-                nroGuia: c.NRO_GUIA,
-                proveedor: c.PROVEEDOR,
-                montoTotalFactura: parseFloat(c.MONTO_TOTAL) || 0,
-                estatusFactura: c.ESTATUS || "PAGO",
-                tipoRecepcion: c.TIPO || "CARGA_DIRECTA",
-                pesoFactura: c.PESO_FACTURA,
-                items: typeof c.DETALLE_ITEMS === 'string' ? JSON.parse(c.DETALLE_ITEMS || '[]') : (c.DETALLE_ITEMS || []),
-                fotoFactura: c.FOTO_FACTURA || null,
-                usuario: c.USUARIO || "CAJERO"
-              };
-              await dbPut("compras_proveedores", parseado);
-              cacheComprasProveedores.push(parseado);
-            }
-          });
-        }
-      }).catch(() => {});
+    if (comprasLocales && comprasLocales.length > 0) {
+      cacheComprasProveedores = comprasLocales.sort((a, b) => (b.id || 0) - (a.id || 0));
+      filtrarTablaHistorialCompras();
     }
 
-    filtrarTablaHistorialCompras();
+    // 2. Consulta y sincronización síncrona con Supabase
+    if (navigator.onLine && supabaseClient) {
+      const { data, error } = await supabaseClient
+        .from('compras_proveedores')
+        .select('*')
+        .order('id', { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        cacheComprasProveedores = data.map(c => ({
+          id: c.id,
+          fecha: c.FECHA,
+          nroGuia: c.NRO_GUIA,
+          proveedor: c.PROVEEDOR,
+          montoTotalFactura: parseFloat(c.MONTO_TOTAL) || 0,
+          estatusFactura: c.ESTATUS || "PAGO",
+          tipoRecepcion: c.TIPO || "CARGA_DIRECTA",
+          pesoFactura: c.PESO_FACTURA,
+          items: typeof c.DETALLE_ITEMS === 'string' ? JSON.parse(c.DETALLE_ITEMS || '[]') : (c.DETALLE_ITEMS || []),
+          fotoFactura: c.FOTO_FACTURA || null,
+          usuario: c.USUARIO || "CAJERO"
+        }));
+
+        for (let cp of cacheComprasProveedores) {
+          await dbPut("compras_proveedores", cp);
+        }
+
+        filtrarTablaHistorialCompras();
+      }
+    }
   } catch (err) {
     console.error("Error cargando historial de compras:", err);
   }
