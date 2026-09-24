@@ -5038,6 +5038,7 @@ let loteEntradaMercancia = [];
 let fotoFacturaBase64 = null;
 let modoRecepcionActivo = "DIRECTA"; // 'DIRECTA' o 'DESPOSTE'
 let cortesDesposteCache = [];
+let piezasCanalPesadas = []; // Registro interactivo pieza a pieza en báscula de riel/gancho
 
 function alternarModoEntradaRecepcion(modo) {
   modoRecepcionActivo = modo;
@@ -5065,10 +5066,10 @@ function alternarModoEntradaRecepcion(modo) {
     if (panelDesposte) panelDesposte.classList.remove('hidden');
     if (lblMonto) lblMonto.textContent = "Costo Total de la Canal ($) *:";
     if (btnProcesar) {
-      btnProcesar.textContent = "🥩 Confirmar e Ingresar Desposte";
+      btnProcesar.textContent = "🥩 Cargar Desposte Virtual (Standby)";
     }
     cargarTablaCortesDesposte();
-    calcularBalanceRendimientoDesposte();
+    reconciliarPesajesCanalFactura();
   }
 }
 window.alternarModoEntradaRecepcion = alternarModoEntradaRecepcion;
@@ -5077,9 +5078,11 @@ function abrirModalEntradaMercancia() {
   loteEntradaMercancia = [];
   fotoFacturaBase64 = null;
   modoRecepcionActivo = "DIRECTA";
+  piezasCanalPesadas = [];
 
   const inpProv = document.getElementById('entradaProveedorInput');
   const inpGuia = document.getElementById('entradaNroGuiaInput');
+  const inpPesoFactura = document.getElementById('entradaPesoFacturaProveedorInput');
   const inpMontoTot = document.getElementById('entradaMontoTotalFacturaInput');
   const selEstatus = document.getElementById('entradaEstatusFacturaSelect');
   const inpFoto = document.getElementById('entradaFotoFacturaInput');
@@ -5095,13 +5098,15 @@ function abrirModalEntradaMercancia() {
   const ayudaStock = document.getElementById('ayudaStockActualProd');
   const ayudaPrecioVenta = document.getElementById('ayudaPrecioVentaActualProd');
 
-  // Campos de desposte
-  const inpPesoCanal = document.getElementById('despostePesoCanalInput');
+  // Campos de desposte y báscula
+  const inpPieza = document.getElementById('inputPesoPiezaCanal');
   const inpCostoKiloCanal = document.getElementById('desposteCostoKiloCanalInput');
-  const selTipoCanal = document.getElementById('desposteTipoCanalSelect');
+  const selSello = document.getElementById('desposteSelloSelect');
+  const inpMerma = document.getElementById('despostePorcMermaEstimadaInput');
 
   if (inpProv) inpProv.value = "";
   if (inpGuia) inpGuia.value = "";
+  if (inpPesoFactura) inpPesoFactura.value = "";
   if (inpMontoTot) inpMontoTot.value = "";
   if (selEstatus) selEstatus.value = "PAGO";
   if (inpFoto) inpFoto.value = "";
@@ -5112,9 +5117,10 @@ function abrirModalEntradaMercancia() {
   if (hiddenProd) hiddenProd.value = "";
   if (inpCant) inpCant.value = "";
   if (inpCosto) inpCosto.value = "";
-  if (inpPesoCanal) inpPesoCanal.value = "";
+  if (inpPieza) inpPieza.value = "";
   if (inpCostoKiloCanal) inpCostoKiloCanal.value = "";
-  if (selTipoCanal) selTipoCanal.value = "MEDIA CANAL";
+  if (selSello) selSello.value = "MORADO";
+  if (inpMerma) inpMerma.value = "20.0";
   if (errDiv) errDiv.classList.add('hidden');
   if (badgeUser) badgeUser.textContent = `Receptor: ${obtenerUsuarioActivo().toUpperCase()}`;
   if (ayudaStock) ayudaStock.textContent = "Seleccione un producto para verificar su existencia actual.";
@@ -5124,6 +5130,7 @@ function abrirModalEntradaMercancia() {
   cerrarListaDesplegableProductos();
   renderizarTablaLoteEntrada();
   reconciliarTotalesFacturaEntrada();
+  renderizarChipsPiezasCanal();
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).show();
 }
@@ -5492,7 +5499,7 @@ function renderizarTablaLoteEntrada() {
 }
 
 // ==========================================================================
-// MÓDULO EXCLUSIVO: DESPOSTE DE RES EN CANAL Y CÁLCULO DE RENDIMIENTO
+// MÓDULO EXCLUSIVO: DESPOSTE DE RES EN CANAL Y PESAJE PIEZA A PIEZA EN GANCHO
 // ==========================================================================
 
 // Matriz zootécnica de rendimiento estándar para res en canal (% sobre peso útil de carne)
@@ -5510,6 +5517,108 @@ const MATRIZ_RENDIMIENTO_RES = {
   "LAGARTO SIN HUESO": 0.045,
   "HUESO ROJO": 0.040
 };
+
+// 1. Agregar pieza individual pesada en gancho/báscula (opción [+])
+function agregarPiezaPesadaCanal() {
+  const inp = document.getElementById('inputPesoPiezaCanal');
+  const peso = parseFloat(inp ? inp.value : 0);
+
+  if (isNaN(peso) || peso <= 0) {
+    mostrarAvisoFactura("Ingrese un peso válido para la pieza en gancho.");
+    if (inp) inp.focus();
+    return;
+  }
+
+  piezasCanalPesadas.push(peso);
+  if (inp) {
+    inp.value = "";
+    inp.focus();
+  }
+
+  renderizarChipsPiezasCanal();
+  reconciliarPesajesCanalFactura();
+}
+window.agregarPiezaPesadaCanal = agregarPiezaPesadaCanal;
+
+function eliminarPiezaPesadaCanal(idx) {
+  if (idx >= 0 && idx < piezasCanalPesadas.length) {
+    piezasCanalPesadas.splice(idx, 1);
+    renderizarChipsPiezasCanal();
+    reconciliarPesajesCanalFactura();
+  }
+}
+window.eliminarPiezaPesadaCanal = eliminarPiezaPesadaCanal;
+
+function limpiarTodasLasPiezasCanal() {
+  if (piezasCanalPesadas.length === 0) return;
+  if (confirm("¿Desea vaciar todos los pesajes de piezas en gancho registrados?")) {
+    piezasCanalPesadas = [];
+    renderizarChipsPiezasCanal();
+    reconciliarPesajesCanalFactura();
+  }
+}
+window.limpiarTodasLasPiezasCanal = limpiarTodasLasPiezasCanal;
+
+function renderizarChipsPiezasCanal() {
+  const cont = document.getElementById('contenedorChipsPiezasCanal');
+  const badgeCnt = document.getElementById('cntPiezasCanalPesadas');
+  if (!cont) return;
+
+  if (badgeCnt) badgeCnt.textContent = piezasCanalPesadas.length;
+
+  if (piezasCanalPesadas.length === 0) {
+    cont.innerHTML = `<span class="text-muted small p-1">No hay piezas pesadas. Ingrese el peso de cada media canal y presione ➕.</span>`;
+    return;
+  }
+
+  let html = "";
+  piezasCanalPesadas.forEach((p, idx) => {
+    html += `
+      <span class="badge bg-primary d-inline-flex align-items-center gap-1 p-2 shadow-sm" style="font-size: 0.78rem;">
+        <span>#${idx + 1}: <strong>${p.toFixed(2)} Kg</strong></span>
+        <button type="button" class="btn-close btn-close-white" style="font-size: 0.55rem;" onclick="eliminarPiezaPesadaCanal(${idx})" title="Quitar pieza"></button>
+      </span>
+    `;
+  });
+
+  cont.innerHTML = html;
+}
+
+// 2. Conciliación entre Peso Facturado vs Total Pesado en Báscula de Gancho
+function reconciliarPesajesCanalFactura() {
+  const inpPesoFact = document.getElementById('entradaPesoFacturaProveedorInput');
+  const lblFact = document.getElementById('lblPesajeFacturaProveedor');
+  const lblBascula = document.getElementById('lblPesajeTotalBascula');
+  const lblDif = document.getElementById('lblDiferenciaPesajeCanal');
+
+  const pesoFactura = parseFloat(inpPesoFact ? inpPesoFact.value : 0) || 0;
+  const totalBascula = piezasCanalPesadas.reduce((a, b) => a + b, 0);
+
+  if (lblFact) lblFact.textContent = `${pesoFactura.toFixed(2)} Kg`;
+  if (lblBascula) lblBascula.textContent = `${totalBascula.toFixed(2)} Kg`;
+
+  const dif = totalBascula - pesoFactura;
+  const difAbs = Math.abs(dif);
+
+  if (lblDif) {
+    if (pesoFactura === 0 && totalBascula === 0) {
+      lblDif.textContent = "0.00 Kg";
+      lblDif.className = "fs-6 ms-1 num-legible text-dark";
+    } else if (difAbs < 0.05) {
+      lblDif.textContent = "✔ Báscula Cuadrada con Factura (0.00 Kg)";
+      lblDif.className = "fs-6 ms-1 num-legible text-success fw-bold";
+    } else if (dif < 0) {
+      lblDif.textContent = `Faltan pesarse: ${difAbs.toFixed(2)} Kg`;
+      lblDif.className = "fs-6 ms-1 num-legible text-warning fw-bold";
+    } else {
+      lblDif.textContent = `Exceso en báscula: +${dif.toFixed(2)} Kg`;
+      lblDif.className = "fs-6 ms-1 num-legible text-primary fw-bold";
+    }
+  }
+
+  recalcularDesposteVirtualZootecnico();
+}
+window.reconciliarPesajesCanalFactura = reconciliarPesajesCanalFactura;
 
 function actualizarMermaPorSello() {
   const sello = document.getElementById('desposteSelloSelect')?.value || "MORADO";
@@ -5596,9 +5705,13 @@ function cargarTablaCortesDesposte() {
 }
 
 function recalcularDesposteVirtualZootecnico() {
-  const pesoCanal = parseFloat(document.getElementById('despostePesoCanalInput')?.value) || 0;
-  const porcMerma = parseFloat(document.getElementById('despostePorcMermaEstimadaInput')?.value) || 20.0;
+  // El peso base del desposte se toma preferiblemente del pesaje real de piezas en báscula
+  let pesoCanal = piezasCanalPesadas.reduce((a, b) => a + b, 0);
+  if (pesoCanal === 0) {
+    pesoCanal = parseFloat(document.getElementById('entradaPesoFacturaProveedorInput')?.value) || 0;
+  }
 
+  const porcMerma = parseFloat(document.getElementById('despostePorcMermaEstimadaInput')?.value) || 20.0;
   const mermaEstimadaKg = pesoCanal * (porcMerma / 100);
   const kilosUtilesCarne = Math.max(0, pesoCanal - mermaEstimadaKg);
   const porcUtil = Math.max(0, 100 - porcMerma);
@@ -5631,7 +5744,11 @@ function recalcularDesposteVirtualZootecnico() {
 window.recalcularDesposteVirtualZootecnico = recalcularDesposteVirtualZootecnico;
 
 function calcularCostoTotalDesdeKiloCanal() {
-  const pesoCanal = parseFloat(document.getElementById('despostePesoCanalInput')?.value) || 0;
+  let pesoCanal = piezasCanalPesadas.reduce((a, b) => a + b, 0);
+  if (pesoCanal === 0) {
+    pesoCanal = parseFloat(document.getElementById('entradaPesoFacturaProveedorInput')?.value) || 0;
+  }
+
   const costoKilo = parseFloat(document.getElementById('desposteCostoKiloCanalInput')?.value) || 0;
   const inputMontoFactura = document.getElementById('entradaMontoTotalFacturaInput');
 
@@ -5644,7 +5761,11 @@ function calcularCostoTotalDesdeKiloCanal() {
 window.calcularCostoTotalDesdeKiloCanal = calcularCostoTotalDesdeKiloCanal;
 
 function calcularBalanceRendimientoDesposte(esEdicionManual = false) {
-  const pesoCanal = parseFloat(document.getElementById('despostePesoCanalInput')?.value) || 0;
+  let pesoCanal = piezasCanalPesadas.reduce((a, b) => a + b, 0);
+  if (pesoCanal === 0) {
+    pesoCanal = parseFloat(document.getElementById('entradaPesoFacturaProveedorInput')?.value) || 0;
+  }
+
   const costoTotalFactura = parseFloat(document.getElementById('entradaMontoTotalFacturaInput')?.value) || 0;
   const btnProcesar = document.getElementById('btnProcesarEntradaMercancia');
 
@@ -5850,9 +5971,8 @@ async function confirmarLiquidacionRealLote() {
     if (!lote) throw new Error("Lote no localizado en base de datos.");
 
     const mermaEstimada = parseFloat(lote.mermaEstimadaKg || 0);
-    const desviacionKg = mermaReal - mermaEstimada; // Positiva si hubo más merma; negativa si rindió más
+    const desviacionKg = mermaReal - mermaEstimada;
 
-    // Si hubo diferencia entre la merma real pesada vs la estimada, ajustar proporcionalmente
     if (Math.abs(desviacionKg) >= 0.1 && lote.cortesProyectados && lote.cortesProyectados.length > 0) {
       const totalKilosCarne = parseFloat(lote.kilosUtilesEstimados) || 1;
       let stockMap = {};
@@ -5862,7 +5982,7 @@ async function confirmarLiquidacionRealLote() {
       for (let corte of lote.cortesProyectados) {
         const prodNom = corte.nombre;
         const proporcionCorte = corte.kilosSumar / totalKilosCarne;
-        const ajusteDeltaCorte = -(desviacionKg * proporcionCorte); // Se resta si hubo más merma
+        const ajusteDeltaCorte = -(desviacionKg * proporcionCorte);
 
         let prodData = buscarProductoEnCache(prodNom);
         if (prodData) {
@@ -5891,7 +6011,6 @@ async function confirmarLiquidacionRealLote() {
       renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     }
 
-    // Actualizar el estado del lote a LIQUIDADO
     lote.estatus = "LIQUIDADO";
     lote.mermaRealKg = mermaReal;
     lote.porcMermaReal = ((mermaReal / lote.pesoCanal) * 100).toFixed(2);
@@ -5932,10 +6051,9 @@ async function ejecutarIngresoRecepcionFinal() {
   const errorDiv = document.getElementById('errorModalEntradaMercancia');
   const proveedor = document.getElementById('entradaProveedorInput')?.value.trim().toUpperCase();
   const nroGuia = document.getElementById('entradaNroGuiaInput')?.value.trim().toUpperCase();
+  const pesoFacturaProveedor = parseFloat(document.getElementById('entradaPesoFacturaProveedorInput')?.value) || 0;
   const montoTotalFactura = parseFloat(document.getElementById('entradaMontoTotalFacturaInput')?.value) || 0;
   const estatusFactura = document.getElementById('entradaEstatusFacturaSelect')?.value || "PAGO";
-  const pesoCanal = parseFloat(document.getElementById('despostePesoCanalInput')?.value) || 0;
-  const tipoCanal = document.getElementById('desposteTipoCanalSelect')?.value || "MEDIA CANAL";
   const sello = document.getElementById('desposteSelloSelect')?.value || "MORADO";
   const porcMerma = parseFloat(document.getElementById('despostePorcMermaEstimadaInput')?.value) || 20.0;
 
@@ -5950,29 +6068,42 @@ async function ejecutarIngresoRecepcionFinal() {
 
   if (!nroGuia) {
     if (errorDiv) {
-      errorDiv.textContent = "El campo 'N.° Guía / Factura de compra' es obligatorio.";
+      errorDiv.textContent = "El campo 'N.° Guía / Factura' es obligatorio.";
       errorDiv.classList.remove('hidden');
     }
     document.getElementById('entradaNroGuiaInput')?.focus();
     return;
   }
 
+  if (pesoFacturaProveedor <= 0) {
+    if (errorDiv) {
+      errorDiv.textContent = "El campo 'Peso Factura (Kg)' es obligatorio y debe ser mayor a 0.";
+      errorDiv.classList.remove('hidden');
+    }
+    document.getElementById('entradaPesoFacturaProveedorInput')?.focus();
+    return;
+  }
+
   if (montoTotalFactura <= 0) {
     if (errorDiv) {
-      errorDiv.textContent = "El campo 'Costo Total de la Canal ($)' es obligatorio y debe ser mayor a 0.";
+      errorDiv.textContent = "El campo 'Costo Total ($)' es obligatorio y debe ser mayor a 0.";
       errorDiv.classList.remove('hidden');
     }
     document.getElementById('entradaMontoTotalFacturaInput')?.focus();
     return;
   }
 
-  if (pesoCanal <= 0) {
-    if (errorDiv) {
-      errorDiv.textContent = "Indique el peso total de la canal en báscula inicial.";
-      errorDiv.classList.remove('hidden');
-    }
-    document.getElementById('despostePesoCanalInput')?.focus();
-    return;
+  // Determinar peso total pesado en báscula de gancho
+  let pesoCanal = piezasCanalPesadas.reduce((a, b) => a + b, 0);
+  if (pesoCanal === 0) {
+    pesoCanal = pesoFacturaProveedor;
+  }
+
+  // Conciliación de peso pesado vs peso facturado
+  const difPeso = Math.abs(pesoCanal - pesoFacturaProveedor);
+  if (difPeso > 0.5) {
+    const continuarDiferencia = confirm(`⚠️ AVISO DE DIFERENCIA EN BÁSCULA:\nEl total pesado en gancho (${pesoCanal.toFixed(2)} Kg) difiere del peso facturado en guía (${pesoFacturaProveedor.toFixed(2)} Kg) por una diferencia de ${difPeso.toFixed(2)} Kg.\n\n¿Desea confirmar e ingresar el desposte con el peso pesado en báscula?`);
+    if (!continuarDiferencia) return;
   }
 
   // Recolectar cortes proyectados de res
@@ -6026,17 +6157,14 @@ async function ejecutarIngresoRecepcionFinal() {
         let nuevoStock = stockPrevio + cantSumar;
         let stockFinal = (c.unidad === 'unidades') ? Math.round(nuevoStock) : parseFloat(nuevoStock.toFixed(3));
 
-        // 1. Memoria activa de catálogo
         prodData[10] = stockFinal;
         stockMap[prodNom] = stockFinal;
 
-        // 2. Lista flat de códigos PLU
         if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
           let flatItem = listaFlatProductosCodigos.find(p => p.nombre === prodNom || p.nombreOriginal === prodNom);
           if (flatItem) flatItem.stock = stockFinal;
         }
 
-        // 3. IndexedDB store 'inventario' a 0 ms
         try {
           const invItem = await dbGet("inventario", prodNom);
           if (invItem) {
@@ -6046,7 +6174,6 @@ async function ejecutarIngresoRecepcionFinal() {
           }
         } catch (eDB) {}
 
-        // 4. Sincronización en Supabase
         if (navigator.onLine && supabaseClient) {
           await supabaseClient
             .from('productos')
@@ -6066,10 +6193,11 @@ async function ejecutarIngresoRecepcionFinal() {
       fecha: new Date().toLocaleString('es-VE'),
       proveedor: proveedor,
       nroGuia: nroGuia,
+      pesoFacturaProveedor: pesoFacturaProveedor,
+      pesoCanal: pesoCanal,
+      piezasCanalPesadas: [...piezasCanalPesadas],
       montoTotalFactura: montoTotalFactura,
       estatusFactura: estatusFactura,
-      pesoCanal: pesoCanal,
-      tipoCanal: tipoCanal,
       sello: sello,
       porcMermaEstimada: porcMerma,
       mermaEstimadaKg: mermaEstimadaKg,
@@ -6082,7 +6210,142 @@ async function ejecutarIngresoRecepcionFinal() {
 
     await dbPut("lotes_desposte", nuevoLoteDesposte);
 
-    // Refrescar catálogo visual
+    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+    if (typeof prepararListaProductosCodigos === "function") {
+      prepararListaProductosCodigos();
+    }
+
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "🥩 Cargar Desposte Virtual (Standby)";
+    }
+
+    actualizarContadorLotesStandby();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).hide();
+
+    const estatusTexto = estatusFactura === "PAGO" ? "PAGADA" : "POR PAGAR";
+    mostrarAvisoFactura(`🥩 ¡Desposte Virtual Acreditado! ${totalKilosDespostados.toFixed(2)} Kg inyectados a vitrina (${piezasCanalPesadas.length} piezas pesadas). Lote ${nroGuia} guardado en STANDBY (${estatusTexto}).`, true, 8000);
+
+    limpiarPesajesDesposte();
+    limpiarTodasLasPiezasCanal();
+    fotoFacturaBase64 = null;
+
+  } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "🥩 Cargar Desposte Virtual (Standby)";
+    }
+    console.error("Error al procesar desposte virtual:", err);
+    if (errorDiv) {
+      errorDiv.textContent = "Error al acreditar desposte virtual: " + err.message;
+      errorDiv.classList.remove('hidden');
+    }
+  }
+}
+window.ejecutarIngresoRecepcionFinal = ejecutarIngresoRecepcionFinal;
+
+async function ejecutarIngresoLoteMercancia() {
+  const btn = document.getElementById('btnProcesarEntradaMercancia');
+  const errorDiv = document.getElementById('errorModalEntradaMercancia');
+  const proveedor = document.getElementById('entradaProveedorInput')?.value.trim().toUpperCase();
+  const nroGuia = document.getElementById('entradaNroGuiaInput')?.value.trim().toUpperCase();
+  const montoTotalFactura = parseFloat(document.getElementById('entradaMontoTotalFacturaInput')?.value);
+  const estatusFactura = document.getElementById('entradaEstatusFacturaSelect')?.value || "PAGO";
+
+  if (!proveedor) {
+    if (errorDiv) {
+      errorDiv.textContent = "El campo 'Proveedor / Matadero' es obligatorio.";
+      errorDiv.classList.remove('hidden');
+    }
+    document.getElementById('entradaProveedorInput')?.focus();
+    return;
+  }
+
+  if (!nroGuia) {
+    if (errorDiv) {
+      errorDiv.textContent = "El campo 'N.° Guía / Factura' es obligatorio.";
+      errorDiv.classList.remove('hidden');
+    }
+    document.getElementById('entradaNroGuiaInput')?.focus();
+    return;
+  }
+
+  if (isNaN(montoTotalFactura) || montoTotalFactura <= 0) {
+    if (errorDiv) {
+      errorDiv.textContent = "El campo 'Costo Total ($)' es obligatorio y debe ser mayor a 0.";
+      errorDiv.classList.remove('hidden');
+    }
+    document.getElementById('entradaMontoTotalFacturaInput')?.focus();
+    return;
+  }
+
+  if (!loteEntradaMercancia || loteEntradaMercancia.length === 0) {
+    if (errorDiv) {
+      errorDiv.textContent = "Debe añadir al menos un producto al lote de recepción.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  let sumaLote = 0;
+  loteEntradaMercancia.forEach(it => { sumaLote += parseFloat(it.subtotal) || 0; });
+  const dif = Math.abs(montoTotalFactura - sumaLote);
+
+  if (dif > 0.05) {
+    const continuar = confirm(`⚠️ AVISO DE DESCUADRE EN FACTURA:\nEl Monto Total Declarado en la Factura ($${montoTotalFactura.toFixed(2)}) difiere de la sumatoria calculada del lote ($${sumaLote.toFixed(2)}) por una diferencia de $${dif.toFixed(2)}.\n\n¿Desea confirmar y procesar el ingreso de todas formas?`);
+    if (!continuar) return;
+  }
+
+  if (errorDiv) errorDiv.classList.add('hidden');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Ingresando existencias a inventario...";
+  }
+
+  try {
+    let stockMap = {};
+    const stockMapStr = localStorage.getItem("pos_cache_stock_map");
+    if (stockMapStr) stockMap = JSON.parse(stockMapStr);
+
+    for (let item of loteEntradaMercancia) {
+      const prodNom = item.nombre;
+      const cantSumar = item.cantRecibida;
+      let prodData = buscarProductoEnCache(prodNom);
+
+      if (prodData) {
+        let stockPrevio = parseFloat(prodData[10]) || 0;
+        let nuevoStock = stockPrevio + cantSumar;
+        let stockFinal = (item.unidad === 'unidades') ? Math.round(nuevoStock) : parseFloat(nuevoStock.toFixed(3));
+
+        prodData[10] = stockFinal;
+        stockMap[prodNom] = stockFinal;
+
+        if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+          let flatItem = listaFlatProductosCodigos.find(p => p.nombre === prodNom || p.nombreOriginal === prodNom);
+          if (flatItem) flatItem.stock = stockFinal;
+        }
+
+        try {
+          const invItem = await dbGet("inventario", prodNom);
+          if (invItem) {
+            invItem.stock = stockFinal;
+            invItem.updated_at = new Date().toISOString();
+            await dbPut("inventario", invItem);
+          }
+        } catch (eDB) {}
+
+        if (navigator.onLine && supabaseClient) {
+          await supabaseClient
+            .from('productos')
+            .update({ stock: stockFinal, updated_at: new Date().toISOString() })
+            .eq('nombre', prodNom);
+        }
+      }
+    }
+
+    localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
+
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     if (typeof prepararListaProductosCodigos === "function") {
       prepararListaProductosCodigos();
@@ -6093,13 +6356,11 @@ async function ejecutarIngresoRecepcionFinal() {
       btn.textContent = "📥 Confirmar e Ingresar al Inventario";
     }
 
-    actualizarContadorLotesStandby();
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).hide();
-
     const estatusTexto = estatusFactura === "PAGO" ? "PAGADA" : "POR PAGAR";
-    mostrarAvisoFactura(`🥩 ¡Desposte Virtual Acreditado! ${totalKilosDespostados.toFixed(2)} Kg inyectados a vitrina. Lote ${nroGuia} (${sello}) guardado en STANDBY para ajuste del despostador.`, true, 8000);
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).hide();
+    mostrarAvisoFactura(`🎉 ¡Éxito! Lote cargado: ${loteEntradaMercancia.length} producto(s) sumados (${proveedor} - Guía: ${nroGuia} - Factura: ${estatusTexto} - Total: $${sumaLote.toFixed(2)}).`, true, 7000);
 
-    limpiarPesajesDesposte();
+    loteEntradaMercancia = [];
     fotoFacturaBase64 = null;
 
   } catch (err) {
@@ -6107,14 +6368,14 @@ async function ejecutarIngresoRecepcionFinal() {
       btn.disabled = false;
       btn.textContent = "📥 Confirmar e Ingresar al Inventario";
     }
-    console.error("Error al procesar desposte virtual:", err);
+    console.error("Error al cargar lote de mercancía:", err);
     if (errorDiv) {
-      errorDiv.textContent = "Error al acreditar desposte virtual: " + err.message;
+      errorDiv.textContent = "Error al procesar el ingreso de stock: " + err.message;
       errorDiv.classList.remove('hidden');
     }
   }
 }
-window.ejecutarIngresoRecepcionFinal = ejecutarIngresoRecepcionFinal;
+window.ejecutarIngresoLoteMercancia = ejecutarIngresoLoteMercancia;
 
 async function ejecutarIngresoLoteMercancia() {
   const btn = document.getElementById('btnProcesarEntradaMercancia');
