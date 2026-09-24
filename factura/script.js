@@ -6698,17 +6698,7 @@ async function ejecutarIngresoLoteMercancia() {
 
     localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
 
-    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
-    if (typeof prepararListaProductosCodigos === "function") {
-      prepararListaProductosCodigos();
-    }
-
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "📥 Confirmar e Ingresar al Inventario";
-    }
-
-    // Guardar expediente de compra directa en Supabase e IndexedDB
+    // Estructurar expediente permanente de compra
     const itemsDirectaMapeados = loteEntradaMercancia.map(it => ({
       nombre: it.nombre,
       unidad: it.unidad,
@@ -6718,21 +6708,26 @@ async function ejecutarIngresoLoteMercancia() {
     }));
 
     const expedienteCompraDirecta = {
+      id: Date.now(),
       fecha: new Date().toLocaleString('es-VE'),
       nroGuia: nroGuia,
       proveedor: proveedor,
       montoTotalFactura: montoTotalFactura,
       estatusFactura: estatusFactura,
       tipoRecepcion: "CARGA_DIRECTA",
-      pesoFactura: null,
+      pesoFactura: 0,
       items: itemsDirectaMapeados,
       fotoFactura: fotoFacturaBase64 || null,
       usuario: obtenerUsuarioActivo().toUpperCase()
     };
 
+    // 1. Guardar primero en IndexedDB local a 0ms (Inmunidad offline)
+    await dbPut("compras_proveedores", expedienteCompraDirecta);
+
+    // 2. Guardar directo en Supabase mostrando alerta si falla
     if (navigator.onLine && supabaseClient) {
       try {
-        const { data: resComp } = await supabaseClient.from('compras_proveedores').insert([{
+        const { data: resComp, error: errComp } = await supabaseClient.from('compras_proveedores').insert([{
           "FECHA": expedienteCompraDirecta.fecha,
           "NRO_GUIA": expedienteCompraDirecta.nroGuia,
           "PROVEEDOR": expedienteCompraDirecta.proveedor,
@@ -6745,15 +6740,27 @@ async function ejecutarIngresoLoteMercancia() {
           "USUARIO": expedienteCompraDirecta.usuario
         }]).select();
 
-        if (resComp && resComp[0]) {
+        if (errComp) {
+          console.error("Error al insertar compra directa en Supabase:", errComp);
+          mostrarAvisoFactura("⚠️ Supabase: " + (errComp.message || "Error al registrar compra"), false, 8000);
+        } else if (resComp && resComp[0]) {
           expedienteCompraDirecta.id = resComp[0].id;
+          await dbPut("compras_proveedores", expedienteCompraDirecta);
         }
       } catch (eSup) {
-        console.warn("Aviso guardado compra Supabase:", eSup);
+        console.warn("Excepción compra directa Supabase:", eSup);
       }
     }
 
-    await dbPut("compras_proveedores", expedienteCompraDirecta);
+    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+    if (typeof prepararListaProductosCodigos === "function") {
+      prepararListaProductosCodigos();
+    }
+
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "📥 Confirmar e Ingresar al Inventario";
+    }
 
     const estatusTexto = estatusFactura === "PAGO" ? "PAGADA" : "POR PAGAR";
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).hide();
@@ -6761,7 +6768,6 @@ async function ejecutarIngresoLoteMercancia() {
 
     loteEntradaMercancia = [];
     fotoFacturaBase64 = null;
-    procesarColaSincronizacion();
 
   } catch (err) {
     if (btn) {
@@ -7237,7 +7243,7 @@ async function cargarHistorialComprasProveedores() {
   try {
     let mapCompras = {};
 
-    // 1. Cargar compras locales de IndexedDB a 0 ms
+    // 1. Cargar compras locales de IndexedDB a 0 ms (Inmediatez absoluta)
     const comprasLocales = await dbGetAll("compras_proveedores");
     if (comprasLocales && comprasLocales.length > 0) {
       comprasLocales.forEach(c => {
@@ -7248,7 +7254,7 @@ async function cargarHistorialComprasProveedores() {
       filtrarTablaHistorialCompras();
     }
 
-    // 2. Consulta y fusión con Supabase
+    // 2. Consulta y fusión síncrona con Supabase
     if (navigator.onLine && supabaseClient) {
       const { data, error } = await supabaseClient
         .from('compras_proveedores')
@@ -7277,6 +7283,8 @@ async function cargarHistorialComprasProveedores() {
 
         cacheComprasProveedores = Object.values(mapCompras).sort((a, b) => (b.id || 0) - (a.id || 0));
         filtrarTablaHistorialCompras();
+      } else if (error) {
+        console.warn("Aviso al consultar compras_proveedores en Supabase:", error);
       }
     }
   } catch (err) {
