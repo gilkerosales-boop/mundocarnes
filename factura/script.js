@@ -6504,63 +6504,21 @@ async function ejecutarIngresoRecepcionFinal() {
 
     await dbPut("lotes_desposte", nuevoLoteDesposte);
 
-  // Guardar expediente de compra directo en Supabase e IndexedDB
-  const itemsDesposteMapeados = cortesAcreditables.map(c => ({
-    nombre: c.nombre,
-    unidad: c.unidad,
-    cantRecibida: c.kilosSumar,
-    costoUnitario: (kilosUtiles > 0 ? parseFloat((montoTotalFactura / kilosUtiles).toFixed(2)) : 0),
-    subtotal: (kilosUtiles > 0 ? parseFloat(((montoTotalFactura / kilosUtiles) * c.kilosSumar).toFixed(2)) : 0)
-  }));
+    // Guardar expediente permanente de compra en compras_proveedores
+    const itemsDesposteMapeados = cortesAcreditables.map(c => ({
+      nombre: c.nombre,
+      unidad: c.unidad,
+      cantRecibida: c.kilosSumar,
+      costoUnitario: (kilosUtiles > 0 ? parseFloat((montoTotalFactura / kilosUtiles).toFixed(2)) : 0),
+      subtotal: (kilosUtiles > 0 ? parseFloat(((montoTotalFactura / kilosUtiles) * c.kilosSumar).toFixed(2)) : 0)
+    }));
 
-  const expedienteCompraDesposte = {
-    id: Date.now(),
-    fecha: nuevoLoteDesposte.fecha,
-    nroGuia: nroGuia,
-    proveedor: proveedor,
-    montoTotalFactura: montoTotalFactura,
-    estatusFactura: estatusFactura,
-    tipoRecepcion: "DESPOSTE_CANAL",
-    pesoFactura: pesoFacturaProveedor,
-    pesoCanal: pesoCanal,
-    piezasCanalPesadas: [...piezasCanalPesadas],
-    sello: sello,
-    porcMermaEstimada: porcMerma,
-    mermaEstimadaKg: mermaEstimadaKg,
-    kilosUtilesEstimados: kilosUtiles,
-    items: itemsDesposteMapeados,
-    fotoFactura: fotoFacturaBase64 || null,
-    usuario: nuevoLoteDesposte.usuario
-  };
-
-  await dbPut("compras_proveedores", expedienteCompraDesposte);
-
-  if (navigator.onLine && supabaseClient) {
-    try {
-      const { data: resComp, error: errComp } = await supabaseClient.from('compras_proveedores').insert([{
-        "FECHA": expedienteCompraDesposte.fecha,
-        "NRO_GUIA": expedienteCompraDesposte.nroGuia,
-        "PROVEEDOR": expedienteCompraDesposte.proveedor,
-        "MONTO_TOTAL": expedienteCompraDesposte.montoTotalFactura,
-        "ESTATUS": expedienteCompraDesposte.estatusFactura,
-        "TIPO": expedienteCompraDesposte.tipoRecepcion,
-        "PESO_FACTURA": expedienteCompraDesposte.pesoFactura || 0,
-        "DETALLE_ITEMS": itemsDesposteMapeados,
-        "FOTO_FACTURA": expedienteCompraDesposte.fotoFactura,
-        "USUARIO": expedienteCompraDesposte.usuario
-      }]).select();
-
-      if (errComp) {
-        console.error("Error al insertar compra desposte en Supabase:", errComp);
-        mostrarAvisoFactura("⚠️ Supabase: " + (errComp.message || "Error al registrar compra"), false, 8000);
-      } else if (resComp && resComp[0]) {
-        expedienteCompraDesposte.id = resComp[0].id;
-        await dbPut("compras_proveedores", expedienteCompraDesposte);
-      }
-    } catch (eSup) {
-      console.warn("Excepción compra desposte Supabase:", eSup);
-    }
-  }
+    const expedienteCompraDesposte = {
+      id: Date.now(),
+      fecha: nuevoLoteDesposte.fecha,
+      nroGuia: nroGuia,
+      proveedor: proveedor,
+      montoTotalFactura: montoTotalFactura,
       estatusFactura: estatusFactura,
       tipoRecepcion: "DESPOSTE_CANAL",
       pesoFactura: pesoFacturaProveedor,
@@ -6575,32 +6533,34 @@ async function ejecutarIngresoRecepcionFinal() {
       usuario: nuevoLoteDesposte.usuario
     };
 
-    expedienteCompraDirecta.id = Date.now(); // ID local único garantizado
-    await dbPut("compras_proveedores", expedienteCompraDirecta);
+    // Guardar primero en local a 0ms
+    await dbPut("compras_proveedores", expedienteCompraDesposte);
 
+    // Guardar en Supabase
     if (navigator.onLine && supabaseClient) {
       try {
-        const { data: resComp, error: errInsert } = await supabaseClient.from('compras_proveedores').insert([{
-          "FECHA": expedienteCompraDirecta.fecha,
-          "NRO_GUIA": expedienteCompraDirecta.nroGuia,
-          "PROVEEDOR": expedienteCompraDirecta.proveedor,
-          "MONTO_TOTAL": expedienteCompraDirecta.montoTotalFactura,
-          "ESTATUS": expedienteCompraDirecta.estatusFactura,
-          "TIPO": expedienteCompraDirecta.tipoRecepcion,
-          "PESO_FACTURA": 0,
-          "DETALLE_ITEMS": itemsDirectaMapeados,
-          "FOTO_FACTURA": expedienteCompraDirecta.fotoFactura,
-          "USUARIO": expedienteCompraDirecta.usuario
+        const { data: resComp, error: errComp } = await supabaseClient.from('compras_proveedores').insert([{
+          "FECHA": expedienteCompraDesposte.fecha,
+          "NRO_GUIA": expedienteCompraDesposte.nroGuia,
+          "PROVEEDOR": expedienteCompraDesposte.proveedor,
+          "MONTO_TOTAL": expedienteCompraDesposte.montoTotalFactura,
+          "ESTATUS": expedienteCompraDesposte.estatusFactura,
+          "TIPO": expedienteCompraDesposte.tipoRecepcion,
+          "PESO_FACTURA": expedienteCompraDesposte.pesoFactura || 0,
+          "DETALLE_ITEMS": itemsDesposteMapeados,
+          "FOTO_FACTURA": expedienteCompraDesposte.fotoFactura,
+          "USUARIO": expedienteCompraDesposte.usuario
         }]).select();
 
-        if (errInsert) {
-          console.error("Error al insertar compra en Supabase:", errInsert);
+        if (errComp) {
+          console.error("Error al insertar compra desposte en Supabase:", errComp);
+          mostrarAvisoFactura("⚠️ Supabase: " + (errComp.message || "Error al registrar compra"), false, 8000);
         } else if (resComp && resComp[0]) {
-          expedienteCompraDirecta.id = resComp[0].id;
-          await dbPut("compras_proveedores", expedienteCompraDirecta);
+          expedienteCompraDesposte.id = resComp[0].id;
+          await dbPut("compras_proveedores", expedienteCompraDesposte);
         }
       } catch (eSup) {
-        console.warn("Aviso guardado compra Supabase:", eSup);
+        console.warn("Excepción compra desposte Supabase:", eSup);
       }
     }
 
