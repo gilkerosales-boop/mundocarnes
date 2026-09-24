@@ -1195,8 +1195,8 @@
 
     <!-- MODAL ENTRADA Y RECEPCIÓN DE MERCANCÍA / STOCK Y DESPOSTE -->
     <div class="modal fade" id="modalEntradaMercancia" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content border-0 shadow-lg">
+      <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content rounded-0 border-0">
           <div class="modal-header bg-success text-white py-3">
             <h5 class="modal-title fw-bold">📥 Recepción de Mercancía y Entrada de Stock</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -1322,16 +1322,18 @@
               <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 240px; overflow-y: auto;">
                 <table class="table table-sm table-hover align-middle mb-0">
                   <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
-                    <tr>
-                      <th>Producto</th>
-                      <th style="width: 100px;">Stock Actual</th>
-                      <th style="width: 110px;">Cant. Recibida</th>
-                      <th style="width: 115px;">Precio Unit. ($)</th>
-                      <th style="width: 115px;">Subtotal ($)</th>
-                      <th style="width: 110px;">Stock Proyectado</th>
-                      <th style="width: 45px;">Acción</th>
-                    </tr>
-                  </thead>
+                  <tr>
+                    <th>N.° Guía / Factura</th>
+                    <th>Fecha Recepción</th>
+                    <th>Proveedor / Matadero</th>
+                    <th>Sello</th>
+                    <th>Peso Canal</th>
+                    <th>Cortes Útiles</th>
+                    <th>Merma Estimada</th>
+                    <th>Estatus</th>
+                    <th style="width: 190px;">Acciones</th>
+                  </tr>
+                </thead>
                   <tbody id="tablaLoteEntradaMercancia" class="small">
                     <tr>
                       <td colspan="7" class="text-center text-muted py-4">No hay productos agregados a este lote de recepción.</td>
