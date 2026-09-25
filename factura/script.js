@@ -7178,6 +7178,13 @@ async function cargarHistorialComprasProveedores() {
 }
 window.cargarHistorialComprasProveedores = cargarHistorialComprasProveedores;
 
+function actualizarContadorComprasPorPagar() {
+  const pill = document.getElementById('cntComprasPorPagarPill');
+  if (!pill) return;
+  const pendientes = (cacheComprasProveedores || []).filter(c => (c.estatusFactura || c.ESTATUS) === 'POR PAGAR').length;
+  pill.textContent = pendientes;
+}
+
 function filtrarTablaHistorialCompras() {
   const busq = (document.getElementById('inputFiltroComprasBusqueda')?.value || "").trim().toUpperCase();
   const filtroEst = document.getElementById('selectFiltroEstatusCompra')?.value || "TODOS";
@@ -7191,7 +7198,8 @@ function filtrarTablaHistorialCompras() {
       coincideTexto = guia.includes(busq) || prov.includes(busq);
     }
 
-    let coincideEst = (filtroEst === "TODOS") || (c.estatusFactura === filtroEst);
+    const estatusActual = (c.estatusFactura || c.ESTATUS || "PAGO").toUpperCase();
+    let coincideEst = (filtroEst === "TODOS") || (estatusActual === filtroEst);
     let coincideTipo = (filtroTipo === "TODOS") || (c.tipoRecepcion === filtroTipo);
 
     return coincideTexto && coincideEst && coincideTipo;
@@ -7203,6 +7211,7 @@ function filtrarTablaHistorialCompras() {
     badgeTotal.textContent = `Total Compras: $${totalSuma.toFixed(2)}`;
   }
 
+  actualizarContadorComprasPorPagar();
   renderizarTablaHistorialCompras(filtradas);
 }
 window.filtrarTablaHistorialCompras = filtrarTablaHistorialCompras;
@@ -7223,7 +7232,9 @@ function renderizarTablaHistorialCompras(lista) {
       ? `<span class="badge bg-primary">🥩 Desposte Canal</span>` 
       : `<span class="badge bg-secondary">📦 Carga Directa</span>`;
 
-    const esPagada = (c.estatusFactura === "PAGO");
+    const estatusActual = (c.estatusFactura || c.ESTATUS || "PAGO").toUpperCase();
+    const esPagada = (estatusActual === "PAGO" || estatusActual === "PAGADO");
+
     const badgeEst = esPagada 
       ? `<span class="badge bg-success">✅ Pagada</span>` 
       : `<span class="badge bg-warning text-dark fw-bold">⏳ Por Pagar</span>`;
@@ -7308,12 +7319,14 @@ async function conmutarEstatusPagoCompra(idCompra) {
   const c = cacheComprasProveedores.find(item => item.id === idCompra);
   if (!c) return;
 
-  const nuevoEst = (c.estatusFactura === "PAGO") ? "POR PAGAR" : "PAGO";
+  const estatusActual = (c.estatusFactura || c.ESTATUS || "PAGO").toUpperCase();
+  const nuevoEst = (estatusActual === "PAGO" || estatusActual === "PAGADO") ? "POR PAGAR" : "PAGO";
   const accionTexto = (nuevoEst === "PAGO") ? "PAGADA" : "PENDIENTE POR PAGAR";
 
   if (!confirm(`¿Desea cambiar el estatus de la factura N.° ${c.nroGuia} a "${accionTexto}"?`)) return;
 
   c.estatusFactura = nuevoEst;
+  c.ESTATUS = nuevoEst;
   await dbPut("compras_proveedores", c);
 
   if (navigator.onLine && supabaseClient) {
@@ -7332,6 +7345,11 @@ async function conmutarEstatusPagoCompra(idCompra) {
   }
 
   filtrarTablaHistorialCompras();
+  if (typeof filtrarTablaCuentasPorPagar === "function") {
+    filtrarTablaCuentasPorPagar();
+  }
+  actualizarContadorComprasPorPagar();
+
   mostrarAvisoFactura(`Factura ${c.nroGuia} actualizada a "${accionTexto}".`);
   procesarColaSincronizacion();
 }
@@ -7435,9 +7453,14 @@ async function eliminarYReversarCompraProveedor(idCompra) {
 
     // 6. Cerrar panel de detalle si correspondía a esta factura
     cerrarPanelDetalleCompra();
+    cerrarPanelDetalleCXP();
 
     // 7. Refrescar interfaces
     filtrarTablaHistorialCompras();
+    if (typeof filtrarTablaCuentasPorPagar === "function") {
+      filtrarTablaCuentasPorPagar();
+    }
+    actualizarContadorComprasPorPagar();
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
     if (typeof prepararListaProductosCodigos === "function") {
       prepararListaProductosCodigos();
@@ -7451,6 +7474,166 @@ async function eliminarYReversarCompraProveedor(idCompra) {
   }
 }
 window.eliminarYReversarCompraProveedor = eliminarYReversarCompraProveedor;
+
+// ==========================================================================
+// MÓDULO EXCLUSIVO: CUENTAS POR PAGAR A PROVEEDORES (CXP)
+// ==========================================================================
+
+async function cargarHistorialCuentasPorPagar() {
+  const tbody = document.getElementById('tablaHistorialCuentasPorPagar');
+  if (tbody && (!cacheComprasProveedores || cacheComprasProveedores.length === 0)) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">⏳ Consultando cuentas por pagar a proveedores...</td></tr>`;
+  }
+
+  await cargarHistorialComprasProveedores();
+  filtrarTablaCuentasPorPagar();
+}
+window.cargarHistorialCuentasPorPagar = cargarHistorialCuentasPorPagar;
+
+function filtrarTablaCuentasPorPagar() {
+  const busq = (document.getElementById('filtroCXPBusquedaInput')?.value || "").trim().toUpperCase();
+  const filtroEst = document.getElementById('filtroCXPEstatusSelect')?.value || "POR PAGAR";
+
+  let filtradas = (cacheComprasProveedores || []).filter(c => {
+    let coincideTexto = true;
+    if (busq) {
+      const guia = String(c.nroGuia || "").toUpperCase();
+      const prov = String(c.proveedor || "").toUpperCase();
+      coincideTexto = guia.includes(busq) || prov.includes(busq);
+    }
+
+    const estatusActual = (c.estatusFactura || c.ESTATUS || "PAGO").toUpperCase();
+    let coincideEst = (filtroEst === "TODOS") || (estatusActual === filtroEst);
+
+    return coincideTexto && coincideEst;
+  });
+
+  // Calcular total adeudado a proveedores (Facturas con estatus POR PAGAR)
+  let totalPorPagar = 0;
+  let cantPendientes = 0;
+
+  (cacheComprasProveedores || []).forEach(c => {
+    const est = (c.estatusFactura || c.ESTATUS || "PAGO").toUpperCase();
+    const monto = parseFloat(c.montoTotalFactura || c.MONTO_TOTAL) || 0;
+    if (est === "POR PAGAR") {
+      totalPorPagar += monto;
+      cantPendientes++;
+    }
+  });
+
+  const badgeTotal = document.getElementById('badgeTotalPorPagarCXP');
+  if (badgeTotal) {
+    badgeTotal.textContent = `Por Pagar: $${totalPorPagar.toFixed(2)}`;
+  }
+
+  const pill = document.getElementById('cntComprasPorPagarPill');
+  if (pill) {
+    pill.textContent = cantPendientes;
+  }
+
+  renderizarTablaCuentasPorPagar(filtradas);
+}
+window.filtrarTablaCuentasPorPagar = filtrarTablaCuentasPorPagar;
+
+function renderizarTablaCuentasPorPagar(lista) {
+  const tbody = document.getElementById('tablaHistorialCuentasPorPagar');
+  if (!tbody) return;
+
+  if (!lista || lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No se encontraron cuentas por pagar con los filtros seleccionados.</td></tr>`;
+    return;
+  }
+
+  let html = "";
+  lista.forEach(c => {
+    const esDesposte = (c.tipoRecepcion === "DESPOSTE_CANAL");
+    const badgeTipo = esDesposte 
+      ? `<span class="badge bg-primary">🥩 Desposte Canal</span>` 
+      : `<span class="badge bg-secondary">📦 Carga Directa</span>`;
+
+    const estatusActual = (c.estatusFactura || c.ESTATUS || "PAGO").toUpperCase();
+    const esPagada = (estatusActual === "PAGO" || estatusActual === "PAGADO");
+
+    const badgeEst = esPagada 
+      ? `<span class="badge-estatus-cxc bg-success text-white">✅ Pagada</span>` 
+      : `<span class="badge-estatus-cxc bg-warning text-dark">⏳ Por Pagar</span>`;
+
+    const btnCambiarEst = esPagada
+      ? `<button type="button" class="btn btn-sm btn-outline-warning text-dark fw-bold rounded-pill py-0 px-2" onclick="conmutarEstatusPagoCompra(${c.id})" title="Marcar como pendiente por pagar">↩️ Por Pagar</button>`
+      : `<button type="button" class="btn btn-sm btn-success fw-bold rounded-pill py-0 px-2" onclick="conmutarEstatusPagoCompra(${c.id})" title="Registrar pago al proveedor">💵 Pagar</button>`;
+
+    const fotoBtn = c.fotoFactura 
+      ? `<button type="button" class="btn btn-sm btn-link p-0" onclick="ampliarFotoFacturaEntrada('${c.fotoFactura}')" title="Ver foto adjunta de la factura">📷 Ver</button>` 
+      : `<span class="text-muted small">--</span>`;
+
+    html += `
+      <tr>
+        <td class="fw-bold text-center text-primary num-legible">${c.nroGuia}</td>
+        <td class="text-center small num-legible">${c.fecha}</td>
+        <td class="fw-bold text-dark text-truncate" style="max-width: 170px;" title="${c.proveedor}">${c.proveedor}</td>
+        <td class="text-center">${badgeTipo}</td>
+        <td class="text-end fw-bold text-danger num-legible">$${parseFloat(c.montoTotalFactura || 0).toFixed(2)}</td>
+        <td class="text-center">${badgeEst}</td>
+        <td class="text-center">${fotoBtn}</td>
+        <td class="text-center">
+          <div class="d-inline-flex align-items-center gap-1">
+            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold rounded-pill" onclick="verDetalleProductosCXP(${c.id})" title="Ver artículos de esta factura">
+              📋 Detalle
+            </button>
+            ${btnCambiarEst}
+            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarYReversarCompraProveedor(${c.id})" title="Eliminar factura y reversar stock del inventario">
+              🗑️
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+window.renderizarTablaCuentasPorPagar = renderizarTablaCuentasPorPagar;
+
+function verDetalleProductosCXP(idCompra) {
+  const c = cacheComprasProveedores.find(item => item.id === idCompra);
+  if (!c) return;
+
+  const panel = document.getElementById('panelDetalleCXPSeleccionada');
+  const lblGuia = document.getElementById('lblDetalleCXPGuia');
+  const tbody = document.getElementById('tablaDetalleProductosCXP');
+
+  if (lblGuia) lblGuia.textContent = `${c.nroGuia} (${c.proveedor})`;
+
+  let html = "";
+  const items = (typeof c.items === 'string') ? JSON.parse(c.items || '[]') : (c.items || []);
+
+  if (items.length === 0) {
+    html = `<tr><td colspan="4" class="text-center text-muted py-2">Sin desglose de productos registrado.</td></tr>`;
+  } else {
+    items.forEach(it => {
+      const uniLabel = (it.unidad === 'unidades') ? 'uds' : 'Kg';
+      const cantTxt = (it.unidad === 'unidades') ? Math.round(it.cantRecibida || it.kilosSumar) : parseFloat(it.cantRecibida || it.kilosSumar || 0).toFixed(3);
+      html += `
+        <tr>
+          <td class="fw-bold">${it.nombre}</td>
+          <td class="text-center fw-bold num-legible text-success">${cantTxt} ${uniLabel}</td>
+          <td class="text-end num-legible">$${parseFloat(it.costoUnitario || 0).toFixed(2)}</td>
+          <td class="text-end fw-bold text-dark num-legible">$${parseFloat(it.subtotal || 0).toFixed(2)}</td>
+        </tr>
+      `;
+    });
+  }
+
+  if (tbody) tbody.innerHTML = html;
+  if (panel) panel.classList.remove('hidden');
+}
+window.verDetalleProductosCXP = verDetalleProductosCXP;
+
+function cerrarPanelDetalleCXP() {
+  const panel = document.getElementById('panelDetalleCXPSeleccionada');
+  if (panel) panel.classList.add('hidden');
+}
+window.cerrarPanelDetalleCXP = cerrarPanelDetalleCXP;
 
 // Sincronizar en vivo los cambios editados con reordenamiento inteligente sin empates
 function sincronizarDOMAFlatList() {
