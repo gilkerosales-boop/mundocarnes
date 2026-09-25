@@ -1,6 +1,6 @@
 // Service Worker PWA Módulo de Ventas / Facturación - Mundocarnes
 // Estrategia Network-First con Auto-Update Inmediato y Fallback Offline
-const CACHE_NAME = 'mundocarnes-pwa-v5.2.0';
+const CACHE_NAME = 'mundocarnes-pwa-v5.3.0';
 const ASSETS_TO_CACHE = [
   './',
   'index.html',
