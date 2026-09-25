@@ -8996,11 +8996,189 @@ function renderizarTicketTermicoHistorialHTML(d) {
   if (elemImpresion) elemImpresion.innerHTML = ticketHtml;
 }
 
+// ==========================================================================
+// DEVOLUCIÓN Y REVERSIÓN INTELIGENTE DE STOCK (FACTURAS Y NOTAS DE CRÉDITO)
+// ==========================================================================
+function parsearItemsDesdeProductosSummary(prodsSummary) {
+  const items = {};
+  if (!prodsSummary) return items;
+  const lista = String(prodsSummary).split(' | ');
+  lista.forEach(pStr => {
+    let partesGuion = pStr.split(/\s*-\s*\$/);
+    let textoIzquierdo = partesGuion[0] ? partesGuion[0].trim() : pStr.trim();
+
+    let cantTxt = "1 uds";
+    let cantNumerica = 1;
+    let unidad = "unidades";
+    let pesoTotalGramos = 0;
+
+    let matchParen = textoIzquierdo.match(/\(([^()]+(?:\([^()]+\))?[^()]*)\)$/);
+    if (matchParen) {
+      cantTxt = matchParen[1].trim();
+      textoIzquierdo = textoIzquierdo.substring(0, matchParen.index).trim();
+    }
+
+    let matchTag = textoIzquierdo.match(/\s*\(([GERegr0-9%]+)\)$/);
+    if (matchTag) {
+      textoIzquierdo = textoIzquierdo.substring(0, matchTag.index).trim();
+    }
+
+    const nombre = textoIzquierdo.trim();
+
+    if (cantTxt.includes('Kg') || cantTxt.includes('g')) {
+      let kgMatch = cantTxt.match(/([0-9.]+)\s*Kg/i);
+      let gMatch = cantTxt.match(/([0-9.]+)\s*g/i);
+      let kgVal = kgMatch ? parseFloat(kgMatch[1]) : 0;
+      let gVal = gMatch ? parseFloat(gMatch[1]) : 0;
+      pesoTotalGramos = (kgVal * 1000) + gVal;
+      if (pesoTotalGramos === 0 && gVal > 0) pesoTotalGramos = gVal;
+      if (pesoTotalGramos === 0 && kgVal > 0) pesoTotalGramos = kgVal * 1000;
+      unidad = "gramos";
+      cantNumerica = pesoTotalGramos;
+    } else {
+      let matchUds = cantTxt.match(/([0-9.]+)\s*uds/i);
+      cantNumerica = matchUds ? parseFloat(matchUds[1]) : (parseFloat(cantTxt) || 1);
+      unidad = "unidades";
+    }
+
+    items[nombre] = {
+      nombre: nombre,
+      cantNumerica: cantNumerica,
+      unidad: unidad,
+      pesoTotalGramos: pesoTotalGramos,
+      cantidadTxt: cantTxt
+    };
+  });
+  return items;
+}
+
+async function restaurarStockDeItems(itemsMap, multiplicarSigno = 1) {
+  if (!itemsMap || Object.keys(itemsMap).length === 0) return;
+
+  let stockMapRestauracion = {};
+  try {
+    const sMapStr = localStorage.getItem("pos_cache_stock_map");
+    if (sMapStr) stockMapRestauracion = JSON.parse(sMapStr);
+  } catch(e) {}
+
+  for (let key in itemsMap) {
+    let it = itemsMap[key];
+    if (it.esManual) continue;
+
+    const prodNomPrincipal = it.nombre || key;
+    const receta = (cacheComboRecetas || []).filter(r => r.combo_nombre === prodNomPrincipal);
+
+    if (receta && receta.length > 0) {
+      // Es un COMBO: restaurar cada ingrediente según la receta multiplicado por la cantidad
+      const cantCombos = parseFloat(it.cantNumerica) || 1;
+      for (let ing of receta) {
+        const prodNomIng = ing.producto_componente;
+        const cantRestaurarIng = (parseFloat(ing.cantidad) || 0) * cantCombos * multiplicarSigno;
+        let prodIngData = buscarProductoEnCache(prodNomIng);
+
+        if (prodIngData) {
+          let stockPrevio = parseFloat(prodIngData[10]) || 0;
+          let nuevoStock = stockPrevio + cantRestaurarIng;
+          let stockFinal = (prodIngData[5] === 'unidades') ? Math.round(nuevoStock) : parseFloat(nuevoStock.toFixed(3));
+          
+          prodIngData[10] = stockFinal;
+          stockMapRestauracion[prodNomIng] = stockFinal;
+
+          if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+            let flat = listaFlatProductosCodigos.find(p => p.nombre === prodNomIng || p.nombreOriginal === prodNomIng);
+            if (flat) flat.stock = stockFinal;
+          }
+        }
+      }
+    } else {
+      // Es un PRODUCTO INDIVIDUAL
+      let prodData = buscarProductoEnCache(prodNomPrincipal);
+      if (prodData) {
+        let cantRestaurar = (it.unidad === 'gramos' || it.unidad === 'mixto')
+          ? ((it.pesoTotalGramos || it.cantNumerica) / 1000)
+          : parseFloat(it.cantNumerica);
+
+        cantRestaurar = cantRestaurar * multiplicarSigno;
+
+        let stockPrevio = parseFloat(prodData[10]) || 0;
+        let nuevoStock = stockPrevio + cantRestaurar;
+        let stockFinal = (it.unidad === 'unidades') ? Math.round(nuevoStock) : parseFloat(nuevoStock.toFixed(3));
+
+        prodData[10] = stockFinal;
+        stockMapRestauracion[prodNomPrincipal] = stockFinal;
+
+        if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+          let flat = listaFlatProductosCodigos.find(p => p.nombre === prodNomPrincipal || p.nombreOriginal === prodNomPrincipal);
+          if (flat) flat.stock = stockFinal;
+        }
+      }
+    }
+  }
+
+  localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMapRestauracion));
+
+  // Actualización en IndexedDB 'inventario'
+  for (let prodNom in stockMapRestauracion) {
+    let stockFinal = stockMapRestauracion[prodNom];
+    if (stockFinal !== undefined) {
+      try {
+        const invItem = await dbGet("inventario", prodNom);
+        if (invItem) {
+          invItem.stock = stockFinal;
+          invItem.updated_at = new Date().toISOString();
+          await dbPut("inventario", invItem);
+        }
+      } catch (eDB) {}
+    }
+  }
+
+  // Sincronización en Supabase 'productos'
+  if (navigator.onLine && supabaseClient) {
+    for (let prodNom in stockMapRestauracion) {
+      let stockFinal = stockMapRestauracion[prodNom];
+      if (stockFinal !== undefined) {
+        supabaseClient.from('productos')
+          .update({ stock: stockFinal, updated_at: new Date().toISOString() })
+          .eq('nombre', prodNom)
+          .then(() => {})
+          .catch(e => console.warn("Aviso stock Supabase restauración:", e));
+      }
+    }
+  }
+
+  renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+  if (typeof prepararListaProductosCodigos === "function") {
+    prepararListaProductosCodigos();
+  }
+}
+
 async function eliminarFacturaHistorial(numFactura) {
-  if (!confirm(`⚠️ ¿Está seguro que desea eliminar permanentemente la Factura N° ${numFactura}?`)) {
+  if (!confirm(`⚠️ ¿Está seguro que desea eliminar permanentemente la Factura N° ${numFactura}?\n\nEsta acción eliminará el registro y RESTAURARÁ automáticamente los productos vendidos al inventario.`)) {
     return;
   }
 
+  try {
+    mostrarAvisoFactura(`🔄 Restaurando productos de la Factura ${numFactura} al stock...`, false);
+    
+    // 1. Localizar la factura en el historial o IndexedDB
+    const fac = cacheHistorialFacturas.find(f => String(f.numFactura) === String(numFactura)) || await dbGet("ventas", numFactura);
+    if (fac) {
+      const esNC = Boolean(fac.esNotaCredito || String(fac.numFactura).startsWith("NC-") || String(fac.formaPagoStr || "").includes("NOTA DE CREDITO"));
+
+      let itemsARestaurar = fac.items;
+      if (!itemsARestaurar || Object.keys(itemsARestaurar).length === 0) {
+        itemsARestaurar = parsearItemsDesdeProductosSummary(fac.productosSummary || fac.PRODUCTOS);
+      }
+
+      // Si es una venta regular se devuelve al stock (+1); si era una Nota de Crédito se vuelve a restar (-1)
+      const signo = esNC ? -1 : 1;
+      await restaurarStockDeItems(itemsARestaurar, signo);
+    }
+  } catch (errStock) {
+    console.warn("Aviso al restaurar stock de factura eliminada:", errStock);
+  }
+
+  // 2. Eliminar de bases de datos
   const tablaUsuarioActivo = obtenerTablaVentasUsuario();
   await dbDelete("ventas", numFactura);
   await dbDelete("creditos", numFactura);
@@ -9012,7 +9190,7 @@ async function eliminarFacturaHistorial(numFactura) {
     payload: { action: "eliminarFactura", numFactura: numFactura, tablaVentas: tablaUsuarioActivo }
   });
 
-  mostrarAvisoFactura(`🗑️ Factura ${numFactura} eliminada.`);
+  mostrarAvisoFactura(`🗑️ Factura ${numFactura} eliminada y mercancía restaurada en el stock.`);
   procesarColaSincronizacion();
 }
 
@@ -9284,15 +9462,28 @@ function abrirModalNotaCreditoFiscal(numFactura) {
 
       let cantNumerica = 1;
       let unidad = "unidades";
+      let pesoTotalGramos = 0;
       if (cantTxt.includes('Kg') || cantTxt.includes('g')) {
         unidad = "gramos";
-        cantNumerica = 1000;
+        let kgMatch = cantTxt.match(/([0-9.]+)\s*Kg/i);
+        let gMatch = cantTxt.match(/([0-9.]+)\s*g/i);
+        let kgVal = kgMatch ? parseFloat(kgMatch[1]) : 0;
+        let gVal = gMatch ? parseFloat(gMatch[1]) : 0;
+        pesoTotalGramos = (kgVal * 1000) + gVal;
+        if (pesoTotalGramos === 0 && gVal > 0) pesoTotalGramos = gVal;
+        if (pesoTotalGramos === 0 && kgVal > 0) pesoTotalGramos = kgVal * 1000;
+        cantNumerica = pesoTotalGramos > 0 ? pesoTotalGramos : 1000;
+      } else {
+        let matchUds = cantTxt.match(/([0-9.]+)\s*uds/i);
+        cantNumerica = matchUds ? parseFloat(matchUds[1]) : (parseFloat(cantTxt) || 1);
+        unidad = "unidades";
       }
 
       itemsDevueltosNC[nombre] = {
         nombre: nombre,
         cantidadTxt: cantTxt,
         cantNumerica: cantNumerica,
+        pesoTotalGramos: pesoTotalGramos,
         unidad: unidad,
         precioBase: subUSD,
         precioTotal: subUSD.toFixed(2),
@@ -9305,6 +9496,7 @@ function abrirModalNotaCreditoFiscal(numFactura) {
       nombre: "PRODUCTOS FACTURA FISCAL",
       cantidadTxt: "1 uds",
       cantNumerica: 1,
+      pesoTotalGramos: 0,
       unidad: "unidades",
       precioBase: montoTotalBaseUSD,
       precioTotal: montoTotalBaseUSD.toFixed(2),
@@ -9541,11 +9733,14 @@ async function confirmarEmisionNotaCreditoFiscal() {
       }
     });
 
+    // 3. Devolver la mercancía de la Nota de Crédito al stock de vitrina (combos o productos individuales)
+    await restaurarStockDeItems(itemsFinalesNC, 1);
+
     btn.disabled = false;
     btn.textContent = `🧾 Emitir Nota de Crédito Fiscal en ${nombreModelo}`;
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNotaCreditoFiscal')).hide();
-    mostrarAvisoFactura(`🎉 Nota de Crédito Fiscal N° ${numNCGenerado} emitida exitosamente en la máquina fiscal.`);
+    mostrarAvisoFactura(`🎉 Nota de Crédito Fiscal N° ${numNCGenerado} emitida exitosamente y mercancía devuelta al stock.`);
 
     buscarFacturasHistorial('ultimas');
     procesarColaSincronizacion();
