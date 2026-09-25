@@ -7251,6 +7251,9 @@ function renderizarTablaHistorialCompras(lista) {
               📋 Detalle
             </button>
             ${btnCambiarEst}
+            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarYReversarCompraProveedor(${c.id})" title="Eliminar compra y reversar stock del inventario">
+              🗑️
+            </button>
           </div>
         </td>
       </tr>
@@ -7271,14 +7274,14 @@ function verDetalleProductosCompra(idCompra) {
   if (lblGuia) lblGuia.textContent = `${c.nroGuia} (${c.proveedor})`;
 
   let html = "";
-  const items = c.items || [];
+  const items = (typeof c.items === 'string') ? JSON.parse(c.items || '[]') : (c.items || []);
 
   if (items.length === 0) {
     html = `<tr><td colspan="4" class="text-center text-muted py-2">Sin desglose de productos registrado.</td></tr>`;
   } else {
     items.forEach(it => {
       const uniLabel = (it.unidad === 'unidades') ? 'uds' : 'Kg';
-      const cantTxt = (it.unidad === 'unidades') ? Math.round(it.cantRecibida) : parseFloat(it.cantRecibida || 0).toFixed(3);
+      const cantTxt = (it.unidad === 'unidades') ? Math.round(it.cantRecibida || it.kilosSumar) : parseFloat(it.cantRecibida || it.kilosSumar || 0).toFixed(3);
       html += `
         <tr>
           <td class="fw-bold">${it.nombre}</td>
@@ -7313,20 +7316,141 @@ async function conmutarEstatusPagoCompra(idCompra) {
   c.estatusFactura = nuevoEst;
   await dbPut("compras_proveedores", c);
 
-  await dbPut("syncQueue", {
-    id: "sync_est_compra_" + Date.now(),
-    payload: {
-      action: "actualizarEstatusCompra",
-      nroGuia: c.nroGuia,
-      nuevoEstatus: nuevoEst
-    }
-  });
+  if (navigator.onLine && supabaseClient) {
+    await supabaseClient.from('compras_proveedores')
+      .update({ "ESTATUS": nuevoEst })
+      .eq('NRO_GUIA', c.nroGuia);
+  } else {
+    await dbPut("syncQueue", {
+      id: "sync_est_compra_" + Date.now(),
+      payload: {
+        action: "actualizarEstatusCompra",
+        nroGuia: c.nroGuia,
+        nuevoEstatus: nuevoEst
+      }
+    });
+  }
 
   filtrarTablaHistorialCompras();
   mostrarAvisoFactura(`Factura ${c.nroGuia} actualizada a "${accionTexto}".`);
   procesarColaSincronizacion();
 }
 window.conmutarEstatusPagoCompra = conmutarEstatusPagoCompra;
+
+// ELIMINAR COMPRA Y REVERSAR TOTALMENTE EL STOCK ASOCIADO
+async function eliminarYReversarCompraProveedor(idCompra) {
+  const c = cacheComprasProveedores.find(item => item.id === idCompra || item.nroGuia === idCompra);
+  if (!c) return;
+
+  const msgConfirm = `⚠️ REVERSIÓN Y ELIMINACIÓN DE COMPRA:\n\n¿Está seguro que desea ELIMINAR permanentemente la Factura / Guía N.° ${c.nroGuia} (${c.proveedor})?\n\nEsta acción:\n1. Eliminará la factura de Supabase e IndexedDB.\n2. RESTARÁ automáticamente del inventario todo el stock de los productos ingresados en esta compra.`;
+
+  if (!confirm(msgConfirm)) return;
+
+  try {
+    mostrarAvisoFactura(`🔄 Reversando existencias de la Factura ${c.nroGuia}...`, false);
+
+    // 1. Reversar stock de cada artículo cargado en la compra
+    const items = (typeof c.items === 'string') ? JSON.parse(c.items || '[]') : (c.items || []);
+    let stockMap = {};
+    const stockMapStr = localStorage.getItem("pos_cache_stock_map");
+    if (stockMapStr) stockMap = JSON.parse(stockMapStr);
+
+    for (let it of items) {
+      const prodNom = it.nombre;
+      const cantRestar = parseFloat(it.cantRecibida || it.kilosSumar) || 0;
+
+      if (cantRestar > 0) {
+        let prodData = buscarProductoEnCache(prodNom);
+        if (prodData) {
+          let stockPrevio = parseFloat(prodData[10]) || 0;
+          let nuevoStock = stockPrevio - cantRestar;
+          let stockFinal = (it.unidad === 'unidades') ? Math.round(nuevoStock) : parseFloat(nuevoStock.toFixed(3));
+
+          // Actualizar memoria activa
+          prodData[10] = stockFinal;
+          stockMap[prodNom] = stockFinal;
+
+          // Actualizar lista flat si existe
+          if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+            let flatItem = listaFlatProductosCodigos.find(p => p.nombre === prodNom || p.nombreOriginal === prodNom);
+            if (flatItem) flatItem.stock = stockFinal;
+          }
+
+          // Actualizar IndexedDB store 'inventario'
+          try {
+            const invItem = await dbGet("inventario", prodNom);
+            if (invItem) {
+              invItem.stock = stockFinal;
+              invItem.updated_at = new Date().toISOString();
+              await dbPut("inventario", invItem);
+            }
+          } catch (eDB) {}
+
+          // Sincronizar en Supabase tabla 'productos'
+          if (navigator.onLine && supabaseClient) {
+            await supabaseClient.from('productos')
+              .update({ stock: stockFinal, updated_at: new Date().toISOString() })
+              .eq('nombre', prodNom);
+          }
+        }
+      }
+    }
+
+    localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
+
+    // 2. Si es Desposte de Canal, eliminar también el lote en 'lotes_desposte'
+    if (c.tipoRecepcion === "DESPOSTE_CANAL") {
+      try {
+        const lotes = await dbGetAll("lotes_desposte");
+        for (let l of lotes) {
+          if (l.nroGuia === c.nroGuia) {
+            await dbDelete("lotes_desposte", l.id);
+          }
+        }
+        actualizarContadorLotesStandby();
+      } catch (eLote) {}
+    }
+
+    // 3. Eliminar de IndexedDB local 'compras_proveedores'
+    await dbDelete("compras_proveedores", c.id);
+    const todasCompsLocales = await dbGetAll("compras_proveedores");
+    for (let comp of todasCompsLocales) {
+      if (comp.nroGuia === c.nroGuia) {
+        await dbDelete("compras_proveedores", comp.id);
+      }
+    }
+
+    // 4. Eliminar en Supabase tabla 'compras_proveedores'
+    if (navigator.onLine && supabaseClient) {
+      if (c.id) {
+        await supabaseClient.from('compras_proveedores').delete().eq('id', c.id);
+      }
+      if (c.nroGuia) {
+        await supabaseClient.from('compras_proveedores').delete().eq('NRO_GUIA', c.nroGuia);
+      }
+    }
+
+    // 5. Eliminar de la memoria activa
+    cacheComprasProveedores = cacheComprasProveedores.filter(item => item.id !== c.id && item.nroGuia !== c.nroGuia);
+
+    // 6. Cerrar panel de detalle si correspondía a esta factura
+    cerrarPanelDetalleCompra();
+
+    // 7. Refrescar interfaces
+    filtrarTablaHistorialCompras();
+    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+    if (typeof prepararListaProductosCodigos === "function") {
+      prepararListaProductosCodigos();
+    }
+
+    mostrarAvisoFactura(`🗑️ Factura N.° ${c.nroGuia} eliminada y stock revertido del inventario.`);
+
+  } catch (errRev) {
+    console.error("Error al reversar compra:", errRev);
+    mostrarAvisoFactura("Error al eliminar la compra: " + errRev.message);
+  }
+}
+window.eliminarYReversarCompraProveedor = eliminarYReversarCompraProveedor;
 
 // Sincronizar en vivo los cambios editados con reordenamiento inteligente sin empates
 function sincronizarDOMAFlatList() {
