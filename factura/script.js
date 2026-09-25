@@ -10619,6 +10619,349 @@ async function ejecutarDescargaLibroSeniat(formato = 'excel') {
   }
 }
 
+// ==========================================================================
+// GENERADOR DEL LIBRO AUXILIAR DE INVENTARIO SENIAT (ART. 177 R.L.I.S.L.R.)
+// ==========================================================================
+async function ejecutarDescargaLibroInventarioSeniat(formato = 'excel') {
+  const errorDiv = document.getElementById('errorModalDescarga');
+  const mes = parseInt(document.getElementById('invSeniatMesSelect')?.value || "9", 10);
+  const anio = parseInt(document.getElementById('invSeniatAnioInput')?.value || "2026", 10);
+  const mesNombre = document.getElementById('invSeniatMesSelect')?.selectedOptions[0]?.text || "Mes";
+  const catFiltro = document.getElementById('invSeniatCategoriaSelect')?.value || "TODAS";
+
+  if (errorDiv) errorDiv.classList.add('hidden');
+  mostrarAvisoFactura(`🔄 Generando Libro Auxiliar de Inventario SENIAT (${formato.toUpperCase()})...`, false);
+
+  try {
+    const emp = obtenerDatosEmpresa();
+    const tasaActual = obtenerTasaBCV() || 780.00;
+    const mesStr = String(mes).padStart(2, '0');
+    const ultimoDia = new Date(anio, mes, 0).getDate();
+    const dInicio = new Date(anio, mes - 1, 1, 0, 0, 0);
+    const dFin = new Date(anio, mes, 0, 23, 59, 59);
+
+    // 1. Obtener catálogo maestro de productos (excluyendo Combos ya que son canastas virtuales)
+    let productosKardex = [];
+    if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+      productosKardex = listaFlatProductosCodigos.filter(p => (p.categoria || p.categoriaOriginal) !== 'COMBOS');
+    } else if (cacheCategoriasFactura) {
+      cacheCategoriasFactura.forEach(c => {
+        if (c.nombre !== 'COMBOS') {
+          c.productos.forEach((p, idx) => {
+            productosKardex.push({
+              nombre: p[0],
+              categoria: c.nombre,
+              precio: parseFloat(p[1]) || 0,
+              unidad: p[5] || 'gramos',
+              codigoPLU: p[7] || '',
+              stock: parseFloat(p[10]) || 0,
+              orden: idx + 1
+            });
+          });
+        }
+      });
+    }
+
+    if (catFiltro !== "TODAS") {
+      productosKardex = productosKardex.filter(p => (p.categoria || p.categoriaOriginal) === catFiltro);
+    }
+
+    if (productosKardex.length === 0) {
+      if (errorDiv) {
+        errorDiv.textContent = "No hay productos registrados para la categoría seleccionada.";
+        errorDiv.classList.remove('hidden');
+      }
+      return;
+    }
+
+    // 2. Obtener y consolidar Compras del mes (Entradas de mercancía y despostes)
+    let comprasDelMes = [];
+    if (navigator.onLine && supabaseClient) {
+      try {
+        const { data: compSup } = await supabaseClient.from('compras_proveedores').select('*');
+        if (compSup) comprasDelMes = compSup;
+      } catch (e) {}
+    }
+    if (comprasDelMes.length === 0) {
+      comprasDelMes = await dbGetAll("compras_proveedores");
+    }
+
+    let mapaComprasMes = {};
+    comprasDelMes.forEach(c => {
+      const ts = parsearFechaTimestamp(c.FECHA || c.fecha);
+      if (ts > 0) {
+        const dComp = new Date(ts);
+        if (dComp >= dInicio && dComp <= dFin) {
+          const items = (typeof c.DETALLE_ITEMS === 'string') 
+            ? JSON.parse(c.DETALLE_ITEMS || '[]') 
+            : ((typeof c.items === 'string') ? JSON.parse(c.items || '[]') : (c.items || c.DETALLE_ITEMS || []));
+
+          items.forEach(it => {
+            const nom = it.nombre;
+            const cant = parseFloat(it.cantRecibida || it.kilosSumar) || 0;
+            const sub = parseFloat(it.subtotal) || 0;
+            if (!mapaComprasMes[nom]) {
+              mapaComprasMes[nom] = { cant: 0, subtotalUSD: 0 };
+            }
+            mapaComprasMes[nom].cant += cant;
+            mapaComprasMes[nom].subtotalUSD += sub;
+          });
+        }
+      }
+    });
+
+    // 3. Obtener y consolidar Ventas del mes (Salidas de mercancía con desglose de combos)
+    let ventasDelMes = [];
+    if (navigator.onLine) {
+      ventasDelMes = await obtenerTodasLasVentasSupabase('ventas');
+    } else {
+      ventasDelMes = await dbGetAll("ventas");
+    }
+
+    let mapaSalidasMes = {};
+    ventasDelMes.forEach(v => {
+      const ts = parsearFechaTimestamp(v.FECHA || v.fechaStr);
+      if (ts > 0) {
+        const dVenta = new Date(ts);
+        if (dVenta >= dInicio && dVenta <= dFin) {
+          const prodsStr = String(v.PRODUCTOS || v.productosSummary || "");
+          const itemsVendidos = parsearItemsDesdeProductosSummary(prodsStr);
+
+          for (let key in itemsVendidos) {
+            const it = itemsVendidos[key];
+            const prodNom = it.nombre;
+            const receta = (cacheComboRecetas || []).filter(r => r.combo_nombre === prodNom);
+
+            if (receta && receta.length > 0) {
+              // Si fue un COMBO: registrar salida para cada ingrediente componente real
+              const cantCombos = parseFloat(it.cantNumerica) || 1;
+              receta.forEach(ing => {
+                const nomIng = ing.producto_componente;
+                const cantIng = (parseFloat(ing.cantidad) || 0) * cantCombos;
+                mapaSalidasMes[nomIng] = (mapaSalidasMes[nomIng] || 0) + cantIng;
+              });
+            } else {
+              // Producto individual
+              const cant = (it.unidad === 'gramos' || it.unidad === 'mixto')
+                ? ((it.pesoTotalGramos || it.cantNumerica) / 1000)
+                : parseFloat(it.cantNumerica);
+              mapaSalidasMes[prodNom] = (mapaSalidasMes[prodNom] || 0) + cant;
+            }
+          }
+        }
+      }
+    });
+
+    // 4. Procesar y cuadrar filas del Kardex normativo Art. 177 RLISLR
+    let filasKardex = [];
+    let totInicialBs = 0, totEntradasBs = 0, totSalidasBs = 0, totFinalBs = 0;
+    let nroItem = 1;
+
+    productosKardex.forEach(p => {
+      const nom = p.nombre;
+      const plu = p.codigoPLU ? String(p.codigoPLU).padStart(4, '0') : "S/C";
+      const cat = p.categoria || p.categoriaOriginal || "VIVERES";
+      const esUnidad = (p.unidad === 'unidades');
+      const undMedida = esUnidad ? "UDS" : "KG";
+
+      // Existencia física final
+      const cantFinal = Math.max(0, parseFloat(p.stock) || 0);
+
+      // Entradas y salidas del período
+      const cantEntradas = mapaComprasMes[nom] ? mapaComprasMes[nom].cant : 0;
+      const cantSalidas = mapaSalidasMes[nom] ? mapaSalidasMes[nom] : 0;
+
+      // Deducción del saldo inicial normativo: Inicial + Entradas - Salidas = Final
+      let cantInicial = (cantFinal + cantSalidas) - cantEntradas;
+      if (cantInicial < 0) {
+        cantInicial = 0;
+      }
+      // Ajuste de balance para consistencia absoluta de cuadre
+      if ((cantInicial + cantEntradas) < (cantSalidas + cantFinal)) {
+        cantInicial = Math.max(0, (cantSalidas + cantFinal) - cantEntradas);
+      }
+
+      // Costo unitario promedio ponderado (Bs.)
+      let costoUnitUSD = 0;
+      if (mapaComprasMes[nom] && mapaComprasMes[nom].cant > 0) {
+        costoUnitUSD = mapaComprasMes[nom].subtotalUSD / mapaComprasMes[nom].cant;
+      } else {
+        // En ausencia de compras en el mes, costo estimado al 70% del precio de venta
+        costoUnitUSD = (parseFloat(p.precio) || 1) * 0.70;
+      }
+      const costoUnitBs = costoUnitUSD * tasaActual;
+
+      // Valoraciones en Bolívares
+      const montoInicialBs = cantInicial * costoUnitBs;
+      const montoEntradasBs = cantEntradas * costoUnitBs;
+      const montoSalidasBs = cantSalidas * costoUnitBs;
+      const montoFinalBs = cantFinal * costoUnitBs;
+
+      totInicialBs += montoInicialBs;
+      totEntradasBs += montoEntradasBs;
+      totSalidasBs += montoSalidasBs;
+      totFinalBs += montoFinalBs;
+
+      filasKardex.push({
+        item: nroItem++,
+        plu: plu,
+        nombre: nom,
+        categoria: cat,
+        unidad: undMedida,
+        inicialCant: esUnidad ? Math.round(cantInicial) : parseFloat(cantInicial.toFixed(3)),
+        costoUnitBs: costoUnitBs,
+        inicialTotalBs: montoInicialBs,
+        entradasCant: esUnidad ? Math.round(cantEntradas) : parseFloat(cantEntradas.toFixed(3)),
+        costoEntradaBs: costoUnitBs,
+        entradasTotalBs: montoEntradasBs,
+        salidasCant: esUnidad ? Math.round(cantSalidas) : parseFloat(cantSalidas.toFixed(3)),
+        costoSalidaBs: costoUnitBs,
+        salidasTotalBs: montoSalidasBs,
+        finalCant: esUnidad ? Math.round(cantFinal) : parseFloat(cantFinal.toFixed(3)),
+        costoPromedioBs: costoUnitBs,
+        finalTotalBs: montoFinalBs
+      });
+    });
+
+    // 5. EXPORTACIÓN A EXCEL (.XLSX)
+    if (formato === 'excel') {
+      const encabezadoColumnasKardex = [
+        "N° Item", "Código PLU", "Descripción de la Mercancía", "Categoría", "Und. Medida",
+        "Inv. Inicial (Cant)", "Costo Unit. Inicial (Bs.)", "Inv. Inicial Total (Bs.)",
+        "Entradas / Compras (Cant)", "Costo Unit. Entrada (Bs.)", "Total Entradas (Bs.)",
+        "Salidas / Ventas (Cant)", "Costo Unit. Salida (Bs.)", "Total Salidas (Bs.)",
+        "Inv. Final (Cant)", "Costo Prom. Ponderado (Bs.)", "Inv. Final Total (Bs.)"
+      ];
+
+      const filasExcel = [
+        [emp.nombre],
+        [`RIF: ${emp.rif} | ${emp.direccion1} ${emp.direccion2}`],
+        ["LIBRO AUXILIAR DE INVENTARIO - REGISTRO DE ENTRADAS Y SALIDAS DE MERCANCÍAS"],
+        ["EXIGIDO SEGÚN EL ARTÍCULO 177 DEL REGLAMENTO DE LA LEY DE I.S.L.R. (R.L.I.S.L.R.)"],
+        [`Período: ${mesNombre.toUpperCase()} ${anio} (Del 01/${mesStr}/${anio} al ${ultimoDia}/${mesStr}/${anio}) | Tasa Oficial BCV: Bs. ${tasaActual.toFixed(2)} | Categoría: ${catFiltro}`],
+        [],
+        encabezadoColumnasKardex
+      ];
+
+      filasKardex.forEach(f => {
+        filasExcel.push([
+          f.item, f.plu, f.nombre, f.categoria, f.unidad,
+          f.inicialCant, parseFloat(f.costoUnitBs.toFixed(2)), parseFloat(f.inicialTotalBs.toFixed(2)),
+          f.entradasCant, parseFloat(f.costoEntradaBs.toFixed(2)), parseFloat(f.entradasTotalBs.toFixed(2)),
+          f.salidasCant, parseFloat(f.costoSalidaBs.toFixed(2)), parseFloat(f.salidasTotalBs.toFixed(2)),
+          f.finalCant, parseFloat(f.costoPromedioBs.toFixed(2)), parseFloat(f.finalTotalBs.toFixed(2))
+        ]);
+      });
+
+      filasExcel.push([]);
+      filasExcel.push([
+        "TOTALES:", "", "", "", "",
+        "", "", parseFloat(totInicialBs.toFixed(2)),
+        "", "", parseFloat(totEntradasBs.toFixed(2)),
+        "", "", parseFloat(totSalidasBs.toFixed(2)),
+        "", "", parseFloat(totFinalBs.toFixed(2))
+      ]);
+
+      const worksheet = XLSX.utils.aoa_to_sheet(filasExcel);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario_Art177");
+
+      const nombreArchivo = `Libro_Inventario_SENIAT_Art177_${mesNombre}_${anio}_${catFiltro}.xlsx`;
+      XLSX.writeFile(workbook, nombreArchivo);
+
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiltroDescarga')).hide();
+      mostrarAvisoFactura("🎉 Libro Auxiliar de Inventario SENIAT (Art. 177 RLISLR) en Excel generado con éxito.");
+
+    } else {
+      // 6. EXPORTACIÓN A PDF OFICIAL (LANDSCAPE)
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+      doc.setFontSize(10.5);
+      doc.setFont("helvetica", "bold");
+      doc.text(emp.nombre, 14, 11);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text(`RIF: ${emp.rif} | Domicilio Fiscal: ${emp.direccion1} ${emp.direccion2}`, 14, 15);
+      doc.setFont("helvetica", "bold");
+      doc.text("LIBRO AUXILIAR DE INVENTARIO - REGISTRO DE ENTRADAS Y SALIDAS (ART. 177 RLISLR)", 14, 19);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Período Impositivo: ${mesNombre.toUpperCase()} ${anio} (01/${mesStr}/${anio} al ${ultimoDia}/${mesStr}/${anio}) | Tasa Ref. BCV: Bs. ${tasaActual.toFixed(2)} | Filtro: ${catFiltro}`, 14, 23);
+
+      const columnasPDF = [
+        "Item", "PLU", "Descripción Mercancía", "Und",
+        "Inv. Inicial", "Costo Ini (Bs)", "Total Ini (Bs)",
+        "Entradas", "Costo Ent (Bs)", "Total Ent (Bs)",
+        "Salidas", "Costo Sal (Bs)", "Total Sal (Bs)",
+        "Inv. Final", "Costo Prom (Bs)", "Total Final (Bs)"
+      ];
+
+      const filasPDF = filasKardex.map(f => [
+        f.item,
+        f.plu,
+        f.nombre.length > 20 ? f.nombre.substring(0, 20) + "..." : f.nombre,
+        f.unidad,
+        f.inicialCant.toLocaleString('es-VE'),
+        f.costoUnitBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.inicialTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.entradasCant.toLocaleString('es-VE'),
+        f.costoEntradaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.entradasTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.salidasCant.toLocaleString('es-VE'),
+        f.costoSalidaBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.salidasTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.finalCant.toLocaleString('es-VE'),
+        f.costoPromedioBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        f.finalTotalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ]);
+
+      filasPDF.push([
+        "TOTAL", "", "TOTALES VALORIZADOS (Bs.)", "",
+        "", "", totInicialBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        "", "", totEntradasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        "", "", totSalidasBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        "", "", totFinalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      ]);
+
+      doc.autoTable({
+        head: [columnasPDF],
+        body: filasPDF,
+        startY: 25,
+        margin: { left: 6, right: 6 },
+        theme: "grid",
+        styles: { fontSize: 5.3, cellPadding: 0.8, halign: "center", lineColor: [200, 200, 200], lineWidth: 0.1 },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 5.3, halign: "center" },
+        columnStyles: {
+          2: { halign: "left", cellWidth: 26 },
+          4: { halign: "right" },
+          6: { halign: "right", fontStyle: "bold" },
+          7: { halign: "right" },
+          9: { halign: "right", fontStyle: "bold" },
+          10: { halign: "right" },
+          12: { halign: "right", fontStyle: "bold" },
+          13: { halign: "right" },
+          15: { halign: "right", fontStyle: "bold", textColor: [16, 140, 80] }
+        },
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" }
+      });
+
+      const nombreArchivoPDF = `Libro_Inventario_SENIAT_Art177_${mesNombre}_${anio}_${catFiltro}.pdf`;
+      doc.save(nombreArchivoPDF);
+
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiltroDescarga')).hide();
+      mostrarAvisoFactura("🎉 Libro Auxiliar de Inventario SENIAT (Art. 177 RLISLR) en PDF generado con éxito.");
+    }
+
+  } catch (errInv) {
+    console.error("Error al generar Libro Inventario SENIAT:", errInv);
+    if (errorDiv) {
+      errorDiv.textContent = "Error al generar el Libro de Inventario: " + errInv.message;
+      errorDiv.classList.remove('hidden');
+    }
+  }
+}
+window.ejecutarDescargaLibroInventarioSeniat = ejecutarDescargaLibroInventarioSeniat;
+
 // MOVIMIENTOS DE EFECTIVO PERSISTENTES AISLADOS POR USUARIO
 function cargarMovimientosEfectivoPersistentes() {
   const hoy = new Date().toISOString().split('T')[0];
