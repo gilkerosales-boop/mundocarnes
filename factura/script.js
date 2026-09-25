@@ -6606,6 +6606,7 @@ async function ejecutarIngresoLoteMercancia() {
   const montoTotalFactura = parseFloat(document.getElementById('entradaMontoTotalFacturaInput')?.value);
   const estatusFactura = document.getElementById('entradaEstatusFacturaSelect')?.value || "PAGO";
 
+  // 1. Validaciones
   if (!proveedor) {
     if (errorDiv) {
       errorDiv.textContent = "El campo 'Proveedor / Matadero' es obligatorio.";
@@ -6662,6 +6663,7 @@ async function ejecutarIngresoLoteMercancia() {
     const stockMapStr = localStorage.getItem("pos_cache_stock_map");
     if (stockMapStr) stockMap = JSON.parse(stockMapStr);
 
+    // 2. Actualización de inventario por cada ítem
     for (let item of loteEntradaMercancia) {
       const prodNom = item.nombre;
       const cantSumar = item.cantRecibida;
@@ -6700,7 +6702,7 @@ async function ejecutarIngresoLoteMercancia() {
 
     localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
 
-    // Estructurar expediente permanente de compra
+    // 3. Estructurar expediente permanente de compra
     const itemsDirectaMapeados = loteEntradaMercancia.map(it => ({
       nombre: it.nombre,
       unidad: it.unidad,
@@ -6723,10 +6725,18 @@ async function ejecutarIngresoLoteMercancia() {
       usuario: obtenerUsuarioActivo().toUpperCase()
     };
 
-    // 1. Guardar de inmediato en IndexedDB local a 0ms (Inmunidad local garantizada)
+    // 4. Guardar de inmediato en IndexedDB local
     await dbPut("compras_proveedores", expedienteCompraDirecta);
 
-    // 2. Guardar directo en Supabase mostrando alerta si falla
+    // 5. Inyectar de inmediato en la memoria activa del historial de compras
+    if (typeof cacheComprasProveedores !== "undefined") {
+      cacheComprasProveedores.unshift(expedienteCompraDirecta);
+      if (typeof filtrarTablaHistorialCompras === "function") {
+        filtrarTablaHistorialCompras();
+      }
+    }
+
+    // 6. Guardar en Supabase o encolar para sincronización
     if (navigator.onLine && supabaseClient) {
       try {
         const { data: resComp, error: errComp } = await supabaseClient.from('compras_proveedores').insert([{
@@ -6745,13 +6755,26 @@ async function ejecutarIngresoLoteMercancia() {
         if (errComp) {
           console.error("Error al insertar compra directa en Supabase:", errComp);
           mostrarAvisoFactura("⚠️ Supabase: " + (errComp.message || "Error al registrar compra"), false, 8000);
+          await dbPut("syncQueue", {
+            id: "sync_compra_" + Date.now(),
+            payload: { action: "guardarCompraProveedor", datosCompra: expedienteCompraDirecta }
+          });
         } else if (resComp && resComp[0]) {
           expedienteCompraDirecta.id = resComp[0].id;
           await dbPut("compras_proveedores", expedienteCompraDirecta);
         }
       } catch (eSup) {
         console.warn("Excepción compra directa Supabase:", eSup);
+        await dbPut("syncQueue", {
+          id: "sync_compra_" + Date.now(),
+          payload: { action: "guardarCompraProveedor", datosCompra: expedienteCompraDirecta }
+        });
       }
+    } else {
+      await dbPut("syncQueue", {
+        id: "sync_compra_" + Date.now(),
+        payload: { action: "guardarCompraProveedor", datosCompra: expedienteCompraDirecta }
+      });
     }
 
     renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
@@ -6766,147 +6789,7 @@ async function ejecutarIngresoLoteMercancia() {
 
     const estatusTexto = estatusFactura === "PAGO" ? "PAGADA" : "POR PAGAR";
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).hide();
-    mostrarAvisoFactura(`🎉 ¡Éxito! Lote cargado: ${loteEntradaMercancia.length} producto(s) sumados (${proveedor} - Guía: ${nroGuia} - Factura: ${estatusTexto} - Total: $${sumaLote.toFixed(2)}).`, true, 7000);
-
-    loteEntradaMercancia = [];
-    fotoFacturaBase64 = null;
-
-  } catch (err) {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "📥 Confirmar e Ingresar al Inventario";
-    }
-    console.error("Error al cargar lote de mercancía:", err);
-    if (errorDiv) {
-      errorDiv.textContent = "Error al procesar el ingreso de stock: " + err.message;
-      errorDiv.classList.remove('hidden');
-    }
-  }
-}
-window.ejecutarIngresoLoteMercancia = ejecutarIngresoLoteMercancia;
-
-async function ejecutarIngresoLoteMercancia() {
-  const btn = document.getElementById('btnProcesarEntradaMercancia');
-  const errorDiv = document.getElementById('errorModalEntradaMercancia');
-  const proveedor = document.getElementById('entradaProveedorInput')?.value.trim().toUpperCase();
-  const nroGuia = document.getElementById('entradaNroGuiaInput')?.value.trim().toUpperCase();
-  const montoTotalFactura = parseFloat(document.getElementById('entradaMontoTotalFacturaInput')?.value);
-  const estatusFactura = document.getElementById('entradaEstatusFacturaSelect')?.value || "PAGO";
-
-  // 1. VALIDACIONES DE CAMPOS OBLIGATORIOS
-  if (!proveedor) {
-    if (errorDiv) {
-      errorDiv.textContent = "El campo 'Proveedor / Matadero' es obligatorio.";
-      errorDiv.classList.remove('hidden');
-    }
-    document.getElementById('entradaProveedorInput')?.focus();
-    return;
-  }
-
-  if (!nroGuia) {
-    if (errorDiv) {
-      errorDiv.textContent = "El campo 'N.° Guía / Factura de compra' es obligatorio.";
-      errorDiv.classList.remove('hidden');
-    }
-    document.getElementById('entradaNroGuiaInput')?.focus();
-    return;
-  }
-
-  if (isNaN(montoTotalFactura) || montoTotalFactura <= 0) {
-    if (errorDiv) {
-      errorDiv.textContent = "El campo 'Monto Total Factura ($)' es obligatorio y debe ser mayor a 0.";
-      errorDiv.classList.remove('hidden');
-    }
-    document.getElementById('entradaMontoTotalFacturaInput')?.focus();
-    return;
-  }
-
-  if (!loteEntradaMercancia || loteEntradaMercancia.length === 0) {
-    if (errorDiv) {
-      errorDiv.textContent = "Debe añadir al menos un producto al lote de recepción.";
-      errorDiv.classList.remove('hidden');
-    }
-    return;
-  }
-
-  // 2. CONCILIACIÓN DEL CUADRE DEL LOTE
-  let sumaLote = 0;
-  loteEntradaMercancia.forEach(it => { sumaLote += parseFloat(it.subtotal) || 0; });
-  const dif = Math.abs(montoTotalFactura - sumaLote);
-
-  if (dif > 0.05) {
-    const continuar = confirm(`⚠️ AVISO DE DESCUADRE EN FACTURA:\nEl Monto Total Declarado en la Factura ($${montoTotalFactura.toFixed(2)}) difiere de la sumatoria calculada del lote ($${sumaLote.toFixed(2)}) por una diferencia de $${dif.toFixed(2)}.\n\n¿Desea confirmar y procesar el ingreso de todas formas?`);
-    if (!continuar) return;
-  }
-
-  if (errorDiv) errorDiv.classList.add('hidden');
-
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Ingresando existencias a inventario...";
-  }
-
-  try {
-    let stockMap = {};
-    const stockMapStr = localStorage.getItem("pos_cache_stock_map");
-    if (stockMapStr) stockMap = JSON.parse(stockMapStr);
-
-    for (let item of loteEntradaMercancia) {
-      const prodNom = item.nombre;
-      const cantSumar = item.cantRecibida;
-      let prodData = buscarProductoEnCache(prodNom);
-
-      if (prodData) {
-        let stockPrevio = parseFloat(prodData[10]) || 0;
-        let nuevoStock = stockPrevio + cantSumar;
-        let stockFinal = (item.unidad === 'unidades') ? Math.round(nuevoStock) : parseFloat(nuevoStock.toFixed(3));
-
-        // Actualizar en memoria activa
-        prodData[10] = stockFinal;
-        stockMap[prodNom] = stockFinal;
-
-        // Actualizar en lista flat de productos si existe
-        if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
-          let flatItem = listaFlatProductosCodigos.find(p => p.nombre === prodNom || p.nombreOriginal === prodNom);
-          if (flatItem) flatItem.stock = stockFinal;
-        }
-
-        // Actualizar en IndexedDB store 'inventario' a 0 ms
-        try {
-          const invItem = await dbGet("inventario", prodNom);
-          if (invItem) {
-            invItem.stock = stockFinal;
-            invItem.updated_at = new Date().toISOString();
-            await dbPut("inventario", invItem);
-          }
-        } catch (eDB) {}
-
-        // Sincronizar en Supabase
-        if (navigator.onLine && supabaseClient) {
-          await supabaseClient
-            .from('productos')
-            .update({ stock: stockFinal, updated_at: new Date().toISOString() })
-            .eq('nombre', prodNom);
-        }
-      }
-    }
-
-    localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
-
-    // Refrescar catálogo visual en tiempo real
-    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
-    if (typeof prepararListaProductosCodigos === "function") {
-      prepararListaProductosCodigos();
-    }
-
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "📥 Confirmar e Ingresar al Inventario";
-    }
-
-    const estatusTexto = estatusFactura === "PAGO" ? "PAGADA" : "POR PAGAR";
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).hide();
-    mostrarAvisoFactura(`🎉 ¡Éxito! Lote cargado: ${loteEntradaMercancia.length} producto(s) sumados (${proveedor} - Guía: ${nroGuia} - Factura: ${estatusTexto} - Total: $${sumaLote.toFixed(2)}).`, true, 7000);
+    mostrarAvisoFactura(`🎉 ¡Éxito! Factura ${nroGuia} registrada en Historial y ${loteEntradaMercancia.length} producto(s) sumados al stock ($${sumaLote.toFixed(2)} - ${estatusTexto}).`, true, 7000);
 
     loteEntradaMercancia = [];
     fotoFacturaBase64 = null;
