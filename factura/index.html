@@ -2117,7 +2117,7 @@
       <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title fw-bold">🔍 Historial de Ventas, Cierres y Cuentas por Cobrar</h5>
+            <h5 class="modal-title fw-bold">🔍 Historial de Ventas, Cierres, Cobranzas y Cuentas por Pagar</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4">
@@ -2138,6 +2138,11 @@
                 <li class="nav-item" role="presentation">
                   <button class="nav-link" id="pills-cxc-tab" data-bs-toggle="pill" data-bs-target="#pills-cxc" type="button" role="tab" onclick="cargarHistorialCuentasPorCobrar()">
                     💳 Cuentas por Cobrar
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="pills-cxp-tab" data-bs-toggle="pill" data-bs-target="#pills-cxp" type="button" role="tab" onclick="cargarHistorialCuentasPorPagar()">
+                    📑 Cuentas por Pagar <span class="badge-cxc-pill" id="cntComprasPorPagarPill">0</span>
                   </button>
                 </li>
               </ul>
@@ -2320,6 +2325,70 @@
                   </div>
                 </div>
 
+              </div>
+
+              <!-- PESTAÑA 4: Cuentas por Pagar (Facturas de Proveedores a Crédito) -->
+              <div class="tab-pane fade" id="pills-cxp" role="tabpanel">
+                <div class="cxc-filter-bar mb-3">
+                  <div class="flex-grow-1" style="min-width: 220px;">
+                    <input type="text" id="filtroCXPBusquedaInput" class="form-control fw-bold" placeholder="🔍 Buscar por Proveedor o N.° Guía/Factura..." oninput="filtrarTablaCuentasPorPagar()">
+                  </div>
+                  <div style="min-width: 200px;">
+                    <select id="filtroCXPEstatusSelect" class="form-select fw-bold" onchange="filtrarTablaCuentasPorPagar()">
+                      <option value="TODOS">-- Todos los Estados --</option>
+                      <option value="POR PAGAR" selected>⏳ Pendientes por Pagar</option>
+                      <option value="PAGO">✅ Pagadas</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div class="badge-resumen-cxc bg-danger text-white shadow-sm" id="badgeTotalPorPagarCXP">
+                      Por Pagar: $0.00
+                    </div>
+                  </div>
+                </div>
+
+                <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
+                  <table class="table table-hover align-middle mb-0">
+                    <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
+                      <tr>
+                        <th style="width: 130px;">N.° Guía / Fact.</th>
+                        <th style="width: 120px;">Fecha</th>
+                        <th>Proveedor / Matadero</th>
+                        <th style="width: 130px;">Tipo</th>
+                        <th style="width: 120px;">Monto Total ($)</th>
+                        <th style="width: 120px;">Estatus</th>
+                        <th style="width: 60px;">Foto</th>
+                        <th style="width: 180px;">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tablaHistorialCuentasPorPagar" class="small">
+                      <tr>
+                        <td colspan="8" class="text-center text-muted py-4">Cargando cuentas por pagar a proveedores...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Panel Visor de Detalle de Productos en CXP -->
+                <div id="panelDetalleCXPSeleccionada" class="p-3 bg-white border border-danger rounded-3 shadow-sm mt-3 hidden">
+                  <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                    <h6 class="fw-bold text-danger mb-0">📋 Detalle de Factura de Proveedor: <span id="lblDetalleCXPGuia" class="text-dark">FAC-000</span></h6>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 fw-bold" onclick="cerrarPanelDetalleCXP()">✕ Cerrar Detalle</button>
+                  </div>
+                  <div class="table-responsive bg-light rounded-3 border" style="max-height: 180px; overflow-y: auto;">
+                    <table class="table table-sm table-striped align-middle mb-0">
+                      <thead class="table-dark small text-center">
+                        <tr>
+                          <th>Producto / Corte</th>
+                          <th style="width: 130px;">Cantidad Recibida</th>
+                          <th style="width: 130px;">Costo Unit. ($)</th>
+                          <th style="width: 130px;">Subtotal ($)</th>
+                        </tr>
+                      </thead>
+                      <tbody id="tablaDetalleProductosCXP" class="small"></tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
 
             </div>
