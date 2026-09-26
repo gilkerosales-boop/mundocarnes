@@ -7309,6 +7309,48 @@ function aplicarPorcentajesMasivosPrecios() {
 }
 window.aplicarPorcentajesMasivosPrecios = aplicarPorcentajesMasivosPrecios;
 
+// Función de rescate permanente para restaurar precios maestros desde catalog.json
+async function restaurarPreciosMaestrosOriginales() {
+  if (!confirm("⚠️ ¿Desea restaurar todos los precios originales del Catálogo Maestro desde el archivo de fábrica catalog.json?")) {
+    return;
+  }
+  mostrarAvisoFactura("🔄 Restaurando precios originales en Supabase...", false);
+  try {
+    const res = await fetch('../catalog.json?t=' + Date.now());
+    const cat = await res.json();
+    let count = 0;
+
+    for (let c of cat.categorias) {
+      for (let p of c.productos) {
+        const precOriginal = parseFloat(p[1]) || 0;
+        let prodLocal = buscarProductoEnCache(p[0]);
+        if (prodLocal) prodLocal[1] = precOriginal;
+
+        if (navigator.onLine && supabaseClient) {
+          await supabaseClient.from('productos')
+            .update({ precio: precOriginal, updated_at: new Date().toISOString() })
+            .eq('nombre', p[0]);
+        }
+        count++;
+      }
+    }
+
+    localStorage.setItem("pos_modo_precios_dinamicos", "false");
+    const chk = document.getElementById('chkModoPreciosDinamicos');
+    if (chk) chk.checked = false;
+
+    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+    if (typeof prepararListaProductosCodigos === "function") prepararListaProductosCodigos();
+    if (typeof cargarEstructuraPrecios === "function") cargarEstructuraPrecios();
+
+    mostrarAvisoFactura(`✅ Se restauraron exitosamente los precios maestros de ${count} productos.`);
+  } catch (err) {
+    console.error("Error al restaurar precios:", err);
+    mostrarAvisoFactura("Error al restaurar: " + err.message);
+  }
+}
+window.restaurarPreciosMaestrosOriginales = restaurarPreciosMaestrosOriginales;
+
 async function guardarEstructuraPreciosDinamicos() {
   const btn = document.getElementById('btnGuardarConfigPrecios');
   const errorDiv = document.getElementById('errorModalConfigPrecios');
@@ -7320,6 +7362,7 @@ async function guardarEstructuraPreciosDinamicos() {
   }
 
   try {
+    // Sincronizar todos los inputs visibles de la tabla
     const filas = document.querySelectorAll('#tablaConfiguracionPrecios .fila-precio-config');
     filas.forEach(tr => {
       actualizarCalculoFilaPrecio(tr.querySelector('.input-precio-ingreso'));
@@ -7337,6 +7380,7 @@ async function guardarEstructuraPreciosDinamicos() {
       };
     });
 
+    // Guardar exclusivamente en la estructura de costos sin destruir el precio del Catálogo Maestro
     localStorage.setItem("pos_estructura_precios", JSON.stringify(mapaGuardar));
     await dbPut("config", { key: "pos_estructura_precios", value: mapaGuardar });
 
@@ -7344,18 +7388,10 @@ async function guardarEstructuraPreciosDinamicos() {
     if (modoDinamicoActivo) {
       aplicarPreciosDinamicosACache();
       refrescarTarjetasCatalogoEnPantalla();
-
-      if (navigator.onLine && supabaseClient) {
-        for (let nom in mapaGuardar) {
-          const pDin = mapaGuardar[nom].precioDinamico;
-          if (pDin > 0) {
-            supabaseClient.from('productos')
-              .update({ precio: pDin, updated_at: new Date().toISOString() })
-              .eq('nombre', nom)
-              .then(() => {}).catch(() => {});
-          }
-        }
-      }
+    } else {
+      // Si está desactivado, asegurar que se muestre el precio manual del Catálogo Maestro
+      aplicarPreciosDinamicosACache();
+      refrescarTarjetasCatalogoEnPantalla();
     }
 
     if (btn) {
@@ -7363,8 +7399,11 @@ async function guardarEstructuraPreciosDinamicos() {
       btn.textContent = "💾 Guardar Estructura de Precios";
     }
 
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfiguracionPrecios')).hide();
-    mostrarAvisoFactura(`🎉 Estructura de precios guardada y sincronizada correctamente.`);
+    mostrarAvisoFactura(`🎉 Estructura de precios guardada. El Catálogo Maestro se mantiene protegido.`);
 
   } catch (err) {
     if (btn) {
