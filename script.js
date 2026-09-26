@@ -379,23 +379,54 @@ function concederAccesoAlSistema() {
   cargarCatalogoPublico();
 }
 
-// Reconstructor de estructura de catálogo web desde Supabase
-function reconstruirCatalogoPublicoDesdeSupabase(filasDb) {
+let cacheComboRecetasWeb = [];
+
+// Reconstructor de estructura de catálogo web desde Supabase con evaluación de escandallo
+function reconstruirCatalogoPublicoDesdeSupabase(filasDb, recetasDb = []) {
   const ordenCategorias = ["COMBOS", "CARNES", "POLLO", "QUESOS Y EMBUTIDOS", "VIVERES"];
   const mapa = {};
   ordenCategorias.forEach(c => { mapa[c] = []; });
+
+  // 1. Mapear estado de disponibilidad y stock de cada ingrediente
+  let mapaDisponibilidadIngredientes = {};
+  let mapaStocksIngredientes = {};
+
+  filasDb.forEach(p => {
+    mapaDisponibilidadIngredientes[p.nombre] = (p.disponible_tienda !== false);
+    mapaStocksIngredientes[p.nombre] = parseFloat(p.stock) || 0;
+  });
 
   filasDb.forEach(p => {
     const catNom = (p.categoria || "VIVERES").toUpperCase();
     if (!mapa[catNom]) mapa[catNom] = [];
 
     let cleanImg = (p.img_path || "img/LOGO-MUNDO123.webp").replace(/^\.\.\//, '');
+    let esDisponible = (p.disponible_tienda !== false);
+
+    // 2. FASE 4: Si es un COMBO, evaluar si todos sus ingredientes están disponibles y con existencia
+    if (catNom === "COMBOS" && recetasDb && recetasDb.length > 0) {
+      const ingredientesCombo = recetasDb.filter(r => r.combo_nombre === p.nombre);
+      if (ingredientesCombo.length > 0) {
+        for (let ing of ingredientesCombo) {
+          const nomIng = ing.producto_componente;
+          const dispIng = (mapaDisponibilidadIngredientes[nomIng] !== undefined) ? mapaDisponibilidadIngredientes[nomIng] : true;
+          const stockIng = (mapaStocksIngredientes[nomIng] !== undefined) ? mapaStocksIngredientes[nomIng] : 0;
+          const cantReq = parseFloat(ing.cantidad) || 0;
+
+          // Si algún ingrediente componente está marcado como agotado o su stock no cubre 1 combo
+          if (!dispIng || stockIng < cantReq) {
+            esDisponible = false;
+            break;
+          }
+        }
+      }
+    }
 
     mapa[catNom].push([
       p.nombre,
       parseFloat(p.precio) || 0,
       cleanImg,
-      p.disponible_tienda !== false,
+      esDisponible,
       parseFloat(p.minimo_venta) || 1,
       p.modo || "gramos",
       parseFloat(p.peso_promedio_g) || 0,
@@ -415,18 +446,20 @@ function reconstruirCatalogoPublicoDesdeSupabase(filasDb) {
   return { categorias };
 }
 
-// Carga directa de alta velocidad (< 40 ms) desde Supabase con fallback local
+// Carga directa de alta velocidad (< 40 ms) desde Supabase con sincronización de recetas
 async function cargarCatalogoPublico() {
   try {
     const sb = getSupabase();
     if (sb && navigator.onLine) {
-      const { data, error } = await sb
-        .from('productos')
-        .select('*')
-        .order('orden', { ascending: true });
+      // Consultar en paralelo productos y escandallo de combo_recetas
+      const [resProds, resRecetas] = await Promise.all([
+        sb.from('productos').select('*').order('orden', { ascending: true }),
+        sb.from('combo_recetas').select('*')
+      ]);
 
-      if (!error && data && data.length > 0) {
-        const catalogo = reconstruirCatalogoPublicoDesdeSupabase(data);
+      if (!resProds.error && resProds.data && resProds.data.length > 0) {
+        cacheComboRecetasWeb = (!resRecetas.error && resRecetas.data) ? resRecetas.data : [];
+        const catalogo = reconstruirCatalogoPublicoDesdeSupabase(resProds.data, cacheComboRecetasWeb);
         renderizarCatalogo(catalogo);
         return;
       }
@@ -519,7 +552,7 @@ function cargarLista(idElemento, datos, nombreCategoria) {
         <div class="card h-100 position-relative">
           ${etiquetaDisp}
           ${etiquetaWebOculto}
-          <img src="${imgPath}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">
+          <img src="${imgPath}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm}, ${esDisp})">
           <h6 class="fw-bold text-truncate">${f[0]}</h6>
           <p class="text-success fw-bold">$${parseFloat(f[1]).toFixed(2)}</p>
           <small class="text-muted">Mín: ${cantMin}${unidadTxt}</small>
@@ -1279,17 +1312,26 @@ async function ejecutarEliminarProducto() {
   }
 }
 
-function mostrarImagenGrande(url, nom, prec, tipo, cantMin, unidad, pesoPromedio = 0) { 
+function mostrarImagenGrande(url, nom, prec, tipo, cantMin, unidad, pesoPromedio = 0, esDisp = true) { 
   document.getElementById('imagenGrandePopUp').src = url; 
   document.getElementById('overlayImagenGrande').classList.add('show'); 
   
-  productoZoomActivo = { nom, prec, tipo, cantMin, unidad, pesoPromedio };
+  productoZoomActivo = { nom, prec, tipo, cantMin, unidad, pesoPromedio, esDisp };
 
   const btnSelect = document.getElementById('btnSeleccionarZoom');
   if (cacheUsuario.rol === "ADMIN") {
     btnSelect.classList.add('hidden');
   } else {
     btnSelect.classList.remove('hidden');
+    if (esDisp) {
+      btnSelect.disabled = false;
+      btnSelect.className = "btn btn-warning btn-lg fw-bold px-4 py-2 mt-3";
+      btnSelect.textContent = "Seleccionar producto 🛒";
+    } else {
+      btnSelect.disabled = true;
+      btnSelect.className = "btn btn-secondary btn-lg fw-bold px-4 py-2 mt-3 opacity-75";
+      btnSelect.textContent = "Producto Agotado 🚫";
+    }
   }
 
   pushZoomState();
@@ -1303,6 +1345,9 @@ function cerrarImagenGrande(e) {
 
 function seleccionarDesdeZoom() {
   if (productoZoomActivo && productoZoomActivo.nom) {
+    if (productoZoomActivo.esDisp === false) {
+      return mostrarAviso("Este producto se encuentra actualmente agotado.");
+    }
     const tempProd = { ...productoZoomActivo };
     forzarCerrarImagenGrande();
     seleccionarProducto(
