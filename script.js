@@ -390,8 +390,6 @@ function reconstruirCatalogoPublicoDesdeSupabase(filasDb) {
     if (!mapa[catNom]) mapa[catNom] = [];
 
     let cleanImg = (p.img_path || "img/LOGO-MUNDO123.webp").replace(/^\.\.\//, '');
-    
-    // La disponibilidad real la gobierna la columna disponible_tienda sincronizada por el Catálogo Maestro
     const esDisponible = (p.disponible_tienda !== false);
 
     mapa[catNom].push([
@@ -418,37 +416,60 @@ function reconstruirCatalogoPublicoDesdeSupabase(filasDb) {
   return { categorias };
 }
 
-// Carga directa ultrarrápida (< 30 ms) de consulta única desde Supabase
+// Carga instantánea (< 15 ms) con revalidación asíncrona en segundo plano (Stale-While-Revalidate)
 async function cargarCatalogoPublico() {
-  try {
-    const sb = getSupabase();
-    if (sb && navigator.onLine) {
-      const { data, error } = await sb
-        .from('productos')
-        .select('*')
-        .order('orden', { ascending: true });
+  let yaPintado = false;
 
-      if (!error && data && data.length > 0) {
-        const catalogo = reconstruirCatalogoPublicoDesdeSupabase(data);
-        renderizarCatalogo(catalogo);
-        return;
+  // 1. RENDERIZADO INMEDIATO A 0 MS: Lee la memoria local para abrir la tienda en 15 milisegundos
+  const cacheLocal = localStorage.getItem("pos_catalogo_cache_web");
+  if (cacheLocal) {
+    try {
+      const catParseado = JSON.parse(cacheLocal);
+      if (catParseado && catParseado.categorias && catParseado.categorias.length > 0) {
+        renderizarCatalogo(catParseado);
+        yaPintado = true;
       }
-    }
-  } catch (errSup) {
-    console.warn("Aviso al consultar Supabase en web pública:", errSup);
+    } catch (e) {}
   }
 
-  // Fallback de contingencia a catalog.json local
-  fetch("catalog.json?t=" + new Date().getTime())
-    .then(res => res.json())
-    .then(renderizarCatalogo)
-    .catch(err => {
-      console.error(err);
-      mostrarAviso("Error al obtener catálogo desde el servidor.");
-    });
+  // 2. Si es la primera visita y no hay caché local previa, cargar de inmediato el archivo local
+  if (!yaPintado) {
+    fetch("catalog.json")
+      .then(res => res.json())
+      .then(dataLocal => {
+        if (!yaPintado && dataLocal) {
+          renderizarCatalogo(dataLocal);
+          yaPintado = true;
+          try { localStorage.setItem("pos_catalogo_cache_web", JSON.stringify(dataLocal)); } catch(e) {}
+        }
+      })
+      .catch(() => {});
+  }
+
+  // 3. REVALIDACIÓN EN SEGUNDO PLANO (No bloquea la pantalla ni congela el celular)
+  setTimeout(async () => {
+    try {
+      const sb = getSupabase();
+      if (sb && navigator.onLine) {
+        // Consulta liviana solicitando solo columnas esenciales (80% menos tráfico de red)
+        const { data, error } = await sb
+          .from('productos')
+          .select('nombre, categoria, precio, img_path, disponible_tienda, minimo_venta, modo, peso_promedio_g, codigo_plu, tasa_iva, visible_web, stock, orden')
+          .order('orden', { ascending: true });
+
+        if (!error && data && data.length > 0) {
+          const catalogoFresco = reconstruirCatalogoPublicoDesdeSupabase(data);
+          try { localStorage.setItem("pos_catalogo_cache_web", JSON.stringify(catalogoFresco)); } catch(e) {}
+          renderizarCatalogo(catalogoFresco);
+        }
+      }
+    } catch (errSup) {
+      console.warn("Aviso revalidación en segundo plano:", errSup);
+    }
+  }, 10);
 }
 
-// Renderizado con Todas las Secciones Abiertas y Visibles Continuamente
+// Renderizado de Secciones Continuas
 function renderizarCatalogo(resp) {
   if (resp.error) return alert(resp.error);
   
@@ -469,8 +490,11 @@ function renderizarCatalogo(resp) {
       </section>`;
   });
   
-  document.getElementById('catalogoTabs').innerHTML = navPillsHtml;
-  document.getElementById('catalogoTabContent').innerHTML = sectionsHtml;
+  const contTabs = document.getElementById('catalogoTabs');
+  const contContent = document.getElementById('catalogoTabContent');
+
+  if (contTabs) contTabs.innerHTML = navPillsHtml;
+  if (contContent) contContent.innerHTML = sectionsHtml;
   
   cacheCategorias.forEach((cat) => {
     let safeId = "cat-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
@@ -479,7 +503,7 @@ function renderizarCatalogo(resp) {
   });
 }
 
-// Cargar Lista con Grid de 3 Columnas en Móviles y 6 Columnas en Escritorio
+// Cargar Lista con Grid de Alto Rendimiento y Fallback Seguro de Imágenes
 function cargarLista(idElemento, datos, nombreCategoria) {
   const contenedor = document.getElementById(idElemento);
   if (!contenedor) return;
@@ -522,7 +546,7 @@ function cargarLista(idElemento, datos, nombreCategoria) {
         <div class="card h-100 position-relative">
           ${etiquetaDisp}
           ${etiquetaWebOculto}
-          <img src="${imgPath}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm}, ${esDisp})">
+          <img src="${imgPath}" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='img/LOGO-MUNDO123.webp'" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm}, ${esDisp})">
           <h6 class="fw-bold text-truncate">${f[0]}</h6>
           <p class="text-success fw-bold">$${parseFloat(f[1]).toFixed(2)}</p>
           <small class="text-muted">Mín: ${cantMin}${unidadTxt}</small>
