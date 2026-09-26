@@ -6441,6 +6441,10 @@ async function ejecutarIngresoRecepcionFinal() {
     const stockMapStr = localStorage.getItem("pos_cache_stock_map");
     if (stockMapStr) stockMap = JSON.parse(stockMapStr);
 
+    const mermaEstimadaKg = pesoCanal * (porcMerma / 100);
+    const kilosUtiles = Math.max(0, pesoCanal - mermaEstimadaKg);
+    const costoKiloCanalCarne = (kilosUtiles > 0 ? parseFloat((montoTotalFactura / kilosUtiles).toFixed(2)) : 0);
+
     for (let c of cortesAcreditables) {
       const prodNom = c.nombre;
       const cantSumar = c.kilosSumar;
@@ -6475,14 +6479,14 @@ async function ejecutarIngresoRecepcionFinal() {
             .eq('nombre', prodNom);
         }
       }
+
+      // Conexión automática: actualizar costo de ingreso en el motor de precios dinámicos
+      actualizarPrecioIngresoDesdeRecepcion(prodNom, costoKiloCanalCarne);
     }
 
     localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
 
     // Guardar lote formalmente en IndexedDB store 'lotes_desposte' en estado STANDBY
-    const mermaEstimadaKg = pesoCanal * (porcMerma / 100);
-    const kilosUtiles = Math.max(0, pesoCanal - mermaEstimadaKg);
-
     const nuevoLoteDesposte = {
       fecha: new Date().toLocaleString('es-VE'),
       proveedor: proveedor,
@@ -6509,8 +6513,8 @@ async function ejecutarIngresoRecepcionFinal() {
       nombre: c.nombre,
       unidad: c.unidad,
       cantRecibida: c.kilosSumar,
-      costoUnitario: (kilosUtiles > 0 ? parseFloat((montoTotalFactura / kilosUtiles).toFixed(2)) : 0),
-      subtotal: (kilosUtiles > 0 ? parseFloat(((montoTotalFactura / kilosUtiles) * c.kilosSumar).toFixed(2)) : 0)
+      costoUnitario: costoKiloCanalCarne,
+      subtotal: (costoKiloCanalCarne * c.kilosSumar)
     }));
 
     const expedienteCompraDesposte = {
@@ -6533,10 +6537,8 @@ async function ejecutarIngresoRecepcionFinal() {
       usuario: nuevoLoteDesposte.usuario
     };
 
-    // Guardar primero en local a 0ms
     await dbPut("compras_proveedores", expedienteCompraDesposte);
 
-    // Guardar en Supabase
     if (navigator.onLine && supabaseClient) {
       try {
         const { data: resComp, error: errComp } = await supabaseClient.from('compras_proveedores').insert([{
@@ -6578,7 +6580,7 @@ async function ejecutarIngresoRecepcionFinal() {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).hide();
 
     const estatusTexto = estatusFactura === "PAGO" ? "PAGADA" : "POR PAGAR";
-    mostrarAvisoFactura(`🥩 ¡Desposte Virtual Acreditado! ${totalKilosDespostados.toFixed(2)} Kg inyectados a vitrina (${piezasCanalPesadas.length} piezas pesadas). Lote ${nroGuia} guardado en STANDBY (${estatusTexto}).`, true, 8000);
+    mostrarAvisoFactura(`🥩 ¡Desposte Virtual Acreditado! ${totalKilosDespostados.toFixed(2)} Kg inyectados a vitrina (${piezasCanalPesadas.length} piezas pesadas). Costo de ingreso actualizado en Precios Dinámicos.`, true, 8000);
 
     limpiarPesajesDesposte();
     limpiarTodasLasPiezasCanal();
@@ -6663,7 +6665,7 @@ async function ejecutarIngresoLoteMercancia() {
     const stockMapStr = localStorage.getItem("pos_cache_stock_map");
     if (stockMapStr) stockMap = JSON.parse(stockMapStr);
 
-    // 2. Actualización de inventario por cada ítem
+    // 2. Actualización de inventario y costo de ingreso por cada ítem
     for (let item of loteEntradaMercancia) {
       const prodNom = item.nombre;
       const cantSumar = item.cantRecibida;
@@ -6698,6 +6700,9 @@ async function ejecutarIngresoLoteMercancia() {
             .eq('nombre', prodNom);
         }
       }
+
+      // Conexión automática: actualizar costo unitario en el motor de precios dinámicos
+      actualizarPrecioIngresoDesdeRecepcion(prodNom, item.costoUnitario);
     }
 
     localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMap));
@@ -6789,7 +6794,7 @@ async function ejecutarIngresoLoteMercancia() {
 
     const estatusTexto = estatusFactura === "PAGO" ? "PAGADA" : "POR PAGAR";
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEntradaMercancia')).hide();
-    mostrarAvisoFactura(`🎉 ¡Éxito! Factura ${nroGuia} registrada en Historial y ${loteEntradaMercancia.length} producto(s) sumados al stock ($${sumaLote.toFixed(2)} - ${estatusTexto}).`, true, 7000);
+    mostrarAvisoFactura(`🎉 Factura ${nroGuia} registrada. Costos de ingreso actualizados automáticamente en Precios Dinámicos.`, true, 7000);
 
     loteEntradaMercancia = [];
     fotoFacturaBase64 = null;
@@ -6807,6 +6812,442 @@ async function ejecutarIngresoLoteMercancia() {
   }
 }
 window.ejecutarIngresoLoteMercancia = ejecutarIngresoLoteMercancia;
+
+// ==========================================================================
+// MÓDULO EXCLUSIVO: ESTRUCTURA Y CONFIGURACIÓN DE PRECIOS DINÁMICOS
+// ==========================================================================
+let listaProductosEstructuraPrecios = [];
+
+function calcularPrecioDinamicoIndividual(precioIngreso, porcOperativo, porcGanancia, tasaIVA) {
+  const ingreso = parseFloat(precioIngreso) || 0;
+  const op = parseFloat(porcOperativo) || 0;
+  const gan = parseFloat(porcGanancia) || 0;
+  const tIVA = String(tasaIVA || "E").toUpperCase();
+
+  const factorIVA = (tIVA === "G" || tIVA === "16") ? 1.16 : ((tIVA === "R" || tIVA === "8") ? 1.08 : 1.00);
+
+  const costoConOperativo = ingreso * (1 + (op / 100));
+  const precioBase = costoConOperativo * (1 + (gan / 100));
+  const precioFinalCalculado = precioBase * factorIVA;
+
+  return parseFloat(precioFinalCalculado.toFixed(2));
+}
+
+function inicializarModoPreciosDinamicos() {
+  const activo = localStorage.getItem("pos_modo_precios_dinamicos") === "true";
+  const chk = document.getElementById('chkModoPreciosDinamicos');
+  const lbl = document.getElementById('lblModoPreciosDinamicos');
+
+  if (chk) chk.checked = activo;
+  if (lbl) {
+    lbl.textContent = activo 
+      ? "🟢 Precios Dinámicos: ACTIVADO (Usando cálculo de costos)" 
+      : "⚪ Precios Dinámicos: DESACTIVADO (Usando Catálogo Maestro)";
+    lbl.className = activo 
+      ? "form-check-label fw-bold small mb-0 ms-2 text-success" 
+      : "form-check-label fw-bold small mb-0 ms-2 text-muted";
+  }
+
+  if (activo) {
+    aplicarPreciosDinamicosACatalogoActivo();
+  }
+}
+
+function alternarModoPreciosDinamicos(estaActivo) {
+  localStorage.setItem("pos_modo_precios_dinamicos", estaActivo ? "true" : "false");
+  
+  const lbl = document.getElementById('lblModoPreciosDinamicos');
+  if (lbl) {
+    lbl.textContent = estaActivo 
+      ? "🟢 Precios Dinámicos: ACTIVADO (Usando cálculo de costos)" 
+      : "⚪ Precios Dinámicos: DESACTIVADO (Usando Catálogo Maestro)";
+    lbl.className = estaActivo 
+      ? "form-check-label fw-bold small mb-0 ms-2 text-success" 
+      : "form-check-label fw-bold small mb-0 ms-2 text-muted";
+  }
+
+  aplicarPreciosDinamicosACatalogoActivo();
+  filtrarTablaPrecios();
+  
+  mostrarAvisoFactura(estaActivo 
+    ? "🟢 Precios Dinámicos ACTIVADOS. El sistema ahora vende con precios basados en costos." 
+    : "⚪ Precios Dinámicos DESACTIVADOS. El sistema vende con precios fijos del Catálogo Maestro.");
+}
+window.alternarModoPreciosDinamicos = alternarModoPreciosDinamicos;
+
+function aplicarPreciosDinamicosACatalogoActivo() {
+  const activo = localStorage.getItem("pos_modo_precios_dinamicos") === "true";
+  let estructura = {};
+  try {
+    const s = localStorage.getItem("pos_estructura_precios");
+    if (s) estructura = JSON.parse(s);
+  } catch (e) {}
+
+  if (!cacheCategoriasFactura || cacheCategoriasFactura.length === 0) return;
+
+  cacheCategoriasFactura.forEach(cat => {
+    cat.productos.forEach(p => {
+      const nom = p[0];
+      const est = estructura[nom];
+      if (activo && est && est.precioDinamico > 0) {
+        p[1] = est.precioDinamico;
+      } else if (!activo && est && est.precioManualCatalogo > 0) {
+        p[1] = est.precioManualCatalogo;
+      }
+    });
+  });
+
+  if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+    listaFlatProductosCodigos.forEach(item => {
+      const nom = item.nombreOriginal || item.nombre;
+      const est = estructura[nom];
+      if (activo && est && est.precioDinamico > 0) {
+        item.precio = est.precioDinamico;
+      } else if (!activo && est && est.precioManualCatalogo > 0) {
+        item.precio = est.precioManualCatalogo;
+      }
+    });
+  }
+
+  renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+}
+
+function actualizarPrecioIngresoDesdeRecepcion(nombreProducto, nuevoCostoUnitario) {
+  if (!nombreProducto || !nuevoCostoUnitario || nuevoCostoUnitario <= 0) return;
+
+  let estructura = {};
+  try {
+    const s = localStorage.getItem("pos_estructura_precios");
+    if (s) estructura = JSON.parse(s);
+  } catch (e) {}
+
+  const pData = buscarProductoEnCache(nombreProducto);
+  const tasaIVA = pData ? (pData[8] || "E") : "E";
+  const precioManual = pData ? (parseFloat(pData[1]) || 0) : 0;
+
+  if (!estructura[nombreProducto]) {
+    estructura[nombreProducto] = {
+      precioIngreso: parseFloat(nuevoCostoUnitario.toFixed(2)),
+      porcOperativo: 15.0,
+      porcGanancia: 30.0,
+      tasaIVA: tasaIVA,
+      precioManualCatalogo: precioManual,
+      precioDinamico: 0
+    };
+  } else {
+    estructura[nombreProducto].precioIngreso = parseFloat(nuevoCostoUnitario.toFixed(2));
+    if (!estructura[nombreProducto].tasaIVA) estructura[nombreProducto].tasaIVA = tasaIVA;
+    if (!estructura[nombreProducto].precioManualCatalogo) estructura[nombreProducto].precioManualCatalogo = precioManual;
+  }
+
+  const est = estructura[nombreProducto];
+  est.precioDinamico = calcularPrecioDinamicoIndividual(est.precioIngreso, est.porcOperativo, est.porcGanancia, est.tasaIVA);
+  localStorage.setItem("pos_estructura_precios", JSON.stringify(estructura));
+
+  // Si los precios dinámicos están activos, actualizar de inmediato la vitrina
+  if (localStorage.getItem("pos_modo_precios_dinamicos") === "true") {
+    aplicarPreciosDinamicosACatalogoActivo();
+  }
+}
+
+function abrirModalConfiguracionPrecios() {
+  document.getElementById('inputFiltroPreciosBusqueda').value = "";
+  document.getElementById('selectFiltroPreciosCategoria').value = "TODAS";
+  document.getElementById('inputMassOpPrecios').value = "";
+  document.getElementById('inputMassGanPrecios').value = "";
+  document.getElementById('errorModalConfigPrecios').classList.add('hidden');
+
+  inicializarModoPreciosDinamicos();
+  cargarEstructuraPrecios();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfiguracionPrecios')).show();
+}
+window.abrirModalConfiguracionPrecios = abrirModalConfiguracionPrecios;
+
+function cargarEstructuraPrecios() {
+  listaProductosEstructuraPrecios = [];
+  let mapaGuardado = {};
+  try {
+    const s = localStorage.getItem("pos_estructura_precios");
+    if (s) mapaGuardado = JSON.parse(s);
+  } catch (e) {}
+
+  let prodsUnicos = new Map();
+
+  cacheCategoriasFactura.forEach(cat => {
+    cat.productos.forEach(p => {
+      const nom = p[0];
+      if (!prodsUnicos.has(nom)) {
+        prodsUnicos.set(nom, {
+          nombre: nom,
+          categoria: cat.nombre,
+          precioManualCatalogo: parseFloat(p[1]) || 0,
+          unidad: p[5] || 'gramos',
+          codigoPLU: p[7] ? String(p[7]).trim() : "",
+          tasaIVA: p[8] || "E"
+        });
+      }
+    });
+  });
+
+  prodsUnicos.forEach((prod, nom) => {
+    let conf = mapaGuardado[nom];
+    let precioIngreso = conf ? parseFloat(conf.precioIngreso) : 0;
+    let porcOp = conf ? parseFloat(conf.porcOperativo) : 15.0;
+    let porcGan = conf ? parseFloat(conf.porcGanancia) : 30.0;
+    let tasaIVA = conf ? (conf.tasaIVA || prod.tasaIVA) : prod.tasaIVA;
+
+    // Si aún no se ha registrado ingreso para este producto, estimar costo inicial al 70% del catálogo
+    if (precioIngreso <= 0 && prod.precioManualCatalogo > 0) {
+      precioIngreso = parseFloat((prod.precioManualCatalogo * 0.70).toFixed(2));
+    }
+
+    let precioDinamico = calcularPrecioDinamicoIndividual(precioIngreso, porcOp, porcGan, tasaIVA);
+
+    listaProductosEstructuraPrecios.push({
+      codigoPLU: prod.codigoPLU,
+      nombre: nom,
+      categoria: prod.categoria,
+      precioIngreso: precioIngreso,
+      porcOperativo: porcOp,
+      porcGanancia: porcGan,
+      tasaIVA: tasaIVA,
+      precioDinamico: precioDinamico,
+      precioManualCatalogo: prod.precioManualCatalogo
+    });
+  });
+
+  listaProductosEstructuraPrecios.sort((a, b) => a.nombre.localeCompare(b.nombre));
+  filtrarTablaPrecios();
+}
+
+function filtrarTablaPrecios() {
+  const busq = (document.getElementById('inputFiltroPreciosBusqueda')?.value || "").trim().toLowerCase();
+  const cat = document.getElementById('selectFiltroPreciosCategoria')?.value || "TODAS";
+
+  let filtrados = listaProductosEstructuraPrecios.filter(p => {
+    const coincideCat = (cat === "TODAS") || (p.categoria === cat);
+    if (!coincideCat) return false;
+
+    if (!busq) return true;
+    const n = p.nombre.toLowerCase();
+    const c = p.codigoPLU.toLowerCase();
+    return n.includes(busq) || c.includes(busq);
+  });
+
+  const badgeCnt = document.getElementById('cntTotalProductosPrecios');
+  if (badgeCnt) badgeCnt.textContent = `Total: ${filtrados.length} Productos`;
+
+  renderizarTablaPrecios(filtrados);
+}
+window.filtrarTablaPrecios = filtrarTablaPrecios;
+
+function renderizarTablaPrecios(lista) {
+  const tbody = document.getElementById('tablaConfiguracionPrecios');
+  if (!tbody) return;
+
+  if (lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-4">No se encontraron productos con los filtros aplicados.</td></tr>`;
+    return;
+  }
+
+  const modoDinamicoActivo = localStorage.getItem("pos_modo_precios_dinamicos") === "true";
+  let html = "";
+
+  lista.forEach((p, idx) => {
+    const safeNom = p.nombre.replace(/["']/g, '&quot;');
+    const pluTxt = p.codigoPLU ? p.codigoPLU : "-";
+
+    const badgeEstado = modoDinamicoActivo
+      ? `<span class="badge bg-success">🟢 Dinámico</span>`
+      : `<span class="badge bg-secondary">⚪ Maestro</span>`;
+
+    html += `
+      <tr class="fila-precio-config" data-nombre="${safeNom}" data-index="${idx}">
+        <td class="text-center fw-bold text-primary num-legible">${pluTxt}</td>
+        <td class="fw-bold text-dark text-truncate" style="max-width: 200px;" title="${safeNom}">${p.nombre}</td>
+        <td class="small text-muted">${p.categoria}</td>
+        <td>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">$</span>
+            <input type="number" step="0.01" min="0" class="form-control form-control-sm text-center fw-bold input-precio-ingreso num-legible" 
+                   value="${p.precioIngreso.toFixed(2)}" oninput="actualizarCalculoFilaPrecio(this)">
+          </div>
+        </td>
+        <td>
+          <div class="input-group input-group-sm">
+            <input type="number" step="0.1" min="0" class="form-control form-control-sm text-center fw-bold input-porc-op num-legible" 
+                   value="${p.porcOperativo.toFixed(1)}" oninput="actualizarCalculoFilaPrecio(this)">
+            <span class="input-group-text">%</span>
+          </div>
+        </td>
+        <td>
+          <div class="input-group input-group-sm">
+            <input type="number" step="0.1" min="0" class="form-control form-control-sm text-center fw-bold text-success input-porc-gan num-legible" 
+                   value="${p.porcGanancia.toFixed(1)}" oninput="actualizarCalculoFilaPrecio(this)">
+            <span class="input-group-text">%</span>
+          </div>
+        </td>
+        <td>
+          <select class="form-select form-select-sm fw-bold text-center select-tasa-iva" onchange="actualizarCalculoFilaPrecio(this)">
+            <option value="E" ${p.tasaIVA === 'E' ? 'selected' : ''}>E (0%)</option>
+            <option value="G" ${p.tasaIVA === 'G' ? 'selected' : ''}>G (16%)</option>
+            <option value="R" ${p.tasaIVA === 'R' ? 'selected' : ''}>R (8%)</option>
+          </select>
+        </td>
+        <td class="text-end fw-bold fs-6 text-success table-success num-legible celda-precio-dinamico">
+          $${p.precioDinamico.toFixed(2)}
+        </td>
+        <td class="text-end fw-bold text-muted num-legible">
+          $${p.precioManualCatalogo.toFixed(2)}
+        </td>
+        <td class="text-center">
+          ${badgeEstado}
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function actualizarCalculoFilaPrecio(elem) {
+  const tr = elem.closest('tr');
+  if (!tr) return;
+
+  const ingreso = parseFloat(tr.querySelector('.input-precio-ingreso')?.value) || 0;
+  const op = parseFloat(tr.querySelector('.input-porc-op')?.value) || 0;
+  const gan = parseFloat(tr.querySelector('.input-porc-gan')?.value) || 0;
+  const iva = tr.querySelector('.select-tasa-iva')?.value || "E";
+  const celdaDinamico = tr.querySelector('.celda-precio-dinamico');
+
+  const nuevoPrecioDinamico = calcularPrecioDinamicoIndividual(ingreso, op, gan, iva);
+  if (celdaDinamico) {
+    celdaDinamico.textContent = `$${nuevoPrecioDinamico.toFixed(2)}`;
+  }
+
+  // Sincronizar con el objeto en memoria
+  const nom = tr.getAttribute('data-nombre');
+  const item = listaProductosEstructuraPrecios.find(p => p.nombre === nom);
+  if (item) {
+    item.precioIngreso = ingreso;
+    item.porcOperativo = op;
+    item.porcGanancia = gan;
+    item.tasaIVA = iva;
+    item.precioDinamico = nuevoPrecioDinamico;
+  }
+}
+window.actualizarCalculoFilaPrecio = actualizarCalculoFilaPrecio;
+
+function aplicarPorcentajesMasivosPrecios() {
+  const massOpVal = document.getElementById('inputMassOpPrecios')?.value;
+  const massGanVal = document.getElementById('inputMassGanPrecios')?.value;
+
+  if (massOpVal === "" && massGanVal === "") {
+    return mostrarAvisoFactura("Indique al menos un % Operativo o % Ganancia para aplicar.");
+  }
+
+  const filas = document.querySelectorAll('#tablaConfiguracionPrecios .fila-precio-config');
+  filas.forEach(tr => {
+    if (massOpVal !== "") {
+      const inpOp = tr.querySelector('.input-porc-op');
+      if (inpOp) inpOp.value = parseFloat(massOpVal).toFixed(1);
+    }
+    if (massGanVal !== "") {
+      const inpGan = tr.querySelector('.input-porc-gan');
+      if (inpGan) inpGan.value = parseFloat(massGanVal).toFixed(1);
+    }
+    actualizarCalculoFilaPrecio(tr.querySelector('.input-porc-gan'));
+  });
+
+  mostrarAvisoFactura("⚡ Márgenes aplicados a los productos en pantalla.");
+}
+window.aplicarPorcentajesMasivosPrecios = aplicarPorcentajesMasivosPrecios;
+
+async function guardarEstructuraPreciosDinamicos() {
+  const btn = document.getElementById('btnGuardarConfigPrecios');
+  const errorDiv = document.getElementById('errorModalConfigPrecios');
+  if (errorDiv) errorDiv.classList.add('hidden');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Guardando Estructura de Precios...";
+  }
+
+  try {
+    // Sincronizar todos los inputs visibles de la tabla
+    const filas = document.querySelectorAll('#tablaConfiguracionPrecios .fila-precio-config');
+    filas.forEach(tr => {
+      actualizarCalculoFilaPrecio(tr.querySelector('.input-precio-ingreso'));
+    });
+
+    let mapaGuardar = {};
+    listaProductosEstructuraPrecios.forEach(p => {
+      mapaGuardar[p.nombre] = {
+        precioIngreso: p.precioIngreso,
+        porcOperativo: p.porcOperativo,
+        porcGanancia: p.porcGanancia,
+        tasaIVA: p.tasaIVA,
+        precioManualCatalogo: p.precioManualCatalogo,
+        precioDinamico: p.precioDinamico
+      };
+    });
+
+    // 1. Guardar en localStorage e IndexedDB
+    localStorage.setItem("pos_estructura_precios", JSON.stringify(mapaGuardar));
+    await dbPut("config", { key: "pos_estructura_precios", value: mapaGuardar });
+
+    // 2. Aplicar al catálogo activo de ventas si el modo dinámico está encendido
+    const modoDinamicoActivo = localStorage.getItem("pos_modo_precios_dinamicos") === "true";
+    if (modoDinamicoActivo) {
+      aplicarPreciosDinamicosACatalogoActivo();
+
+      // Sincronizar en Supabase si está online
+      if (navigator.onLine && supabaseClient) {
+        for (let nom in mapaGuardar) {
+          const pDin = mapaGuardar[nom].precioDinamico;
+          if (pDin > 0) {
+            supabaseClient.from('productos')
+              .update({ precio: pDin, updated_at: new Date().toISOString() })
+              .eq('nombre', nom)
+              .then(() => {}).catch(() => {});
+          }
+        }
+      }
+    }
+
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "💾 Guardar Estructura de Precios";
+    }
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfiguracionPrecios')).hide();
+    mostrarAvisoFactura(`🎉 Estructura de precios guardada y sincronizada correctamente.`);
+
+  } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "💾 Guardar Estructura de Precios";
+    }
+    console.error("Error al guardar estructura de precios:", err);
+    if (errorDiv) {
+      errorDiv.textContent = "Error al guardar: " + err.message;
+      errorDiv.classList.remove('hidden');
+    }
+  }
+}
+window.guardarEstructuraPreciosDinamicos = guardarEstructuraPreciosDinamicos;
+
+// Hook para auto-aplicar precios dinámicos al catálogo si el modo está activo
+if (!window._catalogoFacturacionHookeado) {
+  window._catalogoFacturacionHookeado = true;
+  const _renderizarCatOrig = renderizarCatalogoFacturacion;
+  renderizarCatalogoFacturacion = function(resp) {
+    _renderizarCatOrig(resp);
+    if (localStorage.getItem("pos_modo_precios_dinamicos") === "true") {
+      aplicarPreciosDinamicosACatalogoActivo();
+    }
+  };
+}
 
 // ==========================================================================
 // MÓDULO: GESTIÓN Y DIRECTORIO DE CLIENTES (BÚSQUEDA, EDICIÓN Y ELIMINACIÓN)
