@@ -6833,49 +6833,8 @@ function calcularPrecioDinamicoIndividual(precioIngreso, porcOperativo, porcGana
   return parseFloat(precioFinalCalculado.toFixed(2));
 }
 
-function inicializarModoPreciosDinamicos() {
-  const activo = localStorage.getItem("pos_modo_precios_dinamicos") === "true";
-  const chk = document.getElementById('chkModoPreciosDinamicos');
-  const lbl = document.getElementById('lblModoPreciosDinamicos');
-
-  if (chk) chk.checked = activo;
-  if (lbl) {
-    lbl.textContent = activo 
-      ? "🟢 Precios Dinámicos: ACTIVADO (Usando cálculo de costos)" 
-      : "⚪ Precios Dinámicos: DESACTIVADO (Usando Catálogo Maestro)";
-    lbl.className = activo 
-      ? "form-check-label fw-bold small mb-0 ms-2 text-success" 
-      : "form-check-label fw-bold small mb-0 ms-2 text-muted";
-  }
-
-  if (activo) {
-    aplicarPreciosDinamicosACatalogoActivo();
-  }
-}
-
-function alternarModoPreciosDinamicos(estaActivo) {
-  localStorage.setItem("pos_modo_precios_dinamicos", estaActivo ? "true" : "false");
-  
-  const lbl = document.getElementById('lblModoPreciosDinamicos');
-  if (lbl) {
-    lbl.textContent = estaActivo 
-      ? "🟢 Precios Dinámicos: ACTIVADO (Usando cálculo de costos)" 
-      : "⚪ Precios Dinámicos: DESACTIVADO (Usando Catálogo Maestro)";
-    lbl.className = estaActivo 
-      ? "form-check-label fw-bold small mb-0 ms-2 text-success" 
-      : "form-check-label fw-bold small mb-0 ms-2 text-muted";
-  }
-
-  aplicarPreciosDinamicosACatalogoActivo();
-  filtrarTablaPrecios();
-  
-  mostrarAvisoFactura(estaActivo 
-    ? "🟢 Precios Dinámicos ACTIVADOS. El sistema ahora vende con precios basados en costos." 
-    : "⚪ Precios Dinámicos DESACTIVADOS. El sistema vende con precios fijos del Catálogo Maestro.");
-}
-window.alternarModoPreciosDinamicos = alternarModoPreciosDinamicos;
-
-function aplicarPreciosDinamicosACatalogoActivo() {
+// Actualiza los precios en el objeto en memoria SIN disparar bucles
+function aplicarPreciosDinamicosACache() {
   const activo = localStorage.getItem("pos_modo_precios_dinamicos") === "true";
   let estructura = {};
   try {
@@ -6908,9 +6867,60 @@ function aplicarPreciosDinamicosACatalogoActivo() {
       }
     });
   }
-
-  renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
 }
+
+// Refresca únicamente las tarjetas HTML en pantalla a 0ms sin recursión
+function refrescarTarjetasCatalogoEnPantalla() {
+  if (!cacheCategoriasFactura || cacheCategoriasFactura.length === 0) return;
+  cacheCategoriasFactura.forEach((cat) => {
+    let safeId = "factab-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
+    cargarListaFacturacion("lista-" + safeId, cat.productos, cat.nombre);
+  });
+}
+
+function inicializarModoPreciosDinamicos() {
+  const activo = localStorage.getItem("pos_modo_precios_dinamicos") === "true";
+  const chk = document.getElementById('chkModoPreciosDinamicos');
+  const lbl = document.getElementById('lblModoPreciosDinamicos');
+
+  if (chk) chk.checked = activo;
+  if (lbl) {
+    lbl.textContent = activo 
+      ? "🟢 Precios Dinámicos: ACTIVADO (Usando cálculo de costos)" 
+      : "⚪ Precios Dinámicos: DESACTIVADO (Usando Catálogo Maestro)";
+    lbl.className = activo 
+      ? "form-check-label fw-bold small mb-0 ms-2 text-success" 
+      : "form-check-label fw-bold small mb-0 ms-2 text-muted";
+  }
+
+  if (activo) {
+    aplicarPreciosDinamicosACache();
+    refrescarTarjetasCatalogoEnPantalla();
+  }
+}
+
+function alternarModoPreciosDinamicos(estaActivo) {
+  localStorage.setItem("pos_modo_precios_dinamicos", estaActivo ? "true" : "false");
+  
+  const lbl = document.getElementById('lblModoPreciosDinamicos');
+  if (lbl) {
+    lbl.textContent = estaActivo 
+      ? "🟢 Precios Dinámicos: ACTIVADO (Usando cálculo de costos)" 
+      : "⚪ Precios Dinámicos: DESACTIVADO (Usando Catálogo Maestro)";
+    lbl.className = estaActivo 
+      ? "form-check-label fw-bold small mb-0 ms-2 text-success" 
+      : "form-check-label fw-bold small mb-0 ms-2 text-muted";
+  }
+
+  aplicarPreciosDinamicosACache();
+  refrescarTarjetasCatalogoEnPantalla();
+  filtrarTablaPrecios();
+  
+  mostrarAvisoFactura(estaActivo 
+    ? "🟢 Precios Dinámicos ACTIVADOS. El sistema ahora vende con precios basados en costos." 
+    : "⚪ Precios Dinámicos DESACTIVADOS. El sistema vende con precios fijos del Catálogo Maestro.");
+}
+window.alternarModoPreciosDinamicos = alternarModoPreciosDinamicos;
 
 function actualizarPrecioIngresoDesdeRecepcion(nombreProducto, nuevoCostoUnitario) {
   if (!nombreProducto || !nuevoCostoUnitario || nuevoCostoUnitario <= 0) return;
@@ -6944,9 +6954,10 @@ function actualizarPrecioIngresoDesdeRecepcion(nombreProducto, nuevoCostoUnitari
   est.precioDinamico = calcularPrecioDinamicoIndividual(est.precioIngreso, est.porcOperativo, est.porcGanancia, est.tasaIVA);
   localStorage.setItem("pos_estructura_precios", JSON.stringify(estructura));
 
-  // Si los precios dinámicos están activos, actualizar de inmediato la vitrina
+  // Si los precios dinámicos están activos, refrescar tarjetas en pantalla sin loops
   if (localStorage.getItem("pos_modo_precios_dinamicos") === "true") {
-    aplicarPreciosDinamicosACatalogoActivo();
+    aplicarPreciosDinamicosACache();
+    refrescarTarjetasCatalogoEnPantalla();
   }
 }
 
@@ -6973,21 +6984,23 @@ function cargarEstructuraPrecios() {
 
   let prodsUnicos = new Map();
 
-  cacheCategoriasFactura.forEach(cat => {
-    cat.productos.forEach(p => {
-      const nom = p[0];
-      if (!prodsUnicos.has(nom)) {
-        prodsUnicos.set(nom, {
-          nombre: nom,
-          categoria: cat.nombre,
-          precioManualCatalogo: parseFloat(p[1]) || 0,
-          unidad: p[5] || 'gramos',
-          codigoPLU: p[7] ? String(p[7]).trim() : "",
-          tasaIVA: p[8] || "E"
-        });
-      }
+  if (cacheCategoriasFactura) {
+    cacheCategoriasFactura.forEach(cat => {
+      cat.productos.forEach(p => {
+        const nom = p[0];
+        if (!prodsUnicos.has(nom)) {
+          prodsUnicos.set(nom, {
+            nombre: nom,
+            categoria: cat.nombre,
+            precioManualCatalogo: parseFloat(p[1]) || 0,
+            unidad: p[5] || 'gramos',
+            codigoPLU: p[7] ? String(p[7]).trim() : "",
+            tasaIVA: p[8] || "E"
+          });
+        }
+      });
     });
-  });
+  }
 
   prodsUnicos.forEach((prod, nom) => {
     let conf = mapaGuardado[nom];
@@ -7125,7 +7138,6 @@ function actualizarCalculoFilaPrecio(elem) {
     celdaDinamico.textContent = `$${nuevoPrecioDinamico.toFixed(2)}`;
   }
 
-  // Sincronizar con el objeto en memoria
   const nom = tr.getAttribute('data-nombre');
   const item = listaProductosEstructuraPrecios.find(p => p.nombre === nom);
   if (item) {
@@ -7174,7 +7186,6 @@ async function guardarEstructuraPreciosDinamicos() {
   }
 
   try {
-    // Sincronizar todos los inputs visibles de la tabla
     const filas = document.querySelectorAll('#tablaConfiguracionPrecios .fila-precio-config');
     filas.forEach(tr => {
       actualizarCalculoFilaPrecio(tr.querySelector('.input-precio-ingreso'));
@@ -7192,16 +7203,14 @@ async function guardarEstructuraPreciosDinamicos() {
       };
     });
 
-    // 1. Guardar en localStorage e IndexedDB
     localStorage.setItem("pos_estructura_precios", JSON.stringify(mapaGuardar));
     await dbPut("config", { key: "pos_estructura_precios", value: mapaGuardar });
 
-    // 2. Aplicar al catálogo activo de ventas si el modo dinámico está encendido
     const modoDinamicoActivo = localStorage.getItem("pos_modo_precios_dinamicos") === "true";
     if (modoDinamicoActivo) {
-      aplicarPreciosDinamicosACatalogoActivo();
+      aplicarPreciosDinamicosACache();
+      refrescarTarjetasCatalogoEnPantalla();
 
-      // Sincronizar en Supabase si está online
       if (navigator.onLine && supabaseClient) {
         for (let nom in mapaGuardar) {
           const pDin = mapaGuardar[nom].precioDinamico;
@@ -7236,18 +7245,6 @@ async function guardarEstructuraPreciosDinamicos() {
   }
 }
 window.guardarEstructuraPreciosDinamicos = guardarEstructuraPreciosDinamicos;
-
-// Hook para auto-aplicar precios dinámicos al catálogo si el modo está activo
-if (!window._catalogoFacturacionHookeado) {
-  window._catalogoFacturacionHookeado = true;
-  const _renderizarCatOrig = renderizarCatalogoFacturacion;
-  renderizarCatalogoFacturacion = function(resp) {
-    _renderizarCatOrig(resp);
-    if (localStorage.getItem("pos_modo_precios_dinamicos") === "true") {
-      aplicarPreciosDinamicosACatalogoActivo();
-    }
-  };
-}
 
 // ==========================================================================
 // MÓDULO: GESTIÓN Y DIRECTORIO DE CLIENTES (BÚSQUEDA, EDICIÓN Y ELIMINACIÓN)
