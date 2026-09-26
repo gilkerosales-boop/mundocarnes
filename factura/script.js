@@ -995,7 +995,7 @@ async function forzarSincronizacionManual() {
   await procesarColaSincronizacion();
   await new Promise(r => setTimeout(r, 300));
 
-  mostrarAvisoFactura("🔄 Paso 2/5: Sincronizando Clientes...", false);
+  mostrarAvisoFactura("🔄 Paso 2/6: Sincronizando Clientes...", false);
   let cantClientes = 0;
   try {
     const { data: clientesSup, error } = await supabaseClient.from('clientes').select('*');
@@ -1011,6 +1011,53 @@ async function forzarSincronizacionManual() {
       }
     }
   } catch (e) {}
+
+  mostrarAvisoFactura("🔄 Paso 3/6: Sincronizando Inventario y Stock Real desde Supabase...", false);
+  let cantProductosSincronizados = 0;
+  try {
+    const { data: prodsSup, error: errProds } = await supabaseClient
+      .from('productos')
+      .select('*')
+      .order('orden', { ascending: true });
+
+    if (!errProds && prodsSup && prodsSup.length > 0) {
+      cantProductosSincronizados = prodsSup.length;
+      let stockMapNuevo = {};
+      
+      for (let p of prodsSup) {
+        let stockNum = parseFloat(p.stock) || 0;
+        stockMapNuevo[p.nombre] = stockNum;
+
+        await dbPut("inventario", {
+          nombre: p.nombre,
+          id: p.id,
+          codigo_plu: p.codigo_plu || "",
+          categoria: p.categoria,
+          modo: p.modo || "gramos",
+          peso_promedio_g: parseFloat(p.peso_promedio_g) || 0,
+          orden: parseInt(p.orden) || 1,
+          minimo_venta: parseFloat(p.minimo_venta) || 1,
+          stock: stockNum,
+          disponible_tienda: p.disponible_tienda !== false,
+          visible_web: p.visible_web !== false,
+          tasa_iva: p.tasa_iva || "E",
+          precio: parseFloat(p.precio) || 0,
+          img_path: p.img_path || "img/LOGO-MUNDO123.webp",
+          updated_at: p.updated_at || new Date().toISOString()
+        });
+      }
+
+      localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMapNuevo));
+
+      const catalogo = reconstruirCatalogoDesdeSupabase(prodsSup);
+      renderizarCatalogoFacturacion(catalogo, true);
+      if (typeof prepararListaProductosCodigos === "function") {
+        prepararListaProductosCodigos();
+      }
+    }
+  } catch (eProds) {
+    console.warn("Aviso al sincronizar productos desde Supabase:", eProds);
+  }
 
   const usuarioActivo = obtenerUsuarioActivo();
   const tablaUsuarioActivo = obtenerTablaVentasUsuario(usuarioActivo);
@@ -1955,8 +2002,16 @@ async function cargarCatalogoFacturacion() {
         .order('orden', { ascending: true });
 
       if (!error && data && data.length > 0) {
+        // Actualizar la memoria local inmediatamente con los números reales de Supabase
+        let stockMapNuevo = {};
+        data.forEach(p => {
+          stockMapNuevo[p.nombre] = parseFloat(p.stock) || 0;
+        });
+        localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMapNuevo));
+
         const catalogo = reconstruirCatalogoDesdeSupabase(data);
-        renderizarCatalogoFacturacion(catalogo);
+        renderizarCatalogoFacturacion(catalogo, true);
+
         // Persistir catálogo completo en IndexedDB 'inventario' en background
         for (let p of data) {
           await dbPut("inventario", {
