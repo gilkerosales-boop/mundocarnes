@@ -4686,16 +4686,197 @@ window.guardarDatosEmpresaYLogos = guardarDatosEmpresaYLogos;
 // CONTROL DE VENTA EN NEGATIVO Y CONFIGURACIÓN GLOBAL DE PRODUCTOS
 // ==========================================================================
 
-function alternarPermitirVentaNegativa(estaActivo) {
+// ==========================================================================
+// FASE 4: MOTOR DE DISPONIBILIDAD CONDICIONAL Y EVALUACIÓN DE ESCANDALLO
+// ==========================================================================
+
+// Obtiene o inicializa la memoria de preferencias manuales de disponibilidad
+function obtenerBackupDisponibilidadManual() {
+  let backup = {};
+  try {
+    const s = localStorage.getItem("pos_disponibilidad_manual_backup");
+    if (s) backup = JSON.parse(s);
+  } catch (e) {}
+  return backup;
+}
+
+function guardarBackupDisponibilidadManual(backupObj) {
+  localStorage.setItem("pos_disponibilidad_manual_backup", JSON.stringify(backupObj));
+}
+
+// Evalúa si un combo tiene todos sus ingredientes disponibles y con stock > 0
+function comboTieneIngredientesDisponibles(comboNom, mapaStocks, mapaDisponibilidad) {
+  const receta = (cacheComboRecetas || []).filter(r => r.combo_nombre === comboNom);
+  if (!receta || receta.length === 0) return true; // Si no tiene receta registrada, depende de su propio stock
+
+  for (let ing of receta) {
+    const ingNom = ing.producto_componente;
+    const stockIng = mapaStocks[ingNom] !== undefined ? mapaStocks[ingNom] : 0;
+    const dispIng = mapaDisponibilidad[ingNom] !== undefined ? mapaDisponibilidad[ingNom] : true;
+    const cantRequerida = parseFloat(ing.cantidad) || 0;
+
+    // Si algún ingrediente está agotado o no cubre la cantidad de 1 combo
+    if (!dispIng || stockIng < cantRequerida) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Procesa la transición de disponibilidad al conmutar el interruptor de Venta en Negativo
+async function procesarTransicionDisponibilidadSegunVentaNegativa(estaActivo) {
+  let backupManual = obtenerBackupDisponibilidadManual();
+  let mapaStocks = {};
+  let mapaDisponibilidad = {};
+  let productosParaActualizarSupabase = [];
+
+  // 1. Mapear existencias y estados actuales
+  if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+    listaFlatProductosCodigos.forEach(p => {
+      mapaStocks[p.nombre] = parseFloat(p.stock) || 0;
+      mapaDisponibilidad[p.nombre] = Boolean(p.disponible);
+
+      // Si aún no está en el backup, registrar su preferencia manual original
+      if (backupManual[p.nombre] === undefined) {
+        backupManual[p.nombre] = Boolean(p.disponible);
+      }
+    });
+  } else if (cacheCategoriasFactura) {
+    cacheCategoriasFactura.forEach(cat => {
+      cat.productos.forEach(p => {
+        mapaStocks[p[0]] = parseFloat(p[10]) || 0;
+        mapaDisponibilidad[p[0]] = Boolean(p[3]);
+        if (backupManual[p[0]] === undefined) {
+          backupManual[p[0]] = Boolean(p[3]);
+        }
+      });
+    });
+  }
+
+  guardarBackupDisponibilidadManual(backupManual);
+
+  if (!estaActivo) {
+    // ------------------------------------------------------------------------
+    // CASO A: VENTA EN NEGATIVO BLOQUEADA (Desactivar faltantes y combos rotos)
+    // ------------------------------------------------------------------------
+    // 1. Primero evaluar productos individuales
+    if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+      listaFlatProductosCodigos.forEach(p => {
+        if ((p.categoria || p.categoriaOriginal) !== 'COMBOS') {
+          const stockNum = parseFloat(p.stock) || 0;
+          if (stockNum <= 0) {
+            p.disponible = false;
+            mapaDisponibilidad[p.nombre] = false;
+          }
+        }
+      });
+
+      // 2. Luego evaluar combos según el estado de sus ingredientes
+      listaFlatProductosCodigos.forEach(p => {
+        if ((p.categoria || p.categoriaOriginal) === 'COMBOS') {
+          const tieneIngredientes = comboTieneIngredientesDisponibles(p.nombre, mapaStocks, mapaDisponibilidad);
+          if (!tieneIngredientes) {
+            p.disponible = false;
+            mapaDisponibilidad[p.nombre] = false;
+          }
+        }
+      });
+    }
+
+    // Reflejar en cacheCategoriasFactura
+    if (cacheCategoriasFactura) {
+      cacheCategoriasFactura.forEach(cat => {
+        cat.productos.forEach(p => {
+          if (mapaDisponibilidad[p[0]] !== undefined) {
+            p[3] = mapaDisponibilidad[p[0]];
+          }
+        });
+      });
+    }
+
+  } else {
+    // ------------------------------------------------------------------------
+    // CASO B: VENTA EN NEGATIVO ACTIVADA (Restaurar exactamente el estado previo)
+    // ------------------------------------------------------------------------
+    if (listaFlatProductosCodigos && listaFlatProductosCodigos.length > 0) {
+      listaFlatProductosCodigos.forEach(p => {
+        // Restaurar a lo que el administrador había decidido manualmente
+        const estadoManualPrevio = backupManual[p.nombre] !== undefined ? Boolean(backupManual[p.nombre]) : true;
+        p.disponible = estadoManualPrevio;
+        mapaDisponibilidad[p.nombre] = estadoManualPrevio;
+      });
+    }
+
+    if (cacheCategoriasFactura) {
+      cacheCategoriasFactura.forEach(cat => {
+        cat.productos.forEach(p => {
+          const estadoManualPrevio = backupManual[p[0]] !== undefined ? Boolean(backupManual[p[0]]) : true;
+          p[3] = estadoManualPrevio;
+          mapaDisponibilidad[p[0]] = estadoManualPrevio;
+        });
+      });
+    }
+  }
+
+  // 3. Sincronizar columna disponible_tienda en Supabase para que la Web Pública lo refleje de inmediato
+  if (navigator.onLine && supabaseClient) {
+    try {
+      const updates = Object.keys(mapaDisponibilidad).map(nom => ({
+        nombre: nom,
+        disponible_tienda: mapaDisponibilidad[nom],
+        updated_at: new Date().toISOString()
+      }));
+
+      for (let u of updates) {
+        supabaseClient.from('productos')
+          .update({ disponible_tienda: u.disponible_tienda, updated_at: u.updated_at })
+          .eq('nombre', u.nombre)
+          .then(() => {}).catch(e => console.warn(e));
+      }
+    } catch (errSup) {
+      console.warn("Aviso actualizando disponibilidad en Supabase:", errSup);
+    }
+  }
+
+  // 4. Actualizar IndexedDB 'inventario'
+  for (let nom in mapaDisponibilidad) {
+    try {
+      const invItem = await dbGet("inventario", nom);
+      if (invItem) {
+        invItem.disponible_tienda = mapaDisponibilidad[nom];
+        invItem.updated_at = new Date().toISOString();
+        await dbPut("inventario", invItem);
+      }
+    } catch (eDB) {}
+  }
+
+  // 5. Refrescar interfaces visuales
+  renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
+  if (typeof renderizarTablaGestionCodigos === "function" && listaFlatProductosCodigos) {
+    renderizarTablaGestionCodigos(listaFlatProductosCodigos);
+  }
+
+  mostrarAvisoFactura(estaActivo 
+    ? "🟢 Venta en negativo ACTIVADA. Disponibilidad original de productos restaurada." 
+    : "🔴 Venta en negativo BLOQUEADA. Productos con stock en cero y combos afectados marcados como Agotados.", true, 6000);
+}
+
+async function alternarPermitirVentaNegativa(estaActivo) {
   localStorage.setItem("pos_permitir_venta_negativa", estaActivo ? "true" : "false");
   const lbl = document.getElementById('lblPermitirVentaNegativa');
   if (lbl) {
     lbl.textContent = estaActivo ? "🟢 Venta en Negativo: Activada" : "🔴 Venta en Negativo: Bloqueada";
     lbl.className = estaActivo ? "form-check-label small fw-bold text-success" : "form-check-label small fw-bold text-danger";
   }
-  mostrarAvisoFactura(estaActivo ? "🟢 Venta en negativo ACTIVADA (Permite facturar sin stock)." : "🔴 Venta en negativo BLOQUEADA (Exige existencia previa).");
+
+  mostrarAvisoFactura(estaActivo 
+    ? "🔄 Restaurando disponibilidad manual de inventario..." 
+    : "🔄 Evaluando existencias y desactivando faltantes...", false);
+
+  await procesarTransicionDisponibilidadSegunVentaNegativa(estaActivo);
 }
 window.alternarPermitirVentaNegativa = alternarPermitirVentaNegativa;
+window.procesarTransicionDisponibilidadSegunVentaNegativa = procesarTransicionDisponibilidadSegunVentaNegativa;
 
 // Variables de control de edición granular por categoría y recetas de combos
 let categoriaEnEdicionActiva = null;
