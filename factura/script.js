@@ -991,11 +991,13 @@ async function forzarSincronizacionManual() {
     badge.textContent = "🔄 Sincronizando...";
   }
 
-  mostrarAvisoFactura("🔄 Paso 1/5: Subiendo pendientes...", false);
+  // PASO 1/7: SUBIDA DE COLA OFFLINE
+  mostrarAvisoFactura("🔄 Paso 1/7: Subiendo datos pendientes a Supabase...", false);
   await procesarColaSincronizacion();
-  await new Promise(r => setTimeout(r, 300));
+  await new Promise(r => setTimeout(r, 250));
 
-  mostrarAvisoFactura("🔄 Paso 2/6: Sincronizando Clientes...", false);
+  // PASO 2/7: CLIENTES
+  mostrarAvisoFactura("🔄 Paso 2/7: Sincronizando Directorio de Clientes...", false);
   let cantClientes = 0;
   try {
     const { data: clientesSup, error } = await supabaseClient.from('clientes').select('*');
@@ -1009,10 +1011,19 @@ async function forzarSincronizacionManual() {
           direccion: c.DIRECCION || null
         });
       }
+      if (typeof cargarDirectorioClientesGestion === "function") {
+        cacheClientesGestion = clientesSup.map(c => ({
+          cedula: c.CEDULA,
+          nombre: c.NOMBRES || "N/D",
+          telefono: c.TELEFONO || "N/D",
+          direccion: c.DIRECCION || ""
+        }));
+      }
     }
   } catch (e) {}
 
-  mostrarAvisoFactura("🔄 Paso 3/6: Sincronizando Inventario y Stock Real desde Supabase...", false);
+  // PASO 3/7: PRODUCTOS, STOCK REAL Y PRECIOS DINÁMICOS
+  mostrarAvisoFactura("🔄 Paso 3/7: Sincronizando Catálogo, Stock Real y Precios...", false);
   let cantProductosSincronizados = 0;
   try {
     const { data: prodsSup, error: errProds } = await supabaseClient
@@ -1059,9 +1070,59 @@ async function forzarSincronizacionManual() {
     console.warn("Aviso al sincronizar productos desde Supabase:", eProds);
   }
 
+  // PASO 4/7: COMPRAS A PROVEEDORES Y CUENTAS POR PAGAR (CXP)
+  mostrarAvisoFactura("🔄 Paso 4/7: Sincronizando Compras y Cuentas por Pagar...", false);
+  let cantComprasSincronizadas = 0;
+  try {
+    const { data: compSup, error: errComp } = await supabaseClient
+      .from('compras_proveedores')
+      .select('*')
+      .order('id', { ascending: false });
+
+    if (!errComp && compSup) {
+      cantComprasSincronizadas = compSup.length;
+      let mapCompras = {};
+      
+      for (let c of compSup) {
+        let clave = c.NRO_GUIA || c.id;
+        const parseado = {
+          id: c.id,
+          fecha: c.FECHA,
+          nroGuia: c.NRO_GUIA,
+          proveedor: c.PROVEEDOR,
+          montoTotalFactura: parseFloat(c.MONTO_TOTAL) || 0,
+          estatusFactura: c.ESTATUS || "PAGO",
+          tipoRecepcion: c.TIPO || "CARGA_DIRECTA",
+          pesoFactura: c.PESO_FACTURA,
+          items: (typeof c.DETALLE_ITEMS === 'string') 
+            ? JSON.parse(c.DETALLE_ITEMS || '[]') 
+            : ((typeof c.items === 'string') ? JSON.parse(c.items || '[]') : (c.items || c.DETALLE_ITEMS || [])),
+          fotoFactura: c.FOTO_FACTURA || null,
+          usuario: c.USUARIO || "CAJERO"
+        };
+        mapCompras[clave] = parseado;
+        await dbPut("compras_proveedores", parseado);
+      }
+
+      cacheComprasProveedores = Object.values(mapCompras).sort((a, b) => (b.id || 0) - (a.id || 0));
+      if (typeof actualizarContadorComprasPorPagar === "function") {
+        actualizarContadorComprasPorPagar();
+      }
+      if (typeof filtrarTablaCuentasPorPagar === "function") {
+        filtrarTablaCuentasPorPagar();
+      }
+      if (typeof filtrarTablaHistorialCompras === "function") {
+        filtrarTablaHistorialCompras();
+      }
+    }
+  } catch (eComp) {
+    console.warn("Aviso al sincronizar compras a proveedores:", eComp);
+  }
+
+  // PASO 5/7: VENTAS PARTICIONADAS Y GLOBALES
   const usuarioActivo = obtenerUsuarioActivo();
   const tablaUsuarioActivo = obtenerTablaVentasUsuario(usuarioActivo);
-  mostrarAvisoFactura(`🔄 Paso 3/5: Sincronizando Ventas (${tablaUsuarioActivo})...`, false);
+  mostrarAvisoFactura(`🔄 Paso 5/7: Sincronizando Ventas (${tablaUsuarioActivo})...`, false);
   let cantVentas = 0;
   try {
     const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
@@ -1092,8 +1153,9 @@ async function forzarSincronizacionManual() {
     }
   } catch (e) {}
 
+  // PASO 6/7: CIERRES DE CAJA (REPORTES Z)
   const tablaCierresUsuario = obtenerTablaCierresUsuario(usuarioActivo);
-  mostrarAvisoFactura(`🔄 Paso 4/5: Sincronizando Cierres (${tablaCierresUsuario})...`, false);
+  mostrarAvisoFactura(`🔄 Paso 6/7: Sincronizando Cierres (${tablaCierresUsuario})...`, false);
   let cantCierres = 0;
   try {
     const { data: cierresSup, error } = await supabaseClient.from(tablaCierresUsuario).select('*');
@@ -1102,47 +1164,48 @@ async function forzarSincronizacionManual() {
       const cierresOrdenados = [...cierresSup].sort((a, b) => (b.id || 0) - (a.id || 0));
 
       for (let cie of cierresOrdenados) {
-            await dbPut("cierres", {
-              id: cie.id,
-              fechaStr: cie["FECHA"] || "",
-              usuario: usuarioActivo,
-              tasaBCV: parseFloat(cie["TASA_BCV"]) || 1,
-              inicialUSD: parseFloat(cie["INICIAL $"]) || 0,
-              inicialBS: parseFloat(cie["INICIAL Bs"]) || 0,
-              cajaFinalUSD: parseFloat(cie["TOTAL 3"]) || 0,
-              cajaFinalBS: parseFloat(cie["TOTAL 4"]) || 0,
-              totalVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
-              totalVentasBS: parseFloat(cie["TOTAL 2"]) || 0,
-              billetesRecibidosUSD: parseFloat(cie["BILLETES_RECIBIDOS_USD"]) || 0,
-              vueltosUSD: parseFloat(cie["VUELTOS_USD"]) || 0,
-              vueltosBS: parseFloat(cie["VUELTOS_BS"]) || 0,
-              ingresosUSD: parseFloat(cie["INGRESOS_USD"]) || 0,
-              retirosUSD: parseFloat(cie["RETIROS_USD"]) || 0,
-              ingresosBS: parseFloat(cie["INGRESOS_BS"]) || 0,
-              retirosBS: parseFloat(cie["RETIROS_BS"]) || 0,
-              esFiscal: Boolean(cie["ES_FISCAL"] || cie.esFiscal || cie.modoFiscal || cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ),
-              modoFiscal: Boolean(cie["ES_FISCAL"] || cie.esFiscal || cie.modoFiscal || cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ),
-              numeroZ: cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ || null,
-              resumen: {
-                ventasEfectivoUSD: parseFloat(cie["DIVISAS"]) || 0,
-                ventasEfectivoBS: parseFloat(cie["BOLIVARES"]) || 0,
-                ventasPagoMovil: parseFloat(cie["PAGO MOVIL"]) || 0,
-                ventasZelle: parseFloat(cie["ZELLE"]) || 0,
-                ventasPayPal: parseFloat(cie["PAYPAL"]) || 0,
-                ventasPuntoVenta: parseFloat(cie["PUNTO DE VENTA"]) || 0,
-                ventasBiopago: parseFloat(cie["BIOPAGO"]) || 0,
-                ventasCashea: parseFloat(cie["CASHEA"]) || 0,
-                ventasCredito: parseFloat(cie["CREDITO"]) || 0,
-                ventasTransferencia: parseFloat(cie["TRANSFERENCIA"] || cie["TRANSFERECIA"]) || 0,
-                totalGeneralVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
-                totalGeneralVentasBS: parseFloat(cie["TOTAL 2"]) || 0
-              }
-            });
+        await dbPut("cierres", {
+          id: cie.id,
+          fechaStr: cie["FECHA"] || "",
+          usuario: usuarioActivo,
+          tasaBCV: parseFloat(cie["TASA_BCV"]) || 1,
+          inicialUSD: parseFloat(cie["INICIAL $"]) || 0,
+          inicialBS: parseFloat(cie["INICIAL Bs"]) || 0,
+          cajaFinalUSD: parseFloat(cie["TOTAL 3"]) || 0,
+          cajaFinalBS: parseFloat(cie["TOTAL 4"]) || 0,
+          totalVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
+          totalVentasBS: parseFloat(cie["TOTAL 2"]) || 0,
+          billetesRecibidosUSD: parseFloat(cie["BILLETES_RECIBIDOS_USD"]) || 0,
+          vueltosUSD: parseFloat(cie["VUELTOS_USD"]) || 0,
+          vueltosBS: parseFloat(cie["VUELTOS_BS"]) || 0,
+          ingresosUSD: parseFloat(cie["INGRESOS_USD"]) || 0,
+          retirosUSD: parseFloat(cie["RETIROS_USD"]) || 0,
+          ingresosBS: parseFloat(cie["INGRESOS_BS"]) || 0,
+          retirosBS: parseFloat(cie["RETIROS_BS"]) || 0,
+          esFiscal: Boolean(cie["ES_FISCAL"] || cie.esFiscal || cie.modoFiscal || cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ),
+          modoFiscal: Boolean(cie["ES_FISCAL"] || cie.esFiscal || cie.modoFiscal || cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ),
+          numeroZ: cie["NUMERO_Z"] || cie["NUMERO Z"] || cie.numeroZ || null,
+          resumen: {
+            ventasEfectivoUSD: parseFloat(cie["DIVISAS"]) || 0,
+            ventasEfectivoBS: parseFloat(cie["BOLIVARES"]) || 0,
+            ventasPagoMovil: parseFloat(cie["PAGO MOVIL"]) || 0,
+            ventasZelle: parseFloat(cie["ZELLE"]) || 0,
+            ventasPayPal: parseFloat(cie["PAYPAL"]) || 0,
+            ventasPuntoVenta: parseFloat(cie["PUNTO DE VENTA"]) || 0,
+            ventasBiopago: parseFloat(cie["BIOPAGO"]) || 0,
+            ventasCashea: parseFloat(cie["CASHEA"]) || 0,
+            ventasCredito: parseFloat(cie["CREDITO"]) || 0,
+            ventasTransferencia: parseFloat(cie["TRANSFERENCIA"] || cie["TRANSFERECIA"]) || 0,
+            totalGeneralVentasUSD: parseFloat(cie["TOTAL 1"]) || 0,
+            totalGeneralVentasBS: parseFloat(cie["TOTAL 2"]) || 0
           }
+        });
+      }
     }
   } catch (e) {}
 
-  mostrarAvisoFactura(`🔄 Paso 5/5: Sincronizando Créditos y Vales...`, false);
+  // PASO 7/7: CRÉDITOS, VALES Y RECETAS DE COMBOS
+  mostrarAvisoFactura(`🔄 Paso 7/7: Sincronizando Créditos, Vales y Recetas...`, false);
   let cantCreditos = 0;
   let cantVales = 0;
   try {
@@ -1165,6 +1228,7 @@ async function forzarSincronizacionManual() {
           "FECHA PAGO": cr["FECHA PAGO"] || null
         });
       }
+      if (typeof filtrarTablaCreditos === "function") filtrarTablaCreditos();
     }
 
     const { data: valesSup } = await supabaseClient.from('vales').select('*');
@@ -1186,11 +1250,19 @@ async function forzarSincronizacionManual() {
           "FECHA PAGO": v["FECHA PAGO"] || null
         });
       }
+      if (typeof filtrarTablaVales === "function") filtrarTablaVales();
+    }
+
+    // Sincronizar escandallo de combos
+    if (typeof cargarRecetasCombos === "function") {
+      await cargarRecetasCombos();
     }
   } catch (eCXC) {}
 
   await actualizarEstadoSyncBadge();
-  mostrarAvisoFactura(`🎉 ¡Sincronizado! (${cantClientes} cli, ${cantVentas} vtas, ${cantCierres} cierres, ${cantCreditos} créd, ${cantVales} vales)`, true, 8000);
+  
+  // MENSAJE FINAL DE AUDITORÍA TOTAL Y TRANSPARENTE
+  mostrarAvisoFactura(`🎉 ¡Sincronización Total Exitosa!\n📦 ${cantProductosSincronizados} prods/stock | 📑 ${cantComprasSincronizadas} compras/CXP | 👥 ${cantClientes} cli | 🧾 ${cantVentas} vtas | 🔒 ${cantCierres} cierres | 💳 ${cantCreditos} créd | 🎟️ ${cantVales} vales`, true, 9000);
 }
 
 async function sincronizarClientesDesdeServidor() {
