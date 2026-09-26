@@ -115,6 +115,11 @@
               </li>
               <li><hr class="dropdown-divider my-1"></li>
               <li>
+                <button class="dropdown-item fw-bold py-2 text-warning" type="button" onclick="abrirModalConfiguracionPrecios()">
+                  💲 Estructura y Configuración de Precios
+                </button>
+              </li>
+              <li>
                 <button class="dropdown-item fw-bold py-2 text-success" type="button" onclick="abrirModalEntradaMercancia()">
                   📥 Entrada de Mercancía / Carga de Stock
                 </button>
@@ -1813,6 +1818,129 @@
             <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
             <button type="button" id="btnGuardarClienteDirecto" class="btn btn-success fw-bold px-4 rounded-pill shadow" onclick="guardarClienteDirectoGestion()">
               💾 Guardar Cliente
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL CONFIGURACIÓN Y ESTRUCTURA DE PRECIOS DINÁMICOS -->
+    <div class="modal fade" id="modalConfiguracionPrecios" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content border-0">
+          <div class="modal-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
+            <div class="d-flex align-items-center gap-2">
+              <span class="fs-4">💲</span>
+              <div>
+                <h5 class="modal-title fw-bold mb-0">Estructura y Configuración de Precios de Venta</h5>
+                <small class="text-white-50" style="font-size: 0.76rem;">Cálculo técnico de Precios de Venta mediante Costos de Ingreso, Gastos Operativos, Margen y Tributos</small>
+              </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          
+          <div class="modal-body p-3 p-lg-4 bg-light">
+            
+            <!-- PANEL SUPERIOR: SWITCH MAESTRO + FILTROS + HERRAMIENTA MASIVA -->
+            <div class="card p-3 mb-3 border-0 shadow-sm rounded-3 bg-white">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                
+                <!-- SWITCH MAESTRO DE ACTIVACIÓN -->
+                <div class="d-inline-flex align-items-center p-2 px-3 rounded-pill border shadow-sm" style="background-color: #f8fafc;">
+                  <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
+                    <input class="form-check-input ms-0" type="checkbox" id="chkModoPreciosDinamicos" style="width: 48px; height: 24px; cursor: pointer;" onchange="alternarModoPreciosDinamicos(this.checked)">
+                    <label class="form-check-label fw-bold small mb-0 ms-2" for="chkModoPreciosDinamicos" id="lblModoPreciosDinamicos" style="cursor: pointer;">
+                      ⚪ Precios Dinámicos: DESACTIVADO (Usando Catálogo Maestro)
+                    </label>
+                  </div>
+                </div>
+
+                <!-- CONTADOR DE PRODUCTOS -->
+                <div>
+                  <span class="badge bg-dark fs-6" id="cntTotalProductosPrecios">Total: 0 Productos</span>
+                </div>
+
+              </div>
+
+              <!-- BARRA DE BÚSQUEDA Y ASIGNACIÓN MASIVA DE MÁRGENES -->
+              <div class="row g-2 align-items-end mt-2 pt-2 border-top">
+                <div class="col-md-4 col-lg-3">
+                  <label for="inputFiltroPreciosBusqueda" class="form-label small fw-bold mb-1">Buscar Producto o PLU:</label>
+                  <input type="text" id="inputFiltroPreciosBusqueda" class="form-control form-control-sm fw-bold" placeholder="🔍 Escriba para filtrar..." oninput="filtrarTablaPrecios()">
+                </div>
+
+                <div class="col-md-3 col-lg-2">
+                  <label for="selectFiltroPreciosCategoria" class="form-label small fw-bold mb-1">Filtrar Categoría:</label>
+                  <select id="selectFiltroPreciosCategoria" class="form-select form-select-sm fw-bold" onchange="filtrarTablaPrecios()">
+                    <option value="TODAS" selected>-- Todas las Categorías --</option>
+                    <option value="CARNES">🥩 CARNES</option>
+                    <option value="POLLO">🍗 POLLO</option>
+                    <option value="QUESOS Y EMBUTIDOS">🧀 QUESOS Y EMBUTIDOS</option>
+                    <option value="VIVERES">🛒 VÍVERES</option>
+                    <option value="COMBOS">📦 COMBOS</option>
+                  </select>
+                </div>
+
+                <!-- APLICACIÓN RÁPIDA DE % OPERATIVO Y % GANANCIA A VISIBLES -->
+                <div class="col-md-5 col-lg-7">
+                  <div class="p-2 bg-light border rounded-3 d-flex align-items-end flex-wrap gap-2 justify-content-end">
+                    <span class="small fw-bold text-muted mb-1 me-1">⚡ Aplicar a filtrados:</span>
+                    <div style="max-width: 105px;">
+                      <label class="small fw-bold" style="font-size: 0.7rem;">% Op:</label>
+                      <input type="number" step="0.1" min="0" id="inputMassOpPrecios" class="form-control form-control-sm text-center fw-bold num-legible" placeholder="Ej: 15.0">
+                    </div>
+                    <div style="max-width: 105px;">
+                      <label class="small fw-bold" style="font-size: 0.7rem;">% Gan:</label>
+                      <input type="number" step="0.1" min="0" id="inputMassGanPrecios" class="form-control form-control-sm text-center fw-bold text-success num-legible" placeholder="Ej: 30.0">
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary fw-bold rounded-pill px-3 shadow-sm" onclick="aplicarPorcentajesMasivosPrecios()">
+                      ⚡ Aplicar
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- BANNER INFORMATIVO DE LA FÓRMULA TÉCNICA -->
+              <div class="alert alert-info py-2 px-3 mb-0 mt-3 small shadow-sm d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  <strong>📐 Fórmula de Costeo:</strong>
+                  <code>Precio Base = [Precio Ingreso × (1 + % Costos Op. / 100)] × (1 + % Ganancia / 100)</code> | 
+                  <code>Precio Final = Precio Base × (1 + % IVA / 100)</code>
+                </div>
+                <span class="badge bg-primary text-white">Actualización automática desde Recepción</span>
+              </div>
+            </div>
+
+            <!-- TABLA DE CONFIGURACIÓN DE PRECIOS -->
+            <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: calc(100vh - 310px); overflow-y: auto;">
+              <table class="table table-hover table-striped align-middle mb-0" style="font-size: 0.82rem;">
+                <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
+                  <tr>
+                    <th style="width: 80px;">Código PLU</th>
+                    <th style="min-width: 170px;">Nombre del Producto</th>
+                    <th style="width: 120px;">Categoría</th>
+                    <th style="width: 125px;">Precio Ingreso ($)</th>
+                    <th style="width: 100px;">% Costos Op.</th>
+                    <th style="width: 100px;">% Ganancia</th>
+                    <th style="width: 90px;">IVA</th>
+                    <th style="width: 120px;" class="table-success text-dark">Precio Dinámico ($)</th>
+                    <th style="width: 120px;">Catálogo Maestro ($)</th>
+                    <th style="width: 110px;">Estado Precio</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaConfiguracionPrecios" class="small">
+                  <!-- Inyectado Dinámicamente -->
+                </tbody>
+              </table>
+            </div>
+
+            <div id="errorModalConfigPrecios" class="text-danger small fw-bold mt-2 hidden"></div>
+          </div>
+
+          <div class="modal-footer bg-white justify-content-between p-3 border-top">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+            <button type="button" id="btnGuardarConfigPrecios" class="btn btn-success fw-bold px-5 py-2 fs-5 rounded-pill shadow" onclick="guardarEstructuraPreciosDinamicos()">
+              💾 Guardar Estructura de Precios
             </button>
           </div>
         </div>
