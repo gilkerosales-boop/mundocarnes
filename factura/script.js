@@ -6948,7 +6948,7 @@ async function ejecutarIngresoLoteMercancia() {
 window.ejecutarIngresoLoteMercancia = ejecutarIngresoLoteMercancia;
 
 // ==========================================================================
-// MÓDULO EXCLUSIVO: ESTRUCTURA Y CONFIGURACIÓN DE PRECIOS DINÁMICOS
+// MÓDULO EXCLUSIVO: ESTRUCTURA Y CONFIGURACIÓN DE PRECIOS DINÁMICOS (SUPABASE)
 // ==========================================================================
 let listaProductosEstructuraPrecios = [];
 
@@ -6967,7 +6967,7 @@ function calcularPrecioDinamicoIndividual(precioIngreso, porcOperativo, porcGana
   return parseFloat(precioFinalCalculado.toFixed(2));
 }
 
-// Actualiza los precios en el objeto en memoria SIN disparar bucles
+// Aplica precios dinámicos al catálogo en memoria SOLO si el switch está activo
 function aplicarPreciosDinamicosACache() {
   const activo = localStorage.getItem("pos_modo_precios_dinamicos") === "true";
   let estructura = {};
@@ -7003,7 +7003,7 @@ function aplicarPreciosDinamicosACache() {
   }
 }
 
-// Refresca únicamente las tarjetas HTML en pantalla a 0ms sin recursión
+// Refresca las tarjetas de la pantalla a 0ms sin loops
 function refrescarTarjetasCatalogoEnPantalla() {
   if (!cacheCategoriasFactura || cacheCategoriasFactura.length === 0) return;
   cacheCategoriasFactura.forEach((cat) => {
@@ -7012,8 +7012,20 @@ function refrescarTarjetasCatalogoEnPantalla() {
   });
 }
 
-function inicializarModoPreciosDinamicos() {
-  const activo = localStorage.getItem("pos_modo_precios_dinamicos") === "true";
+async function inicializarModoPreciosDinamicos() {
+  // Sincronizar estado global del switch desde Supabase precios_dinamicos
+  let activo = localStorage.getItem("pos_modo_precios_dinamicos") === "true";
+  
+  if (navigator.onLine && supabaseClient) {
+    try {
+      const { data } = await supabaseClient.from('precios_dinamicos').select('activo').limit(1);
+      if (data && data.length > 0 && data[0].activo !== undefined) {
+        activo = Boolean(data[0].activo);
+        localStorage.setItem("pos_modo_precios_dinamicos", activo ? "true" : "false");
+      }
+    } catch (e) {}
+  }
+
   const chk = document.getElementById('chkModoPreciosDinamicos');
   const lbl = document.getElementById('lblModoPreciosDinamicos');
 
@@ -7033,7 +7045,7 @@ function inicializarModoPreciosDinamicos() {
   }
 }
 
-function alternarModoPreciosDinamicos(estaActivo) {
+async function alternarModoPreciosDinamicos(estaActivo) {
   localStorage.setItem("pos_modo_precios_dinamicos", estaActivo ? "true" : "false");
   
   const lbl = document.getElementById('lblModoPreciosDinamicos');
@@ -7046,6 +7058,13 @@ function alternarModoPreciosDinamicos(estaActivo) {
       : "form-check-label fw-bold small mb-0 ms-2 text-muted";
   }
 
+  // Sincronizar el estado del switch en la tabla precios_dinamicos de Supabase
+  if (navigator.onLine && supabaseClient) {
+    try {
+      await supabaseClient.from('precios_dinamicos').update({ activo: estaActivo }).neq('id', 0);
+    } catch (e) {}
+  }
+
   aplicarPreciosDinamicosACache();
   refrescarTarjetasCatalogoEnPantalla();
   filtrarTablaPrecios();
@@ -7056,7 +7075,8 @@ function alternarModoPreciosDinamicos(estaActivo) {
 }
 window.alternarModoPreciosDinamicos = alternarModoPreciosDinamicos;
 
-function actualizarPrecioIngresoDesdeRecepcion(nombreProducto, nuevoCostoUnitario) {
+// Actualiza el costo de adquisición automáticamente al recibir compras o desposte
+async function actualizarPrecioIngresoDesdeRecepcion(nombreProducto, nuevoCostoUnitario) {
   if (!nombreProducto || !nuevoCostoUnitario || nuevoCostoUnitario <= 0) return;
 
   let estructura = {};
@@ -7068,6 +7088,8 @@ function actualizarPrecioIngresoDesdeRecepcion(nombreProducto, nuevoCostoUnitari
   const pData = buscarProductoEnCache(nombreProducto);
   const tasaIVA = pData ? (pData[8] || "E") : "E";
   const precioManual = pData ? (parseFloat(pData[1]) || 0) : 0;
+  const codigoPLU = pData ? (pData[7] || "") : "";
+  const categoria = pData ? (pData[5] || "VIVERES") : "VIVERES";
 
   if (!estructura[nombreProducto]) {
     estructura[nombreProducto] = {
@@ -7088,36 +7110,66 @@ function actualizarPrecioIngresoDesdeRecepcion(nombreProducto, nuevoCostoUnitari
   est.precioDinamico = calcularPrecioDinamicoIndividual(est.precioIngreso, est.porcOperativo, est.porcGanancia, est.tasaIVA);
   localStorage.setItem("pos_estructura_precios", JSON.stringify(estructura));
 
-  // Si los precios dinámicos están activos, refrescar tarjetas en pantalla sin loops
+  // Actualizar directamente en la tabla precios_dinamicos de Supabase
+  if (navigator.onLine && supabaseClient) {
+    try {
+      await supabaseClient.from('precios_dinamicos').upsert([{
+        nombre: nombreProducto,
+        codigo_plu: codigoPLU,
+        categoria: categoria,
+        precio_ingreso: est.precioIngreso,
+        porc_operativo: est.porcOperativo,
+        porc_ganancia: est.porcGanancia,
+        tasa_iva: est.tasaIVA,
+        precio_dinamico: est.precioDinamico,
+        activo: (localStorage.getItem("pos_modo_precios_dinamicos") === "true"),
+        updated_at: new Date().toISOString()
+      }], { onConflict: 'nombre' });
+    } catch (e) {
+      console.warn("Aviso actualizando costo en precios_dinamicos:", e);
+    }
+  }
+
+  // Si los precios dinámicos están activos, refrescar las tarjetas de la vitrina
   if (localStorage.getItem("pos_modo_precios_dinamicos") === "true") {
     aplicarPreciosDinamicosACache();
     refrescarTarjetasCatalogoEnPantalla();
   }
 }
 
-function abrirModalConfiguracionPrecios() {
+async function abrirModalConfiguracionPrecios() {
   document.getElementById('inputFiltroPreciosBusqueda').value = "";
   document.getElementById('selectFiltroPreciosCategoria').value = "TODAS";
   document.getElementById('inputMassOpPrecios').value = "";
   document.getElementById('inputMassGanPrecios').value = "";
   document.getElementById('errorModalConfigPrecios').classList.add('hidden');
 
-  inicializarModoPreciosDinamicos();
-  cargarEstructuraPrecios();
+  await inicializarModoPreciosDinamicos();
+  await cargarEstructuraPrecios();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfiguracionPrecios')).show();
 }
 window.abrirModalConfiguracionPrecios = abrirModalConfiguracionPrecios;
 
-function cargarEstructuraPrecios() {
+async function cargarEstructuraPrecios() {
   listaProductosEstructuraPrecios = [];
-  let mapaGuardado = {};
-  try {
-    const s = localStorage.getItem("pos_estructura_precios");
-    if (s) mapaGuardado = JSON.parse(s);
-  } catch (e) {}
+  let mapaSupabase = new Map();
 
+  // 1. Cargar datos directamente desde la tabla precios_dinamicos de Supabase
+  if (navigator.onLine && supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient.from('precios_dinamicos').select('*').order('nombre');
+      if (!error && data && data.length > 0) {
+        data.forEach(row => {
+          mapaSupabase.set(row.nombre, row);
+        });
+      }
+    } catch (e) {
+      console.warn("Aviso consultando precios_dinamicos en Supabase:", e);
+    }
+  }
+
+  // 2. Extraer productos del Catálogo Maestro
   let prodsUnicos = new Map();
-
   if (cacheCategoriasFactura) {
     cacheCategoriasFactura.forEach(cat => {
       cat.productos.forEach(p => {
@@ -7136,19 +7188,46 @@ function cargarEstructuraPrecios() {
     });
   }
 
-  prodsUnicos.forEach((prod, nom) => {
-    let conf = mapaGuardado[nom];
-    let precioIngreso = conf ? parseFloat(conf.precioIngreso) : 0;
-    let porcOp = conf ? parseFloat(conf.porcOperativo) : 15.0;
-    let porcGan = conf ? parseFloat(conf.porcGanancia) : 30.0;
-    let tasaIVA = conf ? (conf.tasaIVA || prod.tasaIVA) : prod.tasaIVA;
+  let mapaLocal = {};
+  let productosNuevosAutoRespaldo = [];
 
-    // Si aún no se ha registrado ingreso para este producto, estimar costo inicial al 70% del catálogo
+  prodsUnicos.forEach((prod, nom) => {
+    let rowDb = mapaSupabase.get(nom);
+    let precioIngreso = rowDb ? parseFloat(rowDb.precio_ingreso) : 0;
+    let porcOp = rowDb ? parseFloat(rowDb.porc_operativo) : 15.0;
+    let porcGan = rowDb ? parseFloat(rowDb.porc_ganancia) : 30.0;
+    let tasaIVA = rowDb ? (rowDb.tasa_iva || prod.tasaIVA) : prod.tasaIVA;
+
+    // Si aún no tenía costo de ingreso, estimar costo inicial al 70% del catálogo
     if (precioIngreso <= 0 && prod.precioManualCatalogo > 0) {
       precioIngreso = parseFloat((prod.precioManualCatalogo * 0.70).toFixed(2));
     }
 
     let precioDinamico = calcularPrecioDinamicoIndividual(precioIngreso, porcOp, porcGan, tasaIVA);
+
+    // Si el producto no existía en precios_dinamicos, prepararlo para auto-respaldo
+    if (!rowDb) {
+      productosNuevosAutoRespaldo.push({
+        nombre: nom,
+        codigo_plu: prod.codigoPLU,
+        categoria: prod.categoria,
+        precio_ingreso: precioIngreso,
+        porc_operativo: porcOp,
+        porc_ganancia: porcGan,
+        tasa_iva: tasaIVA,
+        precio_dinamico: precioDinamico,
+        activo: (localStorage.getItem("pos_modo_precios_dinamicos") === "true")
+      });
+    }
+
+    mapaLocal[nom] = {
+      precioIngreso: precioIngreso,
+      porcOperativo: porcOp,
+      porcGanancia: porcGan,
+      tasaIVA: tasaIVA,
+      precioManualCatalogo: prod.precioManualCatalogo,
+      precioDinamico: precioDinamico
+    };
 
     listaProductosEstructuraPrecios.push({
       codigoPLU: prod.codigoPLU,
@@ -7162,6 +7241,16 @@ function cargarEstructuraPrecios() {
       precioManualCatalogo: prod.precioManualCatalogo
     });
   });
+
+  // Guardar en caché local para rapidez inmediata
+  localStorage.setItem("pos_estructura_precios", JSON.stringify(mapaLocal));
+
+  // Respaldar automáticamente en Supabase los productos nuevos que no existían
+  if (productosNuevosAutoRespaldo.length > 0 && navigator.onLine && supabaseClient) {
+    try {
+      await supabaseClient.from('precios_dinamicos').upsert(productosNuevosAutoRespaldo, { onConflict: 'nombre' });
+    } catch (e) {}
+  }
 
   listaProductosEstructuraPrecios.sort((a, b) => a.nombre.localeCompare(b.nombre));
   filtrarTablaPrecios();
@@ -7309,48 +7398,7 @@ function aplicarPorcentajesMasivosPrecios() {
 }
 window.aplicarPorcentajesMasivosPrecios = aplicarPorcentajesMasivosPrecios;
 
-// Función de rescate permanente para restaurar precios maestros desde catalog.json
-async function restaurarPreciosMaestrosOriginales() {
-  if (!confirm("⚠️ ¿Desea restaurar todos los precios originales del Catálogo Maestro desde el archivo de fábrica catalog.json?")) {
-    return;
-  }
-  mostrarAvisoFactura("🔄 Restaurando precios originales en Supabase...", false);
-  try {
-    const res = await fetch('../catalog.json?t=' + Date.now());
-    const cat = await res.json();
-    let count = 0;
-
-    for (let c of cat.categorias) {
-      for (let p of c.productos) {
-        const precOriginal = parseFloat(p[1]) || 0;
-        let prodLocal = buscarProductoEnCache(p[0]);
-        if (prodLocal) prodLocal[1] = precOriginal;
-
-        if (navigator.onLine && supabaseClient) {
-          await supabaseClient.from('productos')
-            .update({ precio: precOriginal, updated_at: new Date().toISOString() })
-            .eq('nombre', p[0]);
-        }
-        count++;
-      }
-    }
-
-    localStorage.setItem("pos_modo_precios_dinamicos", "false");
-    const chk = document.getElementById('chkModoPreciosDinamicos');
-    if (chk) chk.checked = false;
-
-    renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
-    if (typeof prepararListaProductosCodigos === "function") prepararListaProductosCodigos();
-    if (typeof cargarEstructuraPrecios === "function") cargarEstructuraPrecios();
-
-    mostrarAvisoFactura(`✅ Se restauraron exitosamente los precios maestros de ${count} productos.`);
-  } catch (err) {
-    console.error("Error al restaurar precios:", err);
-    mostrarAvisoFactura("Error al restaurar: " + err.message);
-  }
-}
-window.restaurarPreciosMaestrosOriginales = restaurarPreciosMaestrosOriginales;
-
+// Guarda exclusivamente en la tabla precios_dinamicos de Supabase (Catálogo Maestro 100% protegido)
 async function guardarEstructuraPreciosDinamicos() {
   const btn = document.getElementById('btnGuardarConfigPrecios');
   const errorDiv = document.getElementById('errorModalConfigPrecios');
@@ -7358,7 +7406,7 @@ async function guardarEstructuraPreciosDinamicos() {
 
   if (btn) {
     btn.disabled = true;
-    btn.textContent = "Guardando Estructura de Precios...";
+    btn.textContent = "Guardando en Supabase...";
   }
 
   try {
@@ -7368,7 +7416,10 @@ async function guardarEstructuraPreciosDinamicos() {
       actualizarCalculoFilaPrecio(tr.querySelector('.input-precio-ingreso'));
     });
 
+    const modoDinamicoActivo = localStorage.getItem("pos_modo_precios_dinamicos") === "true";
     let mapaGuardar = {};
+    let filasParaSupabase = [];
+
     listaProductosEstructuraPrecios.forEach(p => {
       mapaGuardar[p.nombre] = {
         precioIngreso: p.precioIngreso,
@@ -7378,21 +7429,37 @@ async function guardarEstructuraPreciosDinamicos() {
         precioManualCatalogo: p.precioManualCatalogo,
         precioDinamico: p.precioDinamico
       };
+
+      filasParaSupabase.push({
+        nombre: p.nombre,
+        codigo_plu: p.codigoPLU || "",
+        categoria: p.categoria || "VIVERES",
+        precio_ingreso: p.precioIngreso,
+        porc_operativo: p.porcOperativo,
+        porc_ganancia: p.porcGanancia,
+        tasa_iva: p.tasaIVA,
+        precio_dinamico: p.precioDinamico,
+        activo: modoDinamicoActivo,
+        updated_at: new Date().toISOString()
+      });
     });
 
-    // Guardar exclusivamente en la estructura de costos sin destruir el precio del Catálogo Maestro
+    // 1. Guardar en memoria local e IndexedDB para alta velocidad offline
     localStorage.setItem("pos_estructura_precios", JSON.stringify(mapaGuardar));
     await dbPut("config", { key: "pos_estructura_precios", value: mapaGuardar });
 
-    const modoDinamicoActivo = localStorage.getItem("pos_modo_precios_dinamicos") === "true";
-    if (modoDinamicoActivo) {
-      aplicarPreciosDinamicosACache();
-      refrescarTarjetasCatalogoEnPantalla();
-    } else {
-      // Si está desactivado, asegurar que se muestre el precio manual del Catálogo Maestro
-      aplicarPreciosDinamicosACache();
-      refrescarTarjetasCatalogoEnPantalla();
+    // 2. Guardar directamente en la tabla precios_dinamicos de Supabase
+    if (navigator.onLine && supabaseClient && filasParaSupabase.length > 0) {
+      const { error: errUpsert } = await supabaseClient
+        .from('precios_dinamicos')
+        .upsert(filasParaSupabase, { onConflict: 'nombre' });
+
+      if (errUpsert) throw errUpsert;
     }
+
+    // 3. Aplicar al catálogo activo de vitrina
+    aplicarPreciosDinamicosACache();
+    refrescarTarjetasCatalogoEnPantalla();
 
     if (btn) {
       btn.disabled = false;
@@ -7403,16 +7470,16 @@ async function guardarEstructuraPreciosDinamicos() {
       document.activeElement.blur();
     }
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalConfiguracionPrecios')).hide();
-    mostrarAvisoFactura(`🎉 Estructura de precios guardada. El Catálogo Maestro se mantiene protegido.`);
+    mostrarAvisoFactura(`🎉 Estructura guardada en Supabase (tabla precios_dinamicos). Catálogo Maestro 100% protegido.`);
 
   } catch (err) {
     if (btn) {
       btn.disabled = false;
       btn.textContent = "💾 Guardar Estructura de Precios";
     }
-    console.error("Error al guardar estructura de precios:", err);
+    console.error("Error al guardar precios dinámicos:", err);
     if (errorDiv) {
-      errorDiv.textContent = "Error al guardar: " + err.message;
+      errorDiv.textContent = "Error al guardar en Supabase: " + err.message;
       errorDiv.classList.remove('hidden');
     }
   }
