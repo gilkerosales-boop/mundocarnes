@@ -379,48 +379,20 @@ function concederAccesoAlSistema() {
   cargarCatalogoPublico();
 }
 
-let cacheComboRecetasWeb = [];
-
-// Reconstructor de estructura de catálogo web desde Supabase con evaluación de escandallo
-function reconstruirCatalogoPublicoDesdeSupabase(filasDb, recetasDb = []) {
+// Reconstructor de estructura de catálogo web de alta velocidad desde Supabase
+function reconstruirCatalogoPublicoDesdeSupabase(filasDb) {
   const ordenCategorias = ["COMBOS", "CARNES", "POLLO", "QUESOS Y EMBUTIDOS", "VIVERES"];
   const mapa = {};
   ordenCategorias.forEach(c => { mapa[c] = []; });
-
-  // 1. Mapear estado de disponibilidad y stock de cada ingrediente
-  let mapaDisponibilidadIngredientes = {};
-  let mapaStocksIngredientes = {};
-
-  filasDb.forEach(p => {
-    mapaDisponibilidadIngredientes[p.nombre] = (p.disponible_tienda !== false);
-    mapaStocksIngredientes[p.nombre] = parseFloat(p.stock) || 0;
-  });
 
   filasDb.forEach(p => {
     const catNom = (p.categoria || "VIVERES").toUpperCase();
     if (!mapa[catNom]) mapa[catNom] = [];
 
     let cleanImg = (p.img_path || "img/LOGO-MUNDO123.webp").replace(/^\.\.\//, '');
-    let esDisponible = (p.disponible_tienda !== false);
-
-    // 2. FASE 4: Si es un COMBO, evaluar si todos sus ingredientes están disponibles y con existencia
-    if (catNom === "COMBOS" && recetasDb && recetasDb.length > 0) {
-      const ingredientesCombo = recetasDb.filter(r => r.combo_nombre === p.nombre);
-      if (ingredientesCombo.length > 0) {
-        for (let ing of ingredientesCombo) {
-          const nomIng = ing.producto_componente;
-          const dispIng = (mapaDisponibilidadIngredientes[nomIng] !== undefined) ? mapaDisponibilidadIngredientes[nomIng] : true;
-          const stockIng = (mapaStocksIngredientes[nomIng] !== undefined) ? mapaStocksIngredientes[nomIng] : 0;
-          const cantReq = parseFloat(ing.cantidad) || 0;
-
-          // Si algún ingrediente componente está marcado como agotado o su stock no cubre 1 combo
-          if (!dispIng || stockIng < cantReq) {
-            esDisponible = false;
-            break;
-          }
-        }
-      }
-    }
+    
+    // La disponibilidad real la gobierna la columna disponible_tienda sincronizada por el Catálogo Maestro
+    const esDisponible = (p.disponible_tienda !== false);
 
     mapa[catNom].push([
       p.nombre,
@@ -446,20 +418,18 @@ function reconstruirCatalogoPublicoDesdeSupabase(filasDb, recetasDb = []) {
   return { categorias };
 }
 
-// Carga directa de alta velocidad (< 40 ms) desde Supabase con sincronización de recetas
+// Carga directa ultrarrápida (< 30 ms) de consulta única desde Supabase
 async function cargarCatalogoPublico() {
   try {
     const sb = getSupabase();
     if (sb && navigator.onLine) {
-      // Consultar en paralelo productos y escandallo de combo_recetas
-      const [resProds, resRecetas] = await Promise.all([
-        sb.from('productos').select('*').order('orden', { ascending: true }),
-        sb.from('combo_recetas').select('*')
-      ]);
+      const { data, error } = await sb
+        .from('productos')
+        .select('*')
+        .order('orden', { ascending: true });
 
-      if (!resProds.error && resProds.data && resProds.data.length > 0) {
-        cacheComboRecetasWeb = (!resRecetas.error && resRecetas.data) ? resRecetas.data : [];
-        const catalogo = reconstruirCatalogoPublicoDesdeSupabase(resProds.data, cacheComboRecetasWeb);
+      if (!error && data && data.length > 0) {
+        const catalogo = reconstruirCatalogoPublicoDesdeSupabase(data);
         renderizarCatalogo(catalogo);
         return;
       }
