@@ -1278,12 +1278,19 @@ document.addEventListener('show.bs.modal', function (event) {
   }
 });
 
+// Retirar el foco activo antes de cerrar cualquier modal para erradicar advertencias WAI-ARIA aria-hidden en Chrome
+document.addEventListener('hide.bs.modal', function () {
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
+});
+
 document.addEventListener('hidden.bs.modal', function () {
   const openModals = document.querySelectorAll('.modal.show');
   if (openModals.length > 0) {
     document.body.classList.add('modal-open');
   }
-});
+});;
 
 function mostrarAvisoFactura(mensaje, autohide = true, delay = 5000) {
   try {
