@@ -1815,19 +1815,34 @@ async function procesarLoginFacturacion(event) {
         return (uNom === usuario || (usuario === "mayka" && uNom === "maika") || (usuario === "maika" && uNom === "mayka")) && uPass === password;
       });
 
-            if (userFound) {
+                  if (userFound) {
         const usuarioNormalizado = normalizarUsuario(userFound["NOMBRE DE USUARIO"]);
         let token = btoa(usuarioNormalizado + ":" + Date.now());
         sessionStorage.setItem("factura_token", token);
         sessionStorage.setItem("factura_usuario", usuarioNormalizado);
-        // Guardar rol y permisos del usuario
-        sessionStorage.setItem("factura_rol", userFound.rol || "CAJERO");
-        sessionStorage.setItem("factura_permisos", JSON.stringify(userFound.permisos || {
-          "ventas": ["facturar", "cobrar", "vueltos", "cierres", "consultar", "imprimir"],
-          "finanzas": ["cxc", "cxp"],
-          "inventario": ["catalogo", "recepcion", "precios"],
-          "admin": ["clientes", "empresa", "reportes"]
-        }));
+        
+        const rolDetectado = (userFound.rol || "CAJERO").toUpperCase();
+        sessionStorage.setItem("factura_rol", rolDetectado);
+        
+        let permisosGuardados = userFound.permisos;
+        if (!permisosGuardados) {
+          if (rolDetectado === "ADMIN") {
+            permisosGuardados = {
+              "ventas": ["facturar", "cobrar", "vueltos", "cierres", "consultar", "imprimir"],
+              "finanzas": ["cxc", "cxp"],
+              "inventario": ["catalogo", "recepcion", "precios"],
+              "admin": ["clientes", "empresa", "reportes", "configuracion", "borrar"]
+            };
+          } else {
+            permisosGuardados = {
+              "ventas": ["facturar", "cobrar", "vueltos", "cierres", "consultar", "imprimir"],
+              "finanzas": ["cxc"],
+              "inventario": ["consultar"],
+              "admin": []
+            };
+          }
+        }
+        sessionStorage.setItem("factura_permisos", JSON.stringify(permisosGuardados));
         iniciarModuloFacturacion(usuarioNormalizado);
         return;
       }
@@ -1845,9 +1860,11 @@ async function procesarLoginFacturacion(event) {
 // APERTURA DE CAJA / BIENVENIDA AL INICIAR SESIÓN
 function iniciarModuloFacturacion(usuario) {
   const userNorm = normalizarUsuario(usuario);
+  const rolActivo = sessionStorage.getItem("factura_rol") || "CAJERO";
+  
   document.getElementById('vistaLogin').classList.add('hidden');
   document.getElementById('vistaFacturacion').classList.remove('hidden');
-  document.getElementById('usuarioActivo').textContent = `👤 ${userNorm.toUpperCase()}`;
+  document.getElementById('usuarioActivo').textContent = `👤 ${userNorm.toUpperCase()} (${rolActivo})`;
   
   cargarCatalogoFacturacion();
   cargarMovimientosEfectivoPersistentes();
@@ -1858,6 +1875,7 @@ function iniciarModuloFacturacion(usuario) {
     procesarColaSincronizacion();
   }
 
+  aplicarRestriccionesUI(rolActivo);
   verificarYSolicitarAperturaCaja(userNorm);
 }
 
@@ -1952,6 +1970,34 @@ function cerrarSesionFacturacion() {
   document.getElementById('vistaLogin').classList.remove('hidden');
   document.getElementById('facUsuario').value = "";
   document.getElementById('facPassword').value = "";
+}
+
+// =============================================
+// FUNCIÓN DE SEGURIDAD: OCULTAR BOTONES CRÍTICOS PARA CAJEROS
+// =============================================
+function aplicarRestriccionesUI(rol) {
+  const esAdminUser = (rol === "ADMIN");
+  
+  // 1. Ocultar Menú de Configuración (Datos Empresa, Precios Dinámicos, Recepción, Catálogo Maestro, Clientes)
+  const btnConfig = document.getElementById('dropdownMenuConfig');
+  if (btnConfig) {
+    if (esAdminUser) btnConfig.classList.remove('hidden');
+    else btnConfig.classList.add('hidden');
+  }
+
+  // 2. Ocultar Botón de Reporte X (Solo Admin)
+  const btnRepX = document.getElementById('btnReporteXFiscal');
+  if (btnRepX) {
+    if (esAdminUser) btnRepX.classList.remove('hidden');
+    else btnRepX.classList.add('hidden');
+  }
+
+  // 3. Ocultar Interruptor de Venta en Negativo (Solo Admin)
+  const contVentaNegativa = document.getElementById('chkPermitirVentaNegativa')?.closest('.form-check');
+  if (contVentaNegativa) {
+    if (esAdminUser) contVentaNegativa.classList.remove('hidden');
+    else contVentaNegativa.classList.add('hidden');
+  }
 }
 
 // Reconstructor de estructura para compatibilidad total del catálogo POS con orden estricto
@@ -8246,6 +8292,10 @@ window.conmutarEstatusPagoCompra = conmutarEstatusPagoCompra;
 
 // ELIMINAR COMPRA Y REVERSAR TOTALMENTE EL STOCK ASOCIADO
 async function eliminarYReversarCompraProveedor(idCompra) {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede eliminar y reversar compras.");
+  }
+
   const c = cacheComprasProveedores.find(item => item.id === idCompra || item.nroGuia === idCompra);
   if (!c) return;
 
@@ -10042,6 +10092,10 @@ async function restaurarStockDeItems(itemsMap, multiplicarSigno = 1) {
 }
 
 async function eliminarFacturaHistorial(numFactura) {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede eliminar facturas.");
+  }
+
   if (!confirm(`⚠️ ¿Está seguro que desea eliminar permanentemente la Factura N° ${numFactura}?\n\nEsta acción eliminará el registro y RESTAURARÁ automáticamente los productos vendidos al inventario.`)) {
     return;
   }
@@ -12421,6 +12475,10 @@ function reimprimirCierreCajaHistorial(idx) {
 }
 
 async function eliminarCierreCajaHistorial(idx) {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede eliminar cierres de caja.");
+  }
+
   const c = cacheHistorialCierres[idx];
   if (!c) return;
 
@@ -13738,6 +13796,10 @@ function reimprimirCreditoHistorial(numFactura) {
 }
 
 async function eliminarCreditoHistorial(numFactura) {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede eliminar créditos.");
+  }
+
   if (!confirm(`⚠️ ¿Está seguro que desea eliminar este registro de crédito (Factura N° ${numFactura})?`)) {
     return;
   }
@@ -13951,6 +14013,10 @@ function reimprimirValeHistorial(id, fechaHora, cedula) {
 }
 
 async function eliminarValeHistorial(id, fechaHora, cedula) {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede eliminar vales de caja.");
+  }
+
   if (!confirm(`⚠️ ¿Está seguro que desea eliminar permanentemente este registro de Vale de Caja?`)) {
     return;
   }
