@@ -379,7 +379,7 @@ function concederAccesoAlSistema() {
   cargarCatalogoPublico();
 }
 
-// Reconstructor de estructura de catálogo web de alta velocidad desde Supabase
+// Reconstructor de estructura de catálogo web desde Supabase
 function reconstruirCatalogoPublicoDesdeSupabase(filasDb) {
   const ordenCategorias = ["COMBOS", "CARNES", "POLLO", "QUESOS Y EMBUTIDOS", "VIVERES"];
   const mapa = {};
@@ -390,13 +390,12 @@ function reconstruirCatalogoPublicoDesdeSupabase(filasDb) {
     if (!mapa[catNom]) mapa[catNom] = [];
 
     let cleanImg = (p.img_path || "img/LOGO-MUNDO123.webp").replace(/^\.\.\//, '');
-    const esDisponible = (p.disponible_tienda !== false);
 
     mapa[catNom].push([
       p.nombre,
       parseFloat(p.precio) || 0,
       cleanImg,
-      esDisponible,
+      p.disponible_tienda !== false,
       parseFloat(p.minimo_venta) || 1,
       p.modo || "gramos",
       parseFloat(p.peso_promedio_g) || 0,
@@ -416,60 +415,37 @@ function reconstruirCatalogoPublicoDesdeSupabase(filasDb) {
   return { categorias };
 }
 
-// Carga instantánea (< 15 ms) con revalidación asíncrona en segundo plano (Stale-While-Revalidate)
+// Carga directa de alta velocidad (< 40 ms) desde Supabase con fallback local
 async function cargarCatalogoPublico() {
-  let yaPintado = false;
+  try {
+    const sb = getSupabase();
+    if (sb && navigator.onLine) {
+      const { data, error } = await sb
+        .from('productos')
+        .select('*')
+        .order('orden', { ascending: true });
 
-  // 1. RENDERIZADO INMEDIATO A 0 MS: Lee la memoria local para abrir la tienda en 15 milisegundos
-  const cacheLocal = localStorage.getItem("pos_catalogo_cache_web");
-  if (cacheLocal) {
-    try {
-      const catParseado = JSON.parse(cacheLocal);
-      if (catParseado && catParseado.categorias && catParseado.categorias.length > 0) {
-        renderizarCatalogo(catParseado);
-        yaPintado = true;
+      if (!error && data && data.length > 0) {
+        const catalogo = reconstruirCatalogoPublicoDesdeSupabase(data);
+        renderizarCatalogo(catalogo);
+        return;
       }
-    } catch (e) {}
-  }
-
-  // 2. Si es la primera visita y no hay caché local previa, cargar de inmediato el archivo local
-  if (!yaPintado) {
-    fetch("catalog.json")
-      .then(res => res.json())
-      .then(dataLocal => {
-        if (!yaPintado && dataLocal) {
-          renderizarCatalogo(dataLocal);
-          yaPintado = true;
-          try { localStorage.setItem("pos_catalogo_cache_web", JSON.stringify(dataLocal)); } catch(e) {}
-        }
-      })
-      .catch(() => {});
-  }
-
-  // 3. REVALIDACIÓN EN SEGUNDO PLANO (No bloquea la pantalla ni congela el celular)
-  setTimeout(async () => {
-    try {
-      const sb = getSupabase();
-      if (sb && navigator.onLine) {
-        // Consulta liviana solicitando solo columnas esenciales (80% menos tráfico de red)
-        const { data, error } = await sb
-          .from('productos')
-          .select('nombre, categoria, precio, img_path, disponible_tienda, minimo_venta, modo, peso_promedio_g, codigo_plu, tasa_iva, visible_web, stock, orden')
-          .order('orden', { ascending: true });
-
-        if (!error && data && data.length > 0) {
-          const catalogoFresco = reconstruirCatalogoPublicoDesdeSupabase(data);
-          try { localStorage.setItem("pos_catalogo_cache_web", JSON.stringify(catalogoFresco)); } catch(e) {}
-          renderizarCatalogo(catalogoFresco);
-        }
-      }
-    } catch (errSup) {
-      console.warn("Aviso revalidación en segundo plano:", errSup);
     }
-  }, 10);
+  } catch (errSup) {
+    console.warn("Aviso al consultar Supabase en web pública:", errSup);
+  }
+
+  // Fallback de contingencia a catalog.json local
+  fetch("catalog.json?t=" + new Date().getTime())
+    .then(res => res.json())
+    .then(renderizarCatalogo)
+    .catch(err => {
+      console.error(err);
+      mostrarAviso("Error al obtener catálogo desde el servidor.");
+    });
 }
 
-// Renderizado de Secciones Continuas
+// Renderizado con Todas las Secciones Abiertas y Visibles Continuamente
 function renderizarCatalogo(resp) {
   if (resp.error) return alert(resp.error);
   
@@ -490,11 +466,8 @@ function renderizarCatalogo(resp) {
       </section>`;
   });
   
-  const contTabs = document.getElementById('catalogoTabs');
-  const contContent = document.getElementById('catalogoTabContent');
-
-  if (contTabs) contTabs.innerHTML = navPillsHtml;
-  if (contContent) contContent.innerHTML = sectionsHtml;
+  document.getElementById('catalogoTabs').innerHTML = navPillsHtml;
+  document.getElementById('catalogoTabContent').innerHTML = sectionsHtml;
   
   cacheCategorias.forEach((cat) => {
     let safeId = "cat-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
@@ -503,7 +476,7 @@ function renderizarCatalogo(resp) {
   });
 }
 
-// Cargar Lista con Grid de Alto Rendimiento y Fallback Seguro de Imágenes
+// Cargar Lista con Grid de 3 Columnas en Móviles y 6 Columnas en Escritorio
 function cargarLista(idElemento, datos, nombreCategoria) {
   const contenedor = document.getElementById(idElemento);
   if (!contenedor) return;
@@ -546,7 +519,7 @@ function cargarLista(idElemento, datos, nombreCategoria) {
         <div class="card h-100 position-relative">
           ${etiquetaDisp}
           ${etiquetaWebOculto}
-          <img src="${imgPath}" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='img/LOGO-MUNDO123.webp'" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm}, ${esDisp})">
+          <img src="${imgPath}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">
           <h6 class="fw-bold text-truncate">${f[0]}</h6>
           <p class="text-success fw-bold">$${parseFloat(f[1]).toFixed(2)}</p>
           <small class="text-muted">Mín: ${cantMin}${unidadTxt}</small>
@@ -1306,26 +1279,17 @@ async function ejecutarEliminarProducto() {
   }
 }
 
-function mostrarImagenGrande(url, nom, prec, tipo, cantMin, unidad, pesoPromedio = 0, esDisp = true) { 
+function mostrarImagenGrande(url, nom, prec, tipo, cantMin, unidad, pesoPromedio = 0) { 
   document.getElementById('imagenGrandePopUp').src = url; 
   document.getElementById('overlayImagenGrande').classList.add('show'); 
   
-  productoZoomActivo = { nom, prec, tipo, cantMin, unidad, pesoPromedio, esDisp };
+  productoZoomActivo = { nom, prec, tipo, cantMin, unidad, pesoPromedio };
 
   const btnSelect = document.getElementById('btnSeleccionarZoom');
   if (cacheUsuario.rol === "ADMIN") {
     btnSelect.classList.add('hidden');
   } else {
     btnSelect.classList.remove('hidden');
-    if (esDisp) {
-      btnSelect.disabled = false;
-      btnSelect.className = "btn btn-warning btn-lg fw-bold px-4 py-2 mt-3";
-      btnSelect.textContent = "Seleccionar producto 🛒";
-    } else {
-      btnSelect.disabled = true;
-      btnSelect.className = "btn btn-secondary btn-lg fw-bold px-4 py-2 mt-3 opacity-75";
-      btnSelect.textContent = "Producto Agotado 🚫";
-    }
   }
 
   pushZoomState();
@@ -1339,9 +1303,6 @@ function cerrarImagenGrande(e) {
 
 function seleccionarDesdeZoom() {
   if (productoZoomActivo && productoZoomActivo.nom) {
-    if (productoZoomActivo.esDisp === false) {
-      return mostrarAviso("Este producto se encuentra actualmente agotado.");
-    }
     const tempProd = { ...productoZoomActivo };
     forzarCerrarImagenGrande();
     seleccionarProducto(
