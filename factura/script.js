@@ -1837,7 +1837,7 @@ async function procesarLoginFacturacion(event) {
         return (uNom === usuario || (usuario === "mayka" && uNom === "maika") || (usuario === "maika" && uNom === "mayka")) && uPass === password;
       });
 
-                  if (userFound) {
+                                   if (userFound) {
         const usuarioNormalizado = normalizarUsuario(userFound["NOMBRE DE USUARIO"]);
         let token = btoa(usuarioNormalizado + ":" + Date.now());
         sessionStorage.setItem("factura_token", token);
@@ -1846,29 +1846,34 @@ async function procesarLoginFacturacion(event) {
         const rolDetectado = (userFound.rol || "CAJERO").toUpperCase();
         sessionStorage.setItem("factura_rol", rolDetectado);
         
+        // Definir permisos por defecto (TODOS ACTIVOS para no interrumpir operación)
+        const permisosCompletos = {
+          "ventas": ["facturar", "cierres", "consultar_historial", "anular_facturas", "anular_cierres"],
+          "finanzas": ["cxc", "cxp"],
+          "inventario": ["catalogo", "recepcion", "precios"],
+          "admin": ["clientes", "empresa", "descargas"]
+        };
+
         let permisosGuardados = userFound.permisos;
-        if (!permisosGuardados) {
-          if (rolDetectado === "ADMIN") {
-            permisosGuardados = {
-              "ventas": ["facturar", "cobrar", "vueltos", "cierres", "consultar", "imprimir"],
-              "finanzas": ["cxc", "cxp"],
-              "inventario": ["catalogo", "recepcion", "precios"],
-              "admin": ["clientes", "empresa", "reportes", "configuracion", "borrar"]
-            };
-          } else {
-            permisosGuardados = {
-              "ventas": ["facturar", "cobrar", "vueltos", "cierres", "consultar", "imprimir"],
-              "finanzas": ["cxc"],
-              "inventario": ["consultar"],
-              "admin": []
-            };
+        
+        // Si permisos es un string JSON, parsearlo
+        if (typeof permisosGuardados === "string") {
+          try {
+            permisosGuardados = JSON.parse(permisosGuardados);
+          } catch (e) {
+            permisosGuardados = null;
           }
         }
+
+        // Si es ADMIN o no tiene permisos definidos → todos los permisos activos
+        if (rolDetectado === "ADMIN" || !permisosGuardados || Object.keys(permisosGuardados).length === 0) {
+          permisosGuardados = permisosCompletos;
+        }
+
         sessionStorage.setItem("factura_permisos", JSON.stringify(permisosGuardados));
         iniciarModuloFacturacion(usuarioNormalizado);
         return;
       }
-    }
 
     mostrarAvisoFactura("Usuario o contraseña incorrectos.");
 
@@ -8262,8 +8267,8 @@ function renderizarTablaHistorialCompras(lista) {
     return;
   }
 
-    let html = "";
-  const esAdminUser = esAdmin();
+      let html = "";
+  const puedeEliminarComp = tienePermiso("finanzas", "cxp");
 
   lista.forEach(c => {
     const esDesposte = (c.tipoRecepcion === "DESPOSTE_CANAL");
@@ -8286,8 +8291,8 @@ function renderizarTablaHistorialCompras(lista) {
       ? `<button type="button" class="btn btn-sm btn-link p-0" onclick="ampliarFotoFacturaEntrada('${c.fotoFactura}')" title="Ver foto adjunta de la factura">📷 Ver</button>` 
       : `<span class="text-muted small">--</span>`;
 
-    // Botón de eliminación: SOLO para ADMIN
-    let botonEliminar = esAdminUser
+        // Botón de eliminación: según permisos
+    let botonEliminar = puedeEliminarComp
       ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarYReversarCompraProveedor(${c.id})" title="Eliminar compra y reversar stock del inventario">
             🗑️
           </button>`
@@ -8401,8 +8406,8 @@ window.conmutarEstatusPagoCompra = conmutarEstatusPagoCompra;
 
 // ELIMINAR COMPRA Y REVERSAR TOTALMENTE EL STOCK ASOCIADO
 async function eliminarYReversarCompraProveedor(idCompra) {
-  if (!esAdmin()) {
-    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede eliminar y reversar compras.");
+  if (!tienePermiso("finanzas", "cxp")) {
+    return mostrarAvisoFactura("Acción denegada. No tiene permiso para eliminar y reversar compras.");
   }
 
   const c = cacheComprasProveedores.find(item => item.id === idCompra || item.nroGuia === idCompra);
@@ -8592,8 +8597,8 @@ function renderizarTablaCuentasPorPagar(lista) {
     return;
   }
 
-    let html = "";
-  const esAdminUser = esAdmin();
+      let html = "";
+  const puedeEliminarCXP = tienePermiso("finanzas", "cxp");
 
   lista.forEach(c => {
     const esDesposte = (c.tipoRecepcion === "DESPOSTE_CANAL");
@@ -8616,8 +8621,8 @@ function renderizarTablaCuentasPorPagar(lista) {
       ? `<button type="button" class="btn btn-sm btn-link p-0" onclick="ampliarFotoFacturaEntrada('${c.fotoFactura}')" title="Ver foto adjunta de la factura">📷 Ver</button>` 
       : `<span class="text-muted small">--</span>`;
 
-    // Botón de eliminación: SOLO para ADMIN
-    let botonEliminar = esAdminUser
+        // Botón de eliminación: según permisos
+    let botonEliminar = puedeEliminarCXP
       ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarYReversarCompraProveedor(${c.id})" title="Eliminar factura y reversar stock del inventario">
             🗑️
           </button>`
@@ -9583,8 +9588,8 @@ function renderizarTablaHistorialFacturas() {
     return;
   }
 
-    let html = "";
-  const esAdminUser = esAdmin();
+      let html = "";
+  const puedeEliminarFac = tienePermiso("ventas", "anular_facturas");
 
   cacheHistorialFacturas.forEach(f => {
     const numFacStr = String(f.numFactura || "");
@@ -9610,8 +9615,8 @@ function renderizarTablaHistorialFacturas() {
       ? `<button type="button" class="btn btn-sm btn-info text-dark py-0 px-2 fw-bold rounded-pill shadow-sm" onclick="abrirModalNotaDebitoFiscal('${f.numFactura}')" title="Emitir Nota de Débito Fiscal">➕ ND</button>`
       : "";
 
-    // Botón de eliminación: SOLO para ADMIN
-    let botonEliminar = esAdminUser
+        // Botón de eliminación: según permisos
+    let botonEliminar = puedeEliminarFac
       ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarFacturaHistorial('${f.numFactura}')" title="Eliminar Registro">
               🗑️
             </button>`
@@ -10215,8 +10220,8 @@ async function restaurarStockDeItems(itemsMap, multiplicarSigno = 1) {
 }
 
 async function eliminarFacturaHistorial(numFactura) {
-  if (!esAdmin()) {
-    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede eliminar facturas.");
+  if (!tienePermiso("ventas", "anular_facturas")) {
+    return mostrarAvisoFactura("Acción denegada. No tiene permiso para eliminar facturas.");
   }
 
   if (!confirm(`⚠️ ¿Está seguro que desea eliminar permanentemente la Factura N° ${numFactura}?\n\nEsta acción eliminará el registro y RESTAURARÁ automáticamente los productos vendidos al inventario.`)) {
@@ -12504,8 +12509,8 @@ function renderizarTablaHistorialCierres() {
     return;
   }
 
-    let html = "";
-  const esAdminUser = esAdmin();
+      let html = "";
+  const puedeEliminarCierre = tienePermiso("ventas", "anular_cierres");
 
   cacheHistorialCierres.forEach((c, idx) => {
     let fStr = c.fechaStr || 'N/D';
@@ -12522,8 +12527,8 @@ function renderizarTablaHistorialCierres() {
     let finUSD = (parseFloat(c.cajaFinalUSD) || 0).toFixed(2);
     let finBS = (parseFloat(c.cajaFinalBS) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    // Botón de eliminación: SOLO para ADMIN
-    let botonEliminar = esAdminUser
+        // Botón de eliminación: según permisos
+    let botonEliminar = puedeEliminarCierre
       ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarCierreCajaHistorial(${idx})" title="Eliminar Registro de Cierre">
             🗑️
           </button>`
@@ -12605,8 +12610,8 @@ function reimprimirCierreCajaHistorial(idx) {
 }
 
 async function eliminarCierreCajaHistorial(idx) {
-  if (!esAdmin()) {
-    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede eliminar cierres de caja.");
+  if (!tienePermiso("ventas", "anular_cierres")) {
+    return mostrarAvisoFactura("Acción denegada. No tiene permiso para eliminar cierres de caja.");
   }
 
   const c = cacheHistorialCierres[idx];
@@ -13800,8 +13805,8 @@ function renderizarTablaHistorialCreditos(lista) {
     return;
   }
 
-    let html = "";
-  const esAdminUser = esAdmin();
+      let html = "";
+  const puedeEliminarCred = tienePermiso("finanzas", "cxc");
 
   lista.forEach(cr => {
     let fac = cr.FACTURA || cr.numFactura;
@@ -13821,8 +13826,8 @@ function renderizarTablaHistorialCreditos(lista) {
       ? `<button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Factura Pagada">✔ Pagado</button>`
       : `<button type="button" class="btn btn-sm btn-success" onclick="marcarCreditoComoPagado('${fac}')" title="Registrar Cobro">💵 Cobrar</button>`;
 
-    // Botón de eliminación: SOLO para ADMIN
-    let botonEliminar = esAdminUser
+        // Botón de eliminación: según permisos
+    let botonEliminar = puedeEliminarCred
       ? `<button type="button" class="btn btn-sm btn-outline-danger btn-icon-only" onclick="eliminarCreditoHistorial('${fac}')" title="Eliminar Registro">🗑️</button>`
       : "";
 
@@ -13933,8 +13938,8 @@ function reimprimirCreditoHistorial(numFactura) {
 }
 
 async function eliminarCreditoHistorial(numFactura) {
-  if (!esAdmin()) {
-    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede eliminar créditos.");
+  if (!tienePermiso("finanzas", "cxc")) {
+    return mostrarAvisoFactura("Acción denegada. No tiene permiso para eliminar créditos.");
   }
 
   if (!confirm(`⚠️ ¿Está seguro que desea eliminar este registro de crédito (Factura N° ${numFactura})?`)) {
@@ -14069,8 +14074,8 @@ function renderizarTablaHistorialVales(lista) {
     return;
   }
 
-    let html = "";
-  const esAdminUser = esAdmin();
+     let html = "";
+  const puedeEliminarVale = tienePermiso("finanzas", "cxc");
 
   lista.forEach(v => {
     let montoTxt = (v.MONEDA === "BS") 
@@ -14088,8 +14093,8 @@ function renderizarTablaHistorialVales(lista) {
       ? `<button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Vale Descontado">✔ Descontado</button>`
       : `<button type="button" class="btn btn-sm btn-success" onclick="marcarValeComoDescontado(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Marcar como Descontado">💵 Descontar</button>`;
 
-    // Botón de eliminación: SOLO para ADMIN
-    let botonEliminar = esAdminUser
+        // Botón de eliminación: según permisos
+    let botonEliminar = puedeEliminarVale
       ? `<button type="button" class="btn btn-sm btn-outline-danger btn-icon-only" onclick="eliminarValeHistorial(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Eliminar Registro">🗑️</button>`
       : "";
 
@@ -14157,8 +14162,8 @@ function reimprimirValeHistorial(id, fechaHora, cedula) {
 }
 
 async function eliminarValeHistorial(id, fechaHora, cedula) {
-  if (!esAdmin()) {
-    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede eliminar vales de caja.");
+  if (!tienePermiso("finanzas", "cxc")) {
+    return mostrarAvisoFactura("Acción denegada. No tiene permiso para eliminar vales de caja.");
   }
 
   if (!confirm(`⚠️ ¿Está seguro que desea eliminar permanentemente este registro de Vale de Caja?`)) {
@@ -14204,6 +14209,343 @@ document.addEventListener("DOMContentLoaded", function() {
 
   if (token && usuario) {
     iniciarModuloFacturacion(usuario);
+
+     // ==========================================================================
+// MÓDULO: GESTIÓN DE USUARIOS Y ROLES (EXCLUSIVO ADMIN)
+// ==========================================================================
+let cacheUsuariosFactur = [];
+
+async function abrirModalGestionUsuarios() {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede gestionar usuarios.");
+  }
+
+  const inputFiltro = document.getElementById('inputFiltroUsuarios');
+  if (inputFiltro) inputFiltro.value = "";
+
+  await cargarUsuariosFactur();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionUsuarios')).show();
+}
+window.abrirModalGestionUsuarios = abrirModalGestionUsuarios;
+
+async function cargarUsuariosFactur() {
+  const tbody = document.getElementById('tablaGestionUsuarios');
+  const badgeCnt = document.getElementById('cntTotalUsuarios');
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">⏳ Cargando usuarios desde Supabase...</td></tr>`;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('usuarios_factur')
+      .select('*');
+
+    if (error) throw error;
+
+    cacheUsuariosFactur = (data || []).map(u => {
+      let permisos = u.permisos;
+      if (typeof permisos === "string") {
+        try { permisos = JSON.parse(permisos); } catch (e) { permisos = null; }
+      }
+      return {
+        nombreUsuario: u["NOMBRE DE USUARIO"] || "",
+        clave: u["CLAVE"] || "",
+        rol: (u.rol || "CAJERO").toUpperCase(),
+        permisos: permisos || {
+          "ventas": ["facturar", "cierres", "consultar_historial", "anular_facturas", "anular_cierres"],
+          "finanzas": ["cxc", "cxp"],
+          "inventario": ["catalogo", "recepcion", "precios"],
+          "admin": ["clientes", "empresa", "descargas"]
+        }
+      };
+    }).sort((a, b) => a.nombreUsuario.localeCompare(b.nombreUsuario));
+
+    if (badgeCnt) badgeCnt.textContent = `Total: ${cacheUsuariosFactur.length} Usuarios`;
+    renderizarTablaUsuarios(cacheUsuariosFactur);
+
+  } catch (err) {
+    console.error("Error cargando usuarios:", err);
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Error al cargar usuarios: ${err.message}</td></tr>`;
+  }
+}
+window.cargarUsuariosFactur = cargarUsuariosFactur;
+
+function renderizarTablaUsuarios(lista) {
+  const tbody = document.getElementById('tablaGestionUsuarios');
+  const badgeCnt = document.getElementById('cntTotalUsuarios');
+  if (!tbody) return;
+
+  if (badgeCnt) badgeCnt.textContent = `Total: ${lista.length} Usuarios`;
+
+  if (!lista || lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">No se encontraron usuarios.</td></tr>`;
+    return;
+  }
+
+  const usuarioActivo = obtenerUsuarioActivo();
+  let html = "";
+
+  lista.forEach(u => {
+    const esAdminRow = (u.rol === "ADMIN");
+    const badgeRol = esAdminRow 
+      ? `<span class="badge bg-danger fw-bold px-2 py-1">🛡️ ADMIN</span>` 
+      : `<span class="badge bg-secondary px-2 py-1">👤 CAJERO</span>`;
+
+    const resumenPermisos = esAdminRow 
+      ? `<span class="text-success fw-bold small">✔ Acceso Total Irrestricto</span>` 
+      : obtenerResumenPermisos(u.permisos);
+
+    const esMismoUsuarioActivo = (u.nombreUsuario === usuarioActivo);
+    const btnEliminar = esMismoUsuarioActivo 
+      ? `<span class="text-muted small">--</span>` 
+      : `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarUsuarioFactur('${u.nombreUsuario}')" title="Eliminar Usuario">
+          🗑️
+        </button>`;
+
+    html += `
+      <tr>
+        <td class="fw-bold text-dark num-legible">${u.nombreUsuario.toUpperCase()}</td>
+        <td class="text-center">${badgeRol}</td>
+        <td class="text-center text-muted small">●●●●●●</td>
+        <td class="small">${resumenPermisos}</td>
+        <td class="text-center">
+          <div class="d-inline-flex gap-1">
+            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold rounded-pill" onclick="abrirModalEditarUsuario('${u.nombreUsuario}')" title="Editar usuario y permisos">
+              ✏️ Editar
+            </button>
+            ${btnEliminar}
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function obtenerResumenPermisos(permisos) {
+  if (!permisos || typeof permisos !== "object") return `<span class="text-muted">Sin permisos definidos</span>`;
+  
+  let totales = { ventas: 0, finanzas: 0, inventario: 0, admin: 0 };
+  let totalesMax = { ventas: 5, finanzas: 2, inventario: 3, admin: 3 };
+
+  ["ventas", "finanzas", "inventario", "admin"].forEach(mod => {
+    if (Array.isArray(permisos[mod])) totales[mod] = permisos[mod].length;
+  });
+
+  let partes = [];
+  if (totales.ventas > 0) partes.push(`💰 Ventas ${totales.ventas}/${totalesMax.ventas}`);
+  if (totales.finanzas > 0) partes.push(`📊 Finanzas ${totales.finanzas}/${totalesMax.finanzas}`);
+  if (totales.inventario > 0) partes.push(`📦 Inventario ${totales.inventario}/${totalesMax.inventario}`);
+  if (totales.admin > 0) partes.push(`⚙️ Admin ${totales.admin}/${totalesMax.admin}`);
+
+  if (partes.length === 0) return `<span class="text-danger small fw-bold">🚫 Sin Acceso</span>`;
+  return `<span class="small">${partes.join(" · ")}</span>`;
+}
+
+function filtrarTablaUsuarios(query) {
+  const q = (query || "").trim().toUpperCase();
+  if (!q) {
+    renderizarTablaUsuarios(cacheUsuariosFactur);
+    return;
+  }
+  const filtrados = cacheUsuariosFactur.filter(u => 
+    u.nombreUsuario.toUpperCase().includes(q) || 
+    u.rol.toUpperCase().includes(q)
+  );
+  renderizarTablaUsuarios(filtrados);
+}
+window.filtrarTablaUsuarios = filtrarTablaUsuarios;
+
+function abrirModalCrearUsuario() {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede crear usuarios.");
+  }
+
+  document.getElementById('editUsrEsNuevo').value = "true";
+  document.getElementById('editUsrOriginal').value = "";
+  document.getElementById('tituloModalEditarUsuario').textContent = "➕ Crear Nuevo Usuario";
+  document.getElementById('editUsrNombre').value = "";
+  document.getElementById('editUsrNombre').readOnly = false;
+  document.getElementById('editUsrClave').value = "";
+  document.getElementById('editUsrRol').value = "CAJERO";
+  document.getElementById('errorModalEditarUsuario').classList.add('hidden');
+
+  // Marcar todos los permisos por defecto
+  document.querySelectorAll('.check-permiso').forEach(chk => { chk.checked = true; });
+  evaluarRolEnFormularioUsuario("CAJERO");
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarUsuario')).show();
+}
+window.abrirModalCrearUsuario = abrirModalCrearUsuario;
+
+function abrirModalEditarUsuario(nombreUsuario) {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede editar usuarios.");
+  }
+
+  const u = cacheUsuariosFactur.find(item => item.nombreUsuario === nombreUsuario);
+  if (!u) return mostrarAvisoFactura("No se encontró el usuario.");
+
+  document.getElementById('editUsrEsNuevo').value = "false";
+  document.getElementById('editUsrOriginal').value = u.nombreUsuario;
+  document.getElementById('tituloModalEditarUsuario').textContent = `✏️ Editar Usuario: ${u.nombreUsuario.toUpperCase()}`;
+  document.getElementById('editUsrNombre').value = u.nombreUsuario;
+  document.getElementById('editUsrNombre').readOnly = true;
+  document.getElementById('editUsrClave').value = u.clave;
+  document.getElementById('editUsrRol').value = u.rol;
+  document.getElementById('errorModalEditarUsuario').classList.add('hidden');
+
+  // Cargar permisos en los checkboxes
+  document.querySelectorAll('.check-permiso').forEach(chk => {
+    const mod = chk.getAttribute('data-modulo');
+    const perm = chk.getAttribute('data-permiso');
+    const permisosMod = u.permisos ? u.permisos[mod] : null;
+    if (Array.isArray(permisosMod)) {
+      chk.checked = permisosMod.includes(perm);
+    } else {
+      chk.checked = true;
+    }
+  });
+
+  evaluarRolEnFormularioUsuario(u.rol);
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarUsuario')).show();
+}
+window.abrirModalEditarUsuario = abrirModalEditarUsuario;
+
+function evaluarRolEnFormularioUsuario(rol) {
+  const panelPermisos = document.getElementById('panelPermisosUsuario');
+  if (!panelPermisos) return;
+
+  if (rol === "ADMIN") {
+    panelPermisos.style.opacity = "0.4";
+    panelPermisos.style.pointerEvents = "none";
+  } else {
+    panelPermisos.style.opacity = "1";
+    panelPermisos.style.pointerEvents = "auto";
+  }
+}
+window.evaluarRolEnFormularioUsuario = evaluarRolEnFormularioUsuario;
+
+async function guardarUsuarioFactur() {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede guardar usuarios.");
+  }
+
+  const esNuevo = document.getElementById('editUsrEsNuevo').value === "true";
+  const original = document.getElementById('editUsrOriginal').value.trim().toLowerCase();
+  const nombre = document.getElementById('editUsrNombre').value.trim().toLowerCase();
+  const clave = document.getElementById('editUsrClave').value.trim();
+  const rol = document.getElementById('editUsrRol').value;
+  const errorDiv = document.getElementById('errorModalEditarUsuario');
+  const btn = document.getElementById('btnGuardarUsuario');
+
+  if (!nombre || !clave) {
+    if (errorDiv) {
+      errorDiv.textContent = "El nombre de usuario y la contraseña son obligatorios.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (!/^[a-z0-9_]+$/.test(nombre)) {
+    if (errorDiv) {
+      errorDiv.textContent = "El nombre de usuario solo puede contener letras minúsculas, números y guion bajo.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  // Construir el objeto de permisos
+  let permisosEstructurados = { ventas: [], finanzas: [], inventario: [], admin: [] };
+  if (rol !== "ADMIN") {
+    document.querySelectorAll('.check-permiso').forEach(chk => {
+      if (chk.checked) {
+        const mod = chk.getAttribute('data-modulo');
+        const perm = chk.getAttribute('data-permiso');
+        if (!permisosEstructurados[mod]) permisosEstructurados[mod] = [];
+        permisosEstructurados[mod].push(perm);
+      }
+    });
+  }
+
+  if (errorDiv) errorDiv.classList.add('hidden');
+  if (btn) { btn.disabled = true; btn.textContent = "Guardando..."; }
+
+  try {
+    const payload = {
+      "NOMBRE DE USUARIO": nombre,
+      "CLAVE": clave,
+      "rol": rol,
+      "permisos": rol === "ADMIN" ? null : permisosEstructurados
+    };
+
+    if (esNuevo) {
+      // INSERT
+      const { error } = await supabaseClient.from('usuarios_factur').insert([payload]);
+      if (error) {
+        if (error.code === '23505') throw new Error("Ya existe un usuario con ese nombre.");
+        throw error;
+      }
+    } else {
+      // UPDATE
+      const { error } = await supabaseClient
+        .from('usuarios_factur')
+        .update({ "CLAVE": clave, "rol": rol, "permisos": payload.permisos })
+        .eq('NOMBRE DE USUARIO', original);
+      if (error) throw error;
+    }
+
+    if (btn) { btn.disabled = false; btn.textContent = "💾 Guardar Usuario"; }
+    if (document.activeElement) document.activeElement.blur();
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarUsuario')).hide();
+    mostrarAvisoFactura(`🎉 Usuario "${nombre.toUpperCase()}" ${esNuevo ? "creado" : "actualizado"} exitosamente.`);
+    await cargarUsuariosFactur();
+
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = "💾 Guardar Usuario"; }
+    console.error("Error al guardar usuario:", err);
+    if (errorDiv) {
+      errorDiv.textContent = "Error al guardar: " + err.message;
+      errorDiv.classList.remove('hidden');
+    }
+  }
+}
+window.guardarUsuarioFactur = guardarUsuarioFactur;
+
+async function eliminarUsuarioFactur(nombreUsuario) {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede eliminar usuarios.");
+  }
+
+  const usuarioActivo = obtenerUsuarioActivo();
+  if (nombreUsuario.toLowerCase() === usuarioActivo) {
+    return mostrarAvisoFactura("No puede eliminar su propio usuario mientras está activo.");
+  }
+
+  if (!confirm(`⚠️ ¿Está seguro que desea ELIMINAR permanentemente el usuario "${nombreUsuario.toUpperCase()}"?\n\nEsta acción no se puede deshacer.`)) {
+    return;
+  }
+
+  try {
+    const { error } = await supabaseClient
+      .from('usuarios_factur')
+      .delete()
+      .eq('NOMBRE DE USUARIO', nombreUsuario);
+
+    if (error) throw error;
+
+    cacheUsuariosFactur = cacheUsuariosFactur.filter(u => u.nombreUsuario !== nombreUsuario);
+    renderizarTablaUsuarios(cacheUsuariosFactur);
+    mostrarAvisoFactura(`🗑️ Usuario "${nombreUsuario.toUpperCase()}" eliminado correctamente.`);
+
+  } catch (err) {
+    console.error("Error al eliminar usuario:", err);
+    mostrarAvisoFactura("Error al eliminar usuario: " + err.message);
+  }
+}
+window.eliminarUsuarioFactur = eliminarUsuarioFactur;
   }
 
   if (navigator.storage && navigator.storage.persist) {
