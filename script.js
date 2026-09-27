@@ -508,7 +508,7 @@ function renderizarCatalogo(resp) {
   activarObservadorImagenes();
 }
 
-// Cargar Lista con Carga Progresiva Bajo Demanda (Evita saturar la conexión)
+// Cargar Lista con Pintado Directo Inmediato (Sin bloqueos de cola ni demoras artificiales)
 function cargarLista(idElemento, datos, nombreCategoria) {
   const contenedor = document.getElementById(idElemento);
   if (!contenedor) return;
@@ -551,7 +551,7 @@ function cargarLista(idElemento, datos, nombreCategoria) {
         <div class="card h-100 position-relative">
           ${etiquetaDisp}
           ${etiquetaWebOculto}
-          <img data-src="${imgPath}" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f8fafc'/%3E%3C/svg%3E" decoding="async" class="card-img-top lazy-load-catalog ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">
+          <img src="${imgPath}" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">
           <h6 class="fw-bold text-truncate">${f[0]}</h6>
           <p class="text-success fw-bold">$${parseFloat(f[1]).toFixed(2)}</p>
           <small class="text-muted">Mín: ${cantMin}${unidadTxt}</small>
