@@ -1978,22 +1978,22 @@ function cerrarSesionFacturacion() {
 function aplicarRestriccionesUI(rol) {
   const esAdminUser = (rol === "ADMIN");
   
-  // 1. Ocultar Menú de Configuración (Datos Empresa, Precios Dinámicos, Recepción, Catálogo Maestro, Clientes)
-  const btnConfig = document.getElementById('dropdownMenuConfig');
-  if (btnConfig) {
-    if (esAdminUser) btnConfig.classList.remove('hidden');
-    else btnConfig.classList.add('hidden');
+  // 1. Ocultar/Mostrar Menú Completo de Configuración (Datos Empresa, Precios, Recepción, Catálogo, Clientes)
+  const contMenuConfig = document.getElementById('contenedorMenuConfigAdmin');
+  if (contMenuConfig) {
+    if (esAdminUser) contMenuConfig.classList.remove('hidden');
+    else contMenuConfig.classList.add('hidden');
   }
 
-  // 2. Ocultar Botón de Reporte X (Solo Admin)
+  // 2. Ocultar/Mostrar Botón de Reporte X Fiscal (Solo Admin)
   const btnRepX = document.getElementById('btnReporteXFiscal');
   if (btnRepX) {
     if (esAdminUser) btnRepX.classList.remove('hidden');
     else btnRepX.classList.add('hidden');
   }
 
-  // 3. Ocultar Interruptor de Venta en Negativo (Solo Admin)
-  const contVentaNegativa = document.getElementById('chkPermitirVentaNegativa')?.closest('.form-check');
+  // 3. Ocultar/Mostrar Interruptor de Venta en Negativo (Solo Admin)
+  const contVentaNegativa = document.getElementById('contenedorSwitchVentaNegativa');
   if (contVentaNegativa) {
     if (esAdminUser) contVentaNegativa.classList.remove('hidden');
     else contVentaNegativa.classList.add('hidden');
