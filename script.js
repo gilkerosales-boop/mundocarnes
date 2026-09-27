@@ -474,11 +474,50 @@ function activarObservadorImagenes() {
   });
 }
 
-// Renderizado con Todas las Secciones Abiertas y Activación del Observador
+// Control de Carga Progresiva por Categoría para Velocidad Inmediata
+const seccionesCatalogoCargadas = new Set();
+let observadorSeccionesCatalogo = null;
+
+function activarObservadorSecciones() {
+  if (observadorSeccionesCatalogo) {
+    observadorSeccionesCatalogo.disconnect();
+  }
+
+  observadorSeccionesCatalogo = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const safeId = entry.target.id;
+        cargarSeccionInmediata(safeId);
+      }
+    });
+  }, {
+    rootMargin: "350px 0px" // Inicia la carga de la siguiente categoría 350px antes de llegar
+  });
+
+  document.querySelectorAll('section.seccion-categoria').forEach(sec => {
+    if (!seccionesCatalogoCargadas.has(sec.id)) {
+      observadorSeccionesCatalogo.observe(sec);
+    }
+  });
+}
+
+function cargarSeccionInmediata(safeId) {
+  if (seccionesCatalogoCargadas.has(safeId)) return;
+  seccionesCatalogoCargadas.add(safeId);
+
+  const catObj = cacheCategorias.find(c => "cat-" + c.nombre.replace(/\s+/g, '-').toLowerCase() === safeId);
+  if (catObj) {
+    cargarLista("lista-" + safeId, catObj.productos, catObj.nombre);
+  }
+}
+window.cargarSeccionInmediata = cargarSeccionInmediata;
+
+// Renderizado con Carga Progresiva: Inicializa solo COMBOS para carga relámpago en 0.4s
 function renderizarCatalogo(resp) {
   if (resp.error) return alert(resp.error);
   
   cacheCategorias = resp.categorias || [];
+  seccionesCatalogoCargadas.clear();
   let navPillsHtml = "";
   let sectionsHtml = "";
   
@@ -486,7 +525,7 @@ function renderizarCatalogo(resp) {
     let safeId = "cat-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
     
     navPillsHtml += `
-      <a href="#${safeId}" class="btn-nav-categoria">${cat.nombre}</a>`;
+      <a href="#${safeId}" class="btn-nav-categoria" onclick="cargarSeccionInmediata('${safeId}')">${cat.nombre}</a>`;
     
     sectionsHtml += `
       <section class="seccion-categoria" id="${safeId}">
@@ -498,17 +537,19 @@ function renderizarCatalogo(resp) {
   document.getElementById('catalogoTabs').innerHTML = navPillsHtml;
   document.getElementById('catalogoTabContent').innerHTML = sectionsHtml;
   
-  cacheCategorias.forEach((cat) => {
-    let safeId = "cat-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
-    let idElemento = "lista-" + safeId;
-    cargarLista(idElemento, cat.productos, cat.nombre);
-  });
+  // 1. CARGA INMEDIATA EXCLUSIVA DE LA PRIMERA SECCIÓN (COMBOS: 18 productos = < 0.5s)
+  if (cacheCategorias.length > 0) {
+    let primeraCat = cacheCategorias[0];
+    let primerSafeId = "cat-" + primeraCat.nombre.replace(/\s+/g, '-').toLowerCase();
+    cargarLista("lista-" + primerSafeId, primeraCat.productos, primeraCat.nombre);
+    seccionesCatalogoCargadas.add(primerSafeId);
+  }
 
-  // Activar la carga fluida bajo demanda
-  activarObservadorImagenes();
+  // 2. Activar la carga fluida de las siguientes secciones a medida que se navegue hacia ellas
+  activarObservadorSecciones();
 }
 
-// Cargar Lista con Pintado Directo Inmediato (Sin bloqueos de cola ni demoras artificiales)
+// Cargar Lista con Pintado Directo Inmediato
 function cargarLista(idElemento, datos, nombreCategoria) {
   const contenedor = document.getElementById(idElemento);
   if (!contenedor) return;
