@@ -1793,11 +1793,19 @@ async function procesarLoginFacturacion(event) {
         return (uNom === usuario || (usuario === "mayka" && uNom === "maika") || (usuario === "maika" && uNom === "mayka")) && uPass === password;
       });
 
-      if (userFound) {
+            if (userFound) {
         const usuarioNormalizado = normalizarUsuario(userFound["NOMBRE DE USUARIO"]);
         let token = btoa(usuarioNormalizado + ":" + Date.now());
         sessionStorage.setItem("factura_token", token);
         sessionStorage.setItem("factura_usuario", usuarioNormalizado);
+        // Guardar rol y permisos del usuario
+        sessionStorage.setItem("factura_rol", userFound.rol || "CAJERO");
+        sessionStorage.setItem("factura_permisos", JSON.stringify(userFound.permisos || {
+          "ventas": ["facturar", "cobrar", "vueltos", "cierres", "consultar", "imprimir"],
+          "finanzas": ["cxc", "cxp"],
+          "inventario": ["catalogo", "recepcion", "precios"],
+          "admin": ["clientes", "empresa", "reportes"]
+        }));
         iniciarModuloFacturacion(usuarioNormalizado);
         return;
       }
