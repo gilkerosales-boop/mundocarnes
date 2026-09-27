@@ -84,8 +84,8 @@
           <button type="button" class="btn btn-nav-custom btn-nav-red" onclick="abrirModalCierreCaja()">
             🔒 Cierre Caja
           </button>
-          <!-- Botón 3: Menú Desplegable de Configuración con Submenú de Dispositivos Fiscales -->
-          <div class="dropdown me-2">
+                   <!-- Botón 3: Menú Desplegable de Configuración con Submenú de Dispositivos Fiscales (SOLO ADMIN) -->
+          <div class="dropdown me-2 hidden" id="contenedorMenuConfigAdmin">
             <button class="btn btn-nav-custom btn-nav-blue dropdown-toggle" type="button" id="dropdownMenuConfig" data-bs-toggle="dropdown" aria-expanded="false">
               ⚙️ Configuración
             </button>
@@ -863,8 +863,8 @@
                   💸 Reg. Movimiento
                 </button>
               </div>
-              <div class="col-6">
-                <button type="button" id="btnReporteXFiscal" class="btn btn-info text-dark w-100 fw-bold py-2 rounded-pill shadow-sm" onclick="ejecutarReporteXFiscalDirecto()">
+                            <div class="col-6">
+                <button type="button" id="btnReporteXFiscal" class="btn btn-info text-dark w-100 fw-bold py-2 rounded-pill shadow-sm hidden" onclick="ejecutarReporteXFiscalDirecto()">
                   📋 Reporte X Fiscal
                 </button>
               </div>
@@ -1962,8 +1962,8 @@
                 <input type="text" id="facFiltroCodigosInput" class="form-control fw-bold" placeholder="🔍 Buscar por nombre de producto o código PLU..." oninput="filtrarTablaCodigos(this.value)">
               </div>
               <div class="col-md-8 col-lg-7 d-flex justify-content-end align-items-center flex-wrap gap-2">
-                <!-- Botón Switch: Activar / Desactivar Venta en Negativo -->
-                <div class="form-check form-switch mb-0 bg-light p-2 ps-5 rounded-pill border border-secondary shadow-sm" title="Activa o desactiva la posibilidad de vender productos sin stock físico">
+                               <!-- Botón Switch: Activar / Desactivar Venta en Negativo (SOLO ADMIN) -->
+                <div class="form-check form-switch mb-0 bg-light p-2 ps-5 rounded-pill border border-secondary shadow-sm hidden" id="contenedorSwitchVentaNegativa" title="Activa o desactiva la posibilidad de vender productos sin stock físico">
                   <input class="form-check-input" type="checkbox" id="chkPermitirVentaNegativa" onchange="alternarPermitirVentaNegativa(this.checked)" checked style="cursor: pointer;">
                   <label class="form-check-label small fw-bold text-success" for="chkPermitirVentaNegativa" id="lblPermitirVentaNegativa" style="cursor: pointer;">
                     🟢 Venta en Negativo: Activada
