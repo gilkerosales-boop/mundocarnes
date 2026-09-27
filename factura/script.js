@@ -14533,27 +14533,6 @@ async function eliminarUsuarioFactur(nombreUsuario) {
     mostrarAvisoFactura("Error al eliminar usuario: " + err.message);
   }
 }
-window.eliminarUsuarioFactur = eliminarUsuarioFactur;
-
-// ==========================================================================
-// ARRANQUE DEL SISTEMA
-// ==========================================================================
-document.addEventListener("DOMContentLoaded", function() {
-  const token = sessionStorage.getItem("factura_token");
-  const usuario = sessionStorage.getItem("factura_usuario");
-
-  if (token && usuario) {
-    iniciarModuloFacturacion(usuario);
-  }
-
-  const inputFiltro = document.getElementById('inputFiltroUsuarios');
-  if (inputFiltro) inputFiltro.value = "";
-
-  await cargarUsuariosFactur();
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionUsuarios')).show();
-}
-window.abrirModalGestionUsuarios = abrirModalGestionUsuarios;
-
 async function cargarUsuariosFactur() {
   const tbody = document.getElementById('tablaGestionUsuarios');
   const badgeCnt = document.getElementById('cntTotalUsuarios');
