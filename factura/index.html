@@ -89,14 +89,14 @@
             <button class="btn btn-nav-custom btn-nav-blue dropdown-toggle" type="button" id="dropdownMenuConfig" data-bs-toggle="dropdown" aria-expanded="false">
               ⚙️ Configuración
             </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0" aria-labelledby="dropdownMenuConfig" style="border-radius: 12px; min-width: 260px;">
+                       <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0" aria-labelledby="dropdownMenuConfig" style="border-radius: 12px; min-width: 260px;">
               <li>
-                <button class="dropdown-item fw-bold py-2" type="button" onclick="abrirModalDatosEmpresa()">
+                <button id="btn-menu-empresa" class="dropdown-item fw-bold py-2" type="button" onclick="abrirModalDatosEmpresa()">
                   🏢 Datos de la Empresa y Logos
                 </button>
               </li>
               <!-- Opción con Submenú en Cascada para Impresoras Fiscales -->
-              <li class="dropdown-submenu-item position-relative">
+              <li class="dropdown-submenu-item position-relative" id="btn-menu-fiscal">
                 <a class="dropdown-item dropdown-toggle fw-bold py-2" href="javascript:void(0);" id="submenuDispositivosFiscales">
                   🖨️ Dispositivos de impresión fiscal
                 </a>
@@ -115,28 +115,28 @@
               </li>
               <li><hr class="dropdown-divider my-1"></li>
               <li>
-                <button class="dropdown-item fw-bold py-2 text-warning" type="button" onclick="abrirModalConfiguracionPrecios()">
+                <button id="btn-menu-precios" class="dropdown-item fw-bold py-2 text-warning" type="button" onclick="abrirModalConfiguracionPrecios()">
                   💲 Estructura y Configuración de Precios
                 </button>
               </li>
               <li>
-                <button class="dropdown-item fw-bold py-2 text-success" type="button" onclick="abrirModalEntradaMercancia()">
+                <button id="btn-menu-recepcion" class="dropdown-item fw-bold py-2 text-success" type="button" onclick="abrirModalEntradaMercancia()">
                   📥 Entrada de Mercancía / Carga de Stock
                 </button>
               </li>
               <li>
-                <button class="dropdown-item fw-bold py-2 text-primary" type="button" onclick="abrirModalGestionCodigos()">
+                <button id="btn-menu-catalogo" class="dropdown-item fw-bold py-2 text-primary" type="button" onclick="abrirModalGestionCodigos()">
                   📦 Catálogo Maestro de Productos y Balanza PLU
                 </button>
               </li>
-                            <li>
-                <button class="dropdown-item fw-bold py-2 text-dark" type="button" onclick="abrirModalGestionClientes()">
+              <li>
+                <button id="btn-menu-clientes" class="dropdown-item fw-bold py-2 text-dark" type="button" onclick="abrirModalGestionClientes()">
                   👥 Directorio y Gestión de Clientes
                 </button>
               </li>
               <li><hr class="dropdown-divider my-1"></li>
               <li>
-                <button class="dropdown-item fw-bold py-2 text-danger" type="button" onclick="abrirModalGestionUsuarios()">
+                <button id="btn-menu-usuarios" class="dropdown-item fw-bold py-2 text-danger" type="button" onclick="abrirModalGestionUsuarios()">
                   🔐 Gestión de Usuarios y Roles
                 </button>
               </li>
