@@ -445,7 +445,36 @@ async function cargarCatalogoPublico() {
     });
 }
 
-// Renderizado con Todas las Secciones Abiertas y Visibles Continuamente
+// Observador inteligente de imágenes: solo descarga cuando el usuario se acerca a la categoría
+let observadorImagenesCatalogo = null;
+
+function activarObservadorImagenes() {
+  if (observadorImagenesCatalogo) {
+    observadorImagenesCatalogo.disconnect();
+  }
+
+  observadorImagenesCatalogo = new IntersectionObserver((entries, observer) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const img = entry.target;
+        const realSrc = img.getAttribute('data-src');
+        if (realSrc) {
+          img.src = realSrc;
+          img.removeAttribute('data-src');
+        }
+        observer.unobserve(img);
+      }
+    });
+  }, {
+    rootMargin: "300px 0px" // Inicia la descarga fluida 300px antes de que el usuario llegue con el scroll
+  });
+
+  document.querySelectorAll('img.lazy-load-catalog').forEach(img => {
+    observadorImagenesCatalogo.observe(img);
+  });
+}
+
+// Renderizado con Todas las Secciones Abiertas y Activación del Observador
 function renderizarCatalogo(resp) {
   if (resp.error) return alert(resp.error);
   
@@ -474,9 +503,12 @@ function renderizarCatalogo(resp) {
     let idElemento = "lista-" + safeId;
     cargarLista(idElemento, cat.productos, cat.nombre);
   });
+
+  // Activar la carga fluida bajo demanda
+  activarObservadorImagenes();
 }
 
-// Cargar Lista con Grid de 3 Columnas en Móviles y 6 Columnas en Escritorio
+// Cargar Lista con Carga Progresiva Bajo Demanda (Evita saturar la conexión)
 function cargarLista(idElemento, datos, nombreCategoria) {
   const contenedor = document.getElementById(idElemento);
   if (!contenedor) return;
@@ -519,7 +551,7 @@ function cargarLista(idElemento, datos, nombreCategoria) {
         <div class="card h-100 position-relative">
           ${etiquetaDisp}
           ${etiquetaWebOculto}
-          <img src="${imgPath}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">
+          <img data-src="${imgPath}" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f8fafc'/%3E%3C/svg%3E" decoding="async" class="card-img-top lazy-load-catalog ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">
           <h6 class="fw-bold text-truncate">${f[0]}</h6>
           <p class="text-success fw-bold">$${parseFloat(f[1]).toFixed(2)}</p>
           <small class="text-muted">Mín: ${cantMin}${unidadTxt}</small>
