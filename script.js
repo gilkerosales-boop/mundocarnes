@@ -474,66 +474,84 @@ function activarObservadorImagenes() {
   });
 }
 
-// Control de Carga Escalonada por Lotes
-const seccionesCatalogoCargadas = new Set();
+// Categoría activa actualmente en la tienda web
+let categoriaActivaWeb = "COMBOS";
 
-function cargarSeccionInmediata(safeId) {
-  if (seccionesCatalogoCargadas.has(safeId)) return;
-  seccionesCatalogoCargadas.add(safeId);
+// Cambiar de categoría al instante sin saturar el canal de red
+function cambiarCategoriaWeb(nombreCat) {
+  categoriaActivaWeb = nombreCat;
+  
+  // Actualizar estilo visual de los botones píldora
+  document.querySelectorAll('.btn-nav-categoria').forEach(btn => {
+    if (btn.getAttribute('data-cat') === nombreCat) {
+      btn.classList.add('active');
+      btn.style.backgroundColor = '#dc3545';
+      btn.style.color = '#ffffff';
+    } else {
+      btn.classList.remove('active');
+      btn.style.backgroundColor = '#f1f5f9';
+      btn.style.color = '#475569';
+    }
+  });
 
-  const catObj = cacheCategorias.find(c => "cat-" + c.nombre.replace(/\s+/g, '-').toLowerCase() === safeId);
-  if (catObj) {
+  // Renderizar única y exclusivamente la categoría seleccionada (Cero descargas innecesarias)
+  const catObj = cacheCategorias.find(c => c.nombre === nombreCat);
+  const contContent = document.getElementById('catalogoTabContent');
+  
+  if (catObj && contContent) {
+    let safeId = "cat-" + catObj.nombre.replace(/\s+/g, '-').toLowerCase();
+    contContent.innerHTML = `
+      <section class="seccion-categoria" id="${safeId}">
+        <h4 class="titulo-seccion-categoria">${catObj.nombre}</h4>
+        <div id="lista-${safeId}" class="row g-2"></div>
+      </section>
+    `;
     cargarLista("lista-" + safeId, catObj.productos, catObj.nombre);
   }
 }
-window.cargarSeccionInmediata = cargarSeccionInmediata;
+window.cambiarCategoriaWeb = cambiarCategoriaWeb;
 
-// Renderizado Escalonado: Combos carga al instante (< 300ms) y las demás categorías entran en lotes suaves
+// Renderizado por Categoría Activa: Elimina al 100% la cola de 178 peticiones simultáneas
 function renderizarCatalogo(resp) {
   if (resp.error) return alert(resp.error);
   
   cacheCategorias = resp.categorias || [];
-  seccionesCatalogoCargadas.clear();
+  if (cacheCategorias.length === 0) return;
+
   let navPillsHtml = "";
-  let sectionsHtml = "";
   
-  cacheCategorias.forEach((cat) => {
-    let safeId = "cat-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
+  cacheCategorias.forEach((cat, idx) => {
+    const esActiva = (idx === 0);
+    const bgStyle = esActiva ? "background-color: #dc3545; color: #ffffff;" : "background-color: #f1f5f9; color: #475569;";
+    const activeClass = esActiva ? "active" : "";
     
     navPillsHtml += `
-      <a href="#${safeId}" class="btn-nav-categoria" onclick="cargarSeccionInmediata('${safeId}')">${cat.nombre}</a>`;
-    
-    sectionsHtml += `
-      <section class="seccion-categoria" id="${safeId}">
-        <h4 class="titulo-seccion-categoria">${cat.nombre}</h4>
-        <div id="lista-${safeId}" class="row g-2"></div>
-      </section>`;
+      <button type="button" class="btn-nav-categoria ${activeClass}" data-cat="${cat.nombre}" style="${bgStyle} cursor: pointer;" onclick="cambiarCategoriaWeb('${cat.nombre}')">
+        ${cat.nombre}
+      </button>`;
   });
   
-  document.getElementById('catalogoTabs').innerHTML = navPillsHtml;
-  document.getElementById('catalogoTabContent').innerHTML = sectionsHtml;
-  
-  // 1. CARGA INMEDIATA RELÁMPAGO: Solo los 18 COMBOS al abrir la web (< 300 milisegundos)
-  if (cacheCategorias.length > 0) {
-    let primeraCat = cacheCategorias[0];
-    let primerSafeId = "cat-" + primeraCat.nombre.replace(/\s+/g, '-').toLowerCase();
-    cargarLista("lista-" + primerSafeId, primeraCat.productos, primeraCat.nombre);
-    seccionesCatalogoCargadas.add(primerSafeId);
-  }
+  const contTabs = document.getElementById('catalogoTabs');
+  if (contTabs) contTabs.innerHTML = navPillsHtml;
 
-  // 2. CARGA ESCALONADA EN LOTES SUAVES (Elimina la cola de 178 peticiones simultáneas)
-  let pausaMs = 450;
-  for (let i = 1; i < cacheCategorias.length; i++) {
-    const catSiguiente = cacheCategorias[i];
-    const safeIdSiguiente = "cat-" + catSiguiente.nombre.replace(/\s+/g, '-').toLowerCase();
-    setTimeout(() => {
-      cargarSeccionInmediata(safeIdSiguiente);
-    }, pausaMs);
-    pausaMs += 400;
+  // Cargar únicamente la primera categoría (COMBOS: solo 18 productos = Carga inmediata < 300 ms)
+  const primeraCat = cacheCategorias[0];
+  categoriaActivaWeb = primeraCat.nombre;
+  
+  const contContent = document.getElementById('catalogoTabContent');
+  if (contContent) {
+    let safeId = "cat-" + primeraCat.nombre.replace(/\s+/g, '-').toLowerCase();
+    contContent.innerHTML = `
+      <section class="seccion-categoria" id="${safeId}">
+        <h4 class="titulo-seccion-categoria">${primeraCat.nombre}</h4>
+        <div id="lista-${safeId}" class="row g-2"></div>
+      </section>
+    `;
+    cargarLista("lista-" + safeId, primeraCat.productos, primeraCat.nombre);
   }
 }
 
-// Cargar Lista con Inyección Directa sin Bloqueos
+// Cargar Lista con Pintado Directo Inmediato
 function cargarLista(idElemento, datos, nombreCategoria) {
   const contenedor = document.getElementById(idElemento);
   if (!contenedor) return;
