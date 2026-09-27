@@ -49,12 +49,34 @@ let accionPendienteGitHub = null;
 // FUNCIONES DE CONTROL DE PERMISOS (Sistema de Roles)
 // =============================================
 
-// Verifica si el usuario tiene un permiso específico
+// Verifica si el usuario tiene un permiso específico (Función MAESTRA de permisos)
 function tienePermiso(modulo, permiso) {
-  const permisos = JSON.parse(sessionStorage.getItem("factura_permisos") || "{}");
-  // Si no hay permisos configurados, asumir que TODO está permitido (no disruptivo)
+  // 1. Si es ADMIN, tiene acceso irrestricto a TODO
+  if (esAdmin()) return true;
+
+  // 2. Leer los permisos desde sessionStorage
+  let permisos = {};
+  try {
+    permisos = JSON.parse(sessionStorage.getItem("factura_permisos") || "{}");
+  } catch (e) {
+    permisos = {};
+  }
+
+  // 3. Si el módulo no está definido en permisos → por defecto PERMITIR (regla de no interrupción)
   if (!permisos[modulo]) return true;
-  return permisos[modulo].includes(permiso);
+
+  // 4. Si es un array (formato antiguo/nuevo): verificar si incluye el permiso
+  if (Array.isArray(permisos[modulo])) {
+    return permisos[modulo].includes(permiso);
+  }
+
+  // 5. Si es un objeto (formato alternativo): verificar la propiedad booleana
+  if (typeof permisos[modulo] === "object" && permisos[modulo] !== null) {
+    return permisos[modulo][permiso] !== false;
+  }
+
+  // 6. Fallback: permitir
+  return true;
 }
 
 // Verifica si el usuario es ADMIN
@@ -1973,33 +1995,86 @@ function cerrarSesionFacturacion() {
 }
 
 // =============================================
-// FUNCIÓN DE SEGURIDAD: OCULTAR BOTONES CRÍTICOS PARA CAJEROS
+// FUNCIÓN DE SEGURIDAD: APLICAR RESTRICCIONES SEGÚN ROL Y PERMISOS
 // =============================================
 function aplicarRestriccionesUI(rol) {
   const esAdminUser = (rol === "ADMIN");
-  
-  // 1. Ocultar/Mostrar Menú Completo de Configuración (Datos Empresa, Precios, Recepción, Catálogo, Clientes)
+
+  // 1. MENÚ DE CONFIGURACIÓN: Solo visible si tiene AL MENOS UN permiso de administración
   const contMenuConfig = document.getElementById('contenedorMenuConfigAdmin');
   if (contMenuConfig) {
-    if (esAdminUser) contMenuConfig.classList.remove('hidden');
+    const puedeVerConfig = esAdminUser
+      || tienePermiso("inventario", "catalogo")
+      || tienePermiso("inventario", "recepcion")
+      || tienePermiso("inventario", "precios")
+      || tienePermiso("admin", "clientes")
+      || tienePermiso("admin", "empresa");
+    
+    if (puedeVerConfig) contMenuConfig.classList.remove('hidden');
     else contMenuConfig.classList.add('hidden');
   }
 
-  // 2. Ocultar/Mostrar Botón de Reporte X Fiscal (Solo Admin)
+  // 2. BOTÓN "REPORTE X FISCAL": Solo admin
   const btnRepX = document.getElementById('btnReporteXFiscal');
   if (btnRepX) {
     if (esAdminUser) btnRepX.classList.remove('hidden');
     else btnRepX.classList.add('hidden');
   }
 
-  // 3. Ocultar/Mostrar Interruptor de Venta en Negativo (Solo Admin)
+  // 3. INTERRUPTOR "VENTA EN NEGATIVO": Solo admin
   const contVentaNegativa = document.getElementById('contenedorSwitchVentaNegativa');
   if (contVentaNegativa) {
     if (esAdminUser) contVentaNegativa.classList.remove('hidden');
     else contVentaNegativa.classList.add('hidden');
   }
-}
 
+  // 4. Ocultar opciones individuales del menú de configuración según permisos
+  const botonesMenuConfig = {
+    "btn-menu-empresa": esAdminUser || tienePermiso("admin", "empresa"),
+    "btn-menu-fiscal": esAdminUser,
+    "btn-menu-precios": esAdminUser || tienePermiso("inventario", "precios"),
+    "btn-menu-recepcion": esAdminUser || tienePermiso("inventario", "recepcion"),
+    "btn-menu-catalogo": esAdminUser || tienePermiso("inventario", "catalogo"),
+    "btn-menu-clientes": esAdminUser || tienePermiso("admin", "clientes"),
+    "btn-menu-usuarios": esAdminUser
+  };
+
+  for (let id in botonesMenuConfig) {
+    const btn = document.getElementById(id);
+    if (btn) {
+      if (botonesMenuConfig[id]) btn.classList.remove('hidden');
+      else btn.classList.add('hidden');
+    }
+  }
+
+  // 5. Ocultar la pestaña "Cuentas por Cobrar" del Historial si no tiene permiso
+  const tabCXC = document.getElementById('pills-cxc-tab');
+  if (tabCXC) {
+    if (esAdminUser || tienePermiso("finanzas", "cxc")) tabCXC.classList.remove('hidden');
+    else tabCXC.classList.add('hidden');
+  }
+
+  // 6. Ocultar la pestaña "Cuentas por Pagar" del Historial si no tiene permiso
+  const tabCXP = document.getElementById('pills-cxp-tab');
+  if (tabCXP) {
+    if (esAdminUser || tienePermiso("finanzas", "cxp")) tabCXP.classList.remove('hidden');
+    else tabCXP.classList.add('hidden');
+  }
+
+  // 7. Ocultar la pestaña "Cierres de Caja" si no tiene permiso
+  const tabCierres = document.getElementById('pills-cierres-tab');
+  if (tabCierres) {
+    if (esAdminUser || tienePermiso("ventas", "anular_cierres")) tabCierres.classList.remove('hidden');
+    else tabCierres.classList.add('hidden');
+  }
+
+  // 8. Ocultar la pestaña "Facturas Emitidas" si no tiene permiso de consulta
+  const tabFacturas = document.getElementById('pills-facturas-tab');
+  if (tabFacturas) {
+    if (esAdminUser || tienePermiso("ventas", "consultar_historial")) tabFacturas.classList.remove('hidden');
+    else tabFacturas.classList.add('hidden');
+  }
+}
 // Reconstructor de estructura para compatibilidad total del catálogo POS con orden estricto
 function reconstruirCatalogoDesdeSupabase(filasDb) {
   const ordenCategorias = ["COMBOS", "CARNES", "POLLO", "QUESOS Y EMBUTIDOS", "VIVERES"];
