@@ -4962,6 +4962,8 @@ let comboRecetaEditandoActivo = null;
 function abrirModalGestionCodigos() {
   document.getElementById('facFiltroCodigosInput').value = "";
 
+  const esAdminUser = esAdmin();
+
   // Sincronizar el estado del interruptor de venta en negativo
   const permitirVentaNegativa = localStorage.getItem("pos_permitir_venta_negativa") !== "false";
   const chkNegativo = document.getElementById('chkPermitirVentaNegativa');
@@ -4972,6 +4974,19 @@ function abrirModalGestionCodigos() {
       lblNegativo.textContent = permitirVentaNegativa ? "🟢 Venta en Negativo: Activada" : "🔴 Venta en Negativo: Bloqueada";
       lblNegativo.className = permitirVentaNegativa ? "form-check-label small fw-bold text-success" : "form-check-label small fw-bold text-danger";
     }
+  }
+
+  // Ocultar botones de administración del catálogo si no es admin
+  const btnEditarProductos = document.querySelector('#modalGestionCodigos button[onclick*="abrirModalSeleccionarEdicionCategoria"]');
+  const btnAgregarProducto = document.querySelector('#modalGestionCodigos button[onclick*="abrirModalCrearProductoPOS"]');
+  
+  if (btnEditarProductos) {
+    if (esAdminUser) btnEditarProductos.classList.remove('hidden');
+    else btnEditarProductos.classList.add('hidden');
+  }
+  if (btnAgregarProducto) {
+    if (esAdminUser) btnAgregarProducto.classList.remove('hidden');
+    else btnAgregarProducto.classList.add('hidden');
   }
 
   // Por defecto se abre en modo seguro bloqueado
@@ -7752,6 +7767,13 @@ async function abrirModalGestionClientes() {
   const inputFiltro = document.getElementById('inputFiltroClientesGestion');
   if (inputFiltro) inputFiltro.value = "";
   
+  // Ocultar botón "Nuevo Cliente" si no es admin
+  const btnNuevoCliente = document.querySelector('#modalGestionClientes .btn-success');
+  if (btnNuevoCliente) {
+    if (esAdmin()) btnNuevoCliente.classList.remove('hidden');
+    else btnNuevoCliente.classList.add('hidden');
+  }
+  
   await cargarDirectorioClientesGestion();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionClientes')).show();
 }
@@ -7814,12 +7836,26 @@ function renderizarTablaGestionClientes(lista) {
     return;
   }
 
-  let html = "";
+    let html = "";
+  const esAdminUser = esAdmin();
+
   lista.forEach(c => {
     const safeCed = String(c.cedula || "").replace(/'/g, "\\'");
     const safeNom = String(c.nombre || "CONSUMIDOR FINAL").replace(/"/g, '&quot;');
     const safeTel = String(c.telefono || "N/D");
     const safeDir = String(c.direccion || "N/D");
+
+    // Botones de edición/eliminación: SOLO para ADMIN
+    let botonesAccion = esAdminUser
+      ? `<div class="d-inline-flex gap-1">
+            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold rounded-pill" onclick="abrirModalEditarCliente('${safeCed}')" title="Editar datos del cliente">
+              ✏️ Editar
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarClienteGestion('${safeCed}')" title="Eliminar cliente">
+              🗑️
+            </button>
+          </div>`
+      : `<span class="text-muted small">--</span>`;
 
     html += `
       <tr>
@@ -7827,16 +7863,7 @@ function renderizarTablaGestionClientes(lista) {
         <td class="fw-bold text-dark text-truncate" style="max-width: 220px;" title="${safeNom}">${c.nombre}</td>
         <td class="text-center num-legible small">${safeTel}</td>
         <td class="small text-muted text-truncate" style="max-width: 220px;" title="${safeDir}">${safeDir}</td>
-        <td class="text-center">
-          <div class="d-inline-flex gap-1">
-            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold rounded-pill" onclick="abrirModalEditarCliente('${safeCed}')" title="Editar datos del cliente">
-              ✏️ Editar
-            </button>
-            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarClienteGestion('${safeCed}')" title="Eliminar cliente">
-              🗑️
-            </button>
-          </div>
-        </td>
+        <td class="text-center">${botonesAccion}</td>
       </tr>
     `;
   });
@@ -8160,7 +8187,9 @@ function renderizarTablaHistorialCompras(lista) {
     return;
   }
 
-  let html = "";
+    let html = "";
+  const esAdminUser = esAdmin();
+
   lista.forEach(c => {
     const esDesposte = (c.tipoRecepcion === "DESPOSTE_CANAL");
     const badgeTipo = esDesposte 
@@ -8182,6 +8211,13 @@ function renderizarTablaHistorialCompras(lista) {
       ? `<button type="button" class="btn btn-sm btn-link p-0" onclick="ampliarFotoFacturaEntrada('${c.fotoFactura}')" title="Ver foto adjunta de la factura">📷 Ver</button>` 
       : `<span class="text-muted small">--</span>`;
 
+    // Botón de eliminación: SOLO para ADMIN
+    let botonEliminar = esAdminUser
+      ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarYReversarCompraProveedor(${c.id})" title="Eliminar compra y reversar stock del inventario">
+            🗑️
+          </button>`
+      : "";
+
     html += `
       <tr>
         <td class="fw-bold text-center text-primary num-legible">${c.nroGuia}</td>
@@ -8197,9 +8233,7 @@ function renderizarTablaHistorialCompras(lista) {
               📋 Detalle
             </button>
             ${btnCambiarEst}
-            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarYReversarCompraProveedor(${c.id})" title="Eliminar compra y reversar stock del inventario">
-              🗑️
-            </button>
+            ${botonEliminar}
           </div>
         </td>
       </tr>
@@ -8483,7 +8517,9 @@ function renderizarTablaCuentasPorPagar(lista) {
     return;
   }
 
-  let html = "";
+    let html = "";
+  const esAdminUser = esAdmin();
+
   lista.forEach(c => {
     const esDesposte = (c.tipoRecepcion === "DESPOSTE_CANAL");
     const badgeTipo = esDesposte 
@@ -8505,6 +8541,13 @@ function renderizarTablaCuentasPorPagar(lista) {
       ? `<button type="button" class="btn btn-sm btn-link p-0" onclick="ampliarFotoFacturaEntrada('${c.fotoFactura}')" title="Ver foto adjunta de la factura">📷 Ver</button>` 
       : `<span class="text-muted small">--</span>`;
 
+    // Botón de eliminación: SOLO para ADMIN
+    let botonEliminar = esAdminUser
+      ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarYReversarCompraProveedor(${c.id})" title="Eliminar factura y reversar stock del inventario">
+            🗑️
+          </button>`
+      : "";
+
     html += `
       <tr>
         <td class="fw-bold text-center text-primary num-legible">${c.nroGuia}</td>
@@ -8520,9 +8563,7 @@ function renderizarTablaCuentasPorPagar(lista) {
               📋 Detalle
             </button>
             ${btnCambiarEst}
-            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarYReversarCompraProveedor(${c.id})" title="Eliminar factura y reversar stock del inventario">
-              🗑️
-            </button>
+            ${botonEliminar}
           </div>
         </td>
       </tr>
@@ -9467,7 +9508,9 @@ function renderizarTablaHistorialFacturas() {
     return;
   }
 
-  let html = "";
+    let html = "";
+  const esAdminUser = esAdmin();
+
   cacheHistorialFacturas.forEach(f => {
     const numFacStr = String(f.numFactura || "");
     const formaStr = String(f.formaPagoStr || "");
@@ -9492,6 +9535,13 @@ function renderizarTablaHistorialFacturas() {
       ? `<button type="button" class="btn btn-sm btn-info text-dark py-0 px-2 fw-bold rounded-pill shadow-sm" onclick="abrirModalNotaDebitoFiscal('${f.numFactura}')" title="Emitir Nota de Débito Fiscal">➕ ND</button>`
       : "";
 
+    // Botón de eliminación: SOLO para ADMIN
+    let botonEliminar = esAdminUser
+      ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarFacturaHistorial('${f.numFactura}')" title="Eliminar Registro">
+              🗑️
+            </button>`
+      : "";
+
     html += `
       <tr>
         <td class="fw-bold text-center text-danger num-legible text-nowrap">${f.numFactura}</td>
@@ -9508,9 +9558,7 @@ function renderizarTablaHistorialFacturas() {
             <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill" onclick="reimprimirFacturaHistorial('${f.numFactura}')" title="Reimprimir Ticket">
               🖨️ Imprimir
             </button>
-            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarFacturaHistorial('${f.numFactura}')" title="Eliminar Registro">
-              🗑️
-            </button>
+            ${botonEliminar}
           </div>
         </td>
       </tr>`;
@@ -12381,7 +12429,9 @@ function renderizarTablaHistorialCierres() {
     return;
   }
 
-  let html = "";
+    let html = "";
+  const esAdminUser = esAdmin();
+
   cacheHistorialCierres.forEach((c, idx) => {
     let fStr = c.fechaStr || 'N/D';
     let uStr = c.usuario || 'CAJERO';
@@ -12397,6 +12447,13 @@ function renderizarTablaHistorialCierres() {
     let finUSD = (parseFloat(c.cajaFinalUSD) || 0).toFixed(2);
     let finBS = (parseFloat(c.cajaFinalBS) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+    // Botón de eliminación: SOLO para ADMIN
+    let botonEliminar = esAdminUser
+      ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarCierreCajaHistorial(${idx})" title="Eliminar Registro de Cierre">
+            🗑️
+          </button>`
+      : "";
+
     html += `
       <tr>
         <td class="fw-bold text-center small num-legible">${fStr}</td>
@@ -12409,9 +12466,7 @@ function renderizarTablaHistorialCierres() {
           <button type="button" class="btn btn-sm btn-primary py-0 px-2 fw-bold rounded-pill me-1" onclick="reimprimirCierreCajaHistorial(${idx})" title="Reimprimir Reporte Z">
             🖨️ Imprimir
           </button>
-          <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarCierreCajaHistorial(${idx})" title="Eliminar Registro de Cierre">
-            🗑️
-          </button>
+          ${botonEliminar}
         </td>
       </tr>`;
   });
@@ -13670,7 +13725,9 @@ function renderizarTablaHistorialCreditos(lista) {
     return;
   }
 
-  let html = "";
+    let html = "";
+  const esAdminUser = esAdmin();
+
   lista.forEach(cr => {
     let fac = cr.FACTURA || cr.numFactura;
     let fec = cr.FECHA || 'N/D';
@@ -13689,6 +13746,11 @@ function renderizarTablaHistorialCreditos(lista) {
       ? `<button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Factura Pagada">✔ Pagado</button>`
       : `<button type="button" class="btn btn-sm btn-success" onclick="marcarCreditoComoPagado('${fac}')" title="Registrar Cobro">💵 Cobrar</button>`;
 
+    // Botón de eliminación: SOLO para ADMIN
+    let botonEliminar = esAdminUser
+      ? `<button type="button" class="btn btn-sm btn-outline-danger btn-icon-only" onclick="eliminarCreditoHistorial('${fac}')" title="Eliminar Registro">🗑️</button>`
+      : "";
+
     html += `
       <tr>
         <td class="fw-bold text-center text-danger num-legible">${fac}</td>
@@ -13702,7 +13764,7 @@ function renderizarTablaHistorialCreditos(lista) {
           <div class="acciones-cxc-group">
             ${btnCobrar}
             <button type="button" class="btn btn-sm btn-primary btn-icon-only" onclick="reimprimirCreditoHistorial('${fac}')" title="Reimprimir Comprobante de Crédito">🖨️</button>
-            <button type="button" class="btn btn-sm btn-outline-danger btn-icon-only" onclick="eliminarCreditoHistorial('${fac}')" title="Eliminar Registro">🗑️</button>
+            ${botonEliminar}
           </div>
         </td>
       </tr>`;
@@ -13932,7 +13994,9 @@ function renderizarTablaHistorialVales(lista) {
     return;
   }
 
-  let html = "";
+    let html = "";
+  const esAdminUser = esAdmin();
+
   lista.forEach(v => {
     let montoTxt = (v.MONEDA === "BS") 
       ? `Bs. ${parseFloat(v.MONTO).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
@@ -13949,6 +14013,11 @@ function renderizarTablaHistorialVales(lista) {
       ? `<button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Vale Descontado">✔ Descontado</button>`
       : `<button type="button" class="btn btn-sm btn-success" onclick="marcarValeComoDescontado(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Marcar como Descontado">💵 Descontar</button>`;
 
+    // Botón de eliminación: SOLO para ADMIN
+    let botonEliminar = esAdminUser
+      ? `<button type="button" class="btn btn-sm btn-outline-danger btn-icon-only" onclick="eliminarValeHistorial(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Eliminar Registro">🗑️</button>`
+      : "";
+
     html += `
       <tr>
         <td class="text-center small num-legible">${v.FECHA}</td>
@@ -13963,7 +14032,7 @@ function renderizarTablaHistorialVales(lista) {
           <div class="acciones-cxc-group">
             ${btnDescontar}
             <button type="button" class="btn btn-sm btn-primary btn-icon-only" onclick="reimprimirValeHistorial(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Reimprimir Vale">🖨️</button>
-            <button type="button" class="btn btn-sm btn-outline-danger btn-icon-only" onclick="eliminarValeHistorial(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Eliminar Registro">🗑️</button>
+            ${botonEliminar}
           </div>
         </td>
       </tr>`;
