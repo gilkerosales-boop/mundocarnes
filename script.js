@@ -445,113 +445,38 @@ async function cargarCatalogoPublico() {
     });
 }
 
-// Observador inteligente de imágenes: solo descarga cuando el usuario se acerca a la categoría
-let observadorImagenesCatalogo = null;
-
-function activarObservadorImagenes() {
-  if (observadorImagenesCatalogo) {
-    observadorImagenesCatalogo.disconnect();
-  }
-
-  observadorImagenesCatalogo = new IntersectionObserver((entries, observer) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        const img = entry.target;
-        const realSrc = img.getAttribute('data-src');
-        if (realSrc) {
-          img.src = realSrc;
-          img.removeAttribute('data-src');
-        }
-        observer.unobserve(img);
-      }
-    });
-  }, {
-    rootMargin: "300px 0px" // Inicia la descarga fluida 300px antes de que el usuario llegue con el scroll
-  });
-
-  document.querySelectorAll('img.lazy-load-catalog').forEach(img => {
-    observadorImagenesCatalogo.observe(img);
-  });
-}
-
-// Categoría activa actualmente en la tienda web
-let categoriaActivaWeb = "COMBOS";
-
-// Cambiar de categoría al instante sin saturar el canal de red
-function cambiarCategoriaWeb(nombreCat) {
-  categoriaActivaWeb = nombreCat;
-  
-  // Actualizar estilo visual de los botones píldora
-  document.querySelectorAll('.btn-nav-categoria').forEach(btn => {
-    if (btn.getAttribute('data-cat') === nombreCat) {
-      btn.classList.add('active');
-      btn.style.backgroundColor = '#dc3545';
-      btn.style.color = '#ffffff';
-    } else {
-      btn.classList.remove('active');
-      btn.style.backgroundColor = '#f1f5f9';
-      btn.style.color = '#475569';
-    }
-  });
-
-  // Renderizar única y exclusivamente la categoría seleccionada (Cero descargas innecesarias)
-  const catObj = cacheCategorias.find(c => c.nombre === nombreCat);
-  const contContent = document.getElementById('catalogoTabContent');
-  
-  if (catObj && contContent) {
-    let safeId = "cat-" + catObj.nombre.replace(/\s+/g, '-').toLowerCase();
-    contContent.innerHTML = `
-      <section class="seccion-categoria" id="${safeId}">
-        <h4 class="titulo-seccion-categoria">${catObj.nombre}</h4>
-        <div id="lista-${safeId}" class="row g-2"></div>
-      </section>
-    `;
-    cargarLista("lista-" + safeId, catObj.productos, catObj.nombre);
-  }
-}
-window.cambiarCategoriaWeb = cambiarCategoriaWeb;
-
-// Renderizado por Categoría Activa: Elimina al 100% la cola de 178 peticiones simultáneas
+// Renderizado con Todas las Secciones Abiertas y Visibles Continuamente
 function renderizarCatalogo(resp) {
   if (resp.error) return alert(resp.error);
   
   cacheCategorias = resp.categorias || [];
-  if (cacheCategorias.length === 0) return;
-
   let navPillsHtml = "";
+  let sectionsHtml = "";
   
-  cacheCategorias.forEach((cat, idx) => {
-    const esActiva = (idx === 0);
-    const bgStyle = esActiva ? "background-color: #dc3545; color: #ffffff;" : "background-color: #f1f5f9; color: #475569;";
-    const activeClass = esActiva ? "active" : "";
+  cacheCategorias.forEach((cat) => {
+    let safeId = "cat-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
     
     navPillsHtml += `
-      <button type="button" class="btn-nav-categoria ${activeClass}" data-cat="${cat.nombre}" style="${bgStyle} cursor: pointer;" onclick="cambiarCategoriaWeb('${cat.nombre}')">
-        ${cat.nombre}
-      </button>`;
+      <a href="#${safeId}" class="btn-nav-categoria">${cat.nombre}</a>`;
+    
+    sectionsHtml += `
+      <section class="seccion-categoria" id="${safeId}">
+        <h4 class="titulo-seccion-categoria">${cat.nombre}</h4>
+        <div id="lista-${safeId}" class="row g-2"></div>
+      </section>`;
   });
   
-  const contTabs = document.getElementById('catalogoTabs');
-  if (contTabs) contTabs.innerHTML = navPillsHtml;
-
-  // Cargar únicamente la primera categoría (COMBOS: solo 18 productos = Carga inmediata < 300 ms)
-  const primeraCat = cacheCategorias[0];
-  categoriaActivaWeb = primeraCat.nombre;
+  document.getElementById('catalogoTabs').innerHTML = navPillsHtml;
+  document.getElementById('catalogoTabContent').innerHTML = sectionsHtml;
   
-  const contContent = document.getElementById('catalogoTabContent');
-  if (contContent) {
-    let safeId = "cat-" + primeraCat.nombre.replace(/\s+/g, '-').toLowerCase();
-    contContent.innerHTML = `
-      <section class="seccion-categoria" id="${safeId}">
-        <h4 class="titulo-seccion-categoria">${primeraCat.nombre}</h4>
-        <div id="lista-${safeId}" class="row g-2"></div>
-      </section>
-    `;
-    cargarLista("lista-" + safeId, primeraCat.productos, primeraCat.nombre);
-  }
+  cacheCategorias.forEach((cat) => {
+    let safeId = "cat-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
+    let idElemento = "lista-" + safeId;
+    cargarLista(idElemento, cat.productos, cat.nombre);
+  });
 }
 
-// Cargar Lista con Pintado Directo Inmediato
+// Cargar Lista con Grid de 3 Columnas en Móviles y 6 Columnas en Escritorio
 function cargarLista(idElemento, datos, nombreCategoria) {
   const contenedor = document.getElementById(idElemento);
   if (!contenedor) return;
@@ -594,7 +519,7 @@ function cargarLista(idElemento, datos, nombreCategoria) {
         <div class="card h-100 position-relative">
           ${etiquetaDisp}
           ${etiquetaWebOculto}
-          <img src="${imgPath}" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">
+          <img src="${imgPath}" loading="lazy" decoding="async" class="card-img-top ${claseImg}" onclick="mostrarImagenGrande('${imgPath}', '${f[0]}', '${f[1]}', '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoProm})">
           <h6 class="fw-bold text-truncate">${f[0]}</h6>
           <p class="text-success fw-bold">$${parseFloat(f[1]).toFixed(2)}</p>
           <small class="text-muted">Mín: ${cantMin}${unidadTxt}</small>
@@ -603,6 +528,7 @@ function cargarLista(idElemento, datos, nombreCategoria) {
       </div>`;
   }).join('');
 }
+
 // Abrir Modal de Edición del Administrador con IVA y Visibilidad Web
 function abrirModalEdicion(nom, prec, cat, disp, min, unidad, pesoProm = 0, codigoBalanza = "", tasaIVA = "E", visibleWeb = true) {
   productoTemporal = { nombre: nom, categoria: cat };
