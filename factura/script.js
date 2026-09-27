@@ -1874,6 +1874,7 @@ async function procesarLoginFacturacion(event) {
         iniciarModuloFacturacion(usuarioNormalizado);
         return;
       }
+   }
 
     mostrarAvisoFactura("Usuario o contraseña incorrectos.");
 
