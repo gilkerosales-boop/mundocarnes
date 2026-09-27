@@ -14203,14 +14203,7 @@ window.addEventListener('offline', () => {
   actualizarEstadoSyncBadge();
 });
 
-document.addEventListener("DOMContentLoaded", function() {
-  const token = sessionStorage.getItem("factura_token");
-  const usuario = sessionStorage.getItem("factura_usuario");
-
-  if (token && usuario) {
-    iniciarModuloFacturacion(usuario);
-
-     // ==========================================================================
+// ==========================================================================
 // MÓDULO: GESTIÓN DE USUARIOS Y ROLES (EXCLUSIVO ADMIN)
 // ==========================================================================
 let cacheUsuariosFactur = [];
@@ -14218,6 +14211,339 @@ let cacheUsuariosFactur = [];
 async function abrirModalGestionUsuarios() {
   if (!esAdmin()) {
     return mostrarAvisoFactura("Acción denegada. Solo el administrador puede gestionar usuarios.");
+  }
+
+  const inputFiltro = document.getElementById('inputFiltroUsuarios');
+  if (inputFiltro) inputFiltro.value = "";
+
+  await cargarUsuariosFactur();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionUsuarios')).show();
+}
+window.abrirModalGestionUsuarios = abrirModalGestionUsuarios;
+
+async function cargarUsuariosFactur() {
+  const tbody = document.getElementById('tablaGestionUsuarios');
+  const badgeCnt = document.getElementById('cntTotalUsuarios');
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">⏳ Cargando usuarios desde Supabase...</td></tr>`;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('usuarios_factur')
+      .select('*');
+
+    if (error) throw error;
+
+    cacheUsuariosFactur = (data || []).map(u => {
+      let permisos = u.permisos;
+      if (typeof permisos === "string") {
+        try { permisos = JSON.parse(permisos); } catch (e) { permisos = null; }
+      }
+      return {
+        nombreUsuario: u["NOMBRE DE USUARIO"] || "",
+        clave: u["CLAVE"] || "",
+        rol: (u.rol || "CAJERO").toUpperCase(),
+        permisos: permisos || {
+          "ventas": ["facturar", "cierres", "consultar_historial", "anular_facturas", "anular_cierres"],
+          "finanzas": ["cxc", "cxp"],
+          "inventario": ["catalogo", "recepcion", "precios"],
+          "admin": ["clientes", "empresa", "descargas"]
+        }
+      };
+    }).sort((a, b) => a.nombreUsuario.localeCompare(b.nombreUsuario));
+
+    if (badgeCnt) badgeCnt.textContent = `Total: ${cacheUsuariosFactur.length} Usuarios`;
+    renderizarTablaUsuarios(cacheUsuariosFactur);
+
+  } catch (err) {
+    console.error("Error cargando usuarios:", err);
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Error al cargar usuarios: ${err.message}</td></tr>`;
+  }
+}
+window.cargarUsuariosFactur = cargarUsuariosFactur;
+
+function renderizarTablaUsuarios(lista) {
+  const tbody = document.getElementById('tablaGestionUsuarios');
+  const badgeCnt = document.getElementById('cntTotalUsuarios');
+  if (!tbody) return;
+
+  if (badgeCnt) badgeCnt.textContent = `Total: ${lista.length} Usuarios`;
+
+  if (!lista || lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">No se encontraron usuarios.</td></tr>`;
+    return;
+  }
+
+  const usuarioActivo = obtenerUsuarioActivo();
+  let html = "";
+
+  lista.forEach(u => {
+    const esAdminRow = (u.rol === "ADMIN");
+    const badgeRol = esAdminRow 
+      ? `<span class="badge bg-danger fw-bold px-2 py-1">🛡️ ADMIN</span>` 
+      : `<span class="badge bg-secondary px-2 py-1">👤 CAJERO</span>`;
+
+    const resumenPermisos = esAdminRow 
+      ? `<span class="text-success fw-bold small">✔ Acceso Total Irrestricto</span>` 
+      : obtenerResumenPermisos(u.permisos);
+
+    const esMismoUsuarioActivo = (u.nombreUsuario === usuarioActivo);
+    const btnEliminar = esMismoUsuarioActivo 
+      ? `<span class="text-muted small">--</span>` 
+      : `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarUsuarioFactur('${u.nombreUsuario}')" title="Eliminar Usuario">
+          🗑️
+        </button>`;
+
+    html += `
+      <tr>
+        <td class="fw-bold text-dark num-legible">${u.nombreUsuario.toUpperCase()}</td>
+        <td class="text-center">${badgeRol}</td>
+        <td class="text-center text-muted small">●●●●●●</td>
+        <td class="small">${resumenPermisos}</td>
+        <td class="text-center">
+          <div class="d-inline-flex gap-1">
+            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold rounded-pill" onclick="abrirModalEditarUsuario('${u.nombreUsuario}')" title="Editar usuario y permisos">
+              ✏️ Editar
+            </button>
+            ${btnEliminar}
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function obtenerResumenPermisos(permisos) {
+  if (!permisos || typeof permisos !== "object") return `<span class="text-muted">Sin permisos definidos</span>`;
+  
+  let totales = { ventas: 0, finanzas: 0, inventario: 0, admin: 0 };
+  let totalesMax = { ventas: 5, finanzas: 2, inventario: 3, admin: 3 };
+
+  ["ventas", "finanzas", "inventario", "admin"].forEach(mod => {
+    if (Array.isArray(permisos[mod])) totales[mod] = permisos[mod].length;
+  });
+
+  let partes = [];
+  if (totales.ventas > 0) partes.push(`💰 Ventas ${totales.ventas}/${totalesMax.ventas}`);
+  if (totales.finanzas > 0) partes.push(`📊 Finanzas ${totales.finanzas}/${totalesMax.finanzas}`);
+  if (totales.inventario > 0) partes.push(`📦 Inventario ${totales.inventario}/${totalesMax.inventario}`);
+  if (totales.admin > 0) partes.push(`⚙️ Admin ${totales.admin}/${totalesMax.admin}`);
+
+  if (partes.length === 0) return `<span class="text-danger small fw-bold">🚫 Sin Acceso</span>`;
+  return `<span class="small">${partes.join(" · ")}</span>`;
+}
+
+function filtrarTablaUsuarios(query) {
+  const q = (query || "").trim().toUpperCase();
+  if (!q) {
+    renderizarTablaUsuarios(cacheUsuariosFactur);
+    return;
+  }
+  const filtrados = cacheUsuariosFactur.filter(u => 
+    u.nombreUsuario.toUpperCase().includes(q) || 
+    u.rol.toUpperCase().includes(q)
+  );
+  renderizarTablaUsuarios(filtrados);
+}
+window.filtrarTablaUsuarios = filtrarTablaUsuarios;
+
+function abrirModalCrearUsuario() {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede crear usuarios.");
+  }
+
+  document.getElementById('editUsrEsNuevo').value = "true";
+  document.getElementById('editUsrOriginal').value = "";
+  document.getElementById('tituloModalEditarUsuario').textContent = "➕ Crear Nuevo Usuario";
+  document.getElementById('editUsrNombre').value = "";
+  document.getElementById('editUsrNombre').readOnly = false;
+  document.getElementById('editUsrClave').value = "";
+  document.getElementById('editUsrRol').value = "CAJERO";
+  document.getElementById('errorModalEditarUsuario').classList.add('hidden');
+
+  document.querySelectorAll('.check-permiso').forEach(chk => { chk.checked = true; });
+  evaluarRolEnFormularioUsuario("CAJERO");
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarUsuario')).show();
+}
+window.abrirModalCrearUsuario = abrirModalCrearUsuario;
+
+function abrirModalEditarUsuario(nombreUsuario) {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede editar usuarios.");
+  }
+
+  const u = cacheUsuariosFactur.find(item => item.nombreUsuario === nombreUsuario);
+  if (!u) return mostrarAvisoFactura("No se encontró el usuario.");
+
+  document.getElementById('editUsrEsNuevo').value = "false";
+  document.getElementById('editUsrOriginal').value = u.nombreUsuario;
+  document.getElementById('tituloModalEditarUsuario').textContent = `✏️ Editar Usuario: ${u.nombreUsuario.toUpperCase()}`;
+  document.getElementById('editUsrNombre').value = u.nombreUsuario;
+  document.getElementById('editUsrNombre').readOnly = true;
+  document.getElementById('editUsrClave').value = u.clave;
+  document.getElementById('editUsrRol').value = u.rol;
+  document.getElementById('errorModalEditarUsuario').classList.add('hidden');
+
+  document.querySelectorAll('.check-permiso').forEach(chk => {
+    const mod = chk.getAttribute('data-modulo');
+    const perm = chk.getAttribute('data-permiso');
+    const permisosMod = u.permisos ? u.permisos[mod] : null;
+    if (Array.isArray(permisosMod)) {
+      chk.checked = permisosMod.includes(perm);
+    } else {
+      chk.checked = true;
+    }
+  });
+
+  evaluarRolEnFormularioUsuario(u.rol);
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarUsuario')).show();
+}
+window.abrirModalEditarUsuario = abrirModalEditarUsuario;
+
+function evaluarRolEnFormularioUsuario(rol) {
+  const panelPermisos = document.getElementById('panelPermisosUsuario');
+  if (!panelPermisos) return;
+
+  if (rol === "ADMIN") {
+    panelPermisos.style.opacity = "0.4";
+    panelPermisos.style.pointerEvents = "none";
+  } else {
+    panelPermisos.style.opacity = "1";
+    panelPermisos.style.pointerEvents = "auto";
+  }
+}
+window.evaluarRolEnFormularioUsuario = evaluarRolEnFormularioUsuario;
+
+async function guardarUsuarioFactur() {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede guardar usuarios.");
+  }
+
+  const esNuevo = document.getElementById('editUsrEsNuevo').value === "true";
+  const original = document.getElementById('editUsrOriginal').value.trim().toLowerCase();
+  const nombre = document.getElementById('editUsrNombre').value.trim().toLowerCase();
+  const clave = document.getElementById('editUsrClave').value.trim();
+  const rol = document.getElementById('editUsrRol').value;
+  const errorDiv = document.getElementById('errorModalEditarUsuario');
+  const btn = document.getElementById('btnGuardarUsuario');
+
+  if (!nombre || !clave) {
+    if (errorDiv) {
+      errorDiv.textContent = "El nombre de usuario y la contraseña son obligatorios.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (!/^[a-z0-9_]+$/.test(nombre)) {
+    if (errorDiv) {
+      errorDiv.textContent = "El nombre de usuario solo puede contener letras minúsculas, números y guion bajo.";
+      errorDiv.classList.remove('hidden');
+    }
+    return;
+  }
+
+  let permisosEstructurados = { ventas: [], finanzas: [], inventario: [], admin: [] };
+  if (rol !== "ADMIN") {
+    document.querySelectorAll('.check-permiso').forEach(chk => {
+      if (chk.checked) {
+        const mod = chk.getAttribute('data-modulo');
+        const perm = chk.getAttribute('data-permiso');
+        if (!permisosEstructurados[mod]) permisosEstructurados[mod] = [];
+        permisosEstructurados[mod].push(perm);
+      }
+    });
+  }
+
+  if (errorDiv) errorDiv.classList.add('hidden');
+  if (btn) { btn.disabled = true; btn.textContent = "Guardando..."; }
+
+  try {
+    const payload = {
+      "NOMBRE DE USUARIO": nombre,
+      "CLAVE": clave,
+      "rol": rol,
+      "permisos": rol === "ADMIN" ? null : permisosEstructurados
+    };
+
+    if (esNuevo) {
+      const { error } = await supabaseClient.from('usuarios_factur').insert([payload]);
+      if (error) {
+        if (error.code === '23505') throw new Error("Ya existe un usuario con ese nombre.");
+        throw error;
+      }
+    } else {
+      const { error } = await supabaseClient
+        .from('usuarios_factur')
+        .update({ "CLAVE": clave, "rol": rol, "permisos": payload.permisos })
+        .eq('NOMBRE DE USUARIO', original);
+      if (error) throw error;
+    }
+
+    if (btn) { btn.disabled = false; btn.textContent = "💾 Guardar Usuario"; }
+    if (document.activeElement) document.activeElement.blur();
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarUsuario')).hide();
+    mostrarAvisoFactura(`🎉 Usuario "${nombre.toUpperCase()}" ${esNuevo ? "creado" : "actualizado"} exitosamente.`);
+    await cargarUsuariosFactur();
+
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = "💾 Guardar Usuario"; }
+    console.error("Error al guardar usuario:", err);
+    if (errorDiv) {
+      errorDiv.textContent = "Error al guardar: " + err.message;
+      errorDiv.classList.remove('hidden');
+    }
+  }
+}
+window.guardarUsuarioFactur = guardarUsuarioFactur;
+
+async function eliminarUsuarioFactur(nombreUsuario) {
+  if (!esAdmin()) {
+    return mostrarAvisoFactura("Acción denegada. Solo el administrador puede eliminar usuarios.");
+  }
+
+  const usuarioActivo = obtenerUsuarioActivo();
+  if (nombreUsuario.toLowerCase() === usuarioActivo) {
+    return mostrarAvisoFactura("No puede eliminar su propio usuario mientras está activo.");
+  }
+
+  if (!confirm(`⚠️ ¿Está seguro que desea ELIMINAR permanentemente el usuario "${nombreUsuario.toUpperCase()}"?\n\nEsta acción no se puede deshacer.`)) {
+    return;
+  }
+
+  try {
+    const { error } = await supabaseClient
+      .from('usuarios_factur')
+      .delete()
+      .eq('NOMBRE DE USUARIO', nombreUsuario);
+
+    if (error) throw error;
+
+    cacheUsuariosFactur = cacheUsuariosFactur.filter(u => u.nombreUsuario !== nombreUsuario);
+    renderizarTablaUsuarios(cacheUsuariosFactur);
+    mostrarAvisoFactura(`🗑️ Usuario "${nombreUsuario.toUpperCase()}" eliminado correctamente.`);
+
+  } catch (err) {
+    console.error("Error al eliminar usuario:", err);
+    mostrarAvisoFactura("Error al eliminar usuario: " + err.message);
+  }
+}
+window.eliminarUsuarioFactur = eliminarUsuarioFactur;
+
+// ==========================================================================
+// ARRANQUE DEL SISTEMA
+// ==========================================================================
+document.addEventListener("DOMContentLoaded", function() {
+  const token = sessionStorage.getItem("factura_token");
+  const usuario = sessionStorage.getItem("factura_usuario");
+
+  if (token && usuario) {
+    iniciarModuloFacturacion(usuario);
   }
 
   const inputFiltro = document.getElementById('inputFiltroUsuarios');
@@ -14546,7 +14872,6 @@ async function eliminarUsuarioFactur(nombreUsuario) {
   }
 }
 window.eliminarUsuarioFactur = eliminarUsuarioFactur;
-  }
 
   if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persist().then(granted => {
