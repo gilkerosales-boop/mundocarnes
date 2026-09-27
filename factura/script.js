@@ -45,6 +45,28 @@ let modoFiscalActivo = false;
 let sincronizandoEnProceso = false;
 let accionPendienteGitHub = null;
 
+// =============================================
+// FUNCIONES DE CONTROL DE PERMISOS (Sistema de Roles)
+// =============================================
+
+// Verifica si el usuario tiene un permiso específico
+function tienePermiso(modulo, permiso) {
+  const permisos = JSON.parse(sessionStorage.getItem("factura_permisos") || "{}");
+  // Si no hay permisos configurados, asumir que TODO está permitido (no disruptivo)
+  if (!permisos[modulo]) return true;
+  return permisos[modulo].includes(permiso);
+}
+
+// Verifica si el usuario es ADMIN
+function esAdmin() {
+  return sessionStorage.getItem("factura_rol") === "ADMIN";
+}
+
+// Verifica si el usuario es CAJERO
+function esCajero() {
+  return sessionStorage.getItem("factura_rol") === "CAJERO";
+}
+
 // Normalizar nombres de usuario para coincidir con las tablas en Supabase
 function normalizarUsuario(u) {
   let user = (u || sessionStorage.getItem("factura_usuario") || "admin").toLowerCase().trim();
