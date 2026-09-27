@@ -415,33 +415,55 @@ function reconstruirCatalogoPublicoDesdeSupabase(filasDb) {
   return { categorias };
 }
 
-// Carga directa de alta velocidad (< 40 ms) desde Supabase con fallback local
+// Carga optimizada con caching local (5-50ms) y consulta mínima a Supabase
 async function cargarCatalogoPublico() {
+  const CACHE_KEY = "mundocarnes_catalogo_web";
+  const CACHE_TTL = 60 * 60 * 1000; // 1 hora en milisegundos
+
+  // 1. Intentar cache local primero (carga instantánea)
+  const cached = localStorage.getItem(CACHE_KEY);
+  if (cached) {
+    const { data: cachedData, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp < CACHE_TTL) {
+      renderizarCatalogo(cachedData);
+      // Actualizar en segundo plano sin bloquear UI
+      setTimeout(() => cargarCatalogoPublico(), 1000);
+      return;
+    }
+  }
+
   try {
     const sb = getSupabase();
     if (sb && navigator.onLine) {
+      // 2. Consulta OPTIMIZADA: solo columnas necesarias para la web
       const { data, error } = await sb
         .from('productos')
-        .select('*')
+        .select('nombre, precio, img_path, disponible_tienda, minimo_venta, modo, peso_promedio_g, codigo_plu, tasa_iva, visible_web, stock, categoria, orden')
+        .eq('visible_web', true)  // Solo productos visibles en web
         .order('orden', { ascending: true });
 
       if (!error && data && data.length > 0) {
         const catalogo = reconstruirCatalogoPublicoDesdeSupabase(data);
+        // 3. Guardar en cache con timestamp
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ data: catalogo, timestamp: Date.now() }));
         renderizarCatalogo(catalogo);
         return;
       }
     }
   } catch (errSup) {
-    console.warn("Aviso al consultar Supabase en web pública:", errSup);
+    console.warn("Aviso al consultar Supabase:", errSup);
   }
 
-  // Fallback de contingencia a catalog.json local
-  fetch("catalog.json?t=" + new Date().getTime())
+  // 4. Fallback a catalog.json SIN cache-buster (el navegador cachea automáticamente)
+  fetch("catalog.json")
     .then(res => res.json())
-    .then(renderizarCatalogo)
+    .then(catalogo => {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ data: catalogo, timestamp: Date.now() }));
+      renderizarCatalogo(catalogo);
+    })
     .catch(err => {
       console.error(err);
-      mostrarAviso("Error al obtener catálogo desde el servidor.");
+      mostrarAviso("Error al obtener catálogo. Reintente en unos segundos.");
     });
 }
 
