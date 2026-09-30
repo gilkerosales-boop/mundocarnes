@@ -101,14 +101,14 @@ function obtenerUsuarioActivo() {
   return normalizarUsuario(sessionStorage.getItem("factura_usuario"));
 }
 
-// Determinar el nombre de la tabla de VENTAS personal según el usuario activo
-function obtenerTablaVentasUsuario(u) {
-  return `ventas_${normalizarUsuario(u)}`;
+// Determinar el nombre de la tabla de VENTAS (Camino B: Tabla Centralizada Única)
+function obtenerTablaVentasUsuario() {
+  return 'ventas';
 }
 
-// Determinar el nombre de la tabla de CIERRES personal según el usuario activo
-function obtenerTablaCierresUsuario(u) {
-  return `cierres_${normalizarUsuario(u)}`;
+// Determinar el nombre de la tabla de CIERRES (Camino B: Tabla Centralizada Única)
+function obtenerTablaCierresUsuario() {
+  return 'cierres';
 }
 
 // Obtener datos fiscales y comerciales dinámicos de la empresa
@@ -652,21 +652,28 @@ function calcularTotalesTributarios(itemsObj, forzarModoFiscal = null) {
 }
 
 // ==========================================================================
-// CONSULTA PAGINADA DE VENTAS SUPABASE
+// CONSULTA PAGINADA DE VENTAS SUPABASE (CAMINO B: FILTRO INTELIGENTE POR ROL)
 // ==========================================================================
-async function obtenerTodasLasVentasSupabase(tablaPersonalizada) {
-  const tabla = tablaPersonalizada || obtenerTablaVentasUsuario();
+async function obtenerTodasLasVentasSupabase(filtroUsuario = null) {
   let todas = [];
   let from = 0;
   const step = 1000;
   let continuar = true;
+  const esAdminUser = esAdmin();
+  const usuarioActivo = obtenerUsuarioActivo();
 
   while (continuar) {
     try {
-      const { data, error } = await supabaseClient
-        .from(tabla)
-        .select('*')
-        .range(from, from + step - 1);
+      let query = supabaseClient.from('ventas').select('*');
+
+      // Si es cajero: visualiza estrictamente sus ventas. Si es admin: visualiza todo o el filtro elegido.
+      if (!esAdminUser) {
+        query = query.ilike('USUARIO', usuarioActivo);
+      } else if (filtroUsuario && filtroUsuario !== 'TODOS') {
+        query = query.ilike('USUARIO', filtroUsuario);
+      }
+
+      const { data, error } = await query.range(from, from + step - 1);
 
       if (error || !data || data.length === 0) {
         continuar = false;
@@ -749,7 +756,6 @@ async function procesarColaSincronizacion() {
       if (payload.action === "guardarFacturaFinal") {
         const d = payload.datosFactura;
         const desgl = d.desglosePagos || {};
-        const tablaPersonal = d.tablaVentas || obtenerTablaVentasUsuario(d.usuario);
 
         const registroVenta = {
           "FACTURA": d.numFactura,
@@ -760,6 +766,7 @@ async function procesarColaSincronizacion() {
           "PRODUCTOS": d.productosSummary,
           "FORMA DE PAGO": d.formaPago,
           "MONTO TOTAL": parseFloat(d.montoTotal) || 0,
+          "USUARIO": String(d.usuario || obtenerUsuarioActivo()).toUpperCase(), // Registro del cajero en ventas
           "EFECTIVO DIVISAS": parseFloat(desgl["Efectivo Divisas"]) || 0,
           "EFECTIVO BOLIVARES": parseFloat(desgl["Efectivo Bolívares"]) || 0,
           "PAGO MOVIL": parseFloat(desgl["Pago Móvil"]) || 0,
@@ -792,13 +799,9 @@ async function procesarColaSincronizacion() {
           "TOTAL_NETO_COBRADO_USD": parseFloat(d.totalNetoCobradoUSD) || 0
         };
 
+        // Escritura única en la tabla maestra centralizada ventas
         const { error: errGlobal } = await supabaseClient.from('ventas').insert([registroVenta]);
         if (errGlobal && errGlobal.code !== '23505') throw errGlobal;
-
-        if (tablaPersonal && tablaPersonal !== 'ventas') {
-          const { error: errPers } = await supabaseClient.from(tablaPersonal).insert([registroVenta]);
-          if (errPers && errPers.code !== '23505') throw errPers;
-        }
 
         const montoCredito = parseFloat(desgl["Crédito"]) || (d.formaPago && d.formaPago.toUpperCase().includes("CRÉDITO") ? parseFloat(d.montoTotal) : 0);
         if (montoCredito > 0) {
@@ -906,38 +909,23 @@ async function procesarColaSincronizacion() {
           "NUMERO_Z": d.numeroZ || null
         };
 
+        // Escritura única en la tabla centralizada cierres
         const { error: errCieGlobal } = await supabaseClient.from('cierres').insert([registroCierre]);
         if (errCieGlobal && errCieGlobal.code !== '23505') throw errCieGlobal;
 
-        if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
-          const { error: errCiePers } = await supabaseClient.from(tablaCierresPersonal).insert([registroCierre]);
-          if (errCiePers && errCiePers.code !== '23505') throw errCiePers;
-        }
-
       } else if (payload.action === "eliminarFactura") {
         await ejecutarEliminarVentaSupabase(payload.numFactura, 'ventas');
-        if (payload.tablaVentas && payload.tablaVentas !== 'ventas') {
-          await ejecutarEliminarVentaSupabase(payload.numFactura, payload.tablaVentas);
-        }
         try {
           await supabaseClient.from('creditos').delete().eq('FACTURA', payload.numFactura);
         } catch (eDelCred) {}
         await dbDelete("creditos", payload.numFactura);
 
       } else if (payload.action === "eliminarCierreCaja") {
-        const tablaCierresPersonal = payload.tablaCierres || obtenerTablaCierresUsuario(payload.usuario);
         const fStr = payload.fechaStr;
-
         if (fStr) {
           await supabaseClient.from('cierres').delete().eq('FECHA', fStr);
-          if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
-            await supabaseClient.from(tablaCierresPersonal).delete().eq('FECHA', fStr);
-          }
         } else if (payload.id) {
           await supabaseClient.from('cierres').delete().eq('id', payload.id);
-          if (tablaCierresPersonal && tablaCierresPersonal !== 'cierres') {
-            await supabaseClient.from(tablaCierresPersonal).delete().eq('id', payload.id);
-          }
         }
 
       } else if (payload.action === "actualizarEstatusCredito") {
@@ -4245,7 +4233,8 @@ async function confirmarEImprimirFactura() {
       direccion: datosFacturaPendiente.cliente.direccion || null,
       formaPagoStr: formaPagoFinalStr,
       productosSummary: datosFacturaPendiente.productosSummary,
-      usuario: usuarioActivo,
+      usuario: usuarioActivo.toUpperCase(),
+      USUARIO: usuarioActivo.toUpperCase(),
       tasaBCV: parseFloat(datosFacturaPendiente.tasaBCV) || obtenerTasaBCV() || 1,
       esFiscal: esFiscalActivo,
       esContribuyenteEspecial: datosFacturaPendiente.esContribuyenteEspecial,
@@ -9467,7 +9456,7 @@ async function buscarFacturasHistorial(modo) {
   const inputElem = document.getElementById('facBusquedaInput');
   const inputVal = inputElem ? inputElem.value.trim().toUpperCase() : "";
   const usuarioActivo = obtenerUsuarioActivo();
-  const tablaUsuarioActivo = obtenerTablaVentasUsuario(usuarioActivo);
+  const esAdminUser = esAdmin();
   
   if (modo === 'busqueda' && !inputVal) {
     return mostrarAvisoFactura("Ingrese Cédula, RIF o N° de Factura a buscar.");
@@ -9480,8 +9469,9 @@ async function buscarFacturasHistorial(modo) {
     if (Array.isArray(ventasLocales)) {
       ventasLocales.forEach(f => {
         if (f && f.numFactura) {
-          const userFila = normalizarUsuario(f.usuario || usuarioActivo);
-          if (userFila === usuarioActivo || userFila === "admin") {
+          const userFila = normalizarUsuario(f.usuario || f.USUARIO || usuarioActivo);
+          // El cajero solo ve sus ventas locales; el administrador ve todas
+          if (esAdminUser || userFila === usuarioActivo) {
             mapFacturas[String(f.numFactura)] = {
               numFactura: String(f.numFactura),
               fechaStr: f.fechaStr || "",
@@ -9491,7 +9481,7 @@ async function buscarFacturasHistorial(modo) {
               productosSummary: f.productosSummary || "",
               formaPagoStr: f.formaPagoStr || "EFECTIVO",
               montoTotalUSD: parseFloat(f.montoTotalUSD) || 0,
-              usuario: f.usuario || usuarioActivo,
+              usuario: f.usuario || f.USUARIO || usuarioActivo,
               esFiscal: Boolean(f.esFiscal || String(f.formaPagoStr || "").includes("FISCAL")),
               montoIGTF_BS: parseFloat(f.montoIGTF_BS || f.MONTO_IGTF_BS) || 0,
               montoIGTF_USD: parseFloat(f.montoIGTF_USD || f.MONTO_IGTF_USD) || 0,
@@ -9511,7 +9501,7 @@ async function buscarFacturasHistorial(modo) {
 
   if (navigator.onLine) {
     try {
-      const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
+      const ventasSup = await obtenerTodasLasVentasSupabase();
       if (Array.isArray(ventasSup) && ventasSup.length > 0) {
         ventasSup.forEach(v => {
           let numFac = v.FACTURA || v["FACTURA N°"] || v.numFactura;
@@ -12433,21 +12423,28 @@ async function cargarHistorialCierresCaja() {
   if (!tbody) return;
 
   const usuarioActivo = obtenerUsuarioActivo();
-  const tablaCierresUsuario = obtenerTablaCierresUsuario(usuarioActivo);
+  const esAdminUser = esAdmin();
 
   let cierresLocales = await dbGetAll("cierres");
-  let cierresFiltrados = cierresLocales.filter(c => normalizarUsuario(c.usuario) === usuarioActivo);
+  // Admin ve todos los cierres; el cajero ve únicamente los suyos
+  let cierresFiltrados = esAdminUser 
+    ? cierresLocales 
+    : cierresLocales.filter(c => normalizarUsuario(c.usuario || c.USUARIO) === usuarioActivo);
 
   if (cierresFiltrados.length > 0) {
     cacheHistorialCierres = cierresFiltrados.sort((a, b) => (b.id || 0) - (a.id || 0));
     renderizarTablaHistorialCierres();
   } else {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">⏳ Consultando cierres de ${usuarioActivo.toUpperCase()}...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">⏳ Consultando cierres de ${esAdminUser ? 'todos los usuarios' : usuarioActivo.toUpperCase()}...</td></tr>`;
   }
 
   if (navigator.onLine) {
     try {
-      const { data: cierresSup, error } = await supabaseClient.from(tablaCierresUsuario).select('*');
+      let queryCierres = supabaseClient.from('cierres').select('*');
+      if (!esAdminUser) {
+        queryCierres = queryCierres.ilike('USUARIO', usuarioActivo);
+      }
+      const { data: cierresSup, error } = await queryCierres;
       if (!error && cierresSup && cierresSup.length > 0) {
         cacheHistorialCierres = cierresSup.map((c, idx) => {
           const idSeguro = c.id || (c["FECHA"] ? parsearFechaTimestamp(c["FECHA"]) : null) || (Date.now() + idx);
