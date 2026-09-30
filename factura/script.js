@@ -9469,77 +9469,70 @@ async function buscarFacturasHistorial(modo) {
 
   let mapFacturas = {};
 
- try {
-    let ventasLocales = await dbGetAll("ventas");
-    if (Array.isArray(ventasLocales)) {
-      ventasLocales.forEach(f => {
-        if (f && f.numFactura) {
-          // Extraer estrictamente el usuario registrado sin caer por defecto en el usuario activo
-          const userFila = normalizarUsuario(f.USUARIO || f.usuario || "");
-          // Un cajero SOLO ve ventas que tengan explícitamente su nombre de usuario
-          if (esAdminUser || (userFila !== "" && userFila === usuarioActivo)) {
-            mapFacturas[String(f.numFactura)] = {
-              numFactura: String(f.numFactura),
-              fechaStr: f.fechaStr || "",
-              cedula: f.cedula || "V-00000000",
-              nombre: f.nombre || "CONSUMIDOR FINAL",
-              direccion: f.direccion || null,
-              productosSummary: f.productosSummary || "",
-              formaPagoStr: f.formaPagoStr || "EFECTIVO",
-              montoTotalUSD: parseFloat(f.montoTotalUSD) || 0,
-              usuario: f.usuario || f.USUARIO || usuarioActivo,
-              esFiscal: Boolean(f.esFiscal || String(f.formaPagoStr || "").includes("FISCAL")),
-              montoIGTF_BS: parseFloat(f.montoIGTF_BS || f.MONTO_IGTF_BS) || 0,
-              montoIGTF_USD: parseFloat(f.montoIGTF_USD || f.MONTO_IGTF_USD) || 0,
-              totalNetoCobradoBS: parseFloat(f.totalNetoCobradoBS || f.TOTAL_NETO_COBRADO_BS) || 0,
-              totalNetoCobradoUSD: parseFloat(f.totalNetoCobradoUSD || f.TOTAL_NETO_COBRADO_USD) || 0,
-              comprobanteRetencion: f.comprobanteRetencion || f.COMPROBANTE_RETENCION || null,
-              montoRetencionBS: parseFloat(f.montoRetencionBS || f.MONTO_RETENCION_BS) || 0,
-              montoRetencionUSD: parseFloat(f.montoRetencionUSD || f.MONTO_RETENCION_USD) || 0
-            };
-          }
-        }
-      });
-    }
-  } catch (errDb) {
-    console.warn("Aviso al consultar ventas locales en IndexedDB:", errDb);
-  }
-
   if (navigator.onLine) {
     try {
+      // 1. En línea: Supabase es la fuente de verdad absoluta
       const ventasSup = await obtenerTodasLasVentasSupabase();
-      if (Array.isArray(ventasSup) && ventasSup.length > 0) {
+      if (Array.isArray(ventasSup)) {
         ventasSup.forEach(v => {
           let numFac = v.FACTURA || v["FACTURA N°"] || v.numFactura;
           if (numFac) {
-            const localExistente = mapFacturas[String(numFac)] || {};
-            mapFacturas[String(numFac)] = {
-              ...v,
-              ...localExistente,
-              numFactura: String(numFac),
-              fechaStr: v["FECHA"] || localExistente.fechaStr || "",
-              cedula: v["CEDULA O RIF"] || localExistente.cedula || "V-00000000",
-              nombre: v["NOMBRE / RAZON SOCIAL"] || localExistente.nombre || "CONSUMIDOR FINAL",
-              direccion: v["UBICACION"] || localExistente.direccion || null,
-              productosSummary: v["PRODUCTOS"] || localExistente.productosSummary || "",
-              formaPagoStr: v["FORMA DE PAGO"] || localExistente.formaPagoStr || "",
-              montoTotalUSD: parseFloat(v["MONTO TOTAL"] || localExistente.montoTotalUSD) || 0,
-              usuario: usuarioActivo,
-              esFiscal: Boolean(String(v["FORMA DE PAGO"] || localExistente.formaPagoStr || "").includes("FISCAL") || v.esFiscal || localExistente.esFiscal),
-              montoIGTF_BS: parseFloat(v["MONTO_IGTF_BS"] || localExistente.montoIGTF_BS || v["IGTF"]) || 0,
-              montoIGTF_USD: parseFloat(v["MONTO_IGTF_USD"] || localExistente.montoIGTF_USD) || 0,
-              totalNetoCobradoBS: parseFloat(v["TOTAL_NETO_COBRADO_BS"] || localExistente.totalNetoCobradoBS) || 0,
-              totalNetoCobradoUSD: parseFloat(v["TOTAL_NETO_COBRADO_USD"] || localExistente.totalNetoCobradoUSD) || 0,
-              comprobanteRetencion: v["COMPROBANTE_RETENCION"] || localExistente.comprobanteRetencion || null,
-              montoRetencionBS: parseFloat(v["MONTO_RETENCION_BS"] || localExistente.montoRetencionBS) || 0,
-              montoRetencionUSD: parseFloat(v["MONTO_RETENCION_USD"] || localExistente.montoRetencionUSD) || 0
-            };
+            const userVenta = normalizarUsuario(v["USUARIO"] || v.usuario || "");
+            // Si es cajero: SOLO se agregan las ventas que pertenezcan explícitamente a su usuario
+            if (esAdminUser || (userVenta !== "" && userVenta === usuarioActivo)) {
+              mapFacturas[String(numFac)] = {
+                numFactura: String(numFac),
+                fechaStr: v["FECHA"] || "",
+                cedula: v["CEDULA O RIF"] || "V-00000000",
+                nombre: v["NOMBRE / RAZON SOCIAL"] || "CONSUMIDOR FINAL",
+                direccion: v["UBICACION"] || null,
+                productosSummary: v["PRODUCTOS"] || "",
+                formaPagoStr: v["FORMA DE PAGO"] || "",
+                montoTotalUSD: parseFloat(v["MONTO TOTAL"]) || 0,
+                usuario: userVenta,
+                USUARIO: userVenta,
+                esFiscal: Boolean(String(v["FORMA DE PAGO"] || "").includes("FISCAL") || v.esFiscal),
+                montoIGTF_BS: parseFloat(v["MONTO_IGTF_BS"] || v["IGTF"]) || 0,
+                montoIGTF_USD: parseFloat(v["MONTO_IGTF_USD"]) || 0,
+                totalNetoCobradoBS: parseFloat(v["TOTAL_NETO_COBRADO_BS"]) || 0,
+                totalNetoCobradoUSD: parseFloat(v["TOTAL_NETO_COBRADO_USD"]) || 0,
+                comprobanteRetencion: v["COMPROBANTE_RETENCION"] || null,
+                montoRetencionBS: parseFloat(v["MONTO_RETENCION_BS"]) || 0,
+                montoRetencionUSD: parseFloat(v["MONTO_RETENCION_USD"]) || 0
+              };
+            }
           }
         });
+      }
+
+      // Saneamiento de caché local IndexedDB: purga ventas viejas que no pertenezcan al cajero activo
+      if (!esAdminUser) {
+        const todasLocales = await dbGetAll("ventas");
+        for (let vl of todasLocales) {
+          const userLocal = normalizarUsuario(vl.USUARIO || vl.usuario || "");
+          if (userLocal !== usuarioActivo) {
+            await dbDelete("ventas", vl.numFactura);
+          }
+        }
       }
     } catch (err) {
       console.warn("Aviso al consultar Supabase en historial:", err);
     }
+  } else {
+    // 2. Solo si el terminal está OFFLINE se consulta la memoria local con filtro estricto
+    try {
+      let ventasLocales = await dbGetAll("ventas");
+      if (Array.isArray(ventasLocales)) {
+        ventasLocales.forEach(f => {
+          if (f && f.numFactura) {
+            const userFila = normalizarUsuario(f.USUARIO || f.usuario || "");
+            if (esAdminUser || (userFila !== "" && userFila === usuarioActivo)) {
+              mapFacturas[String(f.numFactura)] = { ...f };
+            }
+          }
+        });
+      }
+    } catch (errDb) {}
   }
 
   let todasLasFacturas = Object.values(mapFacturas).sort((a, b) => {
