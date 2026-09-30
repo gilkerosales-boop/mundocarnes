@@ -5056,16 +5056,17 @@ function abrirModalGestionCodigos() {
     }
   }
 
-  // Ocultar botones de administración del catálogo si no es admin
+  // Mostrar botones de administración del catálogo si es Admin o si tiene el permiso concedido
+  const puedeEditarCatalogo = esAdminUser || tienePermiso("inventario", "catalogo");
   const btnEditarProductos = document.querySelector('#modalGestionCodigos button[onclick*="abrirModalSeleccionarEdicionCategoria"]');
   const btnAgregarProducto = document.querySelector('#modalGestionCodigos button[onclick*="abrirModalCrearProductoPOS"]');
   
   if (btnEditarProductos) {
-    if (esAdminUser) btnEditarProductos.classList.remove('hidden');
+    if (puedeEditarCatalogo) btnEditarProductos.classList.remove('hidden');
     else btnEditarProductos.classList.add('hidden');
   }
   if (btnAgregarProducto) {
-    if (esAdminUser) btnAgregarProducto.classList.remove('hidden');
+    if (puedeEditarCatalogo) btnAgregarProducto.classList.remove('hidden');
     else btnAgregarProducto.classList.add('hidden');
   }
 
@@ -7847,10 +7848,11 @@ async function abrirModalGestionClientes() {
   const inputFiltro = document.getElementById('inputFiltroClientesGestion');
   if (inputFiltro) inputFiltro.value = "";
   
-  // Ocultar botón "Nuevo Cliente" si no es admin
+  // Mostrar botón "Nuevo Cliente" si es Admin o si tiene permiso de clientes
+  const puedeEditarClientes = esAdmin() || tienePermiso("admin", "clientes");
   const btnNuevoCliente = document.querySelector('#modalGestionClientes .btn-success');
   if (btnNuevoCliente) {
-    if (esAdmin()) btnNuevoCliente.classList.remove('hidden');
+    if (puedeEditarClientes) btnNuevoCliente.classList.remove('hidden');
     else btnNuevoCliente.classList.add('hidden');
   }
   
@@ -7917,7 +7919,7 @@ function renderizarTablaGestionClientes(lista) {
   }
 
     let html = "";
-  const esAdminUser = esAdmin();
+  const puedeEditarClientes = esAdmin() || tienePermiso("admin", "clientes");
 
   lista.forEach(c => {
     const safeCed = String(c.cedula || "").replace(/'/g, "\\'");
@@ -7925,8 +7927,8 @@ function renderizarTablaGestionClientes(lista) {
     const safeTel = String(c.telefono || "N/D");
     const safeDir = String(c.direccion || "N/D");
 
-    // Botones de edición/eliminación: SOLO para ADMIN
-    let botonesAccion = esAdminUser
+    // Botones de edición/eliminación habilitados según la matriz de permisos
+    let botonesAccion = puedeEditarClientes
       ? `<div class="d-inline-flex gap-1">
             <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold rounded-pill" onclick="abrirModalEditarCliente('${safeCed}')" title="Editar datos del cliente">
               ✏️ Editar
