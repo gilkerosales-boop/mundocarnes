@@ -9416,35 +9416,32 @@ async function ejecutarGuardadoConTokenQR() {
 function parsearFechaTimestamp(fStr) {
   if (!fStr) return 0;
   try {
-    let t = Date.parse(fStr);
-    if (!isNaN(t)) return t;
+    const s = String(fStr).trim();
 
-    // Procesar formato latino: DD/MM/YYYY, HH:mm:ss (a.m. / p.m.)
-    const partes = String(fStr).trim().split(/[,\s]+/);
-    if (partes.length >= 1) {
-      const fechaPartes = partes[0].split(/[\/\-]/);
-      if (fechaPartes.length === 3) {
-        let dia = parseInt(fechaPartes[0], 10);
-        let mes = parseInt(fechaPartes[1], 10) - 1;
-        let anio = parseInt(fechaPartes[2], 10);
-        if (anio < 100) anio += 2000;
+    // 1. Si viene en formato ISO (YYYY-MM-DD...)
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      const t = Date.parse(s);
+      if (!isNaN(t)) return t;
+    }
 
-        let horas = 0, minutos = 0, segundos = 0;
-        if (partes.length >= 2) {
-          const horaPartes = partes[1].split(':');
-          horas = parseInt(horaPartes[0], 10) || 0;
-          minutos = parseInt(horaPartes[1], 10) || 0;
-          segundos = parseInt(horaPartes[2], 10) || 0;
+    // 2. Parser estricto para formato venezolano/latino (DD/MM/YYYY o DD-MM-YYYY)
+    const match = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[,\s]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?(?:\s*([ap]\.?\s*m\.?))?/i);
+    if (match) {
+      const dia = parseInt(match[1], 10);
+      const mes = parseInt(match[2], 10) - 1;
+      let anio = parseInt(match[3], 10);
+      if (anio < 100) anio += 2000;
 
-          const esPM = /p\.?\s*m\.?/i.test(fStr);
-          const esAM = /a\.?\s*m\.?/i.test(fStr);
-          if (esPM && horas < 12) horas += 12;
-          if (esAM && horas === 12) horas = 0;
-        }
+      let horas = match[4] ? parseInt(match[4], 10) : 0;
+      const minutos = match[5] ? parseInt(match[5], 10) : 0;
+      const segundos = match[6] ? parseInt(match[6], 10) : 0;
+      const ampm = match[7] ? match[7].toLowerCase().replace(/\s+/g, '') : '';
 
-        const d = new Date(anio, mes, dia, horas, minutos, segundos);
-        if (!isNaN(d.getTime())) return d.getTime();
-      }
+      if (ampm.includes('p') && horas < 12) horas += 12;
+      if (ampm.includes('a') && horas === 12) horas = 0;
+
+      const d = new Date(anio, mes, dia, horas, minutos, segundos);
+      if (!isNaN(d.getTime())) return d.getTime();
     }
   } catch (e) {}
   return 0;
@@ -9477,9 +9474,10 @@ async function buscarFacturasHistorial(modo) {
     if (Array.isArray(ventasLocales)) {
       ventasLocales.forEach(f => {
         if (f && f.numFactura) {
-          const userFila = normalizarUsuario(f.usuario || f.USUARIO || usuarioActivo);
-          // El cajero solo ve sus ventas locales; el administrador ve todas
-          if (esAdminUser || userFila === usuarioActivo) {
+          // Extraer estrictamente el usuario registrado sin caer por defecto en el usuario activo
+          const userFila = normalizarUsuario(f.USUARIO || f.usuario || "");
+          // Un cajero SOLO ve ventas que tengan explícitamente su nombre de usuario
+          if (esAdminUser || (userFila !== "" && userFila === usuarioActivo)) {
             mapFacturas[String(f.numFactura)] = {
               numFactura: String(f.numFactura),
               fechaStr: f.fechaStr || "",
@@ -12441,7 +12439,10 @@ async function cargarHistorialCierresCaja() {
     : cierresLocales.filter(c => normalizarUsuario(c.usuario || c.USUARIO) === usuarioActivo);
 
   if (cierresFiltrados.length > 0) {
-    cacheHistorialCierres = cierresFiltrados.sort((a, b) => (b.id || 0) - (a.id || 0));
+    // Ordenamiento cronológico estricto (lo más reciente arriba)
+    cacheHistorialCierres = cierresFiltrados.sort((a, b) => {
+      return parsearFechaTimestamp(b.fechaStr || b["FECHA"]) - parsearFechaTimestamp(a.fechaStr || a["FECHA"]);
+    });
     renderizarTablaHistorialCierres();
   } else {
     tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">⏳ Consultando cierres de ${esAdminUser ? 'todos los usuarios' : usuarioActivo.toUpperCase()}...</td></tr>`;
@@ -12458,11 +12459,13 @@ async function cargarHistorialCierresCaja() {
         cacheHistorialCierres = cierresSup.map((c, idx) => {
           const idSeguro = c.id || (c["FECHA"] ? parsearFechaTimestamp(c["FECHA"]) : null) || (Date.now() + idx);
           const localCierre = cierresLocales.find(cl => cl.id === idSeguro || cl.fechaStr === c["FECHA"]) || {};
+          const usuarioFilaCierre = (c["USUARIO"] || localCierre.usuario || "CAJERO").toUpperCase();
           return {
             ...localCierre,
             id: idSeguro,
             fechaStr: c["FECHA"] || localCierre.fechaStr || "",
-            usuario: usuarioActivo,
+            usuario: usuarioFilaCierre,
+            USUARIO: usuarioFilaCierre,
             tasaBCV: localCierre.tasaBCV || c.tasaBCV || obtenerTasaBCV(),
             inicialUSD: parseFloat(c["INICIAL $"] ?? localCierre.inicialUSD) || 0,
             inicialBS: parseFloat(c["INICIAL Bs"] ?? localCierre.inicialBS) || 0,
@@ -12495,7 +12498,10 @@ async function cargarHistorialCierresCaja() {
               totalGeneralVentasBS: parseFloat(c["TOTAL 2"]) || 0
             }
           };
-        }).sort((a, b) => (b.id || 0) - (a.id || 0));
+        }).sort((a, b) => {
+          // Ordenamiento cronológico garantizado: las fechas más recientes siempre arriba
+          return parsearFechaTimestamp(b.fechaStr || b["FECHA"]) - parsearFechaTimestamp(a.fechaStr || a["FECHA"]);
+        });
 
         for (let c of cacheHistorialCierres) {
           await dbPut("cierres", c);
