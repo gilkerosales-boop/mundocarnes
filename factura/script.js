@@ -654,7 +654,7 @@ function calcularTotalesTributarios(itemsObj, forzarModoFiscal = null) {
 // ==========================================================================
 // CONSULTA PAGINADA DE VENTAS SUPABASE (CAMINO B: FILTRO INTELIGENTE POR ROL)
 // ==========================================================================
-async function obtenerTodasLasVentasSupabase(filtroUsuario = null) {
+async function obtenerTodasLasVentasSupabase(filtro = null) {
   let todas = [];
   let from = 0;
   const step = 1000;
@@ -666,11 +666,15 @@ async function obtenerTodasLasVentasSupabase(filtroUsuario = null) {
     try {
       let query = supabaseClient.from('ventas').select('*');
 
-      // Si es cajero: visualiza estrictamente sus ventas. Si es admin: visualiza todo o el filtro elegido.
-      if (!esAdminUser) {
+      // Si se solicita el consolidado de la empresa (Libro SENIAT / Inventario)
+      if (filtro === 'ventas' || filtro === 'TODOS') {
+        // Trae todas las ventas de la empresa sin filtrar por usuario
+      } else if (filtro && filtro !== 'ventas') {
+        // Filtro explícito por cajero
+        query = query.ilike('USUARIO', filtro);
+      } else if (!esAdminUser) {
+        // Modo Cajero: aislamiento estricto de sus ventas
         query = query.ilike('USUARIO', usuarioActivo);
-      } else if (filtroUsuario && filtroUsuario !== 'TODOS') {
-        query = query.ilike('USUARIO', filtroUsuario);
       }
 
       const { data, error } = await query.range(from, from + step - 1);
@@ -1151,13 +1155,13 @@ async function forzarSincronizacionManual() {
     console.warn("Aviso al sincronizar compras a proveedores:", eComp);
   }
 
-  // PASO 5/7: VENTAS PARTICIONADAS Y GLOBALES
+  // PASO 5/7: VENTAS CENTRALIZADAS (CAMINO B)
   const usuarioActivo = obtenerUsuarioActivo();
-  const tablaUsuarioActivo = obtenerTablaVentasUsuario(usuarioActivo);
-  mostrarAvisoFactura(`🔄 Paso 5/7: Sincronizando Ventas (${tablaUsuarioActivo})...`, false);
+  const esAdminUser = esAdmin();
+  mostrarAvisoFactura(`🔄 Paso 5/7: Sincronizando Ventas (${esAdminUser ? 'General' : usuarioActivo.toUpperCase()})...`, false);
   let cantVentas = 0;
   try {
-    const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
+    const ventasSup = await obtenerTodasLasVentasSupabase();
     if (ventasSup && ventasSup.length > 0) {
       cantVentas = ventasSup.length;
       const ventasOrdenadas = [...ventasSup].sort((a, b) => {
@@ -1178,19 +1182,23 @@ async function forzarSincronizacionManual() {
           productosSummary: v["PRODUCTOS"] || "",
           formaPagoStr: v["FORMA DE PAGO"] || "",
           montoTotalUSD: parseFloat(v["MONTO TOTAL"]) || 0,
-          usuario: usuarioActivo,
+          usuario: v["USUARIO"] || usuarioActivo,
+          USUARIO: v["USUARIO"] || usuarioActivo,
           esFiscal: v["FORMA DE PAGO"] ? v["FORMA DE PAGO"].includes("FISCAL") : false
         });
       }
     }
   } catch (e) {}
 
-  // PASO 6/7: CIERRES DE CAJA (REPORTES Z)
-  const tablaCierresUsuario = obtenerTablaCierresUsuario(usuarioActivo);
-  mostrarAvisoFactura(`🔄 Paso 6/7: Sincronizando Cierres (${tablaCierresUsuario})...`, false);
+  // PASO 6/7: CIERRES DE CAJA (REPORTES Z CENTRALIZADOS)
+  mostrarAvisoFactura(`🔄 Paso 6/7: Sincronizando Cierres (${esAdminUser ? 'General' : usuarioActivo.toUpperCase()})...`, false);
   let cantCierres = 0;
   try {
-    const { data: cierresSup, error } = await supabaseClient.from(tablaCierresUsuario).select('*');
+    let queryCierres = supabaseClient.from('cierres').select('*');
+    if (!esAdminUser) {
+      queryCierres = queryCierres.ilike('USUARIO', usuarioActivo);
+    }
+    const { data: cierresSup, error } = await queryCierres;
     if (!error && cierresSup) {
       cantCierres = cierresSup.length;
       const cierresOrdenados = [...cierresSup].sort((a, b) => (b.id || 0) - (a.id || 0));
@@ -10352,7 +10360,7 @@ async function ejecutarDescargaExcelFacturas() {
     const patronFecha1 = `${dia}/${mes}/${ano}`;
     const patronFecha2 = `${parseInt(dia, 10)}/${parseInt(mes, 10)}/${ano}`;
 
-    const todosRegistros = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
+    const todosRegistros = await obtenerTodasLasVentasSupabase();
 
     btn.disabled = false;
     btn.textContent = "📊 Descargar Reporte Operativo (.xlsx)";
@@ -10416,7 +10424,8 @@ async function ejecutarDescargaExcelFacturas() {
       }));
       worksheet['!cols'] = maxCols;
 
-      const nombreArchivo = `Reporte_Operativo_${tablaUsuarioActivo}_${fechaVal}_${formaPagoVal.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+      const userTag = esAdmin() ? "General" : obtenerUsuarioActivo().toUpperCase();
+      const nombreArchivo = `Reporte_Operativo_${userTag}_${fechaVal}_${formaPagoVal.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
       XLSX.writeFile(workbook, nombreArchivo);
 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFiltroDescarga')).hide();
