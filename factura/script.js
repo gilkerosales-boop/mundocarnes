@@ -2113,10 +2113,18 @@ function aplicarRestriccionesUI(rol) {
     else btnMovimientos.classList.add('hidden');
   }
 
-  // 2. MENÚ SUPERIOR DE CONFIGURACIÓN
+  // 2. MENÚ DESPLEGABLE PRINCIPAL (☰ MENÚ)
+  const puedeVerHistorial = esAdminUser 
+    || tienePermiso("historial", "consultar_facturas") 
+    || tienePermiso("historial", "consultar_cierres") 
+    || tienePermiso("finanzas", "cobrar_creditos") 
+    || tienePermiso("finanzas", "descontar_vales") 
+    || tienePermiso("finanzas", "pagar_cxp");
+
   const contMenuConfig = document.getElementById('contenedorMenuConfigAdmin');
   if (contMenuConfig) {
-    const puedeVerConfig = esAdminUser
+    const puedeVerMenu = esAdminUser
+      || puedeVerHistorial
       || tienePermiso("admin", "empresa")
       || tienePermiso("fiscal", "config_disp")
       || tienePermiso("inventario", "precios_dinamicos")
@@ -2126,11 +2134,12 @@ function aplicarRestriccionesUI(rol) {
       || tienePermiso("admin", "clientes")
       || tienePermiso("admin", "descargas");
 
-    if (puedeVerConfig) contMenuConfig.classList.remove('hidden');
+    if (puedeVerMenu) contMenuConfig.classList.remove('hidden');
     else contMenuConfig.classList.add('hidden');
   }
 
   const botonesMenuConfig = {
+    "btn-menu-historiales": puedeVerHistorial,
     "btn-menu-empresa": esAdminUser || tienePermiso("admin", "empresa"),
     "btn-menu-fiscal": esAdminUser || tienePermiso("fiscal", "config_disp"),
     "btn-menu-precios": esAdminUser || tienePermiso("inventario", "precios_dinamicos"),
