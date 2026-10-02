@@ -129,9 +129,14 @@
                   📦 Catálogo Maestro de Productos y Balanza PLU
                 </button>
               </li>
-              <li>
+             <li>
                 <button id="btn-menu-clientes" class="dropdown-item fw-bold py-2 text-dark" type="button" onclick="abrirModalGestionClientes()">
                   👥 Directorio y Gestión de Clientes
+                </button>
+              </li>
+              <li>
+                <button id="btn-menu-descargas" class="dropdown-item fw-bold py-2 text-success" type="button" onclick="abrirModalSeleccionDescargas()">
+                  📥 Centro de Descargas y Reportes SENIAT
                 </button>
               </li>
               <li><hr class="dropdown-divider my-1"></li>
@@ -2630,12 +2635,12 @@
       </div>
     </div>
     
-    <!-- MODAL UNIFICADO: HISTORIAL DE VENTAS, CIERRES Y CUENTAS POR COBRAR -->
+    <!-- MODAL UNIFICADO: HISTORIALES -->
     <div class="modal fade" id="modalBuscarFacturas" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title fw-bold">🔍 Historial de Ventas, Cierres, Cobranzas y Cuentas por Pagar</h5>
+            <h5 class="modal-title fw-bold">🔍 Historiales</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4">
@@ -2668,10 +2673,10 @@
 
             <div class="tab-content" id="pillsHistorialTabContent">
               
-              <!-- PESTAÑA 1: Facturas Emitidas -->
+              <!-- PESTAÑA 1: Facturas Emitidas (Búsqueda Optimizada sin botón de descarga) -->
               <div class="tab-pane fade show active" id="pills-facturas" role="tabpanel">
                 <div class="row g-2 align-items-end mb-3 bg-white p-3 rounded-3 border shadow-sm">
-                  <div class="col-md-5 col-lg-5">
+                  <div class="col-md-7 col-lg-7">
                     <label for="facBusquedaInput" class="form-label fw-bold small mb-1">Cédula / RIF, Nombre o N° Factura:</label>
                     <input type="text" id="facBusquedaInput" class="form-control text-uppercase fw-bold" placeholder="Ej: V19255985 o 001-00008..." onkeyup="if(event.key==='Enter') buscarFacturasHistorial('busqueda')">
                   </div>
@@ -2680,20 +2685,14 @@
                       🔍 Buscar
                     </button>
                   </div>
-                  <div class="col-md-2 col-lg-2">
+                  <div class="col-md-3 col-lg-3">
                     <select id="facLimiteSelect" class="form-select fw-bold rounded-pill text-center bg-warning text-dark border-0 shadow-sm" onchange="buscarFacturasHistorial('ultimas')">
                       <option value="10" selected>🕒 Últimas 10</option>
                       <option value="20">🕒 Últimas 20</option>
                       <option value="50">🕒 Últimas 50</option>
                     </select>
                   </div>
-                  <div class="col-md-3 col-lg-3">
-                    <button type="button" class="btn btn-success w-100 fw-bold rounded-pill shadow-sm" onclick="abrirModalSeleccionDescargas()">
-                      📥 Descargar
-                    </button>
-                  </div>
                 </div>
-
                 <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
                   <table class="table table-hover align-middle mb-0">
                     <thead class="table-dark small text-center">
@@ -2919,12 +2918,18 @@
       </div>
     </div>
 
-   <!-- MODAL DE DESCARGAS: REPORTE OPERATIVO Y LIBRO DE VENTAS SENIAT -->
-    <div class="modal fade" id="modalFiltroDescarga" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title fw-bold">📥 Centro de Descargas y Reportes</h5>
+  <!-- MODAL INDEPENDIENTE A PANTALLA COMPLETA: CENTRO DE DESCARGAS Y REPORTES -->
+    <div class="modal fade" id="modalFiltroDescarga" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content border-0">
+          <div class="modal-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
+            <div class="d-flex align-items-center gap-2">
+              <span class="fs-4">📥</span>
+              <div>
+                <h5 class="modal-title fw-bold mb-0">Centro de Descargas y Reportes SENIAT</h5>
+                <small class="text-white-50" style="font-size: 0.76rem;">Generación y exportación de Reporte Operativo, Libro de Ventas Fiscal y Libro de Inventario Art. 177</small>
+              </div>
+            </div>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body p-4 bg-light">
@@ -3097,6 +3102,9 @@
             </div>
 
             <div id="errorModalDescarga" class="text-danger small fw-bold mt-3 hidden"></div>
+          </div>
+          <div class="modal-footer bg-white justify-content-between p-3 border-top">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
           </div>
         </div>
       </div>
