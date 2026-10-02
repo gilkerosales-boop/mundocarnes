@@ -959,6 +959,80 @@ body {
 }
 
 /* ==========================================================================
+   MATRIZ DE PERMISOS GRANULARES RBAC (MODAL EDITAR USUARIO)
+   ========================================================================== */
+.badge-riesgo-permiso {
+  font-size: 0.65rem !important;
+  font-weight: 800 !important;
+  padding: 2px 7px !important;
+  border-radius: var(--pos-radius-pill) !important;
+  vertical-align: middle;
+  margin-left: 4px;
+  letter-spacing: 0.2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+#barraPlantillasRapidasPermisos {
+  border: 1px solid var(--pos-card-border);
+}
+
+#barraPlantillasRapidasPermisos .btn-sm {
+  font-size: 0.76rem !important;
+  padding: 4px 11px !important;
+  box-shadow: var(--pos-shadow-sm);
+  transition: all 0.15s ease;
+}
+
+#barraPlantillasRapidasPermisos .btn-sm:hover {
+  transform: translateY(-1px);
+}
+
+#panelPermisosUsuario .card {
+  border: 1px solid var(--pos-card-border) !important;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+#panelPermisosUsuario .card:hover {
+  box-shadow: var(--pos-shadow-md) !important;
+}
+
+#panelPermisosUsuario .form-check {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 28px;
+  padding-left: 1.85rem;
+  margin-bottom: 4px;
+}
+
+#panelPermisosUsuario .form-check-input {
+  cursor: pointer;
+  width: 17px;
+  height: 17px;
+  margin-left: -1.85rem;
+  border: 1.5px solid #94a3b8;
+}
+
+#panelPermisosUsuario .form-check-input:checked {
+  background-color: var(--pos-green);
+  border-color: var(--pos-green-dark);
+}
+
+#panelPermisosUsuario .form-check-label {
+  cursor: pointer;
+  user-select: none;
+  line-height: 1.25;
+  color: #1e293b;
+}
+
+#panelPermisosUsuario .card-header a:hover {
+  text-decoration: underline !important;
+  opacity: 0.85;
+}
+
+/* ==========================================================================
    ESTILOS DE IMPRESIÓN TÉRMICA XP-80C (72mm EN PAPEL 80mm)
    ========================================================================== */
 #seccionImpresionTicket {
