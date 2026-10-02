@@ -46,15 +46,15 @@ let sincronizandoEnProceso = false;
 let accionPendienteGitHub = null;
 
 // =============================================
-// FUNCIONES DE CONTROL DE PERMISOS (Sistema de Roles)
+// FUNCIONES DE CONTROL DE PERMISOS (Sistema RBAC Granular)
 // =============================================
 
 // Verifica si el usuario tiene un permiso específico (Función MAESTRA de permisos)
 function tienePermiso(modulo, permiso) {
-  // 1. Si es ADMIN, tiene acceso irrestricto a TODO
+  // 1. Si es ADMIN, tiene acceso irrestricto a TODO el sistema
   if (esAdmin()) return true;
 
-  // 2. Leer los permisos desde sessionStorage
+  // 2. Leer permisos del cajero en sesión
   let permisos = {};
   try {
     permisos = JSON.parse(sessionStorage.getItem("factura_permisos") || "{}");
@@ -62,21 +62,66 @@ function tienePermiso(modulo, permiso) {
     permisos = {};
   }
 
-  // 3. Si el módulo no está definido en permisos → por defecto PERMITIR (regla de no interrupción)
-  if (!permisos[modulo]) return true;
+  // 3. Si la matriz está vacía o el rol es nulo, denegar por seguridad
+  if (!permisos || Object.keys(permisos).length === 0) return false;
 
-  // 4. Si es un array (formato antiguo/nuevo): verificar si incluye el permiso
-  if (Array.isArray(permisos[modulo])) {
-    return permisos[modulo].includes(permiso);
+  // 4. Evaluación directa en el módulo correspondiente
+  if (permisos[modulo]) {
+    if (Array.isArray(permisos[modulo])) {
+      return permisos[modulo].includes(permiso);
+    }
+    if (typeof permisos[modulo] === "object") {
+      return permisos[modulo][permiso] === true;
+    }
   }
 
-  // 5. Si es un objeto (formato alternativo): verificar la propiedad booleana
-  if (typeof permisos[modulo] === "object" && permisos[modulo] !== null) {
-    return permisos[modulo][permiso] !== false;
+  // 5. Mapeo inteligente de retrocompatibilidad con esquemas anteriores
+  if (modulo === "caja") {
+    if (permiso === "facturar" || permiso === "codigos" || permiso === "standby" || permiso === "manual") {
+      return permisos.ventas?.includes("facturar") || false;
+    }
+    if (permiso === "cierre") return permisos.ventas?.includes("cierres") || false;
+    if (permiso === "movimientos") return permisos.ventas?.includes("cierres") || false;
+    if (permiso === "tasa_bcv") return false; // Por defecto protegido
+    if (permiso === "ver_todo") return false;
   }
 
-  // 6. Fallback: permitir
-  return true;
+  if (modulo === "fiscal") {
+    if (permiso === "alternar") return true;
+    if (permiso === "reporte_x") return permisos.ventas?.includes("cierres") || false;
+    if (permiso === "nc" || permiso === "nd") return permisos.ventas?.includes("anular_facturas") || false;
+    if (permiso === "config_disp") return false;
+  }
+
+  if (modulo === "historial") {
+    if (permiso === "consultar_facturas") return permisos.ventas?.includes("consultar_historial") || false;
+    if (permiso === "anular_facturas") return permisos.ventas?.includes("anular_facturas") || false;
+    if (permiso === "consultar_cierres") return permisos.ventas?.includes("cierres") || false;
+    if (permiso === "anular_cierres") return permisos.ventas?.includes("anular_cierres") || false;
+  }
+
+  if (modulo === "finanzas") {
+    if (permiso === "cobrar_creditos" || permiso === "descontar_vales") return permisos.finanzas?.includes("cxc") || false;
+    if (permiso === "anular_cxc") return permisos.finanzas?.includes("cxc") || false;
+    if (permiso === "pagar_cxp") return permisos.finanzas?.includes("cxp") || false;
+    if (permiso === "anular_cxp") return permisos.finanzas?.includes("cxp") || false;
+  }
+
+  if (modulo === "inventario") {
+    if (permiso === "catalogo_editar") return permisos.inventario?.includes("catalogo") || false;
+    if (permiso === "catalogo_crear_borrar") return false;
+    if (permiso === "venta_negativa") return false;
+    if (permiso === "recepcion_desposte") return permisos.inventario?.includes("recepcion") || false;
+    if (permiso === "precios_dinamicos") return permisos.inventario?.includes("precios") || false;
+  }
+
+  if (modulo === "admin") {
+    if (permiso === "clientes") return permisos.admin?.includes("clientes") || false;
+    if (permiso === "empresa") return permisos.admin?.includes("empresa") || false;
+    if (permiso === "descargas") return permisos.admin?.includes("descargas") || false;
+  }
+
+  return false;
 }
 
 // Verifica si el usuario es ADMIN
@@ -1999,46 +2044,97 @@ function cerrarSesionFacturacion() {
 }
 
 // =============================================
-// FUNCIÓN DE SEGURIDAD: APLICAR RESTRICCIONES SEGÚN ROL Y PERMISOS
+// FUNCIÓN DE SEGURIDAD: APLICAR RESTRICCIONES SEGÚN MATRIZ GRANULAR
 // =============================================
 function aplicarRestriccionesUI(rol) {
   const esAdminUser = (rol === "ADMIN");
 
-  // 1. MENÚ DE CONFIGURACIÓN: Solo visible si tiene AL MENOS UN permiso de administración
+  // 1. CONTROLES DEL PUNTO DE VENTA (CAJA)
+  const btnFacturar = document.getElementById('btnEjecutarFacturarHero');
+  if (btnFacturar) {
+    const puedeVender = esAdminUser || tienePermiso("caja", "facturar");
+    btnFacturar.disabled = !puedeVender;
+  }
+
+  const btnManual = document.querySelector('button[onclick*="abrirModalProductoManual"]');
+  if (btnManual) {
+    const puedeManual = esAdminUser || tienePermiso("caja", "manual");
+    if (puedeManual) btnManual.classList.remove('hidden');
+    else btnManual.classList.add('hidden');
+  }
+
+  const btnCodigos = document.querySelector('button[onclick*="abrirModalCodigos"]');
+  if (btnCodigos) {
+    const puedeCodigos = esAdminUser || tienePermiso("caja", "codigos");
+    if (puedeCodigos) btnCodigos.classList.remove('hidden');
+    else btnCodigos.classList.add('hidden');
+  }
+
+  const btnStandby = document.querySelector('.btn-standby-pos');
+  if (btnStandby) {
+    const puedeStandby = esAdminUser || tienePermiso("caja", "standby");
+    if (puedeStandby) btnStandby.classList.remove('hidden');
+    else btnStandby.classList.add('hidden');
+  }
+
+  const btnCierreCaja = document.querySelector('button[onclick*="abrirModalCierreCaja"]');
+  if (btnCierreCaja) {
+    const puedeCierre = esAdminUser || tienePermiso("caja", "cierre");
+    if (puedeCierre) btnCierreCaja.classList.remove('hidden');
+    else btnCierreCaja.classList.add('hidden');
+  }
+
+  const inpTasa = document.getElementById('facTasaBCV');
+  if (inpTasa) {
+    const puedeModificarTasa = esAdminUser || tienePermiso("caja", "tasa_bcv");
+    inpTasa.readOnly = !puedeModificarTasa;
+    inpTasa.title = puedeModificarTasa 
+      ? "Haga clic para editar la tasa BCV" 
+      : "🔒 Modificación de Tasa BCV restringida por políticas de seguridad";
+  }
+
+  const chkFiscal = document.getElementById('chkModoFiscal');
+  if (chkFiscal) {
+    const puedeAlternarFiscal = esAdminUser || tienePermiso("fiscal", "alternar");
+    chkFiscal.disabled = !puedeAlternarFiscal;
+  }
+
+  const btnRepX = document.getElementById('btnReporteXFiscal');
+  if (btnRepX) {
+    const puedeRepX = esAdminUser || tienePermiso("fiscal", "reporte_x");
+    if (puedeRepX) btnRepX.classList.remove('hidden');
+    else btnRepX.classList.add('hidden');
+  }
+
+  const btnMovimientos = document.querySelector('button[onclick*="abrirModalMovimientosEfectivo"]');
+  if (btnMovimientos) {
+    const puedeMovs = esAdminUser || tienePermiso("caja", "movimientos");
+    if (puedeMovs) btnMovimientos.classList.remove('hidden');
+    else btnMovimientos.classList.add('hidden');
+  }
+
+  // 2. MENÚ SUPERIOR DE CONFIGURACIÓN
   const contMenuConfig = document.getElementById('contenedorMenuConfigAdmin');
   if (contMenuConfig) {
     const puedeVerConfig = esAdminUser
-      || tienePermiso("inventario", "catalogo")
-      || tienePermiso("inventario", "recepcion")
-      || tienePermiso("inventario", "precios")
-      || tienePermiso("admin", "clientes")
-      || tienePermiso("admin", "empresa");
-    
+      || tienePermiso("admin", "empresa")
+      || tienePermiso("fiscal", "config_disp")
+      || tienePermiso("inventario", "precios_dinamicos")
+      || tienePermiso("inventario", "recepcion_desposte")
+      || tienePermiso("inventario", "catalogo_editar")
+      || tienePermiso("inventario", "catalogo_crear_borrar")
+      || tienePermiso("admin", "clientes");
+
     if (puedeVerConfig) contMenuConfig.classList.remove('hidden');
     else contMenuConfig.classList.add('hidden');
   }
 
-  // 2. BOTÓN "REPORTE X FISCAL": Solo admin
-  const btnRepX = document.getElementById('btnReporteXFiscal');
-  if (btnRepX) {
-    if (esAdminUser) btnRepX.classList.remove('hidden');
-    else btnRepX.classList.add('hidden');
-  }
-
-  // 3. INTERRUPTOR "VENTA EN NEGATIVO": Solo admin
-  const contVentaNegativa = document.getElementById('contenedorSwitchVentaNegativa');
-  if (contVentaNegativa) {
-    if (esAdminUser) contVentaNegativa.classList.remove('hidden');
-    else contVentaNegativa.classList.add('hidden');
-  }
-
-  // 4. Ocultar opciones individuales del menú de configuración según permisos
   const botonesMenuConfig = {
     "btn-menu-empresa": esAdminUser || tienePermiso("admin", "empresa"),
-    "btn-menu-fiscal": esAdminUser,
-    "btn-menu-precios": esAdminUser || tienePermiso("inventario", "precios"),
-    "btn-menu-recepcion": esAdminUser || tienePermiso("inventario", "recepcion"),
-    "btn-menu-catalogo": esAdminUser || tienePermiso("inventario", "catalogo"),
+    "btn-menu-fiscal": esAdminUser || tienePermiso("fiscal", "config_disp"),
+    "btn-menu-precios": esAdminUser || tienePermiso("inventario", "precios_dinamicos"),
+    "btn-menu-recepcion": esAdminUser || tienePermiso("inventario", "recepcion_desposte"),
+    "btn-menu-catalogo": esAdminUser || tienePermiso("inventario", "catalogo_editar") || tienePermiso("inventario", "catalogo_crear_borrar"),
     "btn-menu-clientes": esAdminUser || tienePermiso("admin", "clientes"),
     "btn-menu-usuarios": esAdminUser
   };
@@ -2051,32 +2147,40 @@ function aplicarRestriccionesUI(rol) {
     }
   }
 
-  // 5. Ocultar la pestaña "Cuentas por Cobrar" del Historial si no tiene permiso
-  const tabCXC = document.getElementById('pills-cxc-tab');
-  if (tabCXC) {
-    if (esAdminUser || tienePermiso("finanzas", "cxc")) tabCXC.classList.remove('hidden');
-    else tabCXC.classList.add('hidden');
+  // 3. PESTAÑAS DEL HISTORIAL GENERAL
+  const tabFacturas = document.getElementById('pills-facturas-tab');
+  if (tabFacturas) {
+    const puedeFacturas = esAdminUser || tienePermiso("historial", "consultar_facturas");
+    if (puedeFacturas) tabFacturas.classList.remove('hidden');
+    else tabFacturas.classList.add('hidden');
   }
 
-  // 6. Ocultar la pestaña "Cuentas por Pagar" del Historial si no tiene permiso
-  const tabCXP = document.getElementById('pills-cxp-tab');
-  if (tabCXP) {
-    if (esAdminUser || tienePermiso("finanzas", "cxp")) tabCXP.classList.remove('hidden');
-    else tabCXP.classList.add('hidden');
-  }
-
-  // 7. Ocultar la pestaña "Cierres de Caja" si no tiene permiso
   const tabCierres = document.getElementById('pills-cierres-tab');
   if (tabCierres) {
-    if (esAdminUser || tienePermiso("ventas", "anular_cierres")) tabCierres.classList.remove('hidden');
+    const puedeCierres = esAdminUser || tienePermiso("historial", "consultar_cierres");
+    if (puedeCierres) tabCierres.classList.remove('hidden');
     else tabCierres.classList.add('hidden');
   }
 
-  // 8. Ocultar la pestaña "Facturas Emitidas" si no tiene permiso de consulta
-  const tabFacturas = document.getElementById('pills-facturas-tab');
-  if (tabFacturas) {
-    if (esAdminUser || tienePermiso("ventas", "consultar_historial")) tabFacturas.classList.remove('hidden');
-    else tabFacturas.classList.add('hidden');
+  const tabCXC = document.getElementById('pills-cxc-tab');
+  if (tabCXC) {
+    const puedeCXC = esAdminUser || tienePermiso("finanzas", "cobrar_creditos") || tienePermiso("finanzas", "descontar_vales");
+    if (puedeCXC) tabCXC.classList.remove('hidden');
+    else tabCXC.classList.add('hidden');
+  }
+
+  const tabCXP = document.getElementById('pills-cxp-tab');
+  if (tabCXP) {
+    const puedeCXP = esAdminUser || tienePermiso("finanzas", "pagar_cxp");
+    if (puedeCXP) tabCXP.classList.remove('hidden');
+    else tabCXP.classList.add('hidden');
+  }
+
+  const btnDescargas = document.querySelector('button[onclick*="abrirModalSeleccionDescargas"]');
+  if (btnDescargas) {
+    const puedeDescargas = esAdminUser || tienePermiso("admin", "descargas");
+    if (puedeDescargas) btnDescargas.classList.remove('hidden');
+    else btnDescargas.classList.add('hidden');
   }
 }
 // Reconstructor de estructura para compatibilidad total del catálogo POS con orden estricto
@@ -5044,10 +5148,18 @@ function abrirModalGestionCodigos() {
 
   const esAdminUser = esAdmin();
 
-  // Sincronizar el estado del interruptor de venta en negativo
+  // Sincronizar el estado del interruptor de venta en negativo según permiso
   const permitirVentaNegativa = localStorage.getItem("pos_permitir_venta_negativa") !== "false";
   const chkNegativo = document.getElementById('chkPermitirVentaNegativa');
   const lblNegativo = document.getElementById('lblPermitirVentaNegativa');
+  const contSwitchNegativo = document.getElementById('contenedorSwitchVentaNegativa');
+
+  if (contSwitchNegativo) {
+    const puedeVentaNegativa = esAdminUser || tienePermiso("inventario", "venta_negativa");
+    if (puedeVentaNegativa) contSwitchNegativo.classList.remove('hidden');
+    else contSwitchNegativo.classList.add('hidden');
+  }
+
   if (chkNegativo) {
     chkNegativo.checked = permitirVentaNegativa;
     if (lblNegativo) {
@@ -5056,17 +5168,19 @@ function abrirModalGestionCodigos() {
     }
   }
 
-  // Mostrar botones de administración del catálogo si es Admin o si tiene el permiso concedido
-  const puedeEditarCatalogo = esAdminUser || tienePermiso("inventario", "catalogo");
+  // Botón "Editar Productos" según permiso granular catalogo_editar
+  const puedeEditarCatalogo = esAdminUser || tienePermiso("inventario", "catalogo_editar");
   const btnEditarProductos = document.querySelector('#modalGestionCodigos button[onclick*="abrirModalSeleccionarEdicionCategoria"]');
-  const btnAgregarProducto = document.querySelector('#modalGestionCodigos button[onclick*="abrirModalCrearProductoPOS"]');
-  
   if (btnEditarProductos) {
     if (puedeEditarCatalogo) btnEditarProductos.classList.remove('hidden');
     else btnEditarProductos.classList.add('hidden');
   }
+
+  // Botón "Agregar Producto" según permiso granular catalogo_crear_borrar
+  const puedeCrearBorrar = esAdminUser || tienePermiso("inventario", "catalogo_crear_borrar");
+  const btnAgregarProducto = document.querySelector('#modalGestionCodigos button[onclick*="abrirModalCrearProductoPOS"]');
   if (btnAgregarProducto) {
-    if (puedeEditarCatalogo) btnAgregarProducto.classList.remove('hidden');
+    if (puedeCrearBorrar) btnAgregarProducto.classList.remove('hidden');
     else btnAgregarProducto.classList.add('hidden');
   }
 
@@ -14326,24 +14440,92 @@ function renderizarTablaUsuarios(lista) {
   tbody.innerHTML = html;
 }
 
+// =============================================
+// CONTROL VISUAL Y PLANTILLAS DE PERMISOS GRANULARES
+// =============================================
+
+function alternarVisibilidadClaveUsuario() {
+  const input = document.getElementById('editUsrClave');
+  const icono = document.getElementById('iconoOjoClave');
+  if (!input) return;
+
+  if (input.type === "password") {
+    input.type = "text";
+    if (icono) icono.textContent = "🙈";
+  } else {
+    input.type = "password";
+    if (icono) icono.textContent = "👁️";
+  }
+}
+window.alternarVisibilidadClaveUsuario = alternarVisibilidadClaveUsuario;
+
+function alternarGrupoPermisosModulo(modulo, marcar) {
+  const casillas = document.querySelectorAll(`.check-permiso[data-modulo="${modulo}"]`);
+  casillas.forEach(chk => { chk.checked = marcar; });
+}
+window.alternarGrupoPermisosModulo = alternarGrupoPermisosModulo;
+
+function aplicarPerfilRapido(perfil) {
+  const checks = document.querySelectorAll('.check-permiso');
+  
+  if (perfil === 'DESMARCAR_TODO') {
+    checks.forEach(chk => { chk.checked = false; });
+    return;
+  }
+
+  // Mapa de activación granular por perfil
+  checks.forEach(chk => {
+    const mod = chk.getAttribute('data-modulo');
+    const perm = chk.getAttribute('data-permiso');
+    let activar = false;
+
+    if (perfil === 'CAJERO_ESTANDAR') {
+      if (mod === 'caja' && (perm === 'facturar' || perm === 'codigos' || perm === 'standby' || perm === 'cierre')) activar = true;
+      if (mod === 'fiscal' && perm === 'alternar') activar = true;
+      if (mod === 'historial' && (perm === 'consultar_facturas' || perm === 'consultar_cierres')) activar = true;
+    } else if (perfil === 'SUPERVISOR') {
+      if (mod === 'caja') activar = true;
+      if (mod === 'fiscal' && perm !== 'config_disp') activar = true;
+      if (mod === 'historial' && perm !== 'anular_cierres') activar = true;
+      if (mod === 'finanzas' && (perm === 'cobrar_creditos' || perm === 'descontar_vales' || perm === 'pagar_cxp')) activar = true;
+      if (mod === 'inventario' && (perm === 'catalogo_editar' || perm === 'recepcion_desposte')) activar = true;
+      if (mod === 'admin' && (perm === 'clientes' || perm === 'descargas')) activar = true;
+    } else if (perfil === 'ALMACEN') {
+      if (mod === 'finanzas' && perm === 'pagar_cxp') activar = true;
+      if (mod === 'inventario' && (perm === 'catalogo_editar' || perm === 'recepcion_desposte')) activar = true;
+    }
+
+    chk.checked = activar;
+  });
+
+  mostrarAvisoFactura(`⚡ Perfil "${perfil.replace('_', ' ')}" aplicado.`);
+}
+window.aplicarPerfilRapido = aplicarPerfilRapido;
+
 function obtenerResumenPermisos(permisos) {
   if (!permisos || typeof permisos !== "object") return `<span class="text-muted">Sin permisos definidos</span>`;
   
-  let totales = { ventas: 0, finanzas: 0, inventario: 0, admin: 0 };
-  let totalesMax = { ventas: 5, finanzas: 2, inventario: 3, admin: 3 };
+  const limites = { caja: 8, fiscal: 5, historial: 4, finanzas: 5, inventario: 5, admin: 3 };
+  let conteos = { caja: 0, fiscal: 0, historial: 0, finanzas: 0, inventario: 0, admin: 0 };
 
-  ["ventas", "finanzas", "inventario", "admin"].forEach(mod => {
-    if (Array.isArray(permisos[mod])) totales[mod] = permisos[mod].length;
-  });
+  for (let mod in limites) {
+    if (Array.isArray(permisos[mod])) {
+      conteos[mod] = permisos[mod].length;
+    } else if (typeof permisos[mod] === "object" && permisos[mod] !== null) {
+      conteos[mod] = Object.values(permisos[mod]).filter(Boolean).length;
+    }
+  }
 
   let partes = [];
-  if (totales.ventas > 0) partes.push(`💰 Ventas ${totales.ventas}/${totalesMax.ventas}`);
-  if (totales.finanzas > 0) partes.push(`📊 Finanzas ${totales.finanzas}/${totalesMax.finanzas}`);
-  if (totales.inventario > 0) partes.push(`📦 Inventario ${totales.inventario}/${totalesMax.inventario}`);
-  if (totales.admin > 0) partes.push(`⚙️ Admin ${totales.admin}/${totalesMax.admin}`);
+  if (conteos.caja > 0) partes.push(`💰 Caja ${conteos.caja}/${limites.caja}`);
+  if (conteos.fiscal > 0) partes.push(`🖨️ Fiscal ${conteos.fiscal}/${limites.fiscal}`);
+  if (conteos.historial > 0) partes.push(`📜 Hist. ${conteos.historial}/${limites.historial}`);
+  if (conteos.finanzas > 0) partes.push(`📊 Fin. ${conteos.finanzas}/${limites.finanzas}`);
+  if (conteos.inventario > 0) partes.push(`📦 Inv. ${conteos.inventario}/${limites.inventario}`);
+  if (conteos.admin > 0) partes.push(`⚙️ Adm. ${conteos.admin}/${limites.admin}`);
 
   if (partes.length === 0) return `<span class="text-danger small fw-bold">🚫 Sin Acceso</span>`;
-  return `<span class="small">${partes.join(" · ")}</span>`;
+  return `<span class="small font-monospace">${partes.join(" · ")}</span>`;
 }
 
 function filtrarTablaUsuarios(query) {
@@ -14370,11 +14552,20 @@ function abrirModalCrearUsuario() {
   document.getElementById('tituloModalEditarUsuario').textContent = "➕ Crear Nuevo Usuario";
   document.getElementById('editUsrNombre').value = "";
   document.getElementById('editUsrNombre').readOnly = false;
-  document.getElementById('editUsrClave').value = "";
+  
+  const inputClave = document.getElementById('editUsrClave');
+  if (inputClave) {
+    inputClave.value = "";
+    inputClave.type = "password";
+  }
+  const iconoOjo = document.getElementById('iconoOjoClave');
+  if (iconoOjo) iconoOjo.textContent = "👁️";
+
   document.getElementById('editUsrRol').value = "CAJERO";
   document.getElementById('errorModalEditarUsuario').classList.add('hidden');
 
-  document.querySelectorAll('.check-permiso').forEach(chk => { chk.checked = true; });
+  // Aplicar por defecto el perfil Cajero Estándar
+  aplicarPerfilRapido('CAJERO_ESTANDAR');
   evaluarRolEnFormularioUsuario("CAJERO");
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarUsuario')).show();
@@ -14394,19 +14585,38 @@ function abrirModalEditarUsuario(nombreUsuario) {
   document.getElementById('tituloModalEditarUsuario').textContent = `✏️ Editar Usuario: ${u.nombreUsuario.toUpperCase()}`;
   document.getElementById('editUsrNombre').value = u.nombreUsuario;
   document.getElementById('editUsrNombre').readOnly = true;
-  document.getElementById('editUsrClave').value = u.clave;
+
+  const inputClave = document.getElementById('editUsrClave');
+  if (inputClave) {
+    inputClave.value = u.clave;
+    inputClave.type = "password";
+  }
+  const iconoOjo = document.getElementById('iconoOjoClave');
+  if (iconoOjo) iconoOjo.textContent = "👁️";
+
   document.getElementById('editUsrRol').value = u.rol;
   document.getElementById('errorModalEditarUsuario').classList.add('hidden');
 
+  // Poblar exactamente los 28 permisos de la matriz RBAC
   document.querySelectorAll('.check-permiso').forEach(chk => {
     const mod = chk.getAttribute('data-modulo');
     const perm = chk.getAttribute('data-permiso');
-    const permisosMod = u.permisos ? u.permisos[mod] : null;
-    if (Array.isArray(permisosMod)) {
-      chk.checked = permisosMod.includes(perm);
+    let activo = false;
+
+    if (u.permisos && u.permisos[mod]) {
+      if (Array.isArray(u.permisos[mod])) {
+        activo = u.permisos[mod].includes(perm);
+      } else if (typeof u.permisos[mod] === "object") {
+        activo = Boolean(u.permisos[mod][perm]);
+      }
     } else {
-      chk.checked = true;
+      // Mapeo retrocompatible
+      if (mod === 'caja' && (perm === 'facturar' || perm === 'codigos' || perm === 'standby' || perm === 'cierre')) activo = true;
+      if (mod === 'fiscal' && perm === 'alternar') activo = true;
+      if (mod === 'historial' && (perm === 'consultar_facturas' || perm === 'consultar_cierres')) activo = true;
     }
+
+    chk.checked = activo;
   });
 
   evaluarRolEnFormularioUsuario(u.rol);
@@ -14416,14 +14626,26 @@ window.abrirModalEditarUsuario = abrirModalEditarUsuario;
 
 function evaluarRolEnFormularioUsuario(rol) {
   const panelPermisos = document.getElementById('panelPermisosUsuario');
-  if (!panelPermisos) return;
+  const barraPlantillas = document.getElementById('barraPlantillasRapidasPermisos');
 
   if (rol === "ADMIN") {
-    panelPermisos.style.opacity = "0.4";
-    panelPermisos.style.pointerEvents = "none";
+    if (panelPermisos) {
+      panelPermisos.style.opacity = "0.35";
+      panelPermisos.style.pointerEvents = "none";
+    }
+    if (barraPlantillas) {
+      barraPlantillas.style.opacity = "0.35";
+      barraPlantillas.style.pointerEvents = "none";
+    }
   } else {
-    panelPermisos.style.opacity = "1";
-    panelPermisos.style.pointerEvents = "auto";
+    if (panelPermisos) {
+      panelPermisos.style.opacity = "1";
+      panelPermisos.style.pointerEvents = "auto";
+    }
+    if (barraPlantillas) {
+      barraPlantillas.style.opacity = "1";
+      barraPlantillas.style.pointerEvents = "auto";
+    }
   }
 }
 window.evaluarRolEnFormularioUsuario = evaluarRolEnFormularioUsuario;
@@ -14457,20 +14679,30 @@ async function guardarUsuarioFactur() {
     return;
   }
 
-  let permisosEstructurados = { ventas: [], finanzas: [], inventario: [], admin: [] };
+  // Estructuración limpia de los 28 permisos granulares por módulo
+  let permisosEstructurados = {
+    caja: [],
+    fiscal: [],
+    historial: [],
+    finanzas: [],
+    inventario: [],
+    admin: []
+  };
+
   if (rol !== "ADMIN") {
     document.querySelectorAll('.check-permiso').forEach(chk => {
       if (chk.checked) {
         const mod = chk.getAttribute('data-modulo');
         const perm = chk.getAttribute('data-permiso');
-        if (!permisosEstructurados[mod]) permisosEstructurados[mod] = [];
-        permisosEstructurados[mod].push(perm);
+        if (permisosEstructurados[mod]) {
+          permisosEstructurados[mod].push(perm);
+        }
       }
     });
   }
 
   if (errorDiv) errorDiv.classList.add('hidden');
-  if (btn) { btn.disabled = true; btn.textContent = "Guardando..."; }
+  if (btn) { btn.disabled = true; btn.textContent = "Guardando permisos..."; }
 
   try {
     const payload = {
@@ -14492,17 +14724,24 @@ async function guardarUsuarioFactur() {
         .update({ "CLAVE": clave, "rol": rol, "permisos": payload.permisos })
         .eq('NOMBRE DE USUARIO', original);
       if (error) throw error;
+
+      // Si el usuario editado es quien está en sesión, refrescar sus permisos en caliente
+      if (nombre === obtenerUsuarioActivo()) {
+        sessionStorage.setItem("factura_rol", rol);
+        sessionStorage.setItem("factura_permisos", JSON.stringify(payload.permisos || {}));
+        aplicarRestriccionesUI(rol);
+      }
     }
 
-    if (btn) { btn.disabled = false; btn.textContent = "💾 Guardar Usuario"; }
+    if (btn) { btn.disabled = false; btn.textContent = "💾 Guardar Usuario y Permisos"; }
     if (document.activeElement) document.activeElement.blur();
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditarUsuario')).hide();
-    mostrarAvisoFactura(`🎉 Usuario "${nombre.toUpperCase()}" ${esNuevo ? "creado" : "actualizado"} exitosamente.`);
+    mostrarAvisoFactura(`🎉 Usuario "${nombre.toUpperCase()}" guardado con su nueva matriz de permisos.`);
     await cargarUsuariosFactur();
 
   } catch (err) {
-    if (btn) { btn.disabled = false; btn.textContent = "💾 Guardar Usuario"; }
+    if (btn) { btn.disabled = false; btn.textContent = "💾 Guardar Usuario y Permisos"; }
     console.error("Error al guardar usuario:", err);
     if (errorDiv) {
       errorDiv.textContent = "Error al guardar: " + err.message;
