@@ -76,20 +76,23 @@
           <!-- Indicador Dinámico de Estado de Sincronización -->
           <span id="badgeEstadoSync" class="badge bg-success fw-bold me-1" onclick="forzarSincronizacionManual()" style="cursor: pointer;" title="Haga clic para forzar sincronización con Supabase">🟢 Sincronizado</span>
           
-          <!-- Botón 1: Buscar / Historial (Ventas, Cierres y Cuentas por Cobrar) -->
-          <button type="button" class="btn btn-nav-custom btn-nav-yellow" onclick="abrirModalBuscarFacturas()">
-            🔍 Historial
-          </button>
-          <!-- Botón 2: Cierre de Caja -->
+          <!-- Botón: Cierre de Caja -->
           <button type="button" class="btn btn-nav-custom btn-nav-red" onclick="abrirModalCierreCaja()">
             🔒 Cierre Caja
           </button>
-                   <!-- Botón 3: Menú Desplegable de Configuración con Submenú de Dispositivos Fiscales (SOLO ADMIN) -->
+
+          <!-- Menú Desplegable Principal (Menú Hamburguesa) -->
           <div class="dropdown me-2 hidden" id="contenedorMenuConfigAdmin">
             <button class="btn btn-nav-custom btn-nav-blue dropdown-toggle" type="button" id="dropdownMenuConfig" data-bs-toggle="dropdown" aria-expanded="false">
-              ⚙️ Configuración
+              ☰ Menú
             </button>
-                       <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0" aria-labelledby="dropdownMenuConfig" style="border-radius: 12px; min-width: 260px;">
+            <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0" aria-labelledby="dropdownMenuConfig" style="border-radius: 12px; min-width: 270px;">
+              <li>
+                <button id="btn-menu-historiales" class="dropdown-item fw-bold py-2 text-primary" type="button" onclick="abrirModalBuscarFacturas()">
+                  🔍 Historiales (Ventas, Z, CXC, CXP)
+                </button>
+              </li>
+              <li><hr class="dropdown-divider my-1"></li>
               <li>
                 <button id="btn-menu-empresa" class="dropdown-item fw-bold py-2" type="button" onclick="abrirModalDatosEmpresa()">
                   🏢 Datos de la Empresa y Logos
@@ -129,7 +132,7 @@
                   📦 Catálogo Maestro de Productos y Balanza PLU
                 </button>
               </li>
-             <li>
+              <li>
                 <button id="btn-menu-clientes" class="dropdown-item fw-bold py-2 text-dark" type="button" onclick="abrirModalGestionClientes()">
                   👥 Directorio y Gestión de Clientes
                 </button>
