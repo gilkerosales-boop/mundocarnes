@@ -1881,9 +1881,9 @@
       </div>
     </div>
 
-    <!-- MODAL CREAR / EDITAR USUARIO CON ASIGNACIÓN DE PERMISOS -->
+    <!-- MODAL CREAR / EDITAR USUARIO CON MATRIZ RBAC DE 28 PERMISOS -->
     <div class="modal fade" id="modalEditarUsuario" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg">
           <div class="modal-header bg-dark text-white py-3">
             <h5 class="modal-title fw-bold" id="tituloModalEditarUsuario">➕ Crear Nuevo Usuario</h5>
@@ -1893,122 +1893,321 @@
             <input type="hidden" id="editUsrEsNuevo" value="true">
             <input type="hidden" id="editUsrOriginal" value="">
 
-            <div class="row g-3 mb-3">
-              <div class="col-md-4">
-                <label for="editUsrNombre" class="form-label small fw-bold mb-1">Usuario *:</label>
-                <input type="text" id="editUsrNombre" class="form-control form-control-sm text-lowercase fw-bold" placeholder="Ej: gilker" required>
-              </div>
-              <div class="col-md-4">
-                <label for="editUsrClave" class="form-label small fw-bold mb-1">Contraseña *:</label>
-                <input type="text" id="editUsrClave" class="form-control form-control-sm fw-bold" placeholder="Ej: GIL4321" required>
-              </div>
-              <div class="col-md-4">
-                <label for="editUsrRol" class="form-label small fw-bold mb-1">Rol del Sistema *:</label>
-                <select id="editUsrRol" class="form-select form-select-sm fw-bold" onchange="evaluarRolEnFormularioUsuario(this.value)">
-                  <option value="CAJERO" selected>Cajero</option>
-                  <option value="ADMIN">Administrador</option>
-                </select>
+            <!-- Fila de Credenciales y Rol -->
+            <div class="card p-3 mb-3 border-0 shadow-sm rounded-3 bg-white">
+              <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                  <label for="editUsrNombre" class="form-label small fw-bold mb-1 text-dark">Usuario *:</label>
+                  <input type="text" id="editUsrNombre" class="form-control form-control-sm text-lowercase fw-bold" placeholder="Ej: gilker" required autocomplete="off">
+                </div>
+                <div class="col-md-4">
+                  <label for="editUsrClave" class="form-label small fw-bold mb-1 text-dark">Contraseña *:</label>
+                  <div class="input-group input-group-sm">
+                    <input type="password" id="editUsrClave" class="form-control form-control-sm fw-bold" placeholder="Contraseña de acceso" required autocomplete="new-password">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="alternarVisibilidadClaveUsuario()" title="Mostrar u ocultar contraseña">
+                      <span id="iconoOjoClave">👁️</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <label for="editUsrRol" class="form-label small fw-bold mb-1 text-dark">Rol en el Sistema *:</label>
+                  <select id="editUsrRol" class="form-select form-select-sm fw-bold" onchange="evaluarRolEnFormularioUsuario(this.value)">
+                    <option value="CAJERO" selected>👤 Cajero (Permisos aplicables)</option>
+                    <option value="ADMIN">🛡️ Administrador (Acceso total)</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            <div class="alert alert-info py-2 px-3 small mb-3 shadow-sm">
-              <strong>ℹ️ Nota:</strong> El rol <strong>ADMIN</strong> tiene acceso irrestricto a todas las funciones del sistema (los permisos no aplican). Los <strong>CAJEROS</strong> solo acceden a los módulos marcados a continuación.
+            <!-- Barra de Plantillas Rápidas (1 Clic) -->
+            <div class="d-flex justify-content-between align-items-center mb-3 p-2 px-3 bg-white rounded-3 border flex-wrap gap-2 shadow-sm" id="barraPlantillasRapidasPermisos">
+              <span class="small fw-bold text-muted">⚡ Perfiles Rápidos:</span>
+              <div class="d-flex flex-wrap gap-1">
+                <button type="button" class="btn btn-sm btn-outline-primary fw-bold rounded-pill" onclick="aplicarPerfilRapido('CAJERO_ESTANDAR')">
+                  👤 Cajero Estándar
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-success fw-bold rounded-pill" onclick="aplicarPerfilRapido('SUPERVISOR')">
+                  🛡️ Supervisor / Encargado
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-bold rounded-pill" onclick="aplicarPerfilRapido('ALMACEN')">
+                  📦 Almacén / Carnicero
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary fw-bold rounded-pill" onclick="aplicarPerfilRapido('DESMARCAR_TODO')">
+                  ✕ Limpiar Todo
+                </button>
+              </div>
             </div>
 
+            <!-- Banner Informativo Rol ADMIN -->
+            <div class="alert alert-info py-2 px-3 small mb-3 shadow-sm d-flex align-items-center gap-2">
+              <span class="fs-6">ℹ️</span>
+              <div>
+                El rol <strong>ADMINISTRADOR</strong> posee acceso irrestricto automático a todas las funciones. Las casillas inferiores aplican exclusivamente para usuarios con rol <strong>CAJERO</strong>.
+              </div>
+            </div>
+
+            <!-- CONTENEDOR MAESTRO DE LOS 5 MÓDULOS DE PERMISOS (28 CASILLAS) -->
             <div id="panelPermisosUsuario">
 
-              <div class="card mb-2 shadow-sm border-0">
-                <div class="card-header bg-danger text-white fw-bold small py-2">
-                  💰 Ventas y Operaciones de Caja
+              <!-- MÓDULO 1: CAJA, FACTURACIÓN Y TURNOS -->
+              <div class="card mb-3 shadow-sm border-0 rounded-3">
+                <div class="card-header bg-danger text-white fw-bold small py-2 d-flex justify-content-between align-items-center">
+                  <span>💰 1. Caja, Facturación y Operaciones de Turno</span>
+                  <a href="javascript:void(0);" class="text-white text-decoration-none small fw-bold" onclick="alternarGrupoPermisosModulo('caja', true)">✓ Todo</a>
                 </div>
-                <div class="card-body p-2">
-                  <div class="form-check">
-                    <input class="form-check-input check-permiso" type="checkbox" id="perm_ventas_facturar" data-modulo="ventas" data-permiso="facturar" checked>
-                    <label class="form-check-label small fw-bold" for="perm_ventas_facturar">Facturar (Vender), cobrar y procesar vueltos</label>
-                  </div>
-                  <div class="form-check">
-                    <input class="form-check-input check-permiso" type="checkbox" id="perm_ventas_cierres" data-modulo="ventas" data-permiso="cierres" checked>
-                    <label class="form-check-label small fw-bold" for="perm_ventas_cierres">Realizar cierres de turno</label>
-                  </div>
-                  <div class="form-check">
-                    <input class="form-check-input check-permiso" type="checkbox" id="perm_ventas_consultar_historial" data-modulo="ventas" data-permiso="consultar_historial" checked>
-                    <label class="form-check-label small fw-bold" for="perm_ventas_consultar_historial">Consultar e imprimir facturas desde el historial</label>
-                  </div>
-                  <div class="form-check">
-                    <input class="form-check-input check-permiso" type="checkbox" id="perm_ventas_anular_facturas" data-modulo="ventas" data-permiso="anular_facturas" checked>
-                    <label class="form-check-label small fw-bold" for="perm_ventas_anular_facturas">Anular / Eliminar facturas del historial</label>
-                  </div>
-                  <div class="form-check">
-                    <input class="form-check-input check-permiso" type="checkbox" id="perm_ventas_anular_cierres" data-modulo="ventas" data-permiso="anular_cierres" checked>
-                    <label class="form-check-label small fw-bold" for="perm_ventas_anular_cierres">Consultar y eliminar cierres de caja (Reportes Z)</label>
-                  </div>
-                </div>
-              </div>
-
-              <div class="card mb-2 shadow-sm border-0">
-                <div class="card-header bg-primary text-white fw-bold small py-2">
-                  📊 Finanzas (Cuentas por Cobrar y por Pagar)
-                </div>
-                <div class="card-body p-2">
-                  <div class="form-check">
-                    <input class="form-check-input check-permiso" type="checkbox" id="perm_finanzas_cxc" data-modulo="finanzas" data-permiso="cxc" checked>
-                    <label class="form-check-label small fw-bold" for="perm_finanzas_cxc">Acceso y gestión integral de Cuentas por Cobrar</label>
-                  </div>
-                  <div class="form-check">
-                    <input class="form-check-input check-permiso" type="checkbox" id="perm_finanzas_cxp" data-modulo="finanzas" data-permiso="cxp" checked>
-                    <label class="form-check-label small fw-bold" for="perm_finanzas_cxp">Acceso y gestión integral de Cuentas por Pagar</label>
-                  </div>
-                </div>
-              </div>
-
-              <div class="card mb-2 shadow-sm border-0">
-                <div class="card-header bg-warning text-dark fw-bold small py-2">
-                  📦 Inventario y Catálogo
-                </div>
-                <div class="card-body p-2">
-                  <div class="form-check">
-                    <input class="form-check-input check-permiso" type="checkbox" id="perm_inventario_catalogo" data-modulo="inventario" data-permiso="catalogo" checked>
-                    <label class="form-check-label small fw-bold" for="perm_inventario_catalogo">Gestión del Catálogo Maestro de Productos</label>
-                  </div>
-                  <div class="form-check">
-                    <input class="form-check-input check-permiso" type="checkbox" id="perm_inventario_recepcion" data-modulo="inventario" data-permiso="recepcion" checked>
-                    <label class="form-check-label small fw-bold" for="perm_inventario_recepcion">Recepción de mercancía y entrada de stock</label>
-                  </div>
-                  <div class="form-check">
-                    <input class="form-check-input check-permiso" type="checkbox" id="perm_inventario_precios" data-modulo="inventario" data-permiso="precios" checked>
-                    <label class="form-check-label small fw-bold" for="perm_inventario_precios">Configuración de la estructura de precios de venta</label>
+                <div class="card-body p-3 bg-white">
+                  <div class="row g-2">
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_caja_facturar" data-modulo="caja" data-permiso="facturar" checked>
+                        <label class="form-check-label small fw-bold" for="perm_caja_facturar">Facturar, cobrar y procesar vueltos</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_caja_manual" data-modulo="caja" data-permiso="manual" checked>
+                        <label class="form-check-label small fw-bold" for="perm_caja_manual">Usar botón "+ Manual" (Producto no catalogado)</label>
+                        <span class="badge bg-warning text-dark badge-riesgo-permiso">Riesgo Medio</span>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_caja_codigos" data-modulo="caja" data-permiso="codigos" checked>
+                        <label class="form-check-label small fw-bold" for="perm_caja_codigos">Usar "+ Códigos" (Lector de Balanza Tecniscale)</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_caja_standby" data-modulo="caja" data-permiso="standby" checked>
+                        <label class="form-check-label small fw-bold" for="perm_caja_standby">Gestionar Facturas en Espera (Pausar / Reanudar)</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_caja_tasa_bcv" data-modulo="caja" data-permiso="tasa_bcv">
+                        <label class="form-check-label small fw-bold text-danger" for="perm_caja_tasa_bcv">Modificar Tasa BCV en pantalla de cobro</label>
+                        <span class="badge bg-danger text-white badge-riesgo-permiso">⚠️ Crítico</span>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_caja_movimientos" data-modulo="caja" data-permiso="movimientos" checked>
+                        <label class="form-check-label small fw-bold" for="perm_caja_movimientos">Registrar Movimientos de Efectivo y Vales de Caja</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_caja_cierre" data-modulo="caja" data-permiso="cierre" checked>
+                        <label class="form-check-label small fw-bold" for="perm_caja_cierre">Realizar Cierre de Turno al finalizar jornada</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_caja_ver_todo" data-modulo="caja" data-permiso="ver_todo">
+                        <label class="form-check-label small fw-bold text-primary" for="perm_caja_ver_todo">Modo Supervisor: Ver ventas y cierres de otros cajeros</label>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div class="card mb-2 shadow-sm border-0">
-                <div class="card-header bg-success text-white fw-bold small py-2">
-                  ⚙️ Administración y Clientes
+              <!-- MÓDULO 2: IMPRESORAS FISCALES SENIAT -->
+              <div class="card mb-3 shadow-sm border-0 rounded-3">
+                <div class="card-header bg-dark text-white fw-bold small py-2 d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;">
+                  <span>🖨️ 2. Impresoras Fiscales SENIAT (Aclas PP9 / HKA80)</span>
+                  <a href="javascript:void(0);" class="text-white text-decoration-none small fw-bold" onclick="alternarGrupoPermisosModulo('fiscal', true)">✓ Todo</a>
                 </div>
-                <div class="card-body p-2">
-                  <div class="form-check">
-                    <input class="form-check-input check-permiso" type="checkbox" id="perm_admin_clientes" data-modulo="admin" data-permiso="clientes" checked>
-                    <label class="form-check-label small fw-bold" for="perm_admin_clientes">Gestión del Directorio de Clientes</label>
+                <div class="card-body p-3 bg-white">
+                  <div class="row g-2">
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_fiscal_alternar" data-modulo="fiscal" data-permiso="alternar" checked>
+                        <label class="form-check-label small fw-bold" for="perm_fiscal_alternar">Alternar interruptor Fiscal / No Fiscal</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_fiscal_nc" data-modulo="fiscal" data-permiso="nc">
+                        <label class="form-check-label small fw-bold text-danger" for="perm_fiscal_nc">Emitir Notas de Crédito Fiscales (02-NC)</label>
+                        <span class="badge bg-danger text-white badge-riesgo-permiso">⚠️ Crítico</span>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_fiscal_nd" data-modulo="fiscal" data-permiso="nd">
+                        <label class="form-check-label small fw-bold text-primary" for="perm_fiscal_nd">Emitir Notas de Débito Fiscales (03-ND)</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_fiscal_reporte_x" data-modulo="fiscal" data-permiso="reporte_x">
+                        <label class="form-check-label small fw-bold" for="perm_fiscal_reporte_x">Emitir Reporte X Fiscal (Corte Parcial)</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_fiscal_config_disp" data-modulo="fiscal" data-permiso="config_disp">
+                        <label class="form-check-label small fw-bold text-danger" for="perm_fiscal_config_disp">Configurar Dispositivo Fiscal y Serial MH</label>
+                        <span class="badge bg-danger text-white badge-riesgo-permiso">⚠️ Crítico</span>
+                      </div>
+                    </div>
                   </div>
-                  <div class="form-check">
-                    <input class="form-check-input check-permiso" type="checkbox" id="perm_admin_empresa" data-modulo="admin" data-permiso="empresa" checked>
-                    <label class="form-check-label small fw-bold" for="perm_admin_empresa">Configuración de datos de la empresa y logotipos</label>
+                </div>
+              </div>
+
+              <!-- MÓDULO 3: HISTORIAL, REIMPRESIONES Y ANULACIONES -->
+              <div class="card mb-3 shadow-sm border-0 rounded-3">
+                <div class="card-header bg-dark text-white fw-bold small py-2 d-flex justify-content-between align-items-center">
+                  <span>📜 3. Historial, Reimpresiones y Auditoría</span>
+                  <a href="javascript:void(0);" class="text-white text-decoration-none small fw-bold" onclick="alternarGrupoPermisosModulo('historial', true)">✓ Todo</a>
+                </div>
+                <div class="card-body p-3 bg-white">
+                  <div class="row g-2">
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_historial_consultar_facturas" data-modulo="historial" data-permiso="consultar_facturas" checked>
+                        <label class="form-check-label small fw-bold" for="perm_historial_consultar_facturas">Consultar y reimprimir Facturas emitidas</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_historial_anular_facturas" data-modulo="historial" data-permiso="anular_facturas">
+                        <label class="form-check-label small fw-bold text-danger" for="perm_historial_anular_facturas">Eliminar Facturas del Historial (🗑️ y reponer stock)</label>
+                        <span class="badge bg-danger text-white badge-riesgo-permiso">⚠️ Crítico</span>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_historial_consultar_cierres" data-modulo="historial" data-permiso="consultar_cierres" checked>
+                        <label class="form-check-label small fw-bold" for="perm_historial_consultar_cierres">Consultar y reimprimir Cierres (Reportes Z)</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_historial_anular_cierres" data-modulo="historial" data-permiso="anular_cierres">
+                        <label class="form-check-label small fw-bold text-danger" for="perm_historial_anular_cierres">Eliminar Cierres de Caja del Historial (🗑️)</label>
+                        <span class="badge bg-danger text-white badge-riesgo-permiso">⚠️ Crítico</span>
+                      </div>
+                    </div>
                   </div>
-                  <div class="form-check">
-                    <input class="form-check-input check-permiso" type="checkbox" id="perm_admin_descargas" data-modulo="admin" data-permiso="descargas" checked>
-                    <label class="form-check-label small fw-bold" for="perm_admin_descargas">Acceso al Centro de Descargas y Reportes</label>
+                </div>
+              </div>
+
+              <!-- MÓDULO 4: FINANZAS (CUENTAS POR COBRAR Y POR PAGAR) -->
+              <div class="card mb-3 shadow-sm border-0 rounded-3">
+                <div class="card-header bg-primary text-white fw-bold small py-2 d-flex justify-content-between align-items-center">
+                  <span>📊 4. Finanzas: Cuentas por Cobrar y por Pagar</span>
+                  <a href="javascript:void(0);" class="text-white text-decoration-none small fw-bold" onclick="alternarGrupoPermisosModulo('finanzas', true)">✓ Todo</a>
+                </div>
+                <div class="card-body p-3 bg-white">
+                  <div class="row g-2">
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_finanzas_cobrar_creditos" data-modulo="finanzas" data-permiso="cobrar_creditos" checked>
+                        <label class="form-check-label small fw-bold" for="perm_finanzas_cobrar_creditos">Ver y Cobrar Ventas a Crédito (CXC)</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_finanzas_descontar_vales" data-modulo="finanzas" data-permiso="descontar_vales" checked>
+                        <label class="form-check-label small fw-bold" for="perm_finanzas_descontar_vales">Ver y Descontar Vales de Caja de empleados</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_finanzas_anular_cxc" data-modulo="finanzas" data-permiso="anular_cxc">
+                        <label class="form-check-label small fw-bold text-danger" for="perm_finanzas_anular_cxc">Eliminar registros de Créditos y Vales (🗑️)</label>
+                        <span class="badge bg-danger text-white badge-riesgo-permiso">⚠️ Crítico</span>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_finanzas_pagar_cxp" data-modulo="finanzas" data-permiso="pagar_cxp" checked>
+                        <label class="form-check-label small fw-bold" for="perm_finanzas_pagar_cxp">Ver y Pagar Facturas a Proveedores (CXP)</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_finanzas_anular_cxp" data-modulo="finanzas" data-permiso="anular_cxp">
+                        <label class="form-check-label small fw-bold text-danger" for="perm_finanzas_anular_cxp">Eliminar y Reversar Compras a Proveedores (🗑️)</label>
+                        <span class="badge bg-danger text-white badge-riesgo-permiso">⚠️ Crítico</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- MÓDULO 5: INVENTARIO, DESPOSTE Y ADMINISTRACIÓN -->
+              <div class="card mb-3 shadow-sm border-0 rounded-3">
+                <div class="card-header bg-success text-white fw-bold small py-2 d-flex justify-content-between align-items-center">
+                  <span>📦 5. Inventario, Desposte, Precios y Administración</span>
+                  <a href="javascript:void(0);" class="text-white text-decoration-none small fw-bold" onclick="alternarGrupoPermisosModulo('inventario', true)">✓ Todo</a>
+                </div>
+                <div class="card-body p-3 bg-white">
+                  <div class="row g-2">
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_inventario_catalogo_editar" data-modulo="inventario" data-permiso="catalogo_editar">
+                        <label class="form-check-label small fw-bold" for="perm_inventario_catalogo_editar">Catálogo Maestro: Desbloquear y editar productos/stock</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_inventario_catalogo_crear_borrar" data-modulo="inventario" data-permiso="catalogo_crear_borrar">
+                        <label class="form-check-label small fw-bold text-danger" for="perm_inventario_catalogo_crear_borrar">Crear / Borrar Productos y Editar Recetas Combos</label>
+                        <span class="badge bg-danger text-white badge-riesgo-permiso">⚠️ Crítico</span>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_inventario_venta_negativa" data-modulo="inventario" data-permiso="venta_negativa">
+                        <label class="form-check-label small fw-bold text-danger" for="perm_inventario_venta_negativa">Interruptor "Venta en Negativo" (Activar / Bloquear)</label>
+                        <span class="badge bg-danger text-white badge-riesgo-permiso">⚠️ Crítico</span>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_inventario_recepcion_desposte" data-modulo="inventario" data-permiso="recepcion_desposte">
+                        <label class="form-check-label small fw-bold" for="perm_inventario_recepcion_desposte">Recepción de Mercancía, Pesaje Gancho y Desposte</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_inventario_precios_dinamicos" data-modulo="inventario" data-permiso="precios_dinamicos">
+                        <label class="form-check-label small fw-bold text-danger" for="perm_inventario_precios_dinamicos">Estructura y Márgenes de Precios Dinámicos</label>
+                        <span class="badge bg-danger text-white badge-riesgo-permiso">⚠️ Crítico</span>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_admin_clientes" data-modulo="admin" data-permiso="clientes">
+                        <label class="form-check-label small fw-bold" for="perm_admin_clientes">Directorio de Clientes (Crear, Editar y Eliminar)</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_admin_empresa" data-modulo="admin" data-permiso="empresa">
+                        <label class="form-check-label small fw-bold" for="perm_admin_empresa">Datos de Empresa, Membrete Fiscal y Logos GitHub</label>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check">
+                        <input class="form-check-input check-permiso" type="checkbox" id="perm_admin_descargas" data-modulo="admin" data-permiso="descargas">
+                        <label class="form-check-label small fw-bold" for="perm_admin_descargas">Centro de Descargas (Excel, Libro SENIAT y Art. 177)</label>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
             </div>
 
-            <div id="errorModalEditarUsuario" class="text-danger small fw-bold mt-3 hidden"></div>
+            <div id="errorModalEditarUsuario" class="text-danger small fw-bold mt-2 hidden"></div>
           </div>
           <div class="modal-footer bg-white justify-content-between p-3 border-top">
             <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cancelar</button>
             <button type="button" id="btnGuardarUsuario" class="btn btn-success fw-bold px-4 rounded-pill shadow" onclick="guardarUsuarioFactur()">
-              💾 Guardar Usuario
+              💾 Guardar Usuario y Permisos
             </button>
           </div>
         </div>
