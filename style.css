@@ -195,13 +195,14 @@ body {
 }
 
 .card-img-top {
-  height: 145px;
-  border-radius: var(--mc-radius-sm);
-  object-fit: cover;
-  cursor: pointer;
-  background-color: #f8fafc;
-  transition: transform 0.25s ease;
   width: 100%;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  border-radius: var(--mc-radius-sm);
+  object-fit: contain;
+  cursor: pointer;
+  background-color: #ffffff;
+  transition: transform 0.25s ease;
 }
 
 .card:hover .card-img-top {
@@ -462,7 +463,9 @@ body {
   }
 
   .card-img-top {
-    height: 88px;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    height: auto;
   }
 
   .card h6 {
@@ -493,6 +496,8 @@ body {
 
 @media (min-width: 1200px) {
   .card-img-top {
-    height: 155px;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    height: auto;
   }
 }
