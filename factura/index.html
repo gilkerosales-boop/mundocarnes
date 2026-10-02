@@ -2638,15 +2638,21 @@
       </div>
     </div>
     
-    <!-- MODAL UNIFICADO: HISTORIALES -->
-    <div class="modal fade" id="modalBuscarFacturas" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title fw-bold">🔍 Historiales</h5>
+    <!-- MODAL INDEPENDIENTE A PANTALLA COMPLETA: HISTORIALES -->
+    <div class="modal fade" id="modalBuscarFacturas" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content border-0">
+          <div class="modal-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
+            <div class="d-flex align-items-center gap-2">
+              <span class="fs-4">🔍</span>
+              <div>
+                <h5 class="modal-title fw-bold mb-0">Historiales</h5>
+                <small class="text-white-50" style="font-size: 0.76rem;">Auditoría integral de Facturas Emitidas, Reportes Z, Cuentas por Cobrar y Cuentas por Pagar</small>
+              </div>
+            </div>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-body p-4">
+          <div class="modal-body p-3 p-md-4 bg-light">
             
             <!-- Píldoras de Navegación Principal -->
             <div class="d-flex justify-content-center mb-3">
@@ -2721,7 +2727,7 @@
 
               <!-- PESTAÑA 2: Cierres de Caja (Reportes Z) -->
               <div class="tab-pane fade" id="pills-cierres" role="tabpanel">
-                <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 420px; overflow-y: auto;">
+                <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: calc(100vh - 230px); overflow-y: auto;">
                   <table class="table table-hover align-middle mb-0">
                     <thead class="table-dark small text-center">
                       <tr>
@@ -2778,7 +2784,7 @@
                     </div>
                   </div>
 
-                  <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
+                  <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: calc(100vh - 290px); overflow-y: auto;">
                     <table class="table table-hover align-middle mb-0">
                       <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
                         <tr>
@@ -2821,7 +2827,7 @@
                     </div>
                   </div>
 
-                  <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
+                  <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: calc(100vh - 290px); overflow-y: auto;">
                     <table class="table table-hover align-middle mb-0">
                       <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
                         <tr>
@@ -2867,7 +2873,7 @@
                   </div>
                 </div>
 
-                <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: 380px; overflow-y: auto;">
+                <div class="table-responsive bg-white rounded-3 border mb-2 shadow-sm" style="max-height: calc(100vh - 290px); overflow-y: auto;">
                   <table class="table table-hover align-middle mb-0">
                     <thead class="table-dark small text-center position-sticky top-0" style="z-index: 5;">
                       <tr>
@@ -2914,8 +2920,8 @@
             </div>
 
           </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary fw-bold rounded-pill" data-bs-dismiss="modal">Cerrar</button>
+          <div class="modal-footer bg-white justify-content-between p-3 border-top">
+            <button type="button" class="btn btn-secondary fw-bold rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
           </div>
         </div>
       </div>
