@@ -557,10 +557,12 @@ body {
 }
 
 .card-producto img {
-  height: 130px;
-  object-fit: cover;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  object-fit: contain;
   border-radius: var(--pos-radius-sm);
-  background-color: #e2e8f0;
+  background-color: #ffffff;
   transition: transform 0.2s ease;
 }
 
