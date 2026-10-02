@@ -75,14 +75,22 @@ function tienePermiso(modulo, permiso) {
     }
   }
 
-  // 5. Mapeo inteligente de retrocompatibilidad con esquemas anteriores
+  // 5. Mapeo inteligente de compatibilidad bidireccional
+  if (modulo === "ventas") {
+    if (permiso === "anular_facturas") return permisos.historial?.includes("anular_facturas") || false;
+    if (permiso === "anular_cierres") return permisos.historial?.includes("anular_cierres") || false;
+    if (permiso === "consultar_historial") return permisos.historial?.includes("consultar_facturas") || false;
+    if (permiso === "facturar") return permisos.caja?.includes("facturar") || false;
+    if (permiso === "cierres") return permisos.caja?.includes("cierre") || false;
+  }
+
   if (modulo === "caja") {
     if (permiso === "facturar" || permiso === "codigos" || permiso === "standby" || permiso === "manual") {
       return permisos.ventas?.includes("facturar") || false;
     }
     if (permiso === "cierre") return permisos.ventas?.includes("cierres") || false;
     if (permiso === "movimientos") return permisos.ventas?.includes("cierres") || false;
-    if (permiso === "tasa_bcv") return false; // Por defecto protegido
+    if (permiso === "tasa_bcv") return false;
     if (permiso === "ver_todo") return false;
   }
 
@@ -8526,7 +8534,7 @@ window.conmutarEstatusPagoCompra = conmutarEstatusPagoCompra;
 
 // ELIMINAR COMPRA Y REVERSAR TOTALMENTE EL STOCK ASOCIADO
 async function eliminarYReversarCompraProveedor(idCompra) {
-  if (!tienePermiso("finanzas", "cxp")) {
+  if (!esAdmin() && !tienePermiso("finanzas", "anular_cxp")) {
     return mostrarAvisoFactura("Acción denegada. No tiene permiso para eliminar y reversar compras.");
   }
 
@@ -9701,7 +9709,11 @@ function renderizarTablaHistorialFacturas() {
   }
 
       let html = "";
-  const puedeEliminarFac = tienePermiso("ventas", "anular_facturas");
+  const esAdminUser = esAdmin();
+  // Validación estricta con el módulo granular 'historial'
+  const puedeEliminarFac = esAdminUser || tienePermiso("historial", "anular_facturas");
+  const puedeEmitirNC = esAdminUser || tienePermiso("fiscal", "nc");
+  const puedeEmitirND = esAdminUser || tienePermiso("fiscal", "nd");
 
   cacheHistorialFacturas.forEach(f => {
     const numFacStr = String(f.numFactura || "");
@@ -9718,16 +9730,16 @@ function renderizarTablaHistorialFacturas() {
       ? `<span class="badge bg-primary fw-bold px-2 py-1">🏷️ Fiscal</span>` 
       : `<span class="badge bg-secondary px-2 py-1">📄 No Fiscal</span>`;
 
-    // Botones de Nota de Crédito y Nota de Débito: EXCLUSIVOS PARA DOCUMENTOS FISCALES
-    let botonNotaCredito = esRealmenteFiscal
+    // Botones de Nota de Crédito y Nota de Débito según permisos fiscales
+    let botonNotaCredito = (esRealmenteFiscal && puedeEmitirNC)
       ? `<button type="button" class="btn btn-sm btn-warning text-dark py-0 px-2 fw-bold rounded-pill shadow-sm" onclick="abrirModalNotaCreditoFiscal('${f.numFactura}')" title="Emitir Nota de Crédito Fiscal">↩️ NC</button>`
       : "";
 
-    let botonNotaDebito = esRealmenteFiscal
+    let botonNotaDebito = (esRealmenteFiscal && puedeEmitirND)
       ? `<button type="button" class="btn btn-sm btn-info text-dark py-0 px-2 fw-bold rounded-pill shadow-sm" onclick="abrirModalNotaDebitoFiscal('${f.numFactura}')" title="Emitir Nota de Débito Fiscal">➕ ND</button>`
       : "";
 
-        // Botón de eliminación: según permisos
+    // Botón de eliminación: activo si tiene permiso granular anular_facturas
     let botonEliminar = puedeEliminarFac
       ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 fw-bold rounded-pill" onclick="eliminarFacturaHistorial('${f.numFactura}')" title="Eliminar Registro">
               🗑️
@@ -10332,7 +10344,7 @@ async function restaurarStockDeItems(itemsMap, multiplicarSigno = 1) {
 }
 
 async function eliminarFacturaHistorial(numFactura) {
-  if (!tienePermiso("ventas", "anular_facturas")) {
+  if (!esAdmin() && !tienePermiso("historial", "anular_facturas")) {
     return mostrarAvisoFactura("Acción denegada. No tiene permiso para eliminar facturas.");
   }
 
@@ -12638,7 +12650,8 @@ function renderizarTablaHistorialCierres() {
   }
 
       let html = "";
-  const puedeEliminarCierre = tienePermiso("ventas", "anular_cierres");
+  // Validación estricta con el módulo granular 'historial'
+  const puedeEliminarCierre = esAdmin() || tienePermiso("historial", "anular_cierres");
 
   cacheHistorialCierres.forEach((c, idx) => {
     let fStr = c.fechaStr || 'N/D';
@@ -12738,7 +12751,7 @@ function reimprimirCierreCajaHistorial(idx) {
 }
 
 async function eliminarCierreCajaHistorial(idx) {
-  if (!tienePermiso("ventas", "anular_cierres")) {
+  if (!esAdmin() && !tienePermiso("historial", "anular_cierres")) {
     return mostrarAvisoFactura("Acción denegada. No tiene permiso para eliminar cierres de caja.");
   }
 
@@ -13954,8 +13967,9 @@ function renderizarTablaHistorialCreditos(lista) {
       ? `<button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Factura Pagada">✔ Pagado</button>`
       : `<button type="button" class="btn btn-sm btn-success" onclick="marcarCreditoComoPagado('${fac}')" title="Registrar Cobro">💵 Cobrar</button>`;
 
-        // Botón de eliminación: según permisos
-    let botonEliminar = puedeEliminarCred
+        // Botón de eliminación según permiso granular anular_cxc
+    const puedeAnularCXC = esAdmin() || tienePermiso("finanzas", "anular_cxc");
+    let botonEliminar = puedeAnularCXC
       ? `<button type="button" class="btn btn-sm btn-outline-danger btn-icon-only" onclick="eliminarCreditoHistorial('${fac}')" title="Eliminar Registro">🗑️</button>`
       : "";
 
@@ -14066,7 +14080,7 @@ function reimprimirCreditoHistorial(numFactura) {
 }
 
 async function eliminarCreditoHistorial(numFactura) {
-  if (!tienePermiso("finanzas", "cxc")) {
+  if (!esAdmin() && !tienePermiso("finanzas", "anular_cxc")) {
     return mostrarAvisoFactura("Acción denegada. No tiene permiso para eliminar créditos.");
   }
 
@@ -14221,8 +14235,9 @@ function renderizarTablaHistorialVales(lista) {
       ? `<button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Vale Descontado">✔ Descontado</button>`
       : `<button type="button" class="btn btn-sm btn-success" onclick="marcarValeComoDescontado(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Marcar como Descontado">💵 Descontar</button>`;
 
-        // Botón de eliminación: según permisos
-    let botonEliminar = puedeEliminarVale
+        // Botón de eliminación según permiso granular anular_cxc
+    const puedeAnularVales = esAdmin() || tienePermiso("finanzas", "anular_cxc");
+    let botonEliminar = puedeAnularVales
       ? `<button type="button" class="btn btn-sm btn-outline-danger btn-icon-only" onclick="eliminarValeHistorial(${v.id}, '${v.FECHA}', '${v.CEDULA}')" title="Eliminar Registro">🗑️</button>`
       : "";
 
@@ -14290,7 +14305,7 @@ function reimprimirValeHistorial(id, fechaHora, cedula) {
 }
 
 async function eliminarValeHistorial(id, fechaHora, cedula) {
-  if (!tienePermiso("finanzas", "cxc")) {
+  if (!esAdmin() && !tienePermiso("finanzas", "anular_cxc")) {
     return mostrarAvisoFactura("Acción denegada. No tiene permiso para eliminar vales de caja.");
   }
 
