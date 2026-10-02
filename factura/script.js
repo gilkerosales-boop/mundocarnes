@@ -84,6 +84,11 @@ function tienePermiso(modulo, permiso) {
     if (permiso === "cierres") return permisos.caja?.includes("cierre") || false;
   }
 
+  if (modulo === "finanzas") {
+    if (permiso === "cxc") return permisos.finanzas?.includes("anular_cxc") || permisos.finanzas?.includes("cobrar_creditos") || false;
+    if (permiso === "cxp") return permisos.finanzas?.includes("anular_cxp") || permisos.finanzas?.includes("pagar_cxp") || false;
+  }
+
   if (modulo === "caja") {
     if (permiso === "facturar" || permiso === "codigos" || permiso === "standby" || permiso === "manual") {
       return permisos.ventas?.includes("facturar") || false;
@@ -8395,8 +8400,8 @@ function renderizarTablaHistorialCompras(lista) {
     return;
   }
 
-      let html = "";
-  const puedeEliminarComp = tienePermiso("finanzas", "cxp");
+  let html = "";
+  const puedeEliminarComp = esAdmin() || tienePermiso("finanzas", "anular_cxp");
 
   lista.forEach(c => {
     const esDesposte = (c.tipoRecepcion === "DESPOSTE_CANAL");
@@ -8725,8 +8730,8 @@ function renderizarTablaCuentasPorPagar(lista) {
     return;
   }
 
-      let html = "";
-  const puedeEliminarCXP = tienePermiso("finanzas", "cxp");
+  let html = "";
+  const puedeEliminarCXP = esAdmin() || tienePermiso("finanzas", "anular_cxp");
 
   lista.forEach(c => {
     const esDesposte = (c.tipoRecepcion === "DESPOSTE_CANAL");
@@ -13946,8 +13951,8 @@ function renderizarTablaHistorialCreditos(lista) {
     return;
   }
 
-      let html = "";
-  const puedeEliminarCred = tienePermiso("finanzas", "cxc");
+  let html = "";
+  const puedeEliminarCred = esAdmin() || tienePermiso("finanzas", "anular_cxc");
 
   lista.forEach(cr => {
     let fac = cr.FACTURA || cr.numFactura;
@@ -14216,8 +14221,8 @@ function renderizarTablaHistorialVales(lista) {
     return;
   }
 
-     let html = "";
-  const puedeEliminarVale = tienePermiso("finanzas", "cxc");
+  let html = "";
+  const puedeEliminarVale = esAdmin() || tienePermiso("finanzas", "anular_cxc");
 
   lista.forEach(v => {
     let montoTxt = (v.MONEDA === "BS") 
