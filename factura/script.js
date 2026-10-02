@@ -2123,7 +2123,8 @@ function aplicarRestriccionesUI(rol) {
       || tienePermiso("inventario", "recepcion_desposte")
       || tienePermiso("inventario", "catalogo_editar")
       || tienePermiso("inventario", "catalogo_crear_borrar")
-      || tienePermiso("admin", "clientes");
+      || tienePermiso("admin", "clientes")
+      || tienePermiso("admin", "descargas");
 
     if (puedeVerConfig) contMenuConfig.classList.remove('hidden');
     else contMenuConfig.classList.add('hidden');
@@ -2136,6 +2137,7 @@ function aplicarRestriccionesUI(rol) {
     "btn-menu-recepcion": esAdminUser || tienePermiso("inventario", "recepcion_desposte"),
     "btn-menu-catalogo": esAdminUser || tienePermiso("inventario", "catalogo_editar") || tienePermiso("inventario", "catalogo_crear_borrar"),
     "btn-menu-clientes": esAdminUser || tienePermiso("admin", "clientes"),
+    "btn-menu-descargas": esAdminUser || tienePermiso("admin", "descargas"),
     "btn-menu-usuarios": esAdminUser
   };
 
@@ -2147,7 +2149,7 @@ function aplicarRestriccionesUI(rol) {
     }
   }
 
-  // 3. PESTAÑAS DEL HISTORIAL GENERAL
+  // 3. PESTAÑAS DEL HISTORIAL GENERAL ("HISTORIALES")
   const tabFacturas = document.getElementById('pills-facturas-tab');
   if (tabFacturas) {
     const puedeFacturas = esAdminUser || tienePermiso("historial", "consultar_facturas");
@@ -2174,13 +2176,6 @@ function aplicarRestriccionesUI(rol) {
     const puedeCXP = esAdminUser || tienePermiso("finanzas", "pagar_cxp");
     if (puedeCXP) tabCXP.classList.remove('hidden');
     else tabCXP.classList.add('hidden');
-  }
-
-  const btnDescargas = document.querySelector('button[onclick*="abrirModalSeleccionDescargas"]');
-  if (btnDescargas) {
-    const puedeDescargas = esAdminUser || tienePermiso("admin", "descargas");
-    if (puedeDescargas) btnDescargas.classList.remove('hidden');
-    else btnDescargas.classList.add('hidden');
   }
 }
 // Reconstructor de estructura para compatibilidad total del catálogo POS con orden estricto
