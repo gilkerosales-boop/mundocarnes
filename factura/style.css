@@ -109,27 +109,24 @@ body {
   filter: drop-shadow(0 6px 16px rgba(220, 53, 69, 0.3));
 }
 
-.login-feature-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--pos-radius-sm);
-  backdrop-filter: blur(6px);
-  transition: background 0.2s ease;
+/* Widget Reloj Digital Luminoso en Vivo */
+.login-clock-widget {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--pos-radius-md);
+  padding: 14px 12px;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(8px);
 }
 
-.login-feature-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.login-feature-icon {
-  font-size: 1.15rem;
-}
-
-/* Panel Derecho: Formulario de Acceso */
+.login-clock-time {
+  font-size: 1.95rem;
+  font-weight: 800;
+  color: #38bdf8;
+  line-height: 1;
+  letter-spacing: 1px;
+  text-shadow: 0 0 1
 .login-form-panel {
   flex: 1 1 52%;
   background-color: #ffffff;
