@@ -52,29 +52,134 @@ body {
 }
 
 /* ==========================================================================
-   PANEL DE ACCESO / LOGIN
+   PANEL DE ACCESO / LOGIN CORPORATIVO (SPLIT-SCREEN MODERNO)
    ========================================================================== */
-.login-panel {
-  max-width: 440px;
-  margin: 70px auto;
-  padding: 36px 30px;
-  border: 1px solid var(--pos-card-border);
-  border-radius: var(--pos-radius-lg);
-  box-shadow: var(--pos-shadow-float);
-  background-color: #ffffff;
-  animation: posFadeIn 0.3s ease-out;
+.login-fullscreen-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: radial-gradient(circle at 50% 25%, #1e293b 0%, #0a0f1d 100%);
+  animation: posFadeIn 0.35s ease-out;
 }
 
 @keyframes posFadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(10px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-.logo-admin {
-  max-width: 190px;
-  display: block;
-  margin: 0 auto 16px auto;
+.login-split-card {
+  width: 100%;
+  max-width: 920px;
+  display: flex;
+  border-radius: var(--pos-radius-lg);
+  overflow: hidden;
+  background-color: #ffffff;
+  box-shadow: 0 25px 65px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Panel Izquierdo: Identidad de Marca y Hardware */
+.login-hero-panel {
+  flex: 1 1 48%;
+  background: linear-gradient(150deg, #070b14 0%, #151d2f 100%);
+  padding: 48px 36px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset -10px 0 30px rgba(0, 0, 0, 0.35);
+}
+
+.login-hero-content {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.login-brand-logo {
+  max-width: 175px;
+  height: auto;
   object-fit: contain;
+  filter: drop-shadow(0 6px 16px rgba(220, 53, 69, 0.3));
+}
+
+.login-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--pos-radius-sm);
+  backdrop-filter: blur(6px);
+  transition: background 0.2s ease;
+}
+
+.login-feature-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.login-feature-icon {
+  font-size: 1.15rem;
+}
+
+/* Panel Derecho: Formulario de Acceso */
+.login-form-panel {
+  flex: 1 1 52%;
+  background-color: #ffffff;
+  padding: 48px 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.login-form-content {
+  width: 100%;
+  max-width: 330px;
+  text-align: center;
+}
+
+.btn-login-submit {
+  background: linear-gradient(135deg, var(--pos-red) 0%, var(--pos-red-dark) 100%) !important;
+  border: none !important;
+  font-size: 0.98rem;
+  border-radius: var(--pos-radius-sm);
+  padding: 10px;
+  transition: all 0.2s ease;
+}
+
+.btn-login-submit:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+}
+
+/* Adaptación Responsive para Móviles y Pantallas Pequeñas */
+@media (max-width: 767px) {
+  .login-split-card {
+    flex-direction: column;
+    max-width: 420px;
+  }
+
+  .login-hero-panel {
+    padding: 30px 20px 24px 20px;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .login-brand-logo {
+    max-width: 140px;
+  }
+
+  .login-form-panel {
+    padding: 32px 24px;
+  }
 }
 
 /* ==========================================================================
