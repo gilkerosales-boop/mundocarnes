@@ -2042,6 +2042,21 @@ function guardarAperturaCajaInicial() {
   mostrarAvisoFactura(`🚀 ¡Apertura de caja registrada! Saldo inicial: $${usd.toFixed(2)} / Bs.${bs.toFixed(2)}`, true, 6000);
 }
 
+function alternarVisibilidadClaveLogin() {
+  const input = document.getElementById('facPassword');
+  const icono = document.getElementById('iconoOjoLogin');
+  if (!input) return;
+
+  if (input.type === "password") {
+    input.type = "text";
+    if (icono) icono.textContent = "🙈";
+  } else {
+    input.type = "password";
+    if (icono) icono.textContent = "👁️";
+  }
+}
+window.alternarVisibilidadClaveLogin = alternarVisibilidadClaveLogin;
+
 function cerrarSesionFacturacion() {
   sessionStorage.removeItem("factura_token");
   sessionStorage.removeItem("factura_usuario");
@@ -2052,8 +2067,21 @@ function cerrarSesionFacturacion() {
   actualizarContadorStandby();
   document.getElementById('vistaFacturacion').classList.add('hidden');
   document.getElementById('vistaLogin').classList.remove('hidden');
-  document.getElementById('facUsuario').value = "";
-  document.getElementById('facPassword').value = "";
+  
+  const inputUser = document.getElementById('facUsuario');
+  if (inputUser) {
+    inputUser.value = "";
+    setTimeout(() => inputUser.focus(), 150);
+  }
+  
+  const inputPass = document.getElementById('facPassword');
+  if (inputPass) {
+    inputPass.value = "";
+    inputPass.type = "password";
+  }
+  
+  const iconoOjo = document.getElementById('iconoOjoLogin');
+  if (iconoOjo) iconoOjo.textContent = "👁️";
 }
 
 // =============================================
