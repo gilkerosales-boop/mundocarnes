@@ -32,31 +32,37 @@
     <div id="vistaLogin" class="login-fullscreen-wrapper">
       <div class="login-split-card shadow-lg">
         
-        <!-- Panel Izquierdo: Identidad de Marca y Status del Sistema -->
+        <!-- Panel Izquierdo: Terminal Operativa & Reloj en Vivo (Webi Pos) -->
         <div class="login-hero-panel">
           <div class="login-hero-content">
-            <img src="../img/LOGO-MUNDO123.webp" alt="Mundocarnes" class="login-brand-logo mb-3">
-            <h4 class="fw-bold text-white mb-1">FRIGORÍFICO MUNDOCARNES</h4>
-            <p class="text-white-50 small mb-4">Sistema de Facturación, Inventario y Control Operativo</p>
-            
-            <div class="login-features-list d-none d-md-flex flex-column gap-2 mb-4 text-start">
-              <div class="login-feature-item">
-                <span class="login-feature-icon">🥩</span>
-                <span class="small text-light">Gestión Cárnica, Desposte y Balanzas</span>
+            <img src="../img/LOGO-MUNDO123.webp" alt="Mundocarnes" class="login-brand-logo mb-2">
+            <h5 class="fw-bold text-white mb-1">FRIGORÍFICO MUNDOCARNES</h5>
+            <p class="text-white-50 small mb-3">Punto de Venta & Facturación</p>
+
+            <!-- Widget Reloj Digital en Vivo -->
+            <div class="login-clock-widget mb-3">
+              <div id="loginRelojHora" class="login-clock-time num-legible">--:--:--</div>
+              <div id="loginRelojFecha" class="login-clock-date">Cargando fecha...</div>
+            </div>
+
+            <!-- Ficha de Estado de la Estación de Trabajo -->
+            <div class="login-terminal-card mb-4 text-start w-100">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-white-50 small">🖥️ Terminal:</span>
+                <span class="badge bg-secondary bg-opacity-50 text-light border border-secondary border-opacity-25 small font-monospace">Caja Principal #01</span>
               </div>
-              <div class="login-feature-item">
-                <span class="login-feature-icon">🧾</span>
-                <span class="small text-light">Emisión Fiscal SENIAT y Control Interno</span>
-              </div>
-              <div class="login-feature-item">
-                <span class="login-feature-icon">⚡</span>
-                <span class="small text-light">Arquitectura PWA Offline-First a 0 ms</span>
+              <div class="d-flex align-items-center justify-content-between">
+                <span class="text-white-50 small">🌐 Enlace:</span>
+                <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 small">
+                  🟢 Nube & Local Sync
+                </span>
               </div>
             </div>
-            
-            <div class="login-system-badge mt-auto">
-              <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-3 py-1 rounded-pill small">
-                🟢 Terminal Activa • v8.5
+
+            <!-- Pie de Marca Webi Pos (Web Inteligente) -->
+            <div class="login-webipos-footer mt-auto">
+              <span class="webipos-badge-pill">
+                Powered by <strong>Webi Pos</strong> • Web Inteligente
               </span>
             </div>
           </div>
