@@ -1563,6 +1563,69 @@ function actualizarBadgeNavbarTasaBCV() {
 }
 window.actualizarBadgeNavbarTasaBCV = actualizarBadgeNavbarTasaBCV;
 
+// ==========================================================================
+// CONSULTA DE TASA OFICIAL BCV EN CASCADA (API Espejo → Proxy + Regex)
+// ==========================================================================
+async function consultarTasaBCVOficial() {
+  // Vía Primaria: API espejo (ve.dolarapi.com) - CORS abierto, JSON, <200ms
+  try {
+    const response = await fetch('https://ve.dolarapi.com/v1/dolares/oficial', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      timeout: 5000
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const tasa = parseFloat(data?.dolares?.oficial?.precio) || 0;
+      if (tasa > 0) {
+        tasaOficialBCV = tasa;
+        localStorage.setItem("tasa_bcv_oficial", tasa.toString());
+        actualizarBadgeNavbarTasaBCV();
+        return tasa;
+      }
+    }
+  } catch (e) {
+    console.warn("Vía primaria (dolarapi) falló:", e.message);
+  }
+
+  // Vía Secundaria: Proxy (allorigins.win) + Regex para extraer de bcv.org.ve
+  try {
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent('https://www.bcv.org.ve/')}`;
+    const response = await fetch(proxyUrl, { timeout: 8000 });
+    if (response.ok) {
+      const proxyData = await response.json();
+      const html = proxyData.contents;
+      const regex = /<div id="dolar">.*?<strong>([\d,.]+)<\/strong>/i;
+      const match = html.match(regex);
+      if (match && match[1]) {
+        const tasa = parseFloat(match[1].replace(',', '.')) || 0;
+        if (tasa > 0) {
+          tasaOficialBCV = tasa;
+          localStorage.setItem("tasa_bcv_oficial", tasa.toString());
+          actualizarBadgeNavbarTasaBCV();
+          return tasa;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Vía secundaria (proxy + regex) falló:", e.message);
+  }
+
+  // Fallback: Usar valor almacenado en localStorage
+  const tasaFallback = parseFloat(localStorage.getItem("tasa_bcv_oficial") || "0");
+  if (tasaFallback > 0) {
+    tasaOficialBCV = tasaFallback;
+    actualizarBadgeNavbarTasaBCV();
+    return tasaFallback;
+  }
+
+  // Último recurso: Valor por defecto (evitar NaN)
+  tasaOficialBCV = 0;
+  actualizarBadgeNavbarTasaBCV();
+  return 0;
+}
+window.consultarTasaBCVOficial = consultarTasaBCVOficial;
+
 // Consulta o ajuste rápido de Tasa BCV desde el Navbar
     async function abrirModalAjusteTasaBCV() {
       await consultarTasaBCVOficial();
