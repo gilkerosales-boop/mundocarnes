@@ -1531,9 +1531,10 @@ function obtenerTasaBCV() {
   const inputTasa = document.getElementById('facTasaBCV');
   if (inputTasa) {
     const txt = inputTasa.value.trim();
-    if (txt === "") return 0;
-    const num = parseFloat(txt);
-    return isNaN(num) || num < 0 ? 0 : num;
+    if (txt !== "") {
+      const num = parseFloat(txt);
+      if (!isNaN(num) && num >= 0) return num;
+    }
   }
   
   const usuario = sessionStorage.getItem("factura_usuario") || "global";
@@ -1541,6 +1542,51 @@ function obtenerTasaBCV() {
   const numGuardado = parseFloat(tasaGuardada);
   return isNaN(numGuardado) || numGuardado < 0 ? 0 : numGuardado;
 }
+
+// Sincronizador visual de la Tasa Oficial BCV en el Navbar
+function actualizarBadgeNavbarTasaBCV() {
+  const elem = document.getElementById('navbarTasaBCVValor');
+  if (!elem) return;
+  const tasa = obtenerTasaBCV();
+  if (tasa > 0) {
+    elem.textContent = `Bs. ${tasa.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  } else {
+    elem.textContent = "Bs. 0,00";
+  }
+}
+window.actualizarBadgeNavbarTasaBCV = actualizarBadgeNavbarTasaBCV;
+
+// Consulta o ajuste rápido de Tasa BCV desde el Navbar
+function abrirModalAjusteTasaBCV() {
+  const tasaActual = obtenerTasaBCV();
+  const esAdminUser = esAdmin();
+  const puedeModificar = esAdminUser || tienePermiso("caja", "tasa_bcv");
+
+  if (!puedeModificar) {
+    return mostrarAvisoFactura(`ℹ️ Tasa Oficial BCV activa: Bs. ${tasaActual.toLocaleString('es-VE', { minimumFractionDigits: 2 })} (Solo lectura)`);
+  }
+
+  const promptMsg = `💵 Tasa Oficial BCV del día: Bs. ${tasaActual > 0 ? tasaActual.toFixed(2) : '0.00'}\n\nIngrese la nueva tasa oficial BCV (Bs/$):`;
+  const valorIngresado = prompt(promptMsg, tasaActual > 0 ? tasaActual : "");
+
+  if (valorIngresado !== null) {
+    const num = parseFloat(valorIngresado.replace(',', '.'));
+    if (!isNaN(num) && num > 0) {
+      const usuario = sessionStorage.getItem("factura_usuario") || "global";
+      localStorage.setItem("tasa_bcv_user_" + usuario, num);
+      
+      const inputTasa = document.getElementById('facTasaBCV');
+      if (inputTasa) inputTasa.value = num;
+
+      actualizarBadgeNavbarTasaBCV();
+      actualizarCalculosBCV();
+      mostrarAvisoFactura(`💵 Tasa BCV actualizada a Bs. ${num.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`);
+    } else {
+      mostrarAvisoFactura("Por favor ingrese un monto numérico mayor a cero.");
+    }
+  }
+}
+window.abrirModalAjusteTasaBCV = abrirModalAjusteTasaBCV;
 
 function alternarMonedaTablaFactura() {
   monedaVistaModal = (monedaVistaModal === "USD") ? "BS" : "USD";
@@ -1707,6 +1753,9 @@ function actualizarCalculosBCV() {
   if (tasa > 0) {
     localStorage.setItem("tasa_bcv_user_" + usuario, tasa);
   }
+
+  // Refrescar píldora del Navbar en vivo
+  actualizarBadgeNavbarTasaBCV();
 
   let totalUSD = 0;
   let items = (transaccionActiva && transaccionActiva.items) ? transaccionActiva.items : itemsFactura;
@@ -1953,6 +2002,7 @@ function iniciarModuloFacturacion(usuario) {
   cargarCatalogoFacturacion();
   cargarMovimientosEfectivoPersistentes();
   inicializarModoFiscal();
+  actualizarBadgeNavbarTasaBCV();
   
   if (navigator.onLine) {
     sincronizarClientesDesdeServidor();
@@ -2172,20 +2222,28 @@ function aplicarRestriccionesUI(rol) {
     else btnStandby.classList.add('hidden');
   }
 
-  const btnCierreCaja = document.querySelector('button[onclick*="abrirModalCierreCaja"]');
-  if (btnCierreCaja) {
-    const puedeCierre = esAdminUser || tienePermiso("caja", "cierre");
-    if (puedeCierre) btnCierreCaja.classList.remove('hidden');
-    else btnCierreCaja.classList.add('hidden');
-  }
+  // Proteger botones de Cierre de Caja (tanto en el panel de ventas como en el menú)
+  const botonesCierre = document.querySelectorAll('button[onclick*="abrirModalCierreCaja"]');
+  const puedeCierre = esAdminUser || tienePermiso("caja", "cierre");
+  botonesCierre.forEach(btn => {
+    if (puedeCierre) btn.classList.remove('hidden');
+    else btn.classList.add('hidden');
+  });
 
+  const puedeModificarTasa = esAdminUser || tienePermiso("caja", "tasa_bcv");
   const inpTasa = document.getElementById('facTasaBCV');
   if (inpTasa) {
-    const puedeModificarTasa = esAdminUser || tienePermiso("caja", "tasa_bcv");
     inpTasa.readOnly = !puedeModificarTasa;
     inpTasa.title = puedeModificarTasa 
       ? "Haga clic para editar la tasa BCV" 
       : "🔒 Modificación de Tasa BCV restringida por políticas de seguridad";
+  }
+
+  const widgetTasaNavbar = document.getElementById('btnNavbarTasaBCV');
+  if (widgetTasaNavbar) {
+    widgetTasaNavbar.title = puedeModificarTasa
+      ? "💵 Tasa Oficial BCV del día (Haga clic para consultar o ajustar)"
+      : "💵 Tasa Oficial BCV del día (Solo lectura)";
   }
 
   const chkFiscal = document.getElementById('chkModoFiscal');
