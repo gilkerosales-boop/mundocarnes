@@ -508,9 +508,9 @@
                 </button>
 
                 <!-- Cuadro Tasa BCV y Total Bs Permanente -->
-                <div class="d-flex align-items-center bg-white p-1 px-3 rounded-pill border border-secondary shadow-sm">
+                <div class="d-flex align-items-center bg-white p-1 px-3 rounded-pill border border-secondary shadow-sm" title="Tasa operativa de venta (Validada contra el BCV oficial)">
                   <span class="fw-bold small me-2 text-danger">💵 Tasa BCV:</span>
-                  <input type="text" inputmode="decimal" id="facTasaBCV" class="form-control form-control-sm fw-bold text-center me-2 border-0 bg-light input-tasa-masked num-legible" style="width: 90px;" placeholder="0.00" autocomplete="off" oninput="actualizarCalculosBCV()" title="Haga clic para ver y editar la tasa">
+                  <input type="text" inputmode="decimal" id="facTasaBCV" class="form-control form-control-sm fw-bold text-center me-2 border-0 bg-light input-tasa-masked num-legible" style="width: 90px;" placeholder="0.00" autocomplete="off" oninput="actualizarCalculosBCV()" onchange="validarYAjustarTasaOperativaEnCobro(this)" onblur="validarYAjustarTasaOperativaEnCobro(this)" title="Haga clic para ver y editar la tasa operativa">
                   <span class="small fw-bold text-muted me-2">Bs/$</span>
                   <span class="small fw-bold text-dark me-1">Total Bs:</span>
                   <span id="montoModalTotalFacturaBs" class="fw-bold text-primary fs-6 num-legible">Bs. 0.00</span>
