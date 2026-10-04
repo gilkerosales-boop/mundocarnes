@@ -114,7 +114,7 @@
 
     <!-- VISTA 2: Módulo de Ventas Principal -->
     <div id="vistaFacturacion" class="hidden">
-      <!-- Navbar Superior POS con Selector Fiscal y Modelo de Hardware -->
+      <!-- Navbar Superior POS con Selector Fiscal, Tasa BCV y Menú Principal -->
       <nav class="admin-navbar d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div class="d-flex align-items-center">
           <img src="../img/LOGOTIPO MUNDOCARNES.jpg" alt="Logo Mundocarnes" class="logo-nav me-3">
@@ -122,6 +122,13 @@
         </div>
 
         <div class="d-flex align-items-center flex-wrap gap-2">
+          <!-- WIDGET DESTACADO: TASA OFICIAL BCV EN VIVO -->
+          <div class="widget-navbar-tasa-bcv d-flex align-items-center" id="btnNavbarTasaBCV" onclick="abrirModalAjusteTasaBCV()" title="Tasa Oficial BCV del día (Clic para consultar o actualizar)">
+            <span class="tasa-icono me-1">💵</span>
+            <span class="tasa-label me-1">BCV:</span>
+            <span id="navbarTasaBCVValor" class="tasa-valor num-legible">Bs. 0,00</span>
+          </div>
+
           <!-- SELECTOR DUAL DE MODO DE IMPRESIÓN (FISCAL / NO FISCAL) -->
           <div class="toggle-fiscal-wrapper" title="Alternar entre Facturación Fiscal y Control Interno (XP-80C)">
             <label class="toggle-fiscal-switch">
@@ -138,33 +145,75 @@
 
           <!-- Indicador Dinámico de Estado de Sincronización -->
           <span id="badgeEstadoSync" class="badge bg-success fw-bold me-1" onclick="forzarSincronizacionManual()" style="cursor: pointer;" title="Haga clic para forzar sincronización con Supabase">🟢 Sincronizado</span>
-          
-          <!-- Botón: Cierre de Caja -->
-          <button type="button" class="btn btn-nav-custom btn-nav-red" onclick="abrirModalCierreCaja()">
-            🔒 Cierre Caja
-          </button>
 
           <!-- Menú Desplegable Principal (Menú Hamburguesa) -->
           <div class="dropdown me-2 hidden" id="contenedorMenuConfigAdmin">
-            <button class="btn btn-nav-custom btn-nav-blue dropdown-toggle" type="button" id="dropdownMenuConfig" data-bs-toggle="dropdown" aria-expanded="false">
+            <button class="btn btn-nav-custom btn-nav-menu dropdown-toggle" type="button" id="dropdownMenuConfig" data-bs-toggle="dropdown" aria-expanded="false">
               ☰ Menú
             </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0" aria-labelledby="dropdownMenuConfig" style="border-radius: 12px; min-width: 270px;">
+            <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 menu-pos-desplegable" aria-labelledby="dropdownMenuConfig">
+              <li class="menu-seccion-header">OPERACIONES & HISTORIAL</li>
               <li>
-                <button id="btn-menu-historiales" class="dropdown-item fw-bold py-2 text-primary" type="button" onclick="abrirModalBuscarFacturas()">
-                  🔍 Historiales (Ventas, Z, CXC, CXP)
+                <button id="btn-menu-historiales" class="dropdown-item py-2" type="button" onclick="abrirModalBuscarFacturas()">
+                  <span class="menu-item-icon">🔍</span>
+                  <span class="fw-bold">Historiales</span>
+                  <small class="text-muted d-block ms-4" style="font-size: 0.7rem;">Ventas, Z, Créditos y Proveedores</small>
+                </button>
+              </li>
+              <li>
+                <button id="btn-menu-cierre-alterno" class="dropdown-item py-2" type="button" onclick="abrirModalCierreCaja()">
+                  <span class="menu-item-icon">🔒</span>
+                  <span class="fw-bold">Cierre de Turno / Caja</span>
+                  <small class="text-muted d-block ms-4" style="font-size: 0.7rem;">Arqueo y Reporte Z del día</small>
                 </button>
               </li>
               <li><hr class="dropdown-divider my-1"></li>
+
+              <li class="menu-seccion-header">GESTIÓN & INVENTARIO</li>
               <li>
-                <button id="btn-menu-empresa" class="dropdown-item fw-bold py-2" type="button" onclick="abrirModalDatosEmpresa()">
-                  🏢 Datos de la Empresa y Logos
+                <button id="btn-menu-catalogo" class="dropdown-item py-2" type="button" onclick="abrirModalGestionCodigos()">
+                  <span class="menu-item-icon">📦</span>
+                  <span class="fw-bold">Catálogo Maestro y Balanza PLU</span>
                 </button>
               </li>
-              <!-- Opción con Submenú en Cascada para Impresoras Fiscales -->
+              <li>
+                <button id="btn-menu-recepcion" class="dropdown-item py-2" type="button" onclick="abrirModalEntradaMercancia()">
+                  <span class="menu-item-icon">📥</span>
+                  <span class="fw-bold">Entrada de Mercancía / Desposte</span>
+                </button>
+              </li>
+              <li>
+                <button id="btn-menu-precios" class="dropdown-item py-2" type="button" onclick="abrirModalConfiguracionPrecios()">
+                  <span class="menu-item-icon">💲</span>
+                  <span class="fw-bold">Estructura de Precios Dinámicos</span>
+                </button>
+              </li>
+              <li>
+                <button id="btn-menu-clientes" class="dropdown-item py-2" type="button" onclick="abrirModalGestionClientes()">
+                  <span class="menu-item-icon">👥</span>
+                  <span class="fw-bold">Directorio de Clientes</span>
+                </button>
+              </li>
+              <li>
+                <button id="btn-menu-descargas" class="dropdown-item py-2" type="button" onclick="abrirModalSeleccionDescargas()">
+                  <span class="menu-item-icon">📊</span>
+                  <span class="fw-bold">Descargas y Reportes SENIAT</span>
+                </button>
+              </li>
+              <li><hr class="dropdown-divider my-1"></li>
+
+              <li class="menu-seccion-header">SISTEMA & HARDWARE</li>
+              <li>
+                <button id="btn-menu-empresa" class="dropdown-item py-2" type="button" onclick="abrirModalDatosEmpresa()">
+                  <span class="menu-item-icon">🏢</span>
+                  <span class="fw-bold">Datos de Empresa, Terminal y Logos</span>
+                </button>
+              </li>
+              <!-- Submenú de Impresoras Fiscales -->
               <li class="dropdown-submenu-item position-relative" id="btn-menu-fiscal">
-                <a class="dropdown-item dropdown-toggle fw-bold py-2" href="javascript:void(0);" id="submenuDispositivosFiscales">
-                  🖨️ Dispositivos de impresión fiscal
+                <a class="dropdown-item dropdown-toggle py-2" href="javascript:void(0);" id="submenuDispositivosFiscales">
+                  <span class="menu-item-icon">🖨️</span>
+                  <span class="fw-bold">Dispositivos Fiscales</span>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-start submenu-flotante-fiscal shadow border-0" style="border-radius: 10px; min-width: 220px;">
                   <li>
@@ -179,36 +228,10 @@
                   </li>
                 </ul>
               </li>
-              <li><hr class="dropdown-divider my-1"></li>
               <li>
-                <button id="btn-menu-precios" class="dropdown-item fw-bold py-2 text-warning" type="button" onclick="abrirModalConfiguracionPrecios()">
-                  💲 Estructura y Configuración de Precios
-                </button>
-              </li>
-              <li>
-                <button id="btn-menu-recepcion" class="dropdown-item fw-bold py-2 text-success" type="button" onclick="abrirModalEntradaMercancia()">
-                  📥 Entrada de Mercancía / Carga de Stock
-                </button>
-              </li>
-              <li>
-                <button id="btn-menu-catalogo" class="dropdown-item fw-bold py-2 text-primary" type="button" onclick="abrirModalGestionCodigos()">
-                  📦 Catálogo Maestro de Productos y Balanza PLU
-                </button>
-              </li>
-              <li>
-                <button id="btn-menu-clientes" class="dropdown-item fw-bold py-2 text-dark" type="button" onclick="abrirModalGestionClientes()">
-                  👥 Directorio y Gestión de Clientes
-                </button>
-              </li>
-              <li>
-                <button id="btn-menu-descargas" class="dropdown-item fw-bold py-2 text-success" type="button" onclick="abrirModalSeleccionDescargas()">
-                  📥 Centro de Descargas y Reportes SENIAT
-                </button>
-              </li>
-              <li><hr class="dropdown-divider my-1"></li>
-              <li>
-                <button id="btn-menu-usuarios" class="dropdown-item fw-bold py-2 text-danger" type="button" onclick="abrirModalGestionUsuarios()">
-                  🔐 Gestión de Usuarios y Roles
+                <button id="btn-menu-usuarios" class="dropdown-item py-2 text-danger" type="button" onclick="abrirModalGestionUsuarios()">
+                  <span class="menu-item-icon">🔐</span>
+                  <span class="fw-bold">Usuarios, Roles y Permisos</span>
                 </button>
               </li>
             </ul>
@@ -281,8 +304,13 @@
               </button>
               
               <!-- Botón Standby / Facturas en Espera -->
-              <button type="button" class="btn btn-standby-pos w-100 shadow-sm" onclick="abrirModalFacturasEnEspera()">
+              <button type="button" class="btn btn-standby-pos w-100 mb-2 shadow-sm" onclick="abrirModalFacturasEnEspera()">
                 ⏳ Facturas en Espera (<span id="cntFacturasEnEspera">0</span>)
+              </button>
+
+              <!-- Botón de Operación de Venta: Cierre de Turno / Caja -->
+              <button type="button" id="btnCierreTurnoPOS" class="btn btn-cierre-caja-pos w-100 shadow-sm" onclick="abrirModalCierreCaja()">
+                🔒 Cerrar Turno / Caja
               </button>
             </div>
           </div>
