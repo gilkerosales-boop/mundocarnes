@@ -1563,50 +1563,44 @@ function actualizarBadgeNavbarTasaBCV() {
 window.actualizarBadgeNavbarTasaBCV = actualizarBadgeNavbarTasaBCV;
 
 // Consulta o ajuste rápido de Tasa BCV desde el Navbar
-async function abrirModalAjusteTasaBCV() {
-  await consultarTasaBCVOficial();
-  const tasaOficial = tasaOficialBCV || 0;
-  const tasaActual = obtenerTasaBCV();
-  const puedeModificar = esAdmin() || tienePermiso("caja", "tasa_bcv");
+    async function abrirModalAjusteTasaBCV() {
+      await consultarTasaBCVOficial();
+      const tasaOficial = tasaOficialBCV || 0;
+      const tasaActual = obtenerTasaBCV();
+      const puedeModificar = esAdmin() || tienePermiso("caja", "tasa_bcv");
 
-  if (!puedeModificar) {
-    return mostrarAvisoFactura(`ℹ️ Tasa Oficial BCV: Bs. ${tasaOficial.toLocaleString('es-VE', { minimumFractionDigits: 2 })} (Solo lectura)`);
-  }
-
-  const promptMsg = `💵 Tasa Oficial BCV: Bs. ${tasaOficial > 0 ? tasaOficial.toFixed(2) : '0.00'}\nTasa Operativa: Bs. ${tasaActual > 0 ? tasaActual.toFixed(2) : '0.00'}\n\nIngrese nueva tasa operativa (Bs/$) - Mínimo: Bs. ${tasaOficial.toFixed(2)}:`;
-  const valorIngresado = prompt(promptMsg, tasaActual > 0 ? tasaActual : tasaOficial);
-
-  if (valorIngresado !== null) {
-    const num = parseFloat(valorIngresado.replace(',', '.'));
-    if (!isNaN(num) && num > 0) {
-      if (num < tasaOficial) {
-        return mostrarAvisoFactura(`⚠️ La tasa operativa no puede ser menor a la oficial (Bs. ${tasaOficial.toFixed(2)}).`);
-      }
-      const usuario = sessionStorage.getItem("factura_usuario") || "global";
-      localStorage.setItem("tasa_bcv_user_" + usuario, num);
-
-      const inputTasa = document.getElementById('facTasaBCV');
-      if (inputTasa) {
-        inputTasa.value = num;
-        inputTasa.readOnly = !puedeModificar;
+      if (!puedeModificar) {
+        return mostrarAvisoFactura(`ℹ️ Tasa Oficial BCV: Bs. ${tasaOficial.toLocaleString('es-VE', { minimumFractionDigits: 2 })} (Solo lectura)`);
       }
 
-      actualizarBadgeNavbarTasaBCV();
-      actualizarCalculosBCV();
-      mostrarAvisoFactura(`💵 Tasa operativa actualizada a Bs. ${num.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`);
-    } else {
-      mostrarAvisoFactura("Por favor ingrese un monto numérico mayor a cero.");
+      const promptMsg = `💵 Tasa Oficial BCV: Bs. ${tasaOficial > 0 ? tasaOficial.toFixed(2) : '0.00'}\nTasa Operativa: Bs. ${tasaActual > 0 ? tasaActual.toFixed(2) : '0.00'}\n\nIngrese nueva tasa operativa (Bs/$) - Mínimo: Bs. ${tasaOficial.toFixed(2)}:`;
+      const valorIngresado = prompt(promptMsg, tasaActual > 0 ? tasaActual : tasaOficial);
+
+      if (valorIngresado !== null) {
+        const num = parseFloat(valorIngresado.replace(',', '.'));
+        if (!isNaN(num) && num > 0) {
+          if (num < tasaOficial) {
+            return mostrarAvisoFactura(`⚠️ La tasa operativa no puede ser menor a la oficial (Bs. ${tasaOficial.toFixed(2)}).`);
+          }
+          const usuario = sessionStorage.getItem("factura_usuario") || "global";
+          localStorage.setItem("tasa_bcv_user_" + usuario, num);
+
+          const inputTasa = document.getElementById('facTasaBCV');
+          if (inputTasa) {
+            inputTasa.value = num;
+            inputTasa.readOnly = !puedeModificar;
+          }
+
+          actualizarBadgeNavbarTasaBCV();
+          actualizarCalculosBCV();
+          mostrarAvisoFactura(`💵 Tasa operativa actualizada a Bs. ${num.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`);
+        } else {
+          mostrarAvisoFactura("Por favor ingrese un monto numérico mayor a cero.");
+        }
+      }
+      configurarReadOnlyTasaBCV();
     }
-  }
-}
-      mostrarAvisoFactura(`💵 Tasa operativa actualizada a Bs. ${num.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`);
-    } else {
-      mostrarAvisoFactura("Por favor ingrese un monto numérico mayor a cero.");
-    }
-  }
-  configurarReadOnlyTasaBCV();
-}
-window.abrirModalAjusteTasaBCV = abrirModalAjusteTasaBCV;
+    window.abrirModalAjusteTasaBCV = abrirModalAjusteTasaBCV;
 
 function alternarMonedaTablaFactura() {
   monedaVistaModal = (monedaVistaModal === "USD") ? "BS" : "USD";
