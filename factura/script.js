@@ -2042,6 +2042,46 @@ function guardarAperturaCajaInicial() {
   mostrarAvisoFactura(`🚀 ¡Apertura de caja registrada! Saldo inicial: $${usd.toFixed(2)} / Bs.${bs.toFixed(2)}`, true, 6000);
 }
 
+// =============================================
+// RELOJ DIGITAL EN VIVO Y CONTROL DE LOGIN
+// =============================================
+
+let timerRelojLogin = null;
+
+function iniciarRelojDigitalLogin() {
+  function actualizar() {
+    const elemHora = document.getElementById('loginRelojHora');
+    const elemFecha = document.getElementById('loginRelojFecha');
+    if (!elemHora && !elemFecha) return;
+
+    const ahora = new Date();
+    if (elemHora) {
+      elemHora.textContent = ahora.toLocaleTimeString('es-VE', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      });
+    }
+    if (elemFecha) {
+      const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      elemFecha.textContent = ahora.toLocaleDateString('es-VE', opcionesFecha);
+    }
+  }
+
+  actualizar();
+  if (timerRelojLogin) clearInterval(timerRelojLogin);
+  timerRelojLogin = setInterval(actualizar, 1000);
+}
+window.iniciarRelojDigitalLogin = iniciarRelojDigitalLogin;
+
+// Auto-arranque al cargar la página
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", iniciarRelojDigitalLogin);
+} else {
+  iniciarRelojDigitalLogin();
+}
+
 function alternarVisibilidadClaveLogin() {
   const input = document.getElementById('facPassword');
   const icono = document.getElementById('iconoOjoLogin');
@@ -2082,6 +2122,9 @@ function cerrarSesionFacturacion() {
   
   const iconoOjo = document.getElementById('iconoOjoLogin');
   if (iconoOjo) iconoOjo.textContent = "👁️";
+
+  // Reactivar reloj digital en vivo en pantalla de login
+  iniciarRelojDigitalLogin();
 }
 
 // =============================================
