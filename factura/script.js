@@ -1481,17 +1481,22 @@ document.addEventListener('show.bs.modal', function (event) {
   const modal = event.target;
   const openModals = document.querySelectorAll('.modal.show');
   const openCount = openModals.length;
-  
+
   if (openCount > 0) {
     const baseZIndex = 1050 + (openCount * 20);
     modal.style.zIndex = baseZIndex + 10;
-    
+
     setTimeout(() => {
       const backdrops = document.querySelectorAll('.modal-backdrop');
       if (backdrops.length > 1) {
         backdrops[backdrops.length - 1].style.zIndex = baseZIndex;
       }
     }, 10);
+  }
+
+  // Configurar readonly de facTasaBCV cuando se abre el modal de procesar factura
+  if (modal.id === 'modalProcesarFactura') {
+    configurarReadOnlyTasaBCV();
   }
 });
 
@@ -1547,7 +1552,8 @@ function obtenerTasaBCV() {
 function actualizarBadgeNavbarTasaBCV() {
   const elem = document.getElementById('navbarTasaBCVValor');
   if (!elem) return;
-  const tasa = obtenerTasaBCV();
+  // Siempre mostrar la tasa OFICIAL del BCV en el navbar
+  const tasa = tasaOficialBCV && tasaOficialBCV > 0 ? tasaOficialBCV : parseFloat(localStorage.getItem("tasa_bcv_oficial") || "0");
   if (tasa > 0) {
     elem.textContent = `Bs. ${tasa.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   } else {
@@ -1557,34 +1563,48 @@ function actualizarBadgeNavbarTasaBCV() {
 window.actualizarBadgeNavbarTasaBCV = actualizarBadgeNavbarTasaBCV;
 
 // Consulta o ajuste rápido de Tasa BCV desde el Navbar
-function abrirModalAjusteTasaBCV() {
+async function abrirModalAjusteTasaBCV() {
+  await consultarTasaBCVOficial();
+  const tasaOficial = tasaOficialBCV || 0;
   const tasaActual = obtenerTasaBCV();
-  const esAdminUser = esAdmin();
-  const puedeModificar = esAdminUser || tienePermiso("caja", "tasa_bcv");
+  const puedeModificar = esAdmin() || tienePermiso("caja", "tasa_bcv");
 
   if (!puedeModificar) {
-    return mostrarAvisoFactura(`ℹ️ Tasa Oficial BCV activa: Bs. ${tasaActual.toLocaleString('es-VE', { minimumFractionDigits: 2 })} (Solo lectura)`);
+    return mostrarAvisoFactura(`ℹ️ Tasa Oficial BCV: Bs. ${tasaOficial.toLocaleString('es-VE', { minimumFractionDigits: 2 })} (Solo lectura)`);
   }
 
-  const promptMsg = `💵 Tasa Oficial BCV del día: Bs. ${tasaActual > 0 ? tasaActual.toFixed(2) : '0.00'}\n\nIngrese la nueva tasa oficial BCV (Bs/$):`;
-  const valorIngresado = prompt(promptMsg, tasaActual > 0 ? tasaActual : "");
+  const promptMsg = `💵 Tasa Oficial BCV: Bs. ${tasaOficial > 0 ? tasaOficial.toFixed(2) : '0.00'}\nTasa Operativa: Bs. ${tasaActual > 0 ? tasaActual.toFixed(2) : '0.00'}\n\nIngrese nueva tasa operativa (Bs/$) - Mínimo: Bs. ${tasaOficial.toFixed(2)}:`;
+  const valorIngresado = prompt(promptMsg, tasaActual > 0 ? tasaActual : tasaOficial);
 
   if (valorIngresado !== null) {
     const num = parseFloat(valorIngresado.replace(',', '.'));
     if (!isNaN(num) && num > 0) {
+      if (num < tasaOficial) {
+        return mostrarAvisoFactura(`⚠️ La tasa operativa no puede ser menor a la oficial (Bs. ${tasaOficial.toFixed(2)}).`);
+      }
       const usuario = sessionStorage.getItem("factura_usuario") || "global";
       localStorage.setItem("tasa_bcv_user_" + usuario, num);
-      
+
       const inputTasa = document.getElementById('facTasaBCV');
-      if (inputTasa) inputTasa.value = num;
+      if (inputTasa) {
+        inputTasa.value = num;
+        inputTasa.readOnly = !puedeModificar;
+      }
 
       actualizarBadgeNavbarTasaBCV();
       actualizarCalculosBCV();
-      mostrarAvisoFactura(`💵 Tasa BCV actualizada a Bs. ${num.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`);
+      mostrarAvisoFactura(`💵 Tasa operativa actualizada a Bs. ${num.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`);
     } else {
       mostrarAvisoFactura("Por favor ingrese un monto numérico mayor a cero.");
     }
   }
+}
+      mostrarAvisoFactura(`💵 Tasa operativa actualizada a Bs. ${num.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`);
+    } else {
+      mostrarAvisoFactura("Por favor ingrese un monto numérico mayor a cero.");
+    }
+  }
+  configurarReadOnlyTasaBCV();
 }
 window.abrirModalAjusteTasaBCV = abrirModalAjusteTasaBCV;
 
