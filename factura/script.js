@@ -2043,12 +2043,23 @@ function guardarAperturaCajaInicial() {
 }
 
 // =============================================
-// RELOJ DIGITAL EN VIVO Y CONTROL DE LOGIN
+// RELOJ DIGITAL EN VIVO, TERMINAL Y CONTROL DE LOGIN
 // =============================================
+
+function obtenerNombreTerminal() {
+  return localStorage.getItem("pos_terminal_nombre") || "Caja Principal #01";
+}
+window.obtenerNombreTerminal = obtenerNombreTerminal;
 
 let timerRelojLogin = null;
 
 function iniciarRelojDigitalLogin() {
+  // Actualizar identificador de terminal física en pantalla de login
+  const elemTerminal = document.getElementById('loginTerminalNombre');
+  if (elemTerminal) {
+    elemTerminal.textContent = obtenerNombreTerminal();
+  }
+
   function actualizar() {
     const elemHora = document.getElementById('loginRelojHora');
     const elemFecha = document.getElementById('loginRelojFecha');
@@ -4910,6 +4921,12 @@ function abrirModalDatosEmpresa() {
   document.getElementById('cfgEmpresaDireccion3').value = emp.direccion3;
   document.getElementById('cfgEmpresaTelefono').value = emp.telefono;
 
+  // Precargar identificador de terminal local de esta computadora
+  const inpTerminal = document.getElementById('cfgTerminalNombre');
+  if (inpTerminal) {
+    inpTerminal.value = obtenerNombreTerminal();
+  }
+
   const t = Date.now();
   document.getElementById('previewLogoFondoBlanco').src = `../img/LOGO-MUNDO123.webp?t=${t}`;
   document.getElementById('previewLogoFondoNegro').src = `../img/LOGOTIPO MUNDOCARNES.jpg?t=${t}`;
@@ -4953,6 +4970,15 @@ async function guardarDatosEmpresaYLogos() {
       errorDiv.classList.remove('hidden');
     }
     return;
+  }
+
+  // Guardar identificador de terminal física en la memoria local del navegador
+  const inpTerminal = document.getElementById('cfgTerminalNombre');
+  if (inpTerminal) {
+    const nuevoNombreTerminal = inpTerminal.value.trim() || "Caja Principal #01";
+    localStorage.setItem("pos_terminal_nombre", nuevoNombreTerminal);
+    const elemBadge = document.getElementById('loginTerminalNombre');
+    if (elemBadge) elemBadge.textContent = nuevoNombreTerminal;
   }
 
   const datosEmpresa = {
