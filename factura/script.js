@@ -4307,7 +4307,6 @@ function renderizarTicketTermicoHTML(d) {
       <div class="ticket-container shadow-sm border text-start">
         <div class="ticket-header text-center">
           <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
-          <div class="ticket-title fs-6">COMPROBANTE NO FISCAL - NOTA DE ENTREGA</div>
           <div>RIF: J-505072889 | TELF: 0412-1753275</div>
           <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
           <div>HORARIO: 7:30am - 19:00pm</div>
@@ -10235,7 +10234,6 @@ function renderizarTicketTermicoHistorialHTML(d) {
       <div class="ticket-container shadow-sm border">
         <div class="ticket-header">
           <img src="../img/LOGO-MUNDO123.webp" class="ticket-logo-centrado" alt="Logo Mundocarnes">
-          <div class="ticket-title fs-6">COMPROBANTE NO FISCAL - NOTA DE ENTREGA</div>
           <div>RIF: J-505072889 | TELF: 0412-1753275</div>
           <div>Caracas, Dtto Capital, San Juan, Av. San Martín</div>
           <div>HORARIO: 7:30am - 19:00pm</div>
