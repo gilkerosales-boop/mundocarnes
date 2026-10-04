@@ -44,7 +44,6 @@ let subTabCXCActual = "creditos";
 let modoFiscalActivo = false;
 let sincronizandoEnProceso = false;
 let accionPendienteGitHub = null;
-let tasaOficialBCV = 0; // <-- Variable global agregada para solucionar el ReferenceError
 
 // =============================================
 // FUNCIONES DE CONTROL DE PERMISOS (Sistema RBAC Granular)
@@ -1482,22 +1481,17 @@ document.addEventListener('show.bs.modal', function (event) {
   const modal = event.target;
   const openModals = document.querySelectorAll('.modal.show');
   const openCount = openModals.length;
-
+  
   if (openCount > 0) {
     const baseZIndex = 1050 + (openCount * 20);
     modal.style.zIndex = baseZIndex + 10;
-
+    
     setTimeout(() => {
       const backdrops = document.querySelectorAll('.modal-backdrop');
       if (backdrops.length > 1) {
         backdrops[backdrops.length - 1].style.zIndex = baseZIndex;
       }
     }, 10);
-  }
-
-  // Configurar readonly de facTasaBCV cuando se abre el modal de procesar factura
-  if (modal.id === 'modalProcesarFactura') {
-    configurarReadOnlyTasaBCV();
   }
 });
 
@@ -1553,8 +1547,7 @@ function obtenerTasaBCV() {
 function actualizarBadgeNavbarTasaBCV() {
   const elem = document.getElementById('navbarTasaBCVValor');
   if (!elem) return;
-  // Siempre mostrar la tasa OFICIAL del BCV en el navbar
-  const tasa = tasaOficialBCV && tasaOficialBCV > 0 ? tasaOficialBCV : parseFloat(localStorage.getItem("tasa_bcv_oficial") || "0");
+  const tasa = obtenerTasaBCV();
   if (tasa > 0) {
     elem.textContent = `Bs. ${tasa.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   } else {
@@ -1563,108 +1556,37 @@ function actualizarBadgeNavbarTasaBCV() {
 }
 window.actualizarBadgeNavbarTasaBCV = actualizarBadgeNavbarTasaBCV;
 
-// ==========================================================================
-// CONSULTA DE TASA OFICIAL BCV EN CASCADA (API Espejo → Proxy + Regex)
-// ==========================================================================
-async function consultarTasaBCVOficial() {
-  // Vía Primaria: API espejo (ve.dolarapi.com) - CORS abierto, JSON, <200ms
-  try {
-    const response = await fetch('https://ve.dolarapi.com/v1/dolares/oficial', {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' },
-      timeout: 5000
-    });
-    if (response.ok) {
-      const data = await response.json();
-      const tasa = parseFloat(data?.dolares?.oficial?.precio) || 0;
-      if (tasa > 0) {
-        tasaOficialBCV = tasa;
-        localStorage.setItem("tasa_bcv_oficial", tasa.toString());
-        actualizarBadgeNavbarTasaBCV();
-        return tasa;
-      }
-    }
-  } catch (e) {
-    console.warn("Vía primaria (dolarapi) falló:", e.message);
-  }
-
-  // Vía Secundaria: Proxy (allorigins.win) + Regex para extraer de bcv.org.ve
-  try {
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent('https://www.bcv.org.ve/')}`;
-    const response = await fetch(proxyUrl, { timeout: 8000 });
-    if (response.ok) {
-      const proxyData = await response.json();
-      const html = proxyData.contents;
-      const regex = /<div id="dolar">.*?<strong>([\d,.]+)<\/strong>/i;
-      const match = html.match(regex);
-      if (match && match[1]) {
-        const tasa = parseFloat(match[1].replace(',', '.')) || 0;
-        if (tasa > 0) {
-          tasaOficialBCV = tasa;
-          localStorage.setItem("tasa_bcv_oficial", tasa.toString());
-          actualizarBadgeNavbarTasaBCV();
-          return tasa;
-        }
-      }
-    }
-  } catch (e) {
-    console.warn("Vía secundaria (proxy + regex) falló:", e.message);
-  }
-
-  // Fallback: Usar valor almacenado en localStorage
-  const tasaFallback = parseFloat(localStorage.getItem("tasa_bcv_oficial") || "0");
-  if (tasaFallback > 0) {
-    tasaOficialBCV = tasaFallback;
-    actualizarBadgeNavbarTasaBCV();
-    return tasaFallback;
-  }
-
-  // Último recurso: Valor por defecto (evitar NaN)
-  tasaOficialBCV = 0;
-  actualizarBadgeNavbarTasaBCV();
-  return 0;
-}
-window.consultarTasaBCVOficial = consultarTasaBCVOficial;
-
 // Consulta o ajuste rápido de Tasa BCV desde el Navbar
-    async function abrirModalAjusteTasaBCV() {
-      await consultarTasaBCVOficial();
-      const tasaOficial = tasaOficialBCV || 0;
-      const tasaActual = obtenerTasaBCV();
-      const puedeModificar = esAdmin() || tienePermiso("caja", "tasa_bcv");
+function abrirModalAjusteTasaBCV() {
+  const tasaActual = obtenerTasaBCV();
+  const esAdminUser = esAdmin();
+  const puedeModificar = esAdminUser || tienePermiso("caja", "tasa_bcv");
 
-      if (!puedeModificar) {
-        return mostrarAvisoFactura(`ℹ️ Tasa Oficial BCV: Bs. ${tasaOficial.toLocaleString('es-VE', { minimumFractionDigits: 2 })} (Solo lectura)`);
-      }
+  if (!puedeModificar) {
+    return mostrarAvisoFactura(`ℹ️ Tasa Oficial BCV activa: Bs. ${tasaActual.toLocaleString('es-VE', { minimumFractionDigits: 2 })} (Solo lectura)`);
+  }
 
-      const promptMsg = `💵 Tasa Oficial BCV: Bs. ${tasaOficial > 0 ? tasaOficial.toFixed(2) : '0.00'}\nTasa Operativa: Bs. ${tasaActual > 0 ? tasaActual.toFixed(2) : '0.00'}\n\nIngrese nueva tasa operativa (Bs/$) - Mínimo: Bs. ${tasaOficial.toFixed(2)}:`;
-      const valorIngresado = prompt(promptMsg, tasaActual > 0 ? tasaActual : tasaOficial);
+  const promptMsg = `💵 Tasa Oficial BCV del día: Bs. ${tasaActual > 0 ? tasaActual.toFixed(2) : '0.00'}\n\nIngrese la nueva tasa oficial BCV (Bs/$):`;
+  const valorIngresado = prompt(promptMsg, tasaActual > 0 ? tasaActual : "");
 
-      if (valorIngresado !== null) {
-        const num = parseFloat(valorIngresado.replace(',', '.'));
-        if (!isNaN(num) && num > 0) {
-          if (num < tasaOficial) {
-            return mostrarAvisoFactura(`⚠️ La tasa operativa no puede ser menor a la oficial (Bs. ${tasaOficial.toFixed(2)}).`);
-          }
-          const usuario = sessionStorage.getItem("factura_usuario") || "global";
-          localStorage.setItem("tasa_bcv_user_" + usuario, num);
+  if (valorIngresado !== null) {
+    const num = parseFloat(valorIngresado.replace(',', '.'));
+    if (!isNaN(num) && num > 0) {
+      const usuario = sessionStorage.getItem("factura_usuario") || "global";
+      localStorage.setItem("tasa_bcv_user_" + usuario, num);
+      
+      const inputTasa = document.getElementById('facTasaBCV');
+      if (inputTasa) inputTasa.value = num;
 
-          const inputTasa = document.getElementById('facTasaBCV');
-          if (inputTasa) {
-            inputTasa.value = num;
-            inputTasa.readOnly = !puedeModificar;
-          }
-
-          actualizarBadgeNavbarTasaBCV();
-          actualizarCalculosBCV();
-          mostrarAvisoFactura(`💵 Tasa operativa actualizada a Bs. ${num.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`);
-        } else {
-          mostrarAvisoFactura("Por favor ingrese un monto numérico mayor a cero.");
-        }
-      }
-      configurarReadOnlyTasaBCV();
+      actualizarBadgeNavbarTasaBCV();
+      actualizarCalculosBCV();
+      mostrarAvisoFactura(`💵 Tasa BCV actualizada a Bs. ${num.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`);
+    } else {
+      mostrarAvisoFactura("Por favor ingrese un monto numérico mayor a cero.");
     }
-    window.abrirModalAjusteTasaBCV = abrirModalAjusteTasaBCV;
+  }
+}
+window.abrirModalAjusteTasaBCV = abrirModalAjusteTasaBCV;
 
 function alternarMonedaTablaFactura() {
   monedaVistaModal = (monedaVistaModal === "USD") ? "BS" : "USD";
