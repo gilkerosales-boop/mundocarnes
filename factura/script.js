@@ -2149,7 +2149,9 @@ function iniciarModuloFacturacion(usuario) {
   inicializarModoFiscal();
   actualizarBadgeNavbarTasaBCV();
   
+  // Consulta automática y silenciosa de la Tasa Oficial del BCV en vivo al arrancar
   if (navigator.onLine) {
+    consultarTasaBCVEnVivo(true).catch(() => {});
     sincronizarClientesDesdeServidor();
     procesarColaSincronizacion();
   }
@@ -3110,10 +3112,27 @@ function ejecutarFacturar() {
   // Limpieza total de métodos de pago y residuos de vuelto previos
   limpiarEstadoFormasPagoPOS();
 
-  const tasaGuardada = localStorage.getItem("tasa_bcv_user_" + usuarioActivo);
+  const esAdminUser = esAdmin();
+  const puedeModificarTasa = esAdminUser || tienePermiso("caja", "tasa_bcv");
+  const tasaOficialBCV = obtenerTasaOficialBCV();
+  const tasaGuardada = parseFloat(localStorage.getItem("tasa_bcv_user_" + usuarioActivo));
+
   const inputTasa = document.getElementById('facTasaBCV');
   if (inputTasa) {
-    inputTasa.value = tasaGuardada ? tasaGuardada : "";
+    if (!puedeModificarTasa) {
+      // Cajero sin permiso: fijado estrictamente a la tasa oficial del BCV en solo lectura
+      inputTasa.value = tasaOficialBCV > 0 ? tasaOficialBCV.toFixed(2) : "0.00";
+      inputTasa.readOnly = true;
+      inputTasa.title = "🔒 Tasa oficial del BCV (Solo lectura por política de seguridad)";
+    } else {
+      // Usuario con permiso: carga tasa operativa (si es >= a la oficial) o la oficial
+      let tasaCargar = (!isNaN(tasaGuardada) && tasaGuardada >= tasaOficialBCV && tasaGuardada > 0)
+        ? tasaGuardada
+        : (tasaOficialBCV > 0 ? tasaOficialBCV : 0);
+      inputTasa.value = tasaCargar > 0 ? tasaCargar.toFixed(2) : "";
+      inputTasa.readOnly = false;
+      inputTasa.title = "Haga clic para editar la tasa operativa (solo valores iguales o mayores al BCV oficial)";
+    }
   }
 
   document.getElementById('facCedulaBuscar').value = "";
