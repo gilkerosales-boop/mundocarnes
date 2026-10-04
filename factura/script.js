@@ -44,6 +44,7 @@ let subTabCXCActual = "creditos";
 let modoFiscalActivo = false;
 let sincronizandoEnProceso = false;
 let accionPendienteGitHub = null;
+let tasaOficialBCV = 0; // <-- Variable global agregada para solucionar el ReferenceError
 
 // =============================================
 // FUNCIONES DE CONTROL DE PERMISOS (Sistema RBAC Granular)
