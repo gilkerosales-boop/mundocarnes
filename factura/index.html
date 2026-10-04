@@ -49,7 +49,7 @@
             <div class="login-terminal-card mb-4 text-start w-100">
               <div class="d-flex align-items-center justify-content-between mb-2">
                 <span class="text-white-50 small">🖥️ Terminal:</span>
-                <span class="badge bg-secondary bg-opacity-50 text-light border border-secondary border-opacity-25 small font-monospace">Caja Principal #01</span>
+                <span id="loginTerminalNombre" class="badge bg-secondary bg-opacity-50 text-light border border-secondary border-opacity-25 small font-monospace">Caja Principal #01</span>
               </div>
               <div class="d-flex align-items-center justify-content-between">
                 <span class="text-white-50 small">🌐 Enlace:</span>
@@ -1166,6 +1166,15 @@
                 <div class="col-md-6">
                   <label for="cfgEmpresaTelefono" class="form-label small fw-bold mb-1">Teléfono de Contacto:</label>
                   <input type="text" id="cfgEmpresaTelefono" class="form-control form-control-sm fw-bold num-legible" placeholder="Ej: 0412-1753275">
+                </div>
+              </div>
+
+              <!-- Identificador de Terminal Física -->
+              <div class="row g-2 mt-2 pt-2 border-top">
+                <div class="col-12">
+                  <label for="cfgTerminalNombre" class="form-label small fw-bold mb-1 text-primary">🖥️ Identificador / Nombre de esta Terminal (Este Equipo):</label>
+                  <input type="text" id="cfgTerminalNombre" class="form-control form-control-sm fw-bold" placeholder="Ej: Caja Principal #01, Caja 02 - Charcutería, Terminal Móvil...">
+                  <div class="form-text text-muted" style="font-size: 0.72rem;">Se guarda localmente en el navegador de esta computadora para identificar la estación física en la pantalla de bienvenida y comprobantes.</div>
                 </div>
               </div>
             </div>
