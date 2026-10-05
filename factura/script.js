@@ -2369,13 +2369,13 @@ function aplicarRestriccionesUI(rol) {
     else btnStandby.classList.add('hidden');
   }
 
-  // Proteger botones de Cierre de Caja (tanto en el panel de ventas como en el menú)
-  const botonesCierre = document.querySelectorAll('button[onclick*="abrirModalCierreCaja"]');
-  const puedeCierre = esAdminUser || tienePermiso("caja", "cierre");
-  botonesCierre.forEach(btn => {
-    if (puedeCierre) btn.classList.remove('hidden');
-    else btn.classList.add('hidden');
-  });
+  // Proteger el botón exclusivo de Cierre de Caja en Detalle de Venta según permiso
+  const btnCierre = document.getElementById('btnCierreTurnoPOS');
+  if (btnCierre) {
+    const puedeCierre = esAdminUser || tienePermiso("caja", "cierre");
+    if (puedeCierre) btnCierre.classList.remove('hidden');
+    else btnCierre.classList.add('hidden');
+  }
 
   const puedeModificarTasa = esAdminUser || tienePermiso("caja", "tasa_bcv");
   const inpTasa = document.getElementById('facTasaBCV');
