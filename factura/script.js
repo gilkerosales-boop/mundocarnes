@@ -9218,21 +9218,6 @@ function sincronizarDOMAFlatList() {
 }
 window.sincronizarDOMAFlatList = sincronizarDOMAFlatList;
 
-      // Actualizar visualmente el input en el DOM si está visible en pantalla
-      const safeName = (item.nombreOriginal || item.nombre).replace(/["']/g, '');
-      const safeCat = (item.categoriaOriginal || item.categoria).replace(/["']/g, '');
-      const filaDom = document.querySelector(`.fila-producto-cfg[data-original-name="${safeName}"][data-original-cat="${safeCat}"]`);
-      if (filaDom) {
-        const inpOrd = filaDom.querySelector('.cfg-orden');
-        if (inpOrd && parseInt(inpOrd.value) !== posicionCorrelativa) {
-          inpOrd.value = posicionCorrelativa;
-        }
-      }
-    });
-  }
-}
-window.sincronizarDOMAFlatList = sincronizarDOMAFlatList;
-
 function filtrarTablaCodigos(query) {
   // 1. Guardar en memoria los cambios que el usuario haya hecho en las filas actualmente visibles
   sincronizarDOMAFlatList();
