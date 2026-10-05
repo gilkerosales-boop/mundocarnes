@@ -13178,33 +13178,38 @@ async function procesarSiguienteCierreCaja() {
       listaNDFiscales: []
     };
 
-    // 3. Obtener ventas filtrando ESTRICTAMENTE por el usuario activo
+    // 3. Obtención y depuración estricta de ventas: Si es CAJERO = solo su usuario; si es ADMIN = ventas globales
+    const esAdminUser = esAdmin();
     let mapVentasHoy = {};
-    const ventasLocales = await dbGetAll("ventas");
-    if (Array.isArray(ventasLocales)) {
-      ventasLocales.forEach(v => {
-        if (v && v.numFactura) {
-          const userFila = normalizarUsuario(v.USUARIO || v.usuario);
-          // Aislamiento total: solo incluir si pertenece al usuario activo de la sesión
-          if (userFila === usuario) {
-            mapVentasHoy[String(v.numFactura)] = { ...v, usuario: userFila, USUARIO: userFila };
-          }
-        }
-      });
-    }
 
     if (navigator.onLine) {
       try {
-        // Pasar explícitamente el usuario actual para que la consulta filtre por USUARIO = usuario
-        const ventasSup = await obtenerTodasLasVentasSupabase(usuario);
+        // En línea: Supabase es la verdad absoluta. Si es Admin pasa 'TODOS', si es cajero pasa su usuario
+        const filtroConsulta = esAdminUser ? 'TODOS' : usuario;
+        const ventasSup = await obtenerTodasLasVentasSupabase(filtroConsulta);
+
+        // Obtener IDs locales para preservar datos de arqueo y purgar ventas fantasmas eliminadas
+        const ventasLocales = await dbGetAll("ventas");
+        const mapaLocales = {};
+        if (Array.isArray(ventasLocales)) {
+          ventasLocales.forEach(vl => { if (vl && vl.numFactura) mapaLocales[String(vl.numFactura)] = vl; });
+        }
+
         if (Array.isArray(ventasSup)) {
+          const idsVentasReales = new Set();
+
           ventasSup.forEach(v => {
             let numFac = v.FACTURA || v["FACTURA N°"] || v.numFactura;
             const usuarioRealDeLaVenta = normalizarUsuario(v["USUARIO"] || v.usuario || "");
 
-            // FILTRO DE SEGURIDAD ABSOLUTO: solo procesar si la venta pertenece al usuario en turno
-            if (numFac && usuarioRealDeLaVenta === usuario) {
-              const localExistente = mapVentasHoy[String(numFac)] || {};
+            // REGLA FUNDAMENTAL DE AISLAMIENTO:
+            // - Si es CAJERO: la venta DEBE ser exactamente de su usuario.
+            // - Si es ADMIN: se computan todas las ventas globales de la empresa.
+            const esValidaParaEsteTurno = esAdminUser || (usuarioRealDeLaVenta === usuario);
+
+            if (numFac && esValidaParaEsteTurno) {
+              idsVentasReales.add(String(numFac));
+              const localExistente = mapaLocales[String(numFac)] || {};
               mapVentasHoy[String(numFac)] = {
                 ...v,
                 ...localExistente, // Preserva los datos de vueltos y arqueos locales de IndexedDB
@@ -13240,9 +13245,32 @@ async function procesarSiguienteCierreCaja() {
               };
             }
           });
+
+          // Purgar de IndexedDB cualquier venta huérfana de este cajero que ya no exista en Supabase
+          if (Array.isArray(ventasLocales)) {
+            for (let vl of ventasLocales) {
+              const userVl = normalizarUsuario(vl.USUARIO || vl.usuario);
+              if ((esAdminUser || userVl === usuario) && !idsVentasReales.has(String(vl.numFactura))) {
+                await dbDelete("ventas", vl.numFactura);
+              }
+            }
+          }
         }
       } catch (errSup) {
         console.warn("Aviso Supabase cierre:", errSup);
+      }
+    } else {
+      // Modo Offline: recurrir a IndexedDB aplicando el mismo filtro
+      const ventasLocales = await dbGetAll("ventas");
+      if (Array.isArray(ventasLocales)) {
+        ventasLocales.forEach(v => {
+          if (v && v.numFactura) {
+            const userFila = normalizarUsuario(v.USUARIO || v.usuario);
+            if (esAdminUser || userFila === usuario) {
+              mapVentasHoy[String(v.numFactura)] = { ...v, usuario: userFila, USUARIO: userFila };
+            }
+          }
+        });
       }
     }
 
