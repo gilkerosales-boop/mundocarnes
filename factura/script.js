@@ -9379,100 +9379,82 @@ async function procesarSincronizacionGitHub() {
       }
     }
 
-    // 3. Desempatar y reordenar limpiamente dentro de cada categoría
-    let categoriasAgrupadas = {};
-    listaFlatProductosCodigos.forEach(item => {
-      let cat = item.categoria || item.categoriaOriginal;
-      if (!categoriasAgrupadas[cat]) categoriasAgrupadas[cat] = [];
-      categoriasAgrupadas[cat].push(item);
+    // 3. Preparar la lista completa de productos para persistir en Supabase con su orden exacto
+    const filasParaSupabase = listaFlatProductosCodigos.map(item => {
+      let cleanPath = "img/LOGO-MUNDO123.webp";
+      if (item.imgPath) {
+        if (item.imgPath.startsWith('data:') || item.imgPath.startsWith('../data:') || item.imgPath.length > 150) {
+          const safeFile = item.nombre.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+          cleanPath = `img/${safeFile}.webp`;
+        } else {
+          cleanPath = item.imgPath.replace(/^\.\.\//, '');
+        }
+      }
+
+      return {
+        codigo_plu: item.codigoPLU || "",
+        nombre: item.nombre,
+        categoria: item.categoria || item.categoriaOriginal,
+        modo: item.unidad || "gramos",
+        peso_promedio_g: parseFloat(item.pesoPromedio) || 0,
+        orden: parseInt(item.orden, 10) || 1,
+        minimo_venta: parseFloat(item.minimo) || 1,
+        stock: parseFloat(item.stock) || 0,
+        disponible_tienda: item.disponible !== false,
+        visible_web: item.visibleWeb !== false,
+        tasa_iva: item.tasaIVA || "E",
+        precio: parseFloat(item.precio) || 0,
+        img_path: cleanPath,
+        updated_at: new Date().toISOString()
+      };
     });
 
-    for (let cat in categoriasAgrupadas) {
-      categoriasAgrupadas[cat].sort((a, b) => a.orden - b.orden);
-      // Re-indexar limpiamente 1, 2, 3... evitando empates numéricos en la base de datos
-      categoriasAgrupadas[cat].forEach((item, index) => {
-        item.orden = index + 1;
-      });
+    // 4. GUARDADO DIRECTO EN SUPABASE
+    if (navigator.onLine && supabaseClient) {
+      const { error: errSub } = await supabaseClient
+        .from('productos')
+        .upsert(filasParaSupabase, { onConflict: 'nombre' });
+      
+      if (errSub) throw errSub;
+
+      // Si algún producto cambió de nombre, actualizar automáticamente las recetas de combos
+      for (let item of listaFlatProductosCodigos) {
+        if (item.nombreOriginal && item.nombreOriginal !== item.nombre) {
+          await supabaseClient.from('combo_recetas').update({ producto_componente: item.nombre }).eq('producto_componente', item.nombreOriginal);
+          await supabaseClient.from('combo_recetas').update({ combo_nombre: item.nombre }).eq('combo_nombre', item.nombreOriginal);
+        }
+      }
     }
 
-    // 4. Preparar productos para Supabase vinculando por nombre único
-            const filasParaSupabase = listaFlatProductosCodigos.map(item => {
-              let cleanPath = "img/LOGO-MUNDO123.webp";
-              if (item.imgPath) {
-                if (item.imgPath.startsWith('data:') || item.imgPath.startsWith('../data:') || item.imgPath.length > 150) {
-                  const safeFile = item.nombre.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-                  cleanPath = `img/${safeFile}.webp`;
-                } else {
-                  cleanPath = item.imgPath.replace(/^\.\.\//, '');
-                }
-              }
+    // 5. Actualizar IndexedDB y mapa de stock local de forma atómica
+    const stockMapActualizado = {};
+    for (let f of filasParaSupabase) {
+      stockMapActualizado[f.nombre] = f.stock;
+      try {
+        await dbPut("inventario", f);
+      } catch (eDB) {}
+    }
+    localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMapActualizado));
 
-              return {
-                codigo_plu: item.codigoPLU || "",
-                nombre: item.nombre,
-                categoria: item.categoria || item.categoriaOriginal,
-                modo: item.unidad || "gramos",
-                peso_promedio_g: parseFloat(item.pesoPromedio) || 0,
-                orden: parseInt(item.orden) || 1,
-                minimo_venta: parseFloat(item.minimo) || 1,
-                stock: parseFloat(item.stock) || 0,
-                disponible_tienda: item.disponible !== false,
-                visible_web: item.visibleWeb !== false,
-                tasa_iva: item.tasaIVA || "E",
-                precio: parseFloat(item.precio) || 0,
-                img_path: cleanPath,
-                updated_at: new Date().toISOString()
-              };
-            });
+    // 6. Recarga limpia inmediata desde Supabase: evita que falten productos en pantalla
+    await cargarCatalogoFacturacion();
 
-            // 4. GUARDADO DIRECTO EN SUPABASE POR NOMBRE ÚNICO
-            if (navigator.onLine && supabaseClient) {
-              const { error: errSub } = await supabaseClient
-                .from('productos')
-                .upsert(filasParaSupabase, { onConflict: 'nombre' });
-              
-              if (errSub) throw errSub;
+    // 7. Respaldo asíncrono a catalog.json en GitHub (solo si hay token de administrador)
+    if (token) {
+      try {
+        const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
+        const base64Content = btoa(unescape(encodeURIComponent(contentString)));
+        subirArchivoAGitHubFactura("catalog.json", base64Content, "Respaldo automático de catálogo, PLU y stock").catch(() => {});
+      } catch (eGit) {}
+    }
 
-              // Si algún producto cambió de nombre, actualizar automáticamente las recetas de combos
-              for (let item of listaFlatProductosCodigos) {
-                if (item.nombreOriginal && item.nombreOriginal !== item.nombre) {
-                  await supabaseClient.from('combo_recetas').update({ producto_componente: item.nombre }).eq('producto_componente', item.nombreOriginal);
-                  await supabaseClient.from('combo_recetas').update({ combo_nombre: item.nombre }).eq('combo_nombre', item.nombreOriginal);
-                }
-              }
-            }
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "💾 Guardar Todos los Cambios";
+    }
 
-            // 5. Actualizar mapa de stock en localStorage e IndexedDB 'inventario' de forma atómica
-            let stockMapActualizado = {};
-            for (let f of filasParaSupabase) {
-              stockMapActualizado[f.nombre] = f.stock;
-              try {
-                await dbPut("inventario", f);
-              } catch (eDB) {}
-            }
-            localStorage.setItem("pos_cache_stock_map", JSON.stringify(stockMapActualizado));
-
-            // 6. Actualizar catálogo en memoria activa del POS inmediatamente
-            const catalogoActualizado = reconstruirCatalogoDesdeSupabase(filasParaSupabase);
-            cacheCategoriasFactura = catalogoActualizado.categorias;
-
-            // 7. Respaldo asíncrono a catalog.json en GitHub (solo si hay token, sin bloquear la UI)
-            if (token) {
-              try {
-                const contentString = JSON.stringify({ categorias: cacheCategoriasFactura }, null, 2);
-                const base64Content = btoa(unescape(encodeURIComponent(contentString)));
-                subirArchivoAGitHubFactura("catalog.json", base64Content, "Respaldo automático de catálogo, PLU y stock").catch(() => {});
-              } catch (eGit) {}
-            }
-
-            if (btn) {
-              btn.disabled = false;
-              btn.textContent = "💾 Guardar Todos los Cambios";
-            }
-
-            renderizarCatalogoFacturacion({ categorias: cacheCategoriasFactura });
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
-            mostrarAvisoFactura("⚡ ¡Guardado definitivo en Supabase e Inventario exitoso!");
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGestionCodigos')).hide();
+    mostrarAvisoFactura("⚡ ¡Catálogo y posiciones actualizadas exitosamente!");
 
   } catch (err) {
     if (btn) {
