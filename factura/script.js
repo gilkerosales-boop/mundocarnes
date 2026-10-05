@@ -5528,6 +5528,7 @@ function abrirModalGestionCodigos() {
 
 function prepararListaProductosCodigos() {
   listaFlatProductosCodigos = [];
+  const ordenCategorias = ["COMBOS", "CARNES", "POLLO", "QUESOS Y EMBUTIDOS", "VIVERES"];
 
   cacheCategoriasFactura.forEach(cat => {
     cat.productos.forEach((p, idx) => {
@@ -5546,11 +5547,8 @@ function prepararListaProductosCodigos() {
       let webVisible = p[9] !== undefined ? Boolean(p[9]) : true;
       let stockActual = p[10] !== undefined ? parseFloat(p[10]) : 0;
 
-      // Asignar siempre la posición real indexada (1, 2, 3...) y rescatar el UUID
-      let posicionReal = idx + 1;
-      if (p[11] !== undefined && !isNaN(parseInt(p[11]))) {
-        posicionReal = parseInt(p[11]);
-      }
+      // Asignar el orden real que trae el producto o su índice indexado
+      let posicionReal = (p[11] !== undefined && !isNaN(parseInt(p[11]))) ? parseInt(p[11]) : (idx + 1);
       let idSupabase = p[12] || null;
 
       listaFlatProductosCodigos.push({
@@ -5569,22 +5567,25 @@ function prepararListaProductosCodigos() {
         codigoPLU: codPLU,
         tasaIVA: tasaIVA,
         stock: isNaN(stockActual) ? 0 : stockActual,
-        orden: posicionReal
+        orden: posicionReal,
+        ordenPrevio: posicionReal,
+        ordenDeseado: posicionReal,
+        fueModificadoOrden: false
       });
     });
   });
 
+  // Ordenamiento canónico: primero por Categoría oficial, y dentro de cada una por su Orden (1, 2, 3... N)
   listaFlatProductosCodigos.sort((a, b) => {
-    let numA = a.codigoPLU !== "" ? parseInt(a.codigoPLU, 10) : 999999;
-    let numB = b.codigoPLU !== "" ? parseInt(b.codigoPLU, 10) : 999999;
+    let catIdxA = ordenCategorias.indexOf(a.categoria);
+    let catIdxB = ordenCategorias.indexOf(b.categoria);
+    if (catIdxA === -1) catIdxA = 99;
+    if (catIdxB === -1) catIdxB = 99;
 
-    if (isNaN(numA)) numA = 999999;
-    if (isNaN(numB)) numB = 999999;
-
-    if (numA !== numB) {
-      return numA - numB;
+    if (catIdxA !== catIdxB) {
+      return catIdxA - catIdxB;
     }
-    return a.nombre.localeCompare(b.nombre);
+    return (a.orden || 999) - (b.orden || 999);
   });
 
   renderizarTablaGestionCodigos(listaFlatProductosCodigos);
