@@ -9146,62 +9146,60 @@ function cerrarPanelDetalleCXP() {
 }
 window.cerrarPanelDetalleCXP = cerrarPanelDetalleCXP;
 
-// Sincronizar en vivo los cambios editados con reordenamiento inteligente sin empates
+// Sincronizar en vivo los cambios editados con reordenamiento estable y determinista por intención
 function sincronizarDOMAFlatList() {
   const filas = document.querySelectorAll('.fila-producto-cfg');
-  
-  // 1. Detectar productos con cambio intencional de posición (orden)
-  let cambiosOrden = [];
+
+  // PASO 1: Sincronizar campos generales (nombre, precio, stock, etc.) y capturar el orden deseado
   filas.forEach(f => {
     const origName = f.getAttribute('data-original-name');
     const origCat = f.getAttribute('data-original-cat');
     const item = listaFlatProductosCodigos.find(p => p.nombreOriginal === origName && p.categoriaOriginal === origCat);
-    if (item) {
-      const inputOrd = f.querySelector('.cfg-orden');
-      if (inputOrd) {
-        let nuevoOrd = parseInt(inputOrd.value);
-        if (!isNaN(nuevoOrd) && nuevoOrd !== item.orden) {
-          cambiosOrden.push({
-            item: item,
-            categoria: item.categoria || item.categoriaOriginal,
-            oldPos: item.orden,
-            newPos: nuevoOrd
-          });
-        }
+    if (!item) return;
+
+    const inputPLU = f.querySelector('.cfg-plu');
+    const inputNom = f.querySelector('.cfg-nombre');
+    const selectCat = f.querySelector('.cfg-cat');
+    const selectUni = f.querySelector('.cfg-unidad');
+    const inputPeso = f.querySelector('.cfg-pesoprom');
+    const inputMin = f.querySelector('.cfg-minimo');
+    const inputStock = f.querySelector('.cfg-stock');
+    const selectDisp = f.querySelector('.cfg-disp');
+    const selectWeb = f.querySelector('.cfg-web');
+    const selectIVA = f.querySelector('.cfg-iva');
+    const inputPrec = f.querySelector('.cfg-precio');
+    const inputOrd = f.querySelector('.cfg-orden');
+
+    if (inputPLU) item.codigoPLU = inputPLU.value.trim();
+    if (inputNom && inputNom.value.trim()) item.nombre = inputNom.value.trim();
+    if (selectCat) item.categoria = selectCat.value;
+    if (selectUni) item.unidad = selectUni.value;
+    if (inputPeso && item.unidad === 'mixto') item.pesoPromedio = parseInt(inputPeso.value) || 2000;
+    if (inputMin) item.minimo = parseInt(inputMin.value) || item.minimo;
+    if (inputStock && !isNaN(parseFloat(inputStock.value))) {
+      item.stock = parseFloat(inputStock.value);
+      actualizarStockEnCacheLocal(item.nombreOriginal, item.stock);
+    }
+    if (selectDisp) item.disponible = (selectDisp.value === "true");
+    if (selectWeb) item.visibleWeb = (selectWeb.value === "true");
+    if (selectIVA) item.tasaIVA = selectIVA.value || "E";
+    if (inputPrec && !isNaN(parseFloat(inputPrec.value))) item.precio = parseFloat(inputPrec.value);
+
+    // Captura del orden deseado escrito por el usuario en el input
+    if (inputOrd) {
+      let ordDeseado = parseInt(inputOrd.value);
+      item.ordenPrevio = (typeof item.ordenPrevio === 'number') ? item.ordenPrevio : (item.orden || 999);
+      if (!isNaN(ordDeseado) && ordDeseado > 0) {
+        item.fueModificadoOrden = (ordDeseado !== item.ordenPrevio);
+        item.ordenDeseado = ordDeseado;
+      } else {
+        item.ordenDeseado = item.orden || 999;
+        item.fueModificadoOrden = false;
       }
     }
   });
 
-  // 2. Desplazar automáticamente los demás productos de la categoría para resolver empates
-  cambiosOrden.forEach(cambio => {
-    let cat = cambio.categoria;
-    let itemsCat = listaFlatProductosCodigos.filter(p => (p.categoria || p.categoriaOriginal) === cat);
-    let totalItems = itemsCat.length;
-    let targetPos = Math.max(1, Math.min(cambio.newPos, totalItems));
-    let origPos = cambio.oldPos;
-
-    if (targetPos < origPos) {
-      // Subiendo en la lista (ej: Bistec de 2 a 1): Punta Trasera pasa de 1 a 2
-      itemsCat.forEach(p => {
-        if (p === cambio.item) {
-          p.orden = targetPos;
-        } else if (p.orden >= targetPos && p.orden < origPos) {
-          p.orden += 1;
-        }
-      });
-    } else if (targetPos > origPos) {
-      // Bajando en la lista: los productos intermedios suben un puesto
-      itemsCat.forEach(p => {
-        if (p === cambio.item) {
-          p.orden = targetPos;
-        } else if (p.orden <= targetPos && p.orden > origPos) {
-          p.orden -= 1;
-        }
-      });
-    }
-  });
-
-  // 3. Re-indexar de forma estricta 1, 2, 3... cada categoría garantizando orden correlativo único
+  // PASO 2: Agrupar por categoría activa
   let categoriasMap = {};
   listaFlatProductosCodigos.forEach(item => {
     let cat = item.categoria || item.categoriaOriginal;
@@ -9209,47 +9207,53 @@ function sincronizarDOMAFlatList() {
     categoriasMap[cat].push(item);
   });
 
+  // PASO 3: Ordenamiento determinista estable libre de colisiones por cada categoría
   for (let cat in categoriasMap) {
-    categoriasMap[cat].sort((a, b) => a.orden - b.orden);
-    categoriasMap[cat].forEach((item, index) => {
-      item.orden = index + 1;
+    let productosDeCat = categoriasMap[cat];
+
+    productosDeCat.sort((a, b) => {
+      let ordA = (typeof a.ordenDeseado === 'number') ? a.ordenDeseado : (a.orden || 999);
+      let ordB = (typeof b.ordenDeseado === 'number') ? b.ordenDeseado : (b.orden || 999);
+
+      // 1. Criterio primario: El número deseado que el usuario escribió
+      if (ordA !== ordB) {
+        return ordA - ordB;
+      }
+
+      // 2. Criterio de desempate: Si el usuario modificó intencionalmente uno de ellos, ese tiene prioridad
+      if (a.fueModificadoOrden && !b.fueModificadoOrden) return -1;
+      if (!a.fueModificadoOrden && b.fueModificadoOrden) return 1;
+
+      // 3. Criterio de estabilidad: Mantener el orden original previo para no desacomodar productos no tocados
+      let prevA = (typeof a.ordenPrevio === 'number') ? a.ordenPrevio : (a.orden || 999);
+      let prevB = (typeof b.ordenPrevio === 'number') ? b.ordenPrevio : (b.orden || 999);
+      if (prevA !== prevB) {
+        return prevA - prevB;
+      }
+
+      return a.nombre.localeCompare(b.nombre);
+    });
+
+    // PASO 4: Asignar secuencia correlativa limpia y sin empates (1, 2, 3... N)
+    productosDeCat.forEach((item, index) => {
+      const posicionCorrelativa = index + 1;
+      item.orden = posicionCorrelativa;
+      item.ordenDeseado = posicionCorrelativa;
+      item.ordenPrevio = posicionCorrelativa;
+      item.fueModificadoOrden = false;
+
+      // Actualizar visualmente el input en el DOM si está visible en pantalla
+      const safeName = (item.nombreOriginal || item.nombre).replace(/["']/g, '');
+      const safeCat = (item.categoriaOriginal || item.categoria).replace(/["']/g, '');
+      const filaDom = document.querySelector(`.fila-producto-cfg[data-original-name="${safeName}"][data-original-cat="${safeCat}"]`);
+      if (filaDom) {
+        const inpOrd = filaDom.querySelector('.cfg-orden');
+        if (inpOrd && parseInt(inpOrd.value) !== posicionCorrelativa) {
+          inpOrd.value = posicionCorrelativa;
+        }
+      }
     });
   }
-
-  // 4. Sincronizar el resto de campos (nombre, precio, stock, etc.)
-  filas.forEach(f => {
-    const origName = f.getAttribute('data-original-name');
-    const origCat = f.getAttribute('data-original-cat');
-    const item = listaFlatProductosCodigos.find(p => p.nombreOriginal === origName && p.categoriaOriginal === origCat);
-    if (item) {
-      const inputPLU = f.querySelector('.cfg-plu');
-      const inputNom = f.querySelector('.cfg-nombre');
-      const selectCat = f.querySelector('.cfg-cat');
-      const selectUni = f.querySelector('.cfg-unidad');
-      const inputPeso = f.querySelector('.cfg-pesoprom');
-      const inputMin = f.querySelector('.cfg-minimo');
-      const inputStock = f.querySelector('.cfg-stock');
-      const selectDisp = f.querySelector('.cfg-disp');
-      const selectWeb = f.querySelector('.cfg-web');
-      const selectIVA = f.querySelector('.cfg-iva');
-      const inputPrec = f.querySelector('.cfg-precio');
-
-      if (inputPLU) item.codigoPLU = inputPLU.value.trim();
-      if (inputNom && inputNom.value.trim()) item.nombre = inputNom.value.trim();
-      if (selectCat) item.categoria = selectCat.value;
-      if (selectUni) item.unidad = selectUni.value;
-      if (inputPeso && item.unidad === 'mixto') item.pesoPromedio = parseInt(inputPeso.value) || 2000;
-      if (inputMin) item.minimo = parseInt(inputMin.value) || item.minimo;
-      if (inputStock && !isNaN(parseFloat(inputStock.value))) {
-        item.stock = parseFloat(inputStock.value);
-        actualizarStockEnCacheLocal(item.nombreOriginal, item.stock);
-      }
-      if (selectDisp) item.disponible = (selectDisp.value === "true");
-      if (selectWeb) item.visibleWeb = (selectWeb.value === "true");
-      if (selectIVA) item.tasaIVA = selectIVA.value || "E";
-      if (inputPrec && !isNaN(parseFloat(inputPrec.value))) item.precio = parseFloat(inputPrec.value);
-    }
-  });
 }
 window.sincronizarDOMAFlatList = sincronizarDOMAFlatList;
 
