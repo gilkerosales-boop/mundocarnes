@@ -9216,6 +9216,7 @@ function sincronizarDOMAFlatList() {
     });
   }
 }
+window.sincronizarDOMAFlatList = sincronizarDOMAFlatList;
 
       // Actualizar visualmente el input en el DOM si está visible en pantalla
       const safeName = (item.nombreOriginal || item.nombre).replace(/["']/g, '');
