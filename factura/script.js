@@ -13184,10 +13184,10 @@ async function procesarSiguienteCierreCaja() {
     if (Array.isArray(ventasLocales)) {
       ventasLocales.forEach(v => {
         if (v && v.numFactura) {
-          const userFila = normalizarUsuario(v.usuario);
+          const userFila = normalizarUsuario(v.USUARIO || v.usuario);
           // Aislamiento total: solo incluir si pertenece al usuario activo de la sesión
           if (userFila === usuario) {
-            mapVentasHoy[String(v.numFactura)] = { ...v };
+            mapVentasHoy[String(v.numFactura)] = { ...v, usuario: userFila, USUARIO: userFila };
           }
         }
       });
@@ -13195,11 +13195,15 @@ async function procesarSiguienteCierreCaja() {
 
     if (navigator.onLine) {
       try {
-        const ventasSup = await obtenerTodasLasVentasSupabase(tablaUsuarioActivo);
+        // Pasar explícitamente el usuario actual para que la consulta filtre por USUARIO = usuario
+        const ventasSup = await obtenerTodasLasVentasSupabase(usuario);
         if (Array.isArray(ventasSup)) {
           ventasSup.forEach(v => {
             let numFac = v.FACTURA || v["FACTURA N°"] || v.numFactura;
-            if (numFac) {
+            const usuarioRealDeLaVenta = normalizarUsuario(v["USUARIO"] || v.usuario || "");
+
+            // FILTRO DE SEGURIDAD ABSOLUTO: solo procesar si la venta pertenece al usuario en turno
+            if (numFac && usuarioRealDeLaVenta === usuario) {
               const localExistente = mapVentasHoy[String(numFac)] || {};
               mapVentasHoy[String(numFac)] = {
                 ...v,
@@ -13209,7 +13213,8 @@ async function procesarSiguienteCierreCaja() {
                 montoTotalUSD: parseFloat(v["MONTO TOTAL"] || localExistente.montoTotalUSD) || 0,
                 formaPagoStr: v["FORMA DE PAGO"] || localExistente.formaPagoStr || "",
                 productosSummary: v["PRODUCTOS"] || localExistente.productosSummary || "",
-                usuario: usuario,
+                usuario: usuarioRealDeLaVenta,
+                USUARIO: usuarioRealDeLaVenta,
                 esFiscal: Boolean(String(v["FORMA DE PAGO"] || localExistente.formaPagoStr || "").includes("FISCAL") || v.esFiscal || localExistente.esFiscal),
                 esNotaDebito: Boolean(v.esNotaDebito || localExistente.esNotaDebito || String(v["FORMA DE PAGO"] || localExistente.formaPagoStr || "").includes("NOTA DE DEBITO")),
                 exentoBS: parseFloat(localExistente.exentoBS || v.exentoBS || v["EXENTO_BS"]) || 0,
