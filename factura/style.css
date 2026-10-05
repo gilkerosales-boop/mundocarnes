@@ -996,6 +996,7 @@ body {
   padding: 8px 6px !important;
   font-size: 0.76rem !important;
   letter-spacing: 0.2px;
+  vertical-align: middle;
 }
 
 .table-config-inline td {
@@ -1009,7 +1010,33 @@ body {
   font-size: 0.8rem !important;
   border-radius: 6px !important;
   border: 1px solid #cbd5e1 !important;
-  height: 32px;
+  height: 30px;
+}
+
+/* Retirar spinners nativos que comprimían el texto dentro del input de orden */
+.table-config-inline input[type="number"]::-webkit-outer-spin-button,
+.table-config-inline input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+
+.table-config-inline input[type="number"] {
+  -moz-appearance: textfield !important;
+}
+
+/* Espaciado optimizado para que los textos en selectores no se corten */
+.table-config-inline .form-select {
+  padding-left: 6px !important;
+  padding-right: 18px !important;
+  background-position: right 4px center !important;
+  background-size: 10px 10px !important;
+  font-size: 0.78rem !important;
+}
+
+.table-config-inline .cfg-orden {
+  font-size: 0.86rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.4px;
 }
 
 .table-config-inline .form-control:focus, 
