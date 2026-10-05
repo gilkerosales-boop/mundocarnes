@@ -5667,8 +5667,8 @@ function renderizarTablaGestionCodigos(lista) {
         </td>
 
         <!-- 5. Modo de Venta -->
-        <td style="width: 95px;">
-          <select class="form-select form-select-sm fw-semibold cfg-unidad" onchange="alternarCampoPesoFila(this)" ${disabledAttr}>
+        <td style="width: 110px; min-width: 110px;">
+          <select class="form-select form-select-sm fw-semibold cfg-unidad px-2" onchange="alternarCampoPesoFila(this)" ${disabledAttr}>
             <option value="unidades" ${item.unidad === 'unidades' ? 'selected' : ''}>Unidades</option>
             <option value="gramos" ${item.unidad === 'gramos' ? 'selected' : ''}>Gramos</option>
             <option value="mixto" ${item.unidad === 'mixto' ? 'selected' : ''}>Mixto</option>
@@ -5676,30 +5676,30 @@ function renderizarTablaGestionCodigos(lista) {
         </td>
 
         <!-- 6. Peso Promedio (g) -->
-        <td style="width: 75px;">
+        <td style="width: 80px; min-width: 80px;">
           <input type="number" class="form-control form-control-sm text-center cfg-pesoprom num-legible" 
                  value="${item.pesoPromedio || ''}" placeholder="g" min="1" ${disabledPeso}>
         </td>
 
-       <!-- 7. Orden en Categoría (Interactivo en Vivo con Flechas y Entrada Directa) -->
-        <td style="width: 90px;" class="text-center">
+        <!-- 7. Orden en Categoría (Espacioso para 3+ dígitos y botones equilibrados) -->
+        <td style="width: 115px; min-width: 115px;" class="text-center">
           <div class="d-inline-flex align-items-center justify-content-center gap-1">
-            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size: 0.65rem;" onclick="moverPosicionProductoRelativa(${index}, -1)" title="Subir una posición" ${disabledAttr}>▲</button>
-            <input type="number" class="form-control form-control-sm text-center fw-bold cfg-orden num-legible p-0" 
-                   value="${item.orden}" min="1" style="width: 42px; height: 28px;" onchange="cambiarPosicionProductoDirecta(${index}, this.value)" ${disabledAttr}>
-            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size: 0.65rem;" onclick="moverPosicionProductoRelativa(${index}, 1)" title="Bajar una posición" ${disabledAttr}>▼</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center" style="width: 22px; height: 28px; font-size: 0.7rem; padding: 0;" onclick="moverPosicionProductoRelativa(${index}, -1)" title="Subir una posición" ${disabledAttr}>▲</button>
+            <input type="number" class="form-control form-control-sm text-center fw-bold cfg-orden num-legible px-1" 
+                   value="${item.orden}" min="1" style="width: 54px; min-width: 54px; height: 28px; font-size: 0.85rem;" onchange="cambiarPosicionProductoDirecta(${index}, this.value)" ${disabledAttr}>
+            <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center" style="width: 22px; height: 28px; font-size: 0.7rem; padding: 0;" onclick="moverPosicionProductoRelativa(${index}, 1)" title="Bajar una posición" ${disabledAttr}>▼</button>
           </div>
         </td>
 
         <!-- 8. Mínimo de Venta -->
-        <td style="width: 65px;">
+        <td style="width: 70px; min-width: 70px;">
           <input type="number" class="form-control form-control-sm text-center cfg-minimo num-legible" 
-                 value="${item.minimo}" min="1" style="max-width: 65px; margin: 0 auto;" ${disabledAttr}>
+                 value="${item.minimo}" min="1" style="max-width: 70px; margin: 0 auto;" ${disabledAttr}>
         </td>
 
         <!-- 9. Stock Actual (Kg / Uds) -->
-        <td style="width: 105px;">
-          <div class="input-group input-group-sm" style="max-width: 105px; margin: 0 auto;">
+        <td style="width: 110px; min-width: 110px;">
+          <div class="input-group input-group-sm" style="max-width: 110px; margin: 0 auto;">
             <input type="number" step="${stepStock}" class="form-control form-control-sm text-center fw-bold cfg-stock num-legible" 
                    value="${item.stock !== undefined ? item.stock : 0}" placeholder="0" 
                    title="Stock físico en tienda: ${item.stock || 0} ${unidadStockLabel}" ${disabledAttr}>
@@ -5707,16 +5707,16 @@ function renderizarTablaGestionCodigos(lista) {
         </td>
 
         <!-- 10. Disponibilidad en Tienda -->
-        <td style="width: 105px;">
-          <select class="form-select form-select-sm fw-bold cfg-disp" title="Disponibilidad para ventas físicas" ${disabledAttr}>
+        <td style="width: 115px; min-width: 115px;">
+          <select class="form-select form-select-sm fw-bold cfg-disp px-2" title="Disponibilidad para ventas físicas" ${disabledAttr}>
             <option value="true" ${item.disponible ? 'selected' : ''}>✅ Disp.</option>
             <option value="false" ${!item.disponible ? 'selected' : ''}>🚫 Agot.</option>
           </select>
         </td>
 
         <!-- 11. Visibilidad en Página Web -->
-        <td style="width: 105px;">
-          <select class="form-select form-select-sm fw-bold cfg-web" title="Visibilidad en catálogo web" ${disabledAttr}>
+        <td style="width: 115px; min-width: 115px;">
+          <select class="form-select form-select-sm fw-bold cfg-web px-2" title="Visibilidad en catálogo web" ${disabledAttr}>
             <option value="true" ${item.visibleWeb !== false ? 'selected' : ''}>🌐 Visible</option>
             <option value="false" ${item.visibleWeb === false ? 'selected' : ''}>🚫 Oculto</option>
           </select>
