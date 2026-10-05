@@ -5575,17 +5575,23 @@ function prepararListaProductosCodigos() {
     });
   });
 
-  // Ordenamiento canónico: primero por Categoría oficial, y dentro de cada una por su Orden (1, 2, 3... N)
+  // Ordenar la tabla del Catálogo Maestro de forma lógica: por categoría oficial y luego por su orden interno
+  const ordenCategoriasOficial = ["COMBOS", "CARNES", "POLLO", "QUESOS Y EMBUTIDOS", "VIVERES"];
   listaFlatProductosCodigos.sort((a, b) => {
-    let catIdxA = ordenCategorias.indexOf(a.categoria);
-    let catIdxB = ordenCategorias.indexOf(b.categoria);
-    if (catIdxA === -1) catIdxA = 99;
-    if (catIdxB === -1) catIdxB = 99;
+    const idxCatA = ordenCategoriasOficial.indexOf((a.categoria || a.categoriaOriginal || "").toUpperCase());
+    const idxCatB = ordenCategoriasOficial.indexOf((b.categoria || b.categoriaOriginal || "").toUpperCase());
+    const pesoCatA = idxCatA !== -1 ? idxCatA : 999;
+    const pesoCatB = idxCatB !== -1 ? idxCatB : 999;
 
-    if (catIdxA !== catIdxB) {
-      return catIdxA - catIdxB;
+    if (pesoCatA !== pesoCatB) {
+      return pesoCatA - pesoCatB;
     }
-    return (a.orden || 999) - (b.orden || 999);
+    const ordA = parseInt(a.orden, 10) || 999;
+    const ordB = parseInt(b.orden, 10) || 999;
+    if (ordA !== ordB) {
+      return ordA - ordB;
+    }
+    return a.nombre.localeCompare(b.nombre);
   });
 
   renderizarTablaGestionCodigos(listaFlatProductosCodigos);
@@ -9147,11 +9153,10 @@ function cerrarPanelDetalleCXP() {
 }
 window.cerrarPanelDetalleCXP = cerrarPanelDetalleCXP;
 
-// Sincronizar en vivo los cambios editados con reordenamiento estable y determinista por intención
+// Sincronización fiel de los datos de la tabla respetando exactamente los valores escritos por el usuario
 function sincronizarDOMAFlatList() {
   const filas = document.querySelectorAll('.fila-producto-cfg');
 
-  // PASO 1: Sincronizar campos generales (nombre, precio, stock, etc.) y capturar el orden deseado
   filas.forEach(f => {
     const origName = f.getAttribute('data-original-name');
     const origCat = f.getAttribute('data-original-cat');
@@ -9163,20 +9168,29 @@ function sincronizarDOMAFlatList() {
     const selectCat = f.querySelector('.cfg-cat');
     const selectUni = f.querySelector('.cfg-unidad');
     const inputPeso = f.querySelector('.cfg-pesoprom');
+    const inputOrd = f.querySelector('.cfg-orden');
     const inputMin = f.querySelector('.cfg-minimo');
     const inputStock = f.querySelector('.cfg-stock');
     const selectDisp = f.querySelector('.cfg-disp');
     const selectWeb = f.querySelector('.cfg-web');
     const selectIVA = f.querySelector('.cfg-iva');
     const inputPrec = f.querySelector('.cfg-precio');
-    const inputOrd = f.querySelector('.cfg-orden');
 
     if (inputPLU) item.codigoPLU = inputPLU.value.trim();
     if (inputNom && inputNom.value.trim()) item.nombre = inputNom.value.trim();
     if (selectCat) item.categoria = selectCat.value;
     if (selectUni) item.unidad = selectUni.value;
-    if (inputPeso && item.unidad === 'mixto') item.pesoPromedio = parseInt(inputPeso.value) || 2000;
-    if (inputMin) item.minimo = parseInt(inputMin.value) || item.minimo;
+    if (inputPeso && item.unidad === 'mixto') item.pesoPromedio = parseInt(inputPeso.value, 10) || 2000;
+
+    // Lectura DIRECTA y exacta de la posición escrita por el usuario
+    if (inputOrd) {
+      const ordVal = parseInt(inputOrd.value, 10);
+      if (!isNaN(ordVal) && ordVal > 0) {
+        item.orden = ordVal;
+      }
+    }
+
+    if (inputMin) item.minimo = parseInt(inputMin.value, 10) || item.minimo;
     if (inputStock && !isNaN(parseFloat(inputStock.value))) {
       item.stock = parseFloat(inputStock.value);
       actualizarStockEnCacheLocal(item.nombreOriginal, item.stock);
@@ -9185,63 +9199,23 @@ function sincronizarDOMAFlatList() {
     if (selectWeb) item.visibleWeb = (selectWeb.value === "true");
     if (selectIVA) item.tasaIVA = selectIVA.value || "E";
     if (inputPrec && !isNaN(parseFloat(inputPrec.value))) item.precio = parseFloat(inputPrec.value);
-
-    // Captura del orden deseado escrito por el usuario en el input
-    if (inputOrd) {
-      let ordDeseado = parseInt(inputOrd.value);
-      item.ordenPrevio = (typeof item.ordenPrevio === 'number') ? item.ordenPrevio : (item.orden || 999);
-      if (!isNaN(ordDeseado) && ordDeseado > 0) {
-        item.fueModificadoOrden = (ordDeseado !== item.ordenPrevio);
-        item.ordenDeseado = ordDeseado;
-      } else {
-        item.ordenDeseado = item.orden || 999;
-        item.fueModificadoOrden = false;
-      }
-    }
   });
 
-  // PASO 2: Agrupar por categoría activa
-  let categoriasMap = {};
+  // Reordenar limpiamente dentro de cada categoría según la posición asignada
+  const categoriasMap = {};
   listaFlatProductosCodigos.forEach(item => {
-    let cat = item.categoria || item.categoriaOriginal;
+    const cat = item.categoria || item.categoriaOriginal || "VIVERES";
     if (!categoriasMap[cat]) categoriasMap[cat] = [];
     categoriasMap[cat].push(item);
   });
 
-  // PASO 3: Ordenamiento determinista estable libre de colisiones por cada categoría
   for (let cat in categoriasMap) {
-    let productosDeCat = categoriasMap[cat];
-
-    productosDeCat.sort((a, b) => {
-      let ordA = (typeof a.ordenDeseado === 'number') ? a.ordenDeseado : (a.orden || 999);
-      let ordB = (typeof b.ordenDeseado === 'number') ? b.ordenDeseado : (b.orden || 999);
-
-      // 1. Criterio primario: El número deseado que el usuario escribió
-      if (ordA !== ordB) {
-        return ordA - ordB;
-      }
-
-      // 2. Criterio de desempate: Si el usuario modificó intencionalmente uno de ellos, ese tiene prioridad
-      if (a.fueModificadoOrden && !b.fueModificadoOrden) return -1;
-      if (!a.fueModificadoOrden && b.fueModificadoOrden) return 1;
-
-      // 3. Criterio de estabilidad: Mantener el orden original previo para no desacomodar productos no tocados
-      let prevA = (typeof a.ordenPrevio === 'number') ? a.ordenPrevio : (a.orden || 999);
-      let prevB = (typeof b.ordenPrevio === 'number') ? b.ordenPrevio : (b.orden || 999);
-      if (prevA !== prevB) {
-        return prevA - prevB;
-      }
-
-      return a.nombre.localeCompare(b.nombre);
+    categoriasMap[cat].sort((a, b) => (parseInt(a.orden, 10) || 0) - (parseInt(b.orden, 10) || 0));
+    categoriasMap[cat].forEach((item, idx) => {
+      item.orden = idx + 1;
     });
-
-    // PASO 4: Asignar secuencia correlativa limpia y sin empates (1, 2, 3... N)
-    productosDeCat.forEach((item, index) => {
-      const posicionCorrelativa = index + 1;
-      item.orden = posicionCorrelativa;
-      item.ordenDeseado = posicionCorrelativa;
-      item.ordenPrevio = posicionCorrelativa;
-      item.fueModificadoOrden = false;
+  }
+}
 
       // Actualizar visualmente el input en el DOM si está visible en pantalla
       const safeName = (item.nombreOriginal || item.nombre).replace(/["']/g, '');
