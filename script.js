@@ -644,11 +644,13 @@ async function guardarEdicionAdministrador() {
     }
 
     let cat = cacheCategorias.find(c => c.nombre === productoTemporal.categoria);
+    let actualizacionesSupabase = [];
+
     if (cat) {
       const oldIndex = cat.productos.findIndex(p => p[0] === productoTemporal.nombre);
       if (oldIndex !== -1) {
         let prod = cat.productos[oldIndex];
-        
+
         prod[0] = nuevoNombre;
         prod[1] = prec;
         prod[3] = disp;
@@ -662,27 +664,60 @@ async function guardarEdicionAdministrador() {
         if (relativeImgPath) {
           prod[2] = relativeImgPath;
         }
-        
+
         let targetIndex = nuevaPosicion - 1;
         if (targetIndex < 0) targetIndex = 0;
         if (targetIndex >= cat.productos.length) targetIndex = cat.productos.length - 1;
-        
+
         if (oldIndex !== targetIndex) {
           cat.productos.splice(oldIndex, 1);
           cat.productos.splice(targetIndex, 0, prod);
         }
+
+        // Re-indexar correlativamente la categoría completa de 1 a N
+        cat.productos.forEach((p, idx) => {
+          const ordenLimpio = idx + 1;
+          p[11] = ordenLimpio; // Columna orden
+
+          actualizacionesSupabase.push({
+            nombre: p[0],
+            orden: ordenLimpio,
+            precio: parseFloat(p[1]) || 0,
+            disponible_tienda: p[3] !== false,
+            minimo_venta: parseFloat(p[4]) || 1,
+            modo: p[5] || "gramos",
+            peso_promedio_g: parseFloat(p[6]) || 0,
+            codigo_plu: p[7] || "",
+            tasa_iva: p[8] || "E",
+            visible_web: p[9] !== false,
+            img_path: p[2] || "img/LOGO-MUNDO123.webp",
+            updated_at: new Date().toISOString()
+          });
+        });
       }
     }
 
+    // 1. Guardar en Supabase para sincronización en tiempo real
+    const sb = getSupabase();
+    if (sb && actualizacionesSupabase.length > 0) {
+      try {
+        await sb.from('productos').upsert(actualizacionesSupabase, { onConflict: 'nombre' });
+        // Limpiar caché local de la web pública para forzar refresco
+        localStorage.removeItem("mundocarnes_catalogo_web");
+      } catch (errSup) {
+        console.warn("Aviso al sincronizar orden en Supabase:", errSup);
+      }
+    }
+
+    // 2. Respaldo en GitHub de catalog.json
     await guardarCatalogoEnGitHub();
 
     btn.disabled = false;
     btn.textContent = "Guardar Cambios 💾";
     bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-    mostrarAviso("Producto guardado correctamente.");
-    
-    renderizarCatalogo({ categorias: cacheCategorias });
+    mostrarAviso("Producto guardado y reordenado correctamente en Supabase y Catálogo.");
 
+    renderizarCatalogo({ categorias: cacheCategorias });
   } catch (error) {
     btn.disabled = false;
     btn.textContent = "Guardar Cambios 💾";
