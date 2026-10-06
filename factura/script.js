@@ -2749,6 +2749,17 @@ function actualizarStockEnCacheLocal(nombre, nuevoStock) {
   } catch(e) {}
 }
 
+// Iconografía institucional para cada categoría del POS
+function obtenerIconoCategoriaPOS(catNom) {
+  const c = String(catNom || "").toUpperCase();
+  if (c.includes("COMBO")) return "📦";
+  if (c.includes("CARNE")) return "🥩";
+  if (c.includes("POLLO")) return "🍗";
+  if (c.includes("QUESO") || c.includes("EMBUTIDO") || c.includes("CHARCU")) return "🧀";
+  if (c.includes("VIVERE")) return "🛒";
+  return "🏷️";
+}
+
 function renderizarCatalogoFacturacion(resp) {
   if (resp.error) return alert(resp.error);
   
@@ -2771,21 +2782,46 @@ function renderizarCatalogoFacturacion(resp) {
     } catch(e) {}
   }
 
+  // Recolectar lista consolidada para la pestaña "TODOS"
+  let todosLosProductos = [];
+  cacheCategoriasFactura.forEach(cat => {
+    cat.productos.forEach(p => {
+      todosLosProductos.push({ datos: p, categoria: cat.nombre });
+    });
+  });
+
+  const totalProductos = todosLosProductos.length;
   let tabsHtml = "";
   let contentHtml = "";
 
-  cacheCategoriasFactura.forEach((cat, index) => {
-    let activeClass = index === 0 ? "active" : "";
-    let showActiveClass = index === 0 ? "show active" : "";
+  // 1. Pestaña Inicial "🌟 TODOS"
+  tabsHtml += `
+    <li class="nav-item">
+      <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#factab-todos" type="button" onclick="limpiarBuscadorCatalogoPOSTouchSilencioso()">
+        <span>🌟</span> <span>TODOS</span> <span class="badge bg-danger bg-opacity-25 text-danger rounded-pill px-2 py-1" style="font-size:0.72rem;">${totalProductos}</span>
+      </button>
+    </li>`;
+
+  contentHtml += `
+    <div class="tab-pane fade show active" id="factab-todos">
+      <div id="lista-factab-todos" class="row g-2 pt-1"></div>
+    </div>`;
+
+  // 2. Pestañas de Categorías con Iconos y Contadores
+  cacheCategoriasFactura.forEach((cat) => {
     let safeId = "factab-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
+    let iconoCat = obtenerIconoCategoriaPOS(cat.nombre);
+    let cantCat = cat.productos.length;
 
     tabsHtml += `
       <li class="nav-item">
-        <button class="nav-link ${activeClass}" data-bs-toggle="tab" data-bs-target="#${safeId}" type="button">${cat.nombre}</button>
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#${safeId}" type="button" onclick="limpiarBuscadorCatalogoPOSTouchSilencioso()">
+          <span>${iconoCat}</span> <span>${cat.nombre}</span> <span class="badge bg-secondary bg-opacity-25 text-secondary rounded-pill px-2 py-1" style="font-size:0.72rem;">${cantCat}</span>
+        </button>
       </li>`;
 
     contentHtml += `
-      <div class="tab-pane fade ${showActiveClass}" id="${safeId}">
+      <div class="tab-pane fade" id="${safeId}">
         <div id="lista-${safeId}" class="row g-2 pt-1"></div>
       </div>`;
   });
@@ -2793,10 +2829,58 @@ function renderizarCatalogoFacturacion(resp) {
   document.getElementById('facturaTabs').innerHTML = tabsHtml;
   document.getElementById('facturaTabContent').innerHTML = contentHtml;
 
+  // Cargar pestaña consolidada "TODOS"
+  const contTodos = document.getElementById("lista-factab-todos");
+  if (contTodos) {
+    contTodos.innerHTML = todosLosProductos.map(item => {
+      return renderizarTarjetaProductoIndividual(item.datos, item.categoria);
+    }).join('');
+  }
+
+  // Cargar cada categoría individual
   cacheCategoriasFactura.forEach((cat) => {
     let safeId = "factab-" + cat.nombre.replace(/\s+/g, '-').toLowerCase();
     cargarListaFacturacion("lista-" + safeId, cat.productos, cat.nombre);
   });
+}
+
+function renderizarTarjetaProductoIndividual(f, nombreCategoria) {
+  let nom = f[0];
+  let prec = f[1];
+  let rawImg = f[2] || '';
+  let imgPath = (rawImg.startsWith('../') || rawImg.startsWith('data:') || rawImg.startsWith('blob:') || rawImg.startsWith('http')) 
+    ? rawImg 
+    : '../' + rawImg;
+  let esDisp = f[3];
+  let cantMin = f[4];
+  let unidad = f[5];
+  let pesoPromedio = f[6] || 0;
+  let tasaIVA = f[8] || "E";
+
+  let claseImg = esDisp ? "" : "img-agotado";
+  let unidadTxt = (unidad === 'gramos') ? 'g' : 'uds';
+  const safeNom = nom.replace(/'/g, "\\'");
+  const safeCat = nombreCategoria.replace(/'/g, "\\'");
+
+  // Toque / Clic táctil en toda la tarjeta
+  let handlerTouch = esDisp 
+    ? `onclick="abrirModalAgregarFactura('${safeNom}', ${prec}, '${safeCat}', ${cantMin}, '${unidad}', ${pesoPromedio}, '${imgPath}', '${tasaIVA}')"` 
+    : '';
+
+  let boton = esDisp 
+    ? `<button type="button" class="btn btn-sm btn-outline-danger fw-bold w-100" tabindex="-1">+ Seleccionar</button>`
+    : `<button type="button" class="btn btn-sm btn-secondary fw-bold w-100" disabled tabindex="-1">Agotado</button>`;
+
+  return `
+    <div class="col-6 col-md-4 col-xl-3">
+      <div class="card card-producto h-100 text-center" ${handlerTouch} title="${esDisp ? 'Toque para agregar este producto' : 'Producto agotado'}">
+        <img src="${imgPath}" loading="lazy" decoding="async" class="${claseImg}" alt="${nom}">
+        <h6 class="fw-bold mt-2 text-truncate mb-1" title="${nom}">${nom}</h6>
+        <p class="text-success fw-bold mb-0 num-legible">$${parseFloat(prec).toFixed(2)}</p>
+        <small class="text-muted">Mín: ${cantMin} ${unidadTxt}</small>
+        ${boton}
+      </div>
+    </div>`;
 }
 
 function cargarListaFacturacion(idElemento, productos, nombreCategoria) {
@@ -2804,37 +2888,107 @@ function cargarListaFacturacion(idElemento, productos, nombreCategoria) {
   if (!contenedor) return;
 
   contenedor.innerHTML = productos.map(f => {
-    let nom = f[0];
-    let prec = f[1];
-    let rawImg = f[2] || '';
-    let imgPath = (rawImg.startsWith('../') || rawImg.startsWith('data:') || rawImg.startsWith('blob:') || rawImg.startsWith('http')) 
-      ? rawImg 
-      : '../' + rawImg;
-    let esDisp = f[3];
-    let cantMin = f[4];
-    let unidad = f[5];
-    let pesoPromedio = f[6] || 0;
-    let tasaIVA = f[8] || "E";
-
-    let claseImg = esDisp ? "" : "img-agotado";
-    let boton = esDisp 
-      ? `<button class="btn btn-sm btn-outline-danger fw-bold mt-2 w-100" onclick="abrirModalAgregarFactura('${nom}', ${prec}, '${nombreCategoria}', ${cantMin}, '${unidad}', ${pesoPromedio}, '${imgPath}', '${tasaIVA}')">+ Seleccionar</button>`
-      : `<button class="btn btn-sm btn-secondary fw-bold mt-2 w-100" disabled>Agotado</button>`;
-
-    let unidadTxt = (unidad === 'gramos') ? 'g' : 'uds';
-
-    return `
-      <div class="col-6 col-md-4 col-xl-3">
-        <div class="card card-producto h-100 text-center">
-          <img src="${imgPath}" loading="lazy" class="${claseImg}">
-          <h6 class="fw-bold mt-2 text-truncate mb-1">${nom}</h6>
-          <p class="text-success fw-bold mb-0 num-legible">$${parseFloat(prec).toFixed(2)}</p>
-          <small class="text-muted" style="font-size:0.72rem;">Mín: ${cantMin} ${unidadTxt}</small>
-          ${boton}
-        </div>
-      </div>`;
+    return renderizarTarjetaProductoIndividual(f, nombreCategoria);
   }).join('');
 }
+
+// ==========================================================================
+// BUSCADOR PREDICTIVO EN VIVO TÁCTIL (ALL-IN-ONE 15" - 0 MS)
+// ==========================================================================
+
+function filtrarCatalogoPOSTouch(texto) {
+  const q = String(texto || "").trim().toLowerCase();
+  const btnLimpiar = document.getElementById('btnLimpiarBuscarCatalogoPOS');
+
+  if (!q) {
+    if (btnLimpiar) btnLimpiar.classList.add('hidden');
+    // Restaurar vista de todos
+    const contTodos = document.getElementById("lista-factab-todos");
+    if (contTodos && cacheCategoriasFactura.length > 0) {
+      let todosProds = [];
+      cacheCategoriasFactura.forEach(cat => {
+        cat.productos.forEach(p => todosProds.push({ datos: p, categoria: cat.nombre }));
+      });
+      contTodos.innerHTML = todosProds.map(it => renderizarTarjetaProductoIndividual(it.datos, it.categoria)).join('');
+    }
+    return;
+  }
+
+  if (btnLimpiar) btnLimpiar.classList.remove('hidden');
+
+  // Activar automáticamente la pestaña "TODOS" para proyectar la búsqueda global
+  const tabTodosBtn = document.querySelector('button[data-bs-target="#factab-todos"]');
+  if (tabTodosBtn && !tabTodosBtn.classList.contains('active')) {
+    bootstrap.Tab.getOrCreateInstance(tabTodosBtn).show();
+  }
+
+  // Filtrar entre todos los productos en memoria activa
+  let coincidentes = [];
+  cacheCategoriasFactura.forEach(cat => {
+    cat.productos.forEach(p => {
+      const nom = String(p[0] || "").toLowerCase();
+      const plu = String(p[7] || "").toLowerCase();
+      const catNom = String(cat.nombre || "").toLowerCase();
+
+      if (nom.includes(q) || plu.includes(q) || catNom.includes(q)) {
+        coincidentes.push({ datos: p, categoria: cat.nombre });
+      }
+    });
+  });
+
+  const contTodos = document.getElementById("lista-factab-todos");
+  if (!contTodos) return;
+
+  if (coincidentes.length === 0) {
+    contTodos.innerHTML = `
+      <div class="col-12 text-center py-5">
+        <div class="fs-1 text-muted mb-2">🔍</div>
+        <h6 class="fw-bold text-dark">No se encontraron productos para "${texto}"</h6>
+        <p class="small text-muted mb-3">Verifique el nombre o presione ✕ para restablecer el catálogo.</p>
+        <button type="button" class="btn btn-sm btn-outline-danger fw-bold rounded-pill px-4" onclick="limpiarBuscadorCatalogoPOSTouch()">
+          Limpiar Búsqueda
+        </button>
+      </div>`;
+    return;
+  }
+
+  contTodos.innerHTML = coincidentes.map(it => {
+    return renderizarTarjetaProductoIndividual(it.datos, it.categoria);
+  }).join('');
+}
+window.filtrarCatalogoPOSTouch = filtrarCatalogoPOSTouch;
+
+function limpiarBuscadorCatalogoPOSTouch() {
+  const inp = document.getElementById('inputBuscarCatalogoPOS');
+  if (inp) {
+    inp.value = "";
+    inp.focus();
+  }
+  filtrarCatalogoPOSTouch("");
+}
+window.limpiarBuscadorCatalogoPOSTouch = limpiarBuscadorCatalogoPOSTouch;
+
+function limpiarBuscadorCatalogoPOSTouchSilencioso() {
+  const inp = document.getElementById('inputBuscarCatalogoPOS');
+  const btnLimpiar = document.getElementById('btnLimpiarBuscarCatalogoPOS');
+  if (inp && inp.value.trim() !== "") {
+    inp.value = "";
+    if (btnLimpiar) btnLimpiar.classList.add('hidden');
+  }
+}
+window.limpiarBuscadorCatalogoPOSTouchSilencioso = limpiarBuscadorCatalogoPOSTouchSilencioso;
+
+// Atajo global de teclado F2 para enfocar el buscador en pantalla
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'F2') {
+    e.preventDefault();
+    const inp = document.getElementById('inputBuscarCatalogoPOS');
+    if (inp) {
+      inp.focus();
+      inp.select();
+    }
+  }
+});
 
 function abrirModalAgregarFactura(nom, prec, cat, cantMin, unidad, pesoProm, imgPath, tasaIVA = "E") {
   productoTemporalFactura = { 
