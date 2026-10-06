@@ -805,25 +805,35 @@ body {
 }
 
 /* ==========================================================================
-   TARJETAS DE PRODUCTO EN EL CATÁLOGO POS
+   TARJETAS DE PRODUCTO EN EL CATÁLOGO POS (ERGONOMÍA TOUCH & CLICK TOTAL)
    ========================================================================== */
 .card-producto {
-  border: 1px solid var(--pos-card-border);
+  border: 1.5px solid var(--pos-card-border);
   border-radius: var(--pos-radius-md);
-  background-color: var(--pos-surface-card);
+  background-color: #ffffff;
   padding: 10px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: var(--pos-shadow-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
 }
 
 .card-producto:hover {
   border-color: var(--pos-red);
   background-color: #ffffff;
-  box-shadow: var(--pos-shadow-md);
-  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1);
+  transform: translateY(-3px);
+}
+
+/* Micro-interacción táctil al tocar con el dedo en pantalla de 15" */
+.card-producto:active {
+  transform: scale(0.97) translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 .card-producto img {
@@ -834,6 +844,7 @@ body {
   border-radius: var(--pos-radius-sm);
   background-color: #ffffff;
   transition: transform 0.2s ease;
+  pointer-events: none;
 }
 
 .card-producto:hover img {
@@ -841,27 +852,45 @@ body {
 }
 
 .card-producto h6 {
-  font-size: 0.85rem;
-  font-weight: 700;
+  font-size: 0.84rem;
+  font-weight: 800;
   color: var(--pos-dark);
   margin-top: 8px;
   margin-bottom: 2px;
+  line-height: 1.25;
+  letter-spacing: -0.2px;
+  pointer-events: none;
 }
 
 .card-producto p.text-success {
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   font-weight: 800;
   color: var(--pos-red) !important;
   margin-bottom: 2px;
+  letter-spacing: 0.3px;
+  pointer-events: none;
 }
 
+.card-producto small.text-muted {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b !important;
+  pointer-events: none;
+}
+
+/* Botón inferior amplio para toque con los dedos */
 .card-producto .btn-outline-danger {
   border-radius: var(--pos-radius-pill);
-  font-size: 0.76rem;
-  font-weight: 700;
-  padding: 5px 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-width: 1.5px;
   background-color: #ffffff;
+  transition: all 0.15s ease;
+  margin-top: 6px;
 }
 
 .card-producto .btn-outline-danger:hover {
