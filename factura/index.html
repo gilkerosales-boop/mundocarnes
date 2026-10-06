@@ -239,20 +239,20 @@
         <div class="row g-3">
           <!-- Columna Izquierda: Catálogo Organizado por Categorías -->
           <div class="col-lg-8 col-xl-9">
-            <!-- BARRA DE BÚSQUEDA TÁCTIL EN VIVO (OPTIMIZADA PARA ALL-IN-ONE TOUCH 15") -->
-            <div class="card p-2 mb-2 border-0 shadow-sm rounded-3 bg-white barra-busqueda-pos-touch">
-              <div class="input-group input-group-lg">
-                <span class="input-group-text bg-light border-0 text-muted ps-3">
-                  <span class="fs-5">🔍</span>
+            <!-- BARRA DE BÚSQUEDA TÁCTIL EN VIVO (INTEGRADA Y ARMONIZADA) -->
+            <div class="barra-busqueda-pos-touch">
+              <div class="input-group">
+                <span class="input-group-text border-0 text-muted ps-2">
+                  <span>🔍</span>
                 </span>
-                <input type="text" id="inputBuscarCatalogoPOS" class="form-control border-0 bg-light fw-bold fs-6 py-2" placeholder="Buscar producto... (Toque aquí o presione F2)" autocomplete="off" oninput="filtrarCatalogoPOSTouch(this.value)" onkeydown="if(event.key==='Escape') limpiarBuscadorCatalogoPOSTouch()">
-                <button type="button" class="btn btn-light border-0 px-3 text-muted fw-bold btn-limpiar-busqueda-pos hidden" id="btnLimpiarBuscarCatalogoPOS" onclick="limpiarBuscadorCatalogoPOSTouch()" title="Limpiar búsqueda">
+                <input type="text" id="inputBuscarCatalogoPOS" class="form-control border-0 fw-bold py-1" placeholder="Buscar producto... (Toque aquí o presione F2)" autocomplete="off" oninput="filtrarCatalogoPOSTouch(this.value)" onkeydown="if(event.key==='Escape') limpiarBuscadorCatalogoPOSTouch()">
+                <button type="button" class="btn btn-light border-0 px-2 text-muted fw-bold btn-limpiar-busqueda-pos hidden" id="btnLimpiarBuscarCatalogoPOS" onclick="limpiarBuscadorCatalogoPOSTouch()" title="Limpiar búsqueda">
                   ✕
                 </button>
               </div>
             </div>
 
-            <ul class="nav nav-tabs mb-3" id="facturaTabs" role="tablist">
+            <ul class="nav nav-tabs" id="facturaTabs" role="tablist">
               <!-- Renderizado Dinámico desde catalog.json -->
             </ul>
             <div class="tab-content" id="facturaTabContent">
@@ -260,64 +260,70 @@
             </div>
           </div>
 
-          <!-- Columna Derecha: Detalle de Venta (Live Digital Register) -->
+          <!-- Columna Derecha: Detalle de Venta (Terminal de Caja Anclada) -->
           <div class="col-lg-4 col-xl-3">
             <div class="panel-factura-resumen">
-              <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
-                <h5 class="fw-bold mb-0">📋 Detalle de Venta</h5>
-                <div class="d-flex gap-1">
-                  <!-- Botón + Códigos -->
-                  <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="abrirModalCodigos()">
-                    📟 + Códigos
-                  </button>
-                  <!-- Botón + Manual -->
-                  <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="abrirModalProductoManual()">
-                    + Manual
-                  </button>
+              <!-- Cabecera Fija -->
+              <div class="panel-factura-header">
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                  <h5 class="fw-bold mb-0">📋 Detalle de Venta</h5>
+                  <div class="d-flex gap-1">
+                    <!-- Botón + Códigos -->
+                    <button type="button" class="btn btn-sm btn-outline-primary fw-bold px-2 py-1" onclick="abrirModalCodigos()" title="Escanear ticket o balanza">
+                      📟 + Códigos
+                    </button>
+                    <!-- Botón + Manual -->
+                    <button type="button" class="btn btn-sm btn-outline-danger fw-bold px-2 py-1" onclick="abrirModalProductoManual()" title="Agregar producto manual">
+                      + Manual
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <!-- Lista Dinámica de Productos Seleccionados -->
-              <div id="contenedorListaFactura" class="table-responsive mb-2" style="max-height: 320px; overflow-y: auto;">
+              <!-- Lista Dinámica de Productos Seleccionados (Cuerpo con Scroll Independiente) -->
+              <div id="contenedorListaFactura" class="table-responsive mb-2">
                 <p class="text-muted text-center py-4 small">No hay productos seleccionados.</p>
               </div>
 
-              <!-- Desglose Tributario de Bases Imponibles e IVA (Exento y 16%) -->
-              <div id="contenedorDesgloseIVA" class="caja-desglose-iva mb-2 shadow-sm">
-                <div class="fila-iva">
-                  <span class="text-muted">Monto Exento (0%):</span>
-                  <span id="montoResumenExento" class="fw-bold text-dark num-legible">$0.00</span>
+              <!-- Pie Fijo de Cobro y Totales -->
+              <div class="panel-factura-footer">
+                <!-- Desglose Tributario de Bases Imponibles e IVA (Condicionado a Modo Fiscal) -->
+                <div id="contenedorDesgloseIVA" class="caja-desglose-iva mb-2 shadow-sm hidden">
+                  <div class="fila-iva">
+                    <span class="text-muted">Monto Exento (0%):</span>
+                    <span id="montoResumenExento" class="fw-bold text-dark num-legible">$0.00</span>
+                  </div>
+                  <div class="fila-iva">
+                    <span class="text-muted">Base Gravable (16%):</span>
+                    <span id="montoResumenBase" class="fw-bold text-dark num-legible">$0.00</span>
+                  </div>
+                  <div class="fila-iva">
+                    <span class="text-muted">Impuesto IVA (16%):</span>
+                    <span id="montoResumenIVA" class="fw-bold text-danger num-legible">$0.00</span>
+                  </div>
                 </div>
-                <div class="fila-iva">
-                  <span class="text-muted">Base Gravable (16%):</span>
-                  <span id="montoResumenBase" class="fw-bold text-dark num-legible">$0.00</span>
+                
+                <!-- Caja de Totales Duales ($ y Bs) en Vivo -->
+                <div class="caja-totales-pos text-end shadow-sm">
+                  <div class="small fw-bold text-muted text-uppercase mb-0" id="labelTotalACobrarPOS" style="font-size: 0.72rem;">Total a Cobrar:</div>
+                  <div id="montoTotalFactura" class="monto-total-usd mb-0 num-legible">$0.00</div>
+                  <div id="montoTotalFacturaBs" class="monto-total-bs-sub num-legible">Bs. 0.00</div>
                 </div>
-                <div class="fila-iva">
-                  <span class="text-muted">Impuesto IVA (16%):</span>
-                  <span id="montoResumenIVA" class="fw-bold text-danger num-legible">$0.00</span>
-                </div>
-              </div>
-              
-              <!-- Caja de Totales Duales ($ y Bs) en Vivo -->
-              <div class="caja-totales-pos text-end shadow-sm">
-                <div class="small fw-bold text-muted text-uppercase mb-1" id="labelTotalACobrarPOS">Total a Cobrar:</div>
-                <div id="montoTotalFactura" class="monto-total-usd mb-1 num-legible">$0.00</div>
-                <div id="montoTotalFacturaBs" class="monto-total-bs-sub num-legible">Bs. 0.00</div>
-              </div>
 
-              <button type="button" id="btnEjecutarFacturarHero" class="btn btn-facturar-hero w-100 mb-2 shadow" onclick="ejecutarFacturar()">
-                Facturar 🧾
-              </button>
-              
-              <!-- Botón Standby / Facturas en Espera -->
-              <button type="button" class="btn btn-standby-pos w-100 mb-2 shadow-sm" onclick="abrirModalFacturasEnEspera()">
-                ⏳ Facturas en Espera (<span id="cntFacturasEnEspera">0</span>)
-              </button>
+                <button type="button" id="btnEjecutarFacturarHero" class="btn btn-facturar-hero w-100 mb-2 shadow" onclick="ejecutarFacturar()">
+                  Facturar 🧾
+                </button>
+                
+                <!-- Botón Standby / Facturas en Espera -->
+                <button type="button" class="btn btn-standby-pos w-100 mb-2 shadow-sm" onclick="abrirModalFacturasEnEspera()">
+                  ⏳ Facturas en Espera (<span id="cntFacturasEnEspera">0</span>)
+                </button>
 
-              <!-- Botón de Operación de Venta: Cierre de Turno / Caja -->
-              <button type="button" id="btnCierreTurnoPOS" class="btn btn-cierre-caja-pos w-100 shadow-sm" onclick="abrirModalCierreCaja()">
-                🔒 Cerrar Turno / Caja
-              </button>
+                <!-- Botón de Operación de Venta: Cierre de Turno / Caja -->
+                <button type="button" id="btnCierreTurnoPOS" class="btn btn-cierre-caja-pos w-100 shadow-sm" onclick="abrirModalCierreCaja()">
+                  🔒 Cerrar Turno / Caja
+                </button>
+              </div>
             </div>
           </div>
         </div>
