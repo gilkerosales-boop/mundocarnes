@@ -552,49 +552,80 @@ body {
 
 /* Píldora de búsqueda ovalada */
 .buscador-pildora-pos {
-  flex: 0 0 auto;
-  width: 230px;
-  height: 36px;
-  background: #ffffff;
-  border: 1.5px solid var(--pos-card-border);
-  border-radius: var(--pos-radius-pill);
-  display: inline-flex;
-  align-items: center;
-  padding: 0 10px 0 12px;
+  flex: 0 0 200px;
+  width: 200px;
+  height: 36px !important;
+  background-color: #ffffff !important;
+  border: 1.5px solid var(--pos-card-border) !important;
+  border-radius: 50px !important;
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  padding: 0 12px !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box !important;
+  overflow: hidden;
 }
 
 .buscador-pildora-pos:focus-within {
-  border-color: var(--pos-red);
-  box-shadow: 0 2px 10px rgba(220, 53, 69, 0.2);
-  width: 255px; /* Sutil expansión al tipear */
+  border-color: var(--pos-red) !important;
+  box-shadow: 0 2px 10px rgba(220, 53, 69, 0.2) !important;
+  flex: 0 0 230px;
+  width: 230px;
 }
 
 .icono-lupa-pildora {
-  font-size: 0.88rem;
+  font-size: 0.85rem !important;
+  line-height: 1 !important;
   color: #94a3b8;
-  margin-right: 6px;
+  margin-right: 6px !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   user-select: none;
-  display: inline-flex;
-  align-items: center;
+  flex-shrink: 0;
 }
 
-.input-pildora-busqueda {
-  flex: 1 1 auto;
+/* Anulación estricta de cualquier estilo previo o de Bootstrap sobre este input */
+.buscador-pildora-pos input.input-pildora-busqueda,
+input#inputBuscarCatalogoPOS.input-pildora-busqueda {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: auto !important;
+  max-height: 36px !important;
   border: none !important;
   outline: none !important;
   background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
   font-size: 0.82rem !important;
   font-weight: 700 !important;
-  color: var(--pos-dark);
+  color: var(--pos-dark) !important;
   padding: 0 !important;
-  height: 100%;
+  margin: 0 !important;
+  line-height: 36px !important;
+  border-radius: 0 !important;
 }
 
-.input-pildora-busqueda::placeholder {
-  color: #94a3b8;
-  font-weight: 600;
+.buscador-pildora-pos input.input-pildora-busqueda:focus,
+input#inputBuscarCatalogoPOS.input-pildora-busqueda:focus {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.buscador-pildora-pos input.input-pildora-busqueda::placeholder {
+  color: #94a3b8 !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
 }
 
 .btn-limpiar-pildora {
