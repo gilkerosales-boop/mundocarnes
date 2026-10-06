@@ -540,48 +540,57 @@ body {
 }
 
 /* ==========================================================================
-   BARRA DE BÚSQUEDA TÁCTIL EN VIVO (TOUCH POS 15")
+   BARRA INTEGRADA: BUSCADOR COMPACTO + PESTAÑAS (EN UNA SOLA FILA HORIZONTAL)
    ========================================================================== */
-.barra-busqueda-pos-touch {
-  border: 1.5px solid var(--pos-card-border) !important;
+.contenedor-barra-catalogo-top {
+  min-height: 40px;
+  margin-bottom: 12px;
+}
+
+.barra-busqueda-pos-compacta {
+  height: 38px;
+  border: 1.5px solid var(--pos-card-border);
+  border-radius: var(--pos-radius-pill) !important;
+  overflow: hidden;
+  background-color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
   transition: all 0.2s ease;
 }
 
-.barra-busqueda-pos-touch:focus-within {
+.barra-busqueda-pos-compacta:focus-within {
   border-color: var(--pos-red) !important;
-  box-shadow: 0 4px 16px rgba(220, 53, 69, 0.15) !important;
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.15) !important;
 }
 
 #inputBuscarCatalogoPOS {
-  height: 44px;
-  font-size: 0.95rem !important;
-  letter-spacing: 0.2px;
+  height: 36px;
+  font-size: 0.86rem !important;
+  padding-left: 4px;
 }
 
 .btn-limpiar-busqueda-pos {
-  width: 44px;
-  height: 44px;
+  height: 36px;
+  width: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 0.88rem;
   cursor: pointer;
-  border-radius: 0 8px 8px 0 !important;
-  transition: background-color 0.15s ease;
+  border: none !important;
 }
 
 .btn-limpiar-busqueda-pos:hover {
-  background-color: #e2e8f0 !important;
+  background-color: #f1f5f9 !important;
   color: var(--pos-red) !important;
 }
 
 /* ==========================================================================
-   PESTAÑAS DE CATEGORÍA DEL CATÁLOGO (ERGONOMÍA TÁCTIL 15")
+   PESTAÑAS DE CATEGORÍA DEL CATÁLOGO (ALINEADAS EN LA MISMA FILA)
    ========================================================================== */
 .nav-tabs {
   border-bottom: none;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 6px;
+  margin-bottom: 0;
   display: flex;
   flex-wrap: nowrap;
   overflow-x: auto;
@@ -593,22 +602,23 @@ body {
 }
 
 .nav-tabs .nav-link {
-  height: 40px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   color: #334155;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   border: 1.5px solid var(--pos-card-border);
   border-radius: var(--pos-radius-pill);
   background-color: #ffffff;
-  padding: 0 18px;
+  padding: 0 14px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
   user-select: none;
   cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
 }
 
 .nav-tabs .nav-link:hover {
@@ -622,7 +632,7 @@ body {
   color: #ffffff !important;
   background: linear-gradient(135deg, var(--pos-red) 0%, var(--pos-red-dark) 100%) !important;
   border-color: transparent !important;
-  box-shadow: 0 4px 14px rgba(220, 53, 69, 0.35);
+  box-shadow: 0 3px 12px rgba(220, 53, 69, 0.35);
   transform: translateY(-1px);
 }
 
