@@ -34,13 +34,13 @@
 }
 
 body {
-  background-color: var(--pos-bg) !important;
+  background-color: #0a0f1d !important;
   background-image: none !important;
   font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: #1e293b;
   min-height: 100vh;
   margin: 0;
-  padding: 0 0 40px 0;
+  padding: 0;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -52,16 +52,19 @@ body {
 }
 
 /* ==========================================================================
-   PANEL DE ACCESO / LOGIN CORPORATIVO (SPLIT-SCREEN MODERNO)
+   PANEL DE ACCESO / LOGIN CORPORATIVO (BLOQUEO DE SCROLL Y FONDO CONTINUO)
    ========================================================================== */
 .login-fullscreen-wrapper {
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px 16px;
+  padding: 16px;
   background: radial-gradient(circle at 50% 25%, #1e293b 0%, #0a0f1d 100%);
   animation: posFadeIn 0.35s ease-out;
+  box-sizing: border-box;
 }
 
 @keyframes posFadeIn {
@@ -222,38 +225,44 @@ body {
 }
 
 /* ==========================================================================
-   NAVBAR SUPERIOR POS CON SELECTOR FISCAL
+   NAVBAR SUPERIOR POS (CALIBRADO AL 100% PARA ALL-IN-ONE 15")
    ========================================================================== */
+#vistaFacturacion {
+  background-color: var(--pos-bg) !important;
+  min-height: 100vh;
+  padding-bottom: 24px;
+}
+
 .admin-navbar {
   position: sticky;
   top: 0;
   z-index: 1030;
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   color: #ffffff;
-  padding: 10px 24px;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  padding: 6px 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .admin-navbar .logo-nav {
-  max-height: 40px;
+  max-height: 32px;
   object-fit: contain;
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
 }
 
 .btn-nav-custom {
-  height: 38px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: var(--pos-radius-pill);
   background: rgba(255, 255, 255, 0.08);
   color: #f8fafc;
-  padding: 0 16px;
+  padding: 0 10px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
   backdrop-filter: blur(8px);
@@ -284,15 +293,15 @@ body {
   border-color: var(--pos-blue);
 }
 
-/* Widget Tasa Oficial BCV en Vivo (Navbar) */
+/* Widget Tasa Oficial BCV en Vivo (Compacto y Nítido en 15") */
 .widget-navbar-tasa-bcv {
-  height: 38px;
-  padding: 0 14px;
+  height: 32px;
+  padding: 0 10px;
   background: rgba(16, 185, 129, 0.14);
   border: 1.5px solid rgba(16, 185, 129, 0.45);
   border-radius: var(--pos-radius-pill);
   color: #10b981;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 800;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
