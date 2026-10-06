@@ -5015,18 +5015,33 @@ function cancelarProcesoFactura() {
   }
 }
 
-// LECTOR DE BALANZA PS-30
+// LECTOR DE CÓDIGOS DE BALANZA (AUTOFOCO INMEDIATO AL ABRIR)
 function abrirModalCodigos() {
   itemsEscaneadosTemporales = [];
   const input = document.getElementById('inputScannerQR');
-  if (input) input.value = "";
-  
-  renderizarTablaEscaneados();
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalLectorCodigos')).show();
+  if (input) {
+    input.value = "";
+  }
 
+  renderizarTablaEscaneados();
+  const modalEl = document.getElementById('modalLectorCodigos');
+  const modalInst = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+  // Escuchador nativo para colocar el cursor en el cuadro de inmediato tan pronto abra la ventana
+  modalEl.addEventListener('shown.bs.modal', function focoLectorAutomatico() {
+    if (input) {
+      input.focus();
+      input.select();
+    }
+    modalEl.removeEventListener('shown.bs.modal', focoLectorAutomatico);
+  }, { once: true });
+
+  modalInst.show();
+
+  // Intento de foco inmediato sin esperar animación
   setTimeout(() => {
     if (input) input.focus();
-  }, 400);
+  }, 50);
 }
 
 function procesarEntradaScanner(cadenaTexto) {
