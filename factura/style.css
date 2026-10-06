@@ -540,38 +540,57 @@ body {
 }
 
 /* ==========================================================================
-   BARRA DE BÚSQUEDA TÁCTIL EN VIVO (TOUCH POS 15")
+   BARRA DE BÚSQUEDA TÁCTIL COMPACTA Y ARMONIZADA (POS 15" / 17" / 19")
    ========================================================================== */
 .barra-busqueda-pos-touch {
+  background: #ffffff !important;
   border: 1.5px solid var(--pos-card-border) !important;
-  transition: all 0.2s ease;
+  border-radius: var(--pos-radius-md) !important;
+  padding: 4px 6px !important;
+  margin-bottom: 8px !important;
+  box-shadow: var(--pos-shadow-sm) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .barra-busqueda-pos-touch:focus-within {
   border-color: var(--pos-red) !important;
-  box-shadow: 0 4px 16px rgba(220, 53, 69, 0.15) !important;
+  box-shadow: 0 2px 12px rgba(220, 53, 69, 0.16) !important;
+}
+
+.barra-busqueda-pos-touch .input-group-text {
+  background: transparent !important;
+  padding-right: 6px !important;
+  font-size: 1.05rem;
 }
 
 #inputBuscarCatalogoPOS {
-  height: 44px;
-  font-size: 0.95rem !important;
+  height: 38px !important;
+  font-size: 0.88rem !important;
+  font-weight: 700 !important;
   letter-spacing: 0.2px;
+  background-color: transparent !important;
+}
+
+#inputBuscarCatalogoPOS::placeholder {
+  color: #94a3b8;
+  font-weight: 600;
 }
 
 .btn-limpiar-busqueda-pos {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   cursor: pointer;
-  border-radius: 0 8px 8px 0 !important;
+  border-radius: var(--pos-radius-pill) !important;
   transition: background-color 0.15s ease;
+  margin: auto 0;
 }
 
 .btn-limpiar-busqueda-pos:hover {
-  background-color: #e2e8f0 !important;
+  background-color: #fee2e2 !important;
   color: var(--pos-red) !important;
 }
 
@@ -580,8 +599,8 @@ body {
    ========================================================================== */
 .nav-tabs {
   border-bottom: none;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 6px;
+  margin-bottom: 10px;
   display: flex;
   flex-wrap: nowrap;
   overflow-x: auto;
@@ -593,18 +612,18 @@ body {
 }
 
 .nav-tabs .nav-link {
-  height: 40px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   color: #334155;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   border: 1.5px solid var(--pos-card-border);
   border-radius: var(--pos-radius-pill);
   background-color: #ffffff;
-  padding: 0 18px;
+  padding: 0 14px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
   user-select: none;
@@ -622,7 +641,7 @@ body {
   color: #ffffff !important;
   background: linear-gradient(135deg, var(--pos-red) 0%, var(--pos-red-dark) 100%) !important;
   border-color: transparent !important;
-  box-shadow: 0 4px 14px rgba(220, 53, 69, 0.35);
+  box-shadow: 0 3px 10px rgba(220, 53, 69, 0.3);
   transform: translateY(-1px);
 }
 
@@ -820,9 +839,9 @@ body {
   border: 1.5px solid var(--pos-card-border);
   border-radius: var(--pos-radius-md);
   background-color: #ffffff;
-  padding: 10px;
+  padding: 8px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -835,14 +854,13 @@ body {
 .card-producto:hover {
   border-color: var(--pos-red);
   background-color: #ffffff;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1);
-  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.1);
+  transform: translateY(-2px);
 }
 
-/* Micro-interacción táctil al tocar con el dedo en pantalla de 15" */
 .card-producto:active {
   transform: scale(0.97) translateY(0);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .card-producto img {
@@ -861,10 +879,10 @@ body {
 }
 
 .card-producto h6 {
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   font-weight: 800;
   color: var(--pos-dark);
-  margin-top: 8px;
+  margin-top: 6px;
   margin-bottom: 2px;
   line-height: 1.25;
   letter-spacing: -0.2px;
@@ -872,7 +890,7 @@ body {
 }
 
 .card-producto p.text-success {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 800;
   color: var(--pos-red) !important;
   margin-bottom: 2px;
@@ -881,25 +899,24 @@ body {
 }
 
 .card-producto small.text-muted {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 600;
   color: #64748b !important;
   pointer-events: none;
 }
 
-/* Botón inferior amplio para toque con los dedos */
 .card-producto .btn-outline-danger {
   border-radius: var(--pos-radius-pill);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 800;
-  height: 34px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-width: 1.5px;
   background-color: #ffffff;
   transition: all 0.15s ease;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .card-producto .btn-outline-danger:hover {
@@ -913,40 +930,78 @@ body {
 }
 
 /* ==========================================================================
-   PANEL LATERAL: DETALLE DE VENTA
+   PANEL LATERAL: DETALLE DE VENTA TIPO DOCKED TERMINAL (PANTALLAS 15", 17", 19")
    ========================================================================== */
 .panel-factura-resumen {
   border: 1px solid var(--pos-card-border);
   border-radius: var(--pos-radius-lg);
-  padding: 20px;
+  padding: 14px 16px;
   background-color: var(--pos-surface-card);
   box-shadow: var(--pos-shadow-md);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 58px);
   position: sticky;
-  top: 80px;
+  top: 50px;
+}
+
+.panel-factura-resumen .panel-factura-header {
+  flex: 0 0 auto;
 }
 
 .panel-factura-resumen h5 {
   color: var(--pos-dark);
   letter-spacing: -0.2px;
+  font-size: 1rem;
+}
+
+/* Lista central scrolleable con altura dinámica */
+#contenedorListaFactura {
+  flex: 1 1 auto;
+  min-height: 120px;
+  max-height: none !important;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #ffffff;
+  border-radius: var(--pos-radius-md);
+  border: 1px solid var(--pos-card-border);
+  padding: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+#contenedorListaFactura::-webkit-scrollbar {
+  width: 5px;
+}
+
+#contenedorListaFactura::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
+/* Bloque inferior fijo de liquidación de venta */
+.panel-factura-resumen .panel-factura-footer {
+  flex: 0 0 auto;
+  padding-top: 10px;
 }
 
 .caja-totales-pos {
   background: #ffffff;
   border: 1.5px solid var(--pos-card-border);
   border-radius: var(--pos-radius-md);
-  padding: 12px 16px;
-  margin-bottom: 14px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
 }
 
 .monto-total-usd {
-  font-size: 1.7rem;
+  font-size: 1.55rem;
   font-weight: 800;
   color: var(--pos-red);
   line-height: 1;
 }
 
 .monto-total-bs-sub {
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: #475569;
 }
@@ -955,24 +1010,24 @@ body {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   border: none;
   border-radius: var(--pos-radius-md);
-  font-size: 1.1rem;
+  font-size: 1.02rem;
   font-weight: 800;
-  padding: 12px;
-  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35);
+  padding: 10px;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
   color: #ffffff;
   transition: all 0.2s ease;
 }
 
 .btn-facturar-hero:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.45);
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.45);
   background: linear-gradient(135deg, #059669 0%, #047857 100%);
   color: #ffffff;
 }
 
 .btn-facturar-fiscal {
   background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
-  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.4) !important;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4) !important;
 }
 
 .btn-facturar-fiscal:hover {
@@ -985,8 +1040,8 @@ body {
   color: #92400e;
   border-radius: var(--pos-radius-md);
   font-weight: 800;
-  font-size: 0.88rem;
-  padding: 9px;
+  font-size: 0.82rem;
+  padding: 7px;
   transition: all 0.2s ease;
 }
 
@@ -996,15 +1051,14 @@ body {
   transform: translateY(-1px);
 }
 
-/* Botón Operativo de Cierre de Caja en Detalle de Venta */
 .btn-cierre-caja-pos {
   background: #ffffff;
   border: 1.5px solid var(--pos-red);
   color: var(--pos-red);
   border-radius: var(--pos-radius-md);
   font-weight: 800;
-  font-size: 0.88rem;
-  padding: 9px;
+  font-size: 0.82rem;
+  padding: 7px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -1012,7 +1066,64 @@ body {
   background: var(--pos-red);
   color: #ffffff;
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(220, 53, 69, 0.25);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.25);
+}
+
+/* ==========================================================================
+   REGLAS RESPONSIVE AUTOMATIZADAS (15" CUADRADAS 4:3/5:4 vs 17"/19" PANORÁMICAS)
+   ========================================================================== */
+/* Pantallas cuadradas y táctiles tradicionales de 15 pulgadas (1024x768 a 1280x1024) */
+@media screen and (min-width: 992px) and (max-width: 1280px), screen and (max-aspect-ratio: 4/3) and (min-width: 992px) {
+  #vistaFacturacion .col-lg-8.col-xl-9 {
+    flex: 0 0 67% !important;
+    max-width: 67% !important;
+  }
+  #vistaFacturacion .col-lg-4.col-xl-3 {
+    flex: 0 0 33% !important;
+    max-width: 33% !important;
+  }
+  /* En pantallas de 15", mostrar 3 columnas de productos holgadas y cómodas */
+  #vistaFacturacion .col-6.col-md-4.col-xl-3 {
+    flex: 0 0 33.333333% !important;
+    max-width: 33.333333% !important;
+  }
+  .card-producto {
+    padding: 6px !important;
+  }
+  .card-producto h6 {
+    font-size: 0.78rem !important;
+  }
+  .card-producto p.text-success {
+    font-size: 0.98rem !important;
+  }
+}
+
+/* Pantallas panorámicas de 17", 19" o superiores (1360px en adelante) */
+@media screen and (min-width: 1281px) {
+  #vistaFacturacion .col-lg-8.col-xl-9 {
+    flex: 0 0 72% !important;
+    max-width: 72% !important;
+  }
+  #vistaFacturacion .col-lg-4.col-xl-3 {
+    flex: 0 0 28% !important;
+    max-width: 28% !important;
+  }
+  #vistaFacturacion .col-6.col-md-4.col-xl-3 {
+    flex: 0 0 25% !important;
+    max-width: 25% !important;
+  }
+}
+
+/* Dispositivos móviles y tablets (menor a 992px) */
+@media screen and (max-width: 991px) {
+  .panel-factura-resumen {
+    height: auto !important;
+    position: static !important;
+    margin-top: 14px;
+  }
+  #contenedorListaFactura {
+    max-height: 240px !important;
+  }
 }
 
 /* Desplazamiento inteligente de Toasts para no tapar el Navbar */
