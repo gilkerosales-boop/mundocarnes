@@ -540,67 +540,93 @@ body {
 }
 
 /* ==========================================================================
-   BARRA DE BÚSQUEDA TÁCTIL COMPACTA Y ARMONIZADA (POS 15" / 17" / 19")
+   BARRA SUPERIOR UNIFICADA: BUSCADOR PÍLDORA + CATEGORÍAS (POS 15" / 17" / 19")
    ========================================================================== */
-.barra-busqueda-pos-touch {
-  background: #ffffff !important;
-  border: 1.5px solid var(--pos-card-border) !important;
-  border-radius: var(--pos-radius-md) !important;
-  padding: 4px 6px !important;
-  margin-bottom: 8px !important;
-  box-shadow: var(--pos-shadow-sm) !important;
+.contenedor-catalogo-nav-unificado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+/* Píldora de búsqueda ovalada */
+.buscador-pildora-pos {
+  flex: 0 0 auto;
+  width: 230px;
+  height: 36px;
+  background: #ffffff;
+  border: 1.5px solid var(--pos-card-border);
+  border-radius: var(--pos-radius-pill);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px 0 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.barra-busqueda-pos-touch:focus-within {
-  border-color: var(--pos-red) !important;
-  box-shadow: 0 2px 12px rgba(220, 53, 69, 0.16) !important;
+.buscador-pildora-pos:focus-within {
+  border-color: var(--pos-red);
+  box-shadow: 0 2px 10px rgba(220, 53, 69, 0.2);
+  width: 255px; /* Sutil expansión al tipear */
 }
 
-.barra-busqueda-pos-touch .input-group-text {
+.icono-lupa-pildora {
+  font-size: 0.88rem;
+  color: #94a3b8;
+  margin-right: 6px;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.input-pildora-busqueda {
+  flex: 1 1 auto;
+  border: none !important;
+  outline: none !important;
   background: transparent !important;
-  padding-right: 6px !important;
-  font-size: 1.05rem;
-}
-
-#inputBuscarCatalogoPOS {
-  height: 38px !important;
-  font-size: 0.88rem !important;
+  font-size: 0.82rem !important;
   font-weight: 700 !important;
-  letter-spacing: 0.2px;
-  background-color: transparent !important;
+  color: var(--pos-dark);
+  padding: 0 !important;
+  height: 100%;
 }
 
-#inputBuscarCatalogoPOS::placeholder {
+.input-pildora-busqueda::placeholder {
   color: #94a3b8;
   font-weight: 600;
 }
 
-.btn-limpiar-busqueda-pos {
-  width: 36px;
-  height: 36px;
-  display: flex;
+.btn-limpiar-pildora {
+  flex: 0 0 auto;
+  background: #f1f5f9;
+  border: none;
+  color: #64748b;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.95rem;
+  font-size: 0.72rem;
+  font-weight: 800;
   cursor: pointer;
-  border-radius: var(--pos-radius-pill) !important;
-  transition: background-color 0.15s ease;
-  margin: auto 0;
+  margin-left: 4px;
+  transition: all 0.15s ease;
 }
 
-.btn-limpiar-busqueda-pos:hover {
-  background-color: #fee2e2 !important;
-  color: var(--pos-red) !important;
+.btn-limpiar-pildora:hover {
+  background: #fee2e2;
+  color: var(--pos-red);
 }
 
 /* ==========================================================================
-   PESTAÑAS DE CATEGORÍA DEL CATÁLOGO (ERGONOMÍA TÁCTIL 15")
+   PESTAÑAS DE CATEGORÍA DEL CATÁLOGO EN LA MISMA LÍNEA
    ========================================================================== */
 .nav-tabs {
   border-bottom: none;
   gap: 6px;
-  margin-bottom: 10px;
+  margin-bottom: 0 !important;
   display: flex;
   flex-wrap: nowrap;
   overflow-x: auto;
