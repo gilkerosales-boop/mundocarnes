@@ -4,21 +4,6 @@
       "nombre": "COMBOS",
       "productos": [
         [
-          "COMBO 1",
-          20,
-          "img/combo_1.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0001",
-          "E",
-          true,
-          0,
-          1,
-          null
-        ],
-        [
           "COMBO EXPRESS",
           30,
           "img/combo_express.webp",
@@ -30,8 +15,8 @@
           "E",
           true,
           0,
-          2,
-          null
+          1,
+          "33ab4a88-d485-4b5f-aee3-2739a758680f"
         ],
         [
           "COMBO 2",
@@ -45,8 +30,8 @@
           "E",
           true,
           0,
-          3,
-          null
+          2,
+          "9ae1dcc0-f5f5-4f14-85ae-074da9c17859"
         ],
         [
           "COMBO 3",
@@ -60,8 +45,8 @@
           "E",
           true,
           0,
-          4,
-          null
+          3,
+          "7529770e-0c0e-4537-8efb-cb84ebfad499"
         ],
         [
           "COMBO 4",
@@ -75,8 +60,8 @@
           "E",
           true,
           0,
-          5,
-          null
+          4,
+          "5fc5e693-a6b0-4053-a658-52464dcb3975"
         ],
         [
           "MIX",
@@ -90,8 +75,8 @@
           "E",
           true,
           0,
-          6,
-          null
+          5,
+          "63857b79-2c3f-471b-a446-a53e2e669c99"
         ],
         [
           "MUNDOCARNES",
@@ -105,8 +90,8 @@
           "E",
           true,
           0,
-          7,
-          null
+          6,
+          "0849a991-24d1-48c9-8b9d-ab36130da045"
         ],
         [
           "COMBO MEGA",
@@ -120,38 +105,8 @@
           "E",
           true,
           0,
-          8,
-          null
-        ],
-        [
-          "PARRILLERO 1",
-          46,
-          "img/combo_parrillero_1.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0011",
-          "E",
-          true,
-          0,
-          9,
-          null
-        ],
-        [
-          "PARRILLERO 2",
-          74,
-          "img/combo_parrillero_2.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0012",
-          "E",
-          true,
-          0,
-          10,
-          null
+          7,
+          "d941f1da-301e-4add-afe1-373ff60c0c1d"
         ],
         [
           "COMBO SEMANAL",
@@ -165,8 +120,53 @@
           "E",
           true,
           0,
+          8,
+          "dfed5fdc-968f-4e35-bf6a-86df55d12093"
+        ],
+        [
+          "COMBO FULL",
+          89,
+          "img/combo_full.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0010",
+          "E",
+          true,
+          0,
+          9,
+          "b6dd496d-0982-4a5d-9103-7f9f63dfd816"
+        ],
+        [
+          "PARRILLERO 1",
+          46,
+          "img/combo_parrillero_1.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0011",
+          "E",
+          true,
+          0,
+          10,
+          "61bdb799-7cba-44ac-928c-48ef11dd44a2"
+        ],
+        [
+          "PARRILLERO 2",
+          74,
+          "img/combo_parrillero_2.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0012",
+          "E",
+          true,
+          0,
           11,
-          null
+          "000f23a7-af87-4c42-b244-743db7de97f1"
         ],
         [
           "CHICKEN 1",
@@ -181,7 +181,7 @@
           true,
           0,
           12,
-          null
+          "27303b08-3ccf-4c12-b04e-e38f9d61f4ee"
         ],
         [
           "CHICKEN 2",
@@ -196,22 +196,7 @@
           true,
           0,
           13,
-          null
-        ],
-        [
-          "COMBO FULL",
-          89,
-          "img/combo_full.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0010",
-          "E",
-          true,
-          0,
-          14,
-          null
+          "9777425f-4984-460a-bbb5-2f6dc57daa30"
         ],
         [
           "DE TODITO",
@@ -225,8 +210,8 @@
           "E",
           true,
           0,
-          15,
-          null
+          14,
+          "32635997-2aa5-4be7-8f05-91cba8a6543b"
         ],
         [
           "CHARCUTERO 1",
@@ -240,8 +225,8 @@
           "E",
           true,
           0,
-          16,
-          null
+          15,
+          "c26b77f0-968b-4e09-b8a7-6261d08df61c"
         ],
         [
           "CHARCUTERO 2",
@@ -255,8 +240,8 @@
           "E",
           true,
           0,
-          17,
-          null
+          16,
+          "59792d47-e1f8-456c-9520-f6e0026b517e"
         ],
         [
           "CHARCUTERO 3",
@@ -270,8 +255,23 @@
           "E",
           true,
           0,
+          17,
+          "f70e4478-068b-4080-a7c5-80a4440fe784"
+        ],
+        [
+          "COMBO 1",
+          20,
+          "img/combo_1.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0001",
+          "E",
+          true,
+          0,
           18,
-          null
+          "3f613678-29dc-4c79-84f0-1f2c4db8ffe7"
         ]
       ]
     },
@@ -289,9 +289,9 @@
           "0026",
           "E",
           true,
-          -112.3,
+          -112.625,
           1,
-          null
+          "d69e8b12-c44a-4671-a1f3-9f59cd79662a"
         ],
         [
           "MOLIDA",
@@ -304,9 +304,9 @@
           "0027",
           "E",
           true,
-          -105.125,
+          -104.64,
           2,
-          null
+          "3c35f2f1-a758-4109-9bde-2df8663c6669"
         ],
         [
           "GUISAR",
@@ -319,9 +319,9 @@
           "0028",
           "E",
           true,
-          -46.64,
+          -46.14,
           3,
-          null
+          "331be3d1-71a1-4798-85fc-09c179303c44"
         ],
         [
           "MECHAR",
@@ -336,7 +336,7 @@
           true,
           -9.99,
           4,
-          null
+          "6224f502-aa51-403d-93ac-591b2ca9bf21"
         ],
         [
           "LAGARTO SIN HUESO",
@@ -351,13 +351,13 @@
           true,
           0,
           5,
-          null
+          "7faa9fee-6fdc-4c23-ae77-be36aece5d3d"
         ],
         [
           "HIGADO DE RES",
           10.9,
           "img/10.webp",
-          true,
+          false,
           100,
           "gramos",
           0,
@@ -366,7 +366,7 @@
           true,
           -7.005,
           6,
-          null
+          "3141e32b-da56-49b1-ad03-dd019ecf31a5"
         ],
         [
           "COSTILLA DE RES",
@@ -381,7 +381,7 @@
           true,
           -25.155,
           7,
-          null
+          "b708bd0f-4f89-40b8-bcad-dcdb55bfc901"
         ],
         [
           "LAGARTO CON HUESO",
@@ -396,7 +396,7 @@
           true,
           -8.64,
           8,
-          null
+          "282828e3-9cfa-44fd-b278-b72b12cc5d0d"
         ],
         [
           "PUNTA TRASERA",
@@ -411,7 +411,7 @@
           true,
           0,
           9,
-          null
+          "53a49a6a-a656-45d4-a05b-8a19cb5844c4"
         ],
         [
           "SOLOMO DE CUERITO",
@@ -426,7 +426,7 @@
           true,
           -26.025,
           10,
-          null
+          "712a8f0d-603f-4058-885d-9f0333a9b25d"
         ],
         [
           "CHULETA AHUMADA",
@@ -439,9 +439,9 @@
           "0037",
           "G",
           true,
-          -54.23,
+          -53.73,
           11,
-          null
+          "f364b798-68f5-4576-800f-24fc1da9cb63"
         ],
         [
           "CHULETA DE COCHINO",
@@ -454,15 +454,15 @@
           "0038",
           "E",
           true,
-          -56.165,
+          -55.965,
           12,
-          null
+          "34c7f1a2-ddf6-4ecb-93ed-af6abfd0bc9e"
         ],
         [
           "COSTILLA DE COCHINO",
           13.9,
           "img/13.webp",
-          false,
+          true,
           100,
           "gramos",
           0,
@@ -471,7 +471,7 @@
           true,
           -7.6,
           13,
-          null
+          "dec6eef9-b23d-407a-b67e-b3757e95c21e"
         ],
         [
           "LOMITO",
@@ -486,7 +486,7 @@
           true,
           0,
           14,
-          null
+          "ae9c8613-be08-4a40-8372-ee0a451ab54f"
         ],
         [
           "PANZA DE RES",
@@ -501,7 +501,7 @@
           true,
           -3.32,
           15,
-          null
+          "b1ef412d-172e-4666-be79-378e7f8fc022"
         ],
         [
           "PATA DE RES",
@@ -516,7 +516,7 @@
           true,
           -1,
           16,
-          null
+          "024a0286-90c0-47b3-93f1-33db4c07de68"
         ],
         [
           "RABO DE RES",
@@ -531,7 +531,7 @@
           true,
           0,
           17,
-          null
+          "6a030c73-6caf-4921-b6ee-d95cc8c32347"
         ],
         [
           "HUESO ROJO",
@@ -546,7 +546,7 @@
           true,
           -1.55,
           18,
-          null
+          "a7c426e2-eecc-4d89-b49b-d121dbb8d16d"
         ],
         [
           "CHULETA DE RES",
@@ -561,7 +561,7 @@
           true,
           0,
           19,
-          null
+          "a401877f-e80f-49f5-9b42-4c1a6252f555"
         ],
         [
           "PULPA DE COCHINO",
@@ -576,7 +576,7 @@
           true,
           -3.025,
           20,
-          null
+          "494f9099-4045-4fed-9658-5481d98c7a21"
         ]
       ]
     },
@@ -596,7 +596,7 @@
           true,
           -45.44,
           1,
-          null
+          "8ce4a6f3-f9ff-4f77-bec8-1925888aa85f"
         ],
         [
           "MUSLO",
@@ -611,7 +611,7 @@
           true,
           -96.02,
           2,
-          null
+          "f57d62bf-5ef9-4a9d-9b45-f0b76549b2dc"
         ],
         [
           "POLLO PICADO",
@@ -624,9 +624,9 @@
           "0050",
           "E",
           true,
-          -58.23,
+          -56.21,
           3,
-          null
+          "eefae846-2fb3-4873-82a5-dca38ed37ec5"
         ],
         [
           "PECHUGA C/H",
@@ -641,7 +641,7 @@
           true,
           -0.95,
           4,
-          null
+          "418d51d0-b5ab-4872-8057-1cf71f910fc3"
         ],
         [
           "MILANESA",
@@ -654,9 +654,9 @@
           "0052",
           "E",
           true,
-          -85.965,
+          -84.91,
           5,
-          null
+          "b58ca808-092f-4004-8c5a-ea40abfe7247"
         ],
         [
           "ALAS",
@@ -669,9 +669,9 @@
           "0053",
           "E",
           true,
-          -52.585,
+          -53.64,
           6,
-          null
+          "cfd55ebf-8b0e-49e5-9ca3-b6d0039b9cd8"
         ],
         [
           "CHURRASCO DE POLLO",
@@ -686,7 +686,7 @@
           true,
           -11.805,
           7,
-          null
+          "27cfcca3-ce3d-44fb-ba09-e64331867bb5"
         ],
         [
           "HIGADO DE POLLO",
@@ -699,9 +699,9 @@
           "0055",
           "E",
           true,
-          -21.27,
+          -20.23,
           8,
-          null
+          "c42faf5b-3605-4aff-ba70-6ed17b6c818f"
         ],
         [
           "MOLLEJAS",
@@ -716,7 +716,7 @@
           true,
           -13.41,
           9,
-          null
+          "18369561-f1b2-45e3-8ab6-046d1c01b1ca"
         ],
         [
           "BOLSA DE ALAS 5Kg",
@@ -731,7 +731,7 @@
           true,
           0,
           10,
-          null
+          "82ec07c5-9ffb-46bc-84ca-18320438f69b"
         ],
         [
           "BOLSA DE MILANESA 5Kg",
@@ -746,7 +746,7 @@
           true,
           -5.045,
           11,
-          null
+          "78b8eac1-8242-4965-af73-db9e1de75fb5"
         ],
         [
           "BOLSA DE MUSLO 5Kg",
@@ -761,7 +761,7 @@
           true,
           -45.25,
           12,
-          null
+          "c443698f-dfac-4bc7-89d9-a4e4b6e71574"
         ],
         [
           "BOLSA DE PECHUGA 5Kg",
@@ -776,7 +776,7 @@
           true,
           0,
           13,
-          null
+          "e348d3eb-9bd3-4499-b973-f22f291f7080"
         ],
         [
           "GRANJERO DE POLLO",
@@ -791,7 +791,7 @@
           true,
           0,
           14,
-          null
+          "b6b37420-6bd2-4693-a884-ea98e3f01ef5"
         ],
         [
           "NUGGETS DE POLLO",
@@ -806,7 +806,7 @@
           true,
           0,
           15,
-          null
+          "d4343f5b-8a67-41f5-b362-85f5674bc178"
         ],
         [
           "PATAS DE POLLO",
@@ -821,7 +821,7 @@
           true,
           -9.09,
           16,
-          null
+          "527a50cd-b96d-4a9a-931d-c70ec92c268b"
         ],
         [
           "CARAPACHO",
@@ -836,7 +836,7 @@
           true,
           -9.545,
           17,
-          null
+          "83df3512-d627-4794-a04b-0261341c0a70"
         ]
       ]
     },
@@ -845,7 +845,7 @@
       "productos": [
         [
           "QUESO DURO",
-          8.2,
+          8.5,
           "img/queso_duro.webp",
           true,
           100,
@@ -854,9 +854,9 @@
           "0068",
           "E",
           true,
-          -65.815,
+          -64.785,
           1,
-          null
+          "c6f28888-c461-4d20-b0bc-7e5faa8c8769"
         ],
         [
           "QUESO AMARILLO",
@@ -869,9 +869,9 @@
           "0069",
           "G",
           true,
-          -14.36,
+          -13.85,
           2,
-          null
+          "fbe94142-c46d-43ff-8b71-7b94f2e734a9"
         ],
         [
           "QUESO PAISA",
@@ -886,7 +886,7 @@
           true,
           -9.17,
           3,
-          null
+          "2ca1fe50-3a61-445e-af90-61ba65d4a53c"
         ],
         [
           "QUESO MOZZARELLA",
@@ -899,9 +899,9 @@
           "0071",
           "G",
           true,
-          -2.845,
+          -2.34,
           4,
-          null
+          "038b5425-e7c7-44a3-b66f-b276531d40e2"
         ],
         [
           "QUESO GUAYANES",
@@ -916,7 +916,7 @@
           true,
           -3.61,
           5,
-          null
+          "b09e4358-9d57-40b8-9f49-660f1aaa67f8"
         ],
         [
           "QUESO QUAJADA",
@@ -931,7 +931,7 @@
           true,
           0,
           6,
-          null
+          "69c4933f-5e16-41e9-ae96-5c5ad8d48a93"
         ],
         [
           "QUESO CUAJADA",
@@ -946,7 +946,7 @@
           true,
           0,
           7,
-          null
+          "523043dc-3d2f-405d-af33-e5192142c7d4"
         ],
         [
           "QUESO PECORINO",
@@ -961,7 +961,7 @@
           true,
           -0.225,
           8,
-          null
+          "bef6e7aa-55bf-4d46-8dfb-5e75f8896352"
         ],
         [
           "JAMON DE PIERNA",
@@ -976,7 +976,7 @@
           true,
           -16.375,
           9,
-          null
+          "ae75a40b-4daa-47db-bb9f-b5c764e4f97c"
         ],
         [
           "JAMON DE PAVO",
@@ -991,7 +991,7 @@
           true,
           -12.205,
           10,
-          null
+          "bae3c7e9-5d31-41bd-beb3-a2c735a6df5b"
         ],
         [
           "SALCHICHA DE POLLO",
@@ -1006,7 +1006,7 @@
           true,
           -4.95,
           11,
-          null
+          "433ff9eb-219c-417f-8efc-c7c4e79a7d2c"
         ],
         [
           "CHORIZOS (ahumado, ajo, picante)",
@@ -1021,7 +1021,7 @@
           true,
           -11.185,
           12,
-          null
+          "0690bb63-f33c-41fa-9952-943615aee0f9"
         ],
         [
           "SALCHICHA POLACA",
@@ -1036,7 +1036,7 @@
           true,
           -9.465,
           13,
-          null
+          "6f813a00-c0cb-4fd1-8ad9-95c39ba4c21d"
         ],
         [
           "MORCILLAS",
@@ -1051,7 +1051,7 @@
           true,
           -7.485,
           14,
-          null
+          "751a2fc8-cff4-4b26-9ce5-d072dad60015"
         ],
         [
           "RECORTES DE CHACUTERIA",
@@ -1066,7 +1066,7 @@
           true,
           -1.445,
           15,
-          null
+          "6767964c-ba81-4903-b521-cf56294dd1cc"
         ],
         [
           "RECORTES DE CHULETA AHUMADA",
@@ -1081,7 +1081,7 @@
           true,
           -0.905,
           16,
-          null
+          "8ca81f2a-1434-4fd6-94e3-cded638df7e7"
         ],
         [
           "SUERO DIVINA PASTORA",
@@ -1096,7 +1096,7 @@
           true,
           0,
           17,
-          null
+          "3ce5007b-753e-47cb-95ea-da90b85e0e27"
         ],
         [
           "SUERO LA CASONA",
@@ -1111,7 +1111,7 @@
           true,
           0,
           18,
-          null
+          "1da43aaf-dbc4-4f61-aa1e-cf4f9679e03c"
         ],
         [
           "CREMA DE LECHE AGUA LINDA 500g",
@@ -1126,7 +1126,7 @@
           true,
           0,
           19,
-          null
+          "be9ea730-3327-4ed1-8c8c-c1224b1a176d"
         ],
         [
           "MORTADELA DON RAMÓN 1kg",
@@ -1141,7 +1141,7 @@
           true,
           -1,
           20,
-          null
+          "cd9ee291-b213-4a1a-9a3c-a7192e76ed28"
         ],
         [
           "MORTADELA DON RAMÓN 400g",
@@ -1156,7 +1156,7 @@
           true,
           -12,
           21,
-          null
+          "f96f92a5-0546-4589-b880-c3a6323f8dd7"
         ],
         [
           "MORTADELA DON RAMÓN 600g",
@@ -1171,7 +1171,7 @@
           true,
           0,
           22,
-          null
+          "8c19a1da-307c-46d1-b218-0023c2d0de9c"
         ],
         [
           "MORTADELA ESPECIAL AHUMADA BIGCERDY",
@@ -1186,7 +1186,7 @@
           true,
           -0.19,
           23,
-          null
+          "d9ccae7b-3da7-448c-9376-943d24e337db"
         ],
         [
           "MORTADELA PUNTA DE MONTE 1Kg",
@@ -1201,7 +1201,7 @@
           true,
           -1,
           24,
-          null
+          "76515330-eedf-4241-82a8-bae40e6eda28"
         ],
         [
           "TOCINETA",
@@ -1216,7 +1216,7 @@
           true,
           -0.315,
           25,
-          null
+          "9a13ac7b-6d32-4ac6-9340-4e1b02191e06"
         ],
         [
           "MORTADELA PUNTA DE MONTE 500g",
@@ -1231,7 +1231,7 @@
           true,
           -4,
           26,
-          null
+          "f174a1ae-ea80-4265-b095-ac464efce5fc"
         ],
         [
           "QUESO CREMA AGUA LINDA",
@@ -1246,73 +1246,13 @@
           true,
           0,
           27,
-          null
+          "7b8f217c-631b-4144-81e0-c11b8cce24ab"
         ]
       ]
     },
     {
       "nombre": "VIVERES",
       "productos": [
-        [
-          "HUEVOS 1/2 CARTON",
-          3.8,
-          "img/huevos.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0126",
-          "E",
-          true,
-          -114,
-          1,
-          null
-        ],
-        [
-          "SALSA DE TOMATE HEIZ 198g",
-          1.6,
-          "img/salsa_de_tomate_heiz_198g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0184",
-          "G",
-          true,
-          0,
-          2,
-          null
-        ],
-        [
-          "SALSA DE TOMATE PAMPERO 397g",
-          3.9,
-          "img/salsa_de_tomate_pampero_397g.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0186",
-          "G",
-          true,
-          0,
-          3,
-          null
-        ],
-        [
-          "MOSTAZA EUREKA 285g",
-          2.8,
-          "img/mostaza_eureka_285g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0148",
-          "G",
-          true,
-          0,
-          4,
-          null
-        ],
         [
           "ARROZ MARY PREMIUM",
           2.5,
@@ -1325,113 +1265,8 @@
           "E",
           true,
           0,
-          5,
-          null
-        ],
-        [
-          "ACEITE VATEL 1L",
-          5.5,
-          "img/aceite_1l.webp",
-          true,
           1,
-          "unidades",
-          0,
-          "0095",
-          "G",
-          true,
-          0,
-          6,
-          null
-        ],
-        [
-          "CAFE LA PROTECTORA 200g",
-          4.2,
-          "img/cafe_lapro_200.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0105",
-          "G",
-          true,
-          -1,
-          7,
-          null
-        ],
-        [
-          "COCA COLA 2 LITROS",
-          2.2,
-          "img/coca_cola_2_litros.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0170",
-          "G",
-          true,
-          -5,
-          8,
-          null
-        ],
-        [
-          "HARINA P.A.M",
-          1.8,
-          "img/harina.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0125",
-          "E",
-          true,
-          -18,
-          9,
-          null
-        ],
-        [
-          "GUT AJO, CEBOLLA Y PEREJIL",
-          1.2,
-          "img/gut_ajo,_cebolla_y_perejil.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0118",
-          "G",
-          true,
-          -8,
-          10,
-          null
-        ],
-        [
-          "7up 2L",
-          2.2,
-          "img/7up_2_litros.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0166",
-          "G",
-          true,
-          0,
-          11,
-          null
-        ],
-        [
-          "ACEITE LA COMADRE 828ml",
-          3.9,
-          "img/aceite_la_comadre_828ml.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0094",
-          "G",
-          true,
-          0,
-          12,
-          null
+          "2d06ab71-1aa5-4a41-8021-5317d6d7a20a"
         ],
         [
           "ARROZ MARY ESMERALDA",
@@ -1445,8 +1280,8 @@
           "E",
           true,
           0,
-          13,
-          null
+          2,
+          "a0ab3b3e-c6b2-4dda-9e6c-0b746054c03c"
         ],
         [
           "ARROZ TRADICIONAL AGUA BLANCA",
@@ -1460,683 +1295,8 @@
           "E",
           true,
           0,
-          14,
-          null
-        ],
-        [
-          "CAFE FLOR DE ARAUCA 200G",
-          4.5,
-          "img/cafe_flor_de_arauca_200g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0103",
-          "G",
-          true,
-          0,
-          15,
-          null
-        ],
-        [
-          "CARBON PARA PARRILLA BOLSA TRANSPARENTE",
-          4.5,
-          "img/carbon_para_parrilla_bolsa_transparente.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0106",
-          "G",
-          true,
-          -5,
-          16,
-          null
-        ],
-        [
-          "CEREAL KELLOGG´S ZUCARITAS 250g",
-          4.4,
-          "img/cereal_kellogg´s_zucaritas_250g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0109",
-          "G",
-          true,
-          0,
-          17,
-          null
-        ],
-        [
-          "CEREAL MAIZORITOS CHOCO SAFARI 240Gr",
-          3.9,
-          "img/cereal_maizoritos_choco_safari_240gr.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0110",
-          "G",
-          true,
-          0,
-          18,
-          null
-        ],
-        [
-          "CEREAL MAIZORITOS FRUTI AROS 250g",
-          3.9,
-          "img/cereal_maizoritos_fruti_aros_250g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0111",
-          "G",
-          true,
-          0,
-          19,
-          null
-        ],
-        [
-          "CHINOTTO 1.5 LITROS",
-          1.8,
-          "img/chinotto_1.5_litros.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0167",
-          "G",
-          true,
-          0,
-          20,
-          null
-        ],
-        [
-          "COCA COLA 1.5 LITROS",
-          1.8,
-          "img/coca_cola_1.5_litros.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0169",
-          "G",
-          true,
-          -3,
-          21,
-          null
-        ],
-        [
-          "CORN FAKES KELLOGG´S 230G",
-          4.2,
-          "img/corn_fakes_kellogg´s_230g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0108",
-          "G",
-          true,
-          -1,
-          22,
-          null
-        ],
-        [
-          "FIPS CHOCOLATE 220G",
-          4.8,
-          "img/fips_chocolate_220g.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0107",
-          "G",
-          true,
-          0,
-          23,
-          null
-        ],
-        [
-          "GALLETAS BELVITA HONY 9 UNIDADES",
-          3.9,
-          "img/galletas_belvita_hony_9_unidades.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0113",
-          "G",
-          true,
-          0,
-          24,
-          null
-        ],
-        [
-          "GALLETAS BELVITA KRAKER 9 UNIDADES",
-          3.5,
-          "img/galletas_belvita_kraker_9_unidades.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0114",
-          "G",
-          true,
-          0,
-          25,
-          null
-        ],
-        [
-          "GALLETAS CLUB SOCIAL 6 UNIDADES",
-          2.8,
-          "img/galletas_club_social_6_unidades.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0115",
-          "G",
-          true,
-          0,
-          26,
-          null
-        ],
-        [
-          "GUT CALDO DE CARNE",
-          1.2,
-          "img/gut_caldo_de_carne.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0119",
-          "G",
-          true,
-          0,
-          27,
-          null
-        ],
-        [
-          "GUT CALDO DE POLLO",
-          1.2,
-          "img/gut_caldo_de_pollo.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0120",
-          "G",
-          true,
-          -4,
-          28,
-          null
-        ],
-        [
-          "GUT SABROSEADOR",
-          1.2,
-          "img/gut_sabroseador.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0121",
-          "G",
-          true,
-          -1,
-          29,
-          null
-        ],
-        [
-          "GUT SALSA PARA PASTA",
-          1.2,
-          "img/gut_salsa_para_pasta.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0122",
-          "G",
-          true,
-          -1,
-          30,
-          null
-        ],
-        [
-          "HARINA DE TRIGO BLANCA FLOR 1KG",
-          1.9,
-          "img/harina_de_trigo_blanca_flor_1kg.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0123",
-          "E",
-          true,
-          -1,
-          31,
-          null
-        ],
-        [
-          "MARGARINA NELLY 250g",
-          1.9,
-          "img/margarina_nelly_250g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0138",
-          "G",
-          true,
-          -4,
-          32,
-          null
-        ],
-        [
-          "MASA FACIL FROZEN 1kg",
           3,
-          "img/masa_facil_frozen_1kg.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0140",
-          "G",
-          true,
-          -7,
-          33,
-          null
-        ],
-        [
-          "MASA FACIL FROZEN 500g",
-          2,
-          "img/masa_facil_frozen_500g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0141",
-          "G",
-          true,
-          -9,
-          34,
-          null
-        ],
-        [
-          "MAVESA MARGARINA TODO USO 500g",
-          4.5,
-          "img/mavesa_margarina_todo_uso_500g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0137",
-          "G",
-          true,
-          -2,
-          35,
-          null
-        ],
-        [
-          "MAYONESA KRAFT 198g",
-          2.6,
-          "img/kraft_198.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0142",
-          "G",
-          true,
-          -1,
-          36,
-          null
-        ],
-        [
-          "MAYONESA KRAFT 445g",
-          5.6,
-          "img/kraft_445.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0143",
-          "G",
-          true,
-          -1,
-          37,
-          null
-        ],
-        [
-          "MAYONESA MAVESA 198g",
-          2.9,
-          "img/mavesa_198.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0144",
-          "G",
-          true,
-          0,
-          38,
-          null
-        ],
-        [
-          "MAYONESA MAVESA 445g",
-          5.8,
-          "img/mavesa_500.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0145",
-          "G",
-          true,
-          0,
-          39,
-          null
-        ],
-        [
-          "PAPEL ROSAL 4ROLLOS",
-          1.5,
-          "img/papel_higienico_rosal_plus_4_rollos.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0156",
-          "G",
-          true,
-          0,
-          40,
-          null
-        ],
-        [
-          "PASTA CORTA RONCO CARACOL 500g",
-          1.6,
-          "img/ronco_caracol.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0157",
-          "E",
-          true,
-          0,
-          41,
-          null
-        ],
-        [
-          "PASTA CORTA RONCO RIGATON 500g",
-          1.6,
-          "img/ronco_rigaton.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0158",
-          "E",
-          true,
-          0,
-          42,
-          null
-        ],
-        [
-          "PASTA CORTA RONCO TORNILLO 500g",
-          1.6,
-          "img/ronco_tornillo.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0159",
-          "E",
-          true,
-          0,
-          43,
-          null
-        ],
-        [
-          "TRIPAC DE SALSAS (SOYA, AJO, INGLESA) 150cm",
-          4,
-          "img/tripac_de_salsas_(soya,_ajo,_inglesa)_150cm.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0193",
-          "G",
-          true,
-          -1,
-          44,
-          null
-        ],
-        [
-          "SAL BAHIA 1KG",
-          1.9,
-          "img/sal_bahia_1kg.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0182",
-          "E",
-          true,
-          -1,
-          45,
-          null
-        ],
-        [
-          "PAN HOLSUM BLANCO 420G",
-          3.5,
-          "img/pan_holsum_blanco_420g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0151",
-          "E",
-          true,
-          0,
-          46,
-          null
-        ],
-        [
-          "PAN HOLSUM INTEGRAL 420G",
-          3.5,
-          "img/pan_holsum_integral_420g.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0153",
-          "E",
-          true,
-          0,
-          47,
-          null
-        ],
-        [
-          "PAN HOLSUM MANTEQUILLA 420G",
-          3.5,
-          "img/pan_holsum_mantequilla_420g.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0154",
-          "E",
-          true,
-          0,
-          48,
-          null
-        ],
-        [
-          "PAN HOLSUM PERRO CALIENTE 420G",
-          3,
-          "img/pan_holsum_perro_caliente_420g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0155",
-          "E",
-          true,
-          0,
-          49,
-          null
-        ],
-        [
-          "PAN HOLSUM HAMBURGUESA 420G",
-          3,
-          "img/pan_holsum_hamburguesa_420g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0152",
-          "E",
-          true,
-          -1,
-          50,
-          null
-        ],
-        [
-          "PAN BIMBO BLANCO 350G",
-          3.5,
-          "img/pan_bimbo_planco_350g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0149",
-          "E",
-          true,
-          -1,
-          51,
-          null
-        ],
-        [
-          "SARDINA EN ACEITE VEGETAL MONARCA 170G",
-          1.8,
-          "img/sardina_en_aceite_vegetal_monarca_170g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0187",
-          "E",
-          true,
-          0,
-          52,
-          null
-        ],
-        [
-          "SARDINA EN SALSA DE TOMATE MONARCA 170G",
-          1.8,
-          "img/sardina_en_salsa_de_tomate_monarca_170g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0189",
-          "E",
-          true,
-          0,
-          53,
-          null
-        ],
-        [
-          "SOPA DE POLLO MAGGI 62G",
-          2.5,
-          "img/sopa_de_pollo_maggi_62g.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0190",
-          "E",
-          true,
-          0,
-          54,
-          null
-        ],
-        [
-          "SALSA DE TOMATE PAMPERO 198G",
-          1.6,
-          "img/salsa_de_tomate_pampero_198g.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0185",
-          "E",
-          true,
-          0,
-          55,
-          null
-        ],
-        [
-          "JAMON ENDIABLADO PLUNROSE 110G",
-          2.8,
-          "img/jamon_endiablado_plunrose_110g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0127",
-          "E",
-          true,
-          -1,
-          56,
-          null
-        ],
-        [
-          "PAN BIMBO DIET 350G",
-          3.5,
-          "img/pan_bimbo_diet_350g.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0150",
-          "E",
-          true,
-          0,
-          57,
-          null
-        ],
-        [
-          "MARGARINA MAVESA 250G",
-          2.3,
-          "img/margarina_mavesa_250g.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0136",
-          "E",
-          true,
-          0,
-          58,
-          null
-        ],
-        [
-          "ATUN MARGARITA 140G",
-          4.2,
-          "img/atun_margarita_140g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0100",
-          "E",
-          true,
-          0,
-          59,
-          null
+          "9c56288e-47ce-41d7-81fc-a5ff018c5957"
         ],
         [
           "ARROZ CLASICO SUPERIOR PRIMOR 900G",
@@ -2150,203 +1310,38 @@
           "E",
           true,
           -1,
-          60,
-          null
+          4,
+          "443846d0-30ba-4ac8-852d-b9be401172cd"
         ],
         [
-          "CAFE LA PROTECTORA 100G",
-          2.2,
-          "img/cafe_la_protectora_100g.webp",
+          "HARINA P.A.M",
+          1.8,
+          "img/harina.webp",
           true,
           1,
           "unidades",
           0,
-          "0104",
+          "0125",
           "E",
           true,
-          0,
-          61,
-          null
+          -18,
+          5,
+          "58cb820e-eb72-4d5d-9bc6-2fb4ff9e78a2"
         ],
         [
-          "MAIZINA AMERICANA 90G",
-          2.5,
-          "img/maizina_americana_90g.webp",
+          "HARINA DE TRIGO BLANCA FLOR 1KG",
+          1.9,
+          "img/harina_de_trigo_blanca_flor_1kg.webp",
           true,
           1,
           "unidades",
           0,
-          "0135",
-          "E",
-          true,
-          0,
-          62,
-          null
-        ],
-        [
-          "AVENA QUAKER 400G",
-          2.8,
-          "img/avena_quaker_400g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0101",
-          "E",
-          true,
-          0,
-          63,
-          null
-        ],
-        [
-          "R. GOLDEN MANZANA 2L",
-          2.2,
-          "img/r._golden_manzana_2l.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0177",
-          "E",
-          true,
-          -3,
-          64,
-          null
-        ],
-        [
-          "R. PEPSI 1 LITRO",
-          1.2,
-          "img/r._pepsi_1_litro.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0178",
-          "E",
-          true,
-          0,
-          65,
-          null
-        ],
-        [
-          "RAPIDITAS BIMBO CLÁSICA",
-          3.5,
-          "img/rapiditas_bimbo_clásica.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0179",
+          "0123",
           "E",
           true,
           -1,
-          66,
-          null
-        ],
-        [
-          "RAPIDITAS BIMBO INTEGRAL",
-          3.5,
-          "img/rapiditas_bimbo_integral.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0180",
-          "E",
-          true,
-          0,
-          67,
-          null
-        ],
-        [
-          "RAPIDITAS BIMBO MANTEQUILLA",
-          3.5,
-          "img/rapiditas_bimbo_mantequilla.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0181",
-          "E",
-          true,
-          0,
-          68,
-          null
-        ],
-        [
-          "SALSA DE TOMATE HEINZ 397G",
-          3.8,
-          "img/salsa_de_tomate_heinz_397g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0183",
-          "E",
-          true,
-          -1,
-          69,
-          null
-        ],
-        [
-          "AZÚCAR KONFIT",
-          2.2,
-          "img/azúcar_konfit.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0102",
-          "E",
-          true,
-          -3,
-          70,
-          null
-        ],
-        [
-          "CHEDDAR RIKESA 200G",
-          6.5,
-          "img/cheddar_rikesa_200g.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0112",
-          "E",
-          true,
-          0,
-          71,
-          null
-        ],
-        [
-          "GALLETAS SODA 10UDS",
-          2.2,
-          "img/galletas_soda_10uds.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0116",
-          "E",
-          true,
-          0,
-          72,
-          null
-        ],
-        [
-          "GATORADE NARANJA 500ML",
-          3,
-          "img/gatorade_naranja_500ml.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0117",
-          "E",
-          true,
-          -2,
-          73,
-          null
+          6,
+          "9ab6606f-dc1f-483f-b49e-5794721bac4c"
         ],
         [
           "HARINA DE TRIGO ROBIN HOOD",
@@ -2360,128 +1355,53 @@
           "E",
           true,
           0,
-          74,
-          null
+          7,
+          "781ba254-b184-4df5-938c-30fd84992184"
         ],
         [
-          "JUGO MANZANA EL TUNAL 1L",
+          "PASTA CORTA RONCO CARACOL 500g",
           1.6,
-          "img/jugo_manzana_el_tunal_1l.webp",
-          false,
+          "img/ronco_caracol.webp",
+          true,
           1,
           "unidades",
           0,
-          "0128",
+          "0157",
           "E",
           true,
           0,
-          75,
-          null
+          8,
+          "f8de01c1-0ab8-4728-98c7-c2b0ed7b40f6"
         ],
         [
-          "JUSTY DURAZNO 1.5L",
-          2,
-          "img/justy_durazno_1.5l.webp",
-          false,
+          "PASTA CORTA RONCO RIGATON 500g",
+          1.6,
+          "img/ronco_rigaton.webp",
+          true,
           1,
           "unidades",
           0,
-          "0130",
+          "0158",
           "E",
           true,
           0,
-          76,
-          null
-        ],
-        [
-          "LECHE DESCREMADA DESLACTOSADA",
-          5,
-          "img/leche_descremada_deslactosada.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0131",
-          "E",
-          true,
-          0,
-          77,
-          null
-        ],
-        [
-          "LECHE DESCREMADA PURÍSIMA",
-          5,
-          "img/leche_descremada_purísima.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0132",
-          "E",
-          true,
-          0,
-          78,
-          null
-        ],
-        [
-          "LECHE EN POLVO DOÑA EVA",
           9,
-          "img/leche_en_polvo_doña_eva.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0133",
-          "E",
-          true,
-          0,
-          79,
-          null
+          "85594e2b-6f23-4fdb-9480-e427eeeca707"
         ],
         [
-          "LECHE EN POLVO PURÍSIMA",
-          9,
-          "img/leche_en_polvo_purísima.webp",
+          "PASTA CORTA RONCO TORNILLO 500g",
+          1.6,
+          "img/ronco_tornillo.webp",
           true,
           1,
           "unidades",
           0,
-          "0134",
+          "0159",
           "E",
           true,
           0,
-          80,
-          null
-        ],
-        [
-          "MARGARINA NELLY 500G",
-          4.2,
-          "img/margarina_nelly_500g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0139",
-          "E",
-          true,
-          -1,
-          81,
-          null
-        ],
-        [
-          "PASTA DEDAL PREMIUM MARY 500G",
-          2,
-          "img/pasta_dedal_premium_mary_500g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0160",
-          "E",
-          true,
-          0,
-          82,
-          null
+          10,
+          "0350672c-ffd5-45a8-aa18-97ad01904dd0"
         ],
         [
           "PASTA DEDAL RONCO 1KG",
@@ -2495,8 +1415,23 @@
           "E",
           true,
           0,
-          83,
-          null
+          11,
+          "9ef53d04-9d06-47ca-b85a-e19d5b78cf1a"
+        ],
+        [
+          "PASTA DEDAL PREMIUM MARY 500G",
+          2,
+          "img/pasta_dedal_premium_mary_500g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0160",
+          "E",
+          true,
+          0,
+          12,
+          "7a819ffc-7d82-448b-a648-1e592491db91"
         ],
         [
           "PASTA LARGA CAPRI 1KG",
@@ -2510,8 +1445,8 @@
           "E",
           true,
           0,
-          84,
-          null
+          13,
+          "25bb8ff8-47d7-4d31-9298-36b0d3296c75"
         ],
         [
           "PASTA PLUMAS HORIZONTE 1KG",
@@ -2525,8 +1460,8 @@
           "E",
           true,
           0,
-          85,
-          null
+          14,
+          "e8a66aea-4076-46a9-a8b3-6d2dcf2c906c"
         ],
         [
           "PASTA TORNILLO PRIMOR 1KG",
@@ -2540,173 +1475,8 @@
           "E",
           true,
           0,
-          86,
-          null
-        ],
-        [
-          "R. COCA COLA 1 LITRO",
-          1.2,
-          "img/r._coca_cola_1_litro.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0168",
-          "E",
-          true,
-          -1,
-          87,
-          null
-        ],
-        [
-          "R. GLUP COLA 1 LITRO",
-          1.2,
-          "img/r._glup_cola_1_litro.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0171",
-          "E",
-          true,
-          -3,
-          88,
-          null
-        ],
-        [
-          "R. GLUP COLA 2L",
-          2.2,
-          "img/r._glup_cola_2l.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0172",
-          "E",
-          true,
-          0,
-          89,
-          null
-        ],
-        [
-          "R. GLUP MANZANA 2L",
-          2.2,
-          "img/r._glup_manzana_2l.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0173",
-          "E",
-          true,
-          -1,
-          90,
-          null
-        ],
-        [
-          "R. GLUP UVA 2L",
-          2.2,
-          "img/r._glup_uva_2l.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0174",
-          "E",
-          true,
-          0,
-          91,
-          null
-        ],
-        [
-          "R. GOLDEN KOLITA 1 LITRO",
-          1.2,
-          "img/r._golden_kolita_1_litro.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0175",
-          "E",
-          true,
-          -2,
-          92,
-          null
-        ],
-        [
-          "R. GOLDEN KOLITA 2L",
-          2.2,
-          "img/r._golden_kolita_2l.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0176",
-          "E",
-          true,
-          0,
-          93,
-          null
-        ],
-        [
-          "JUGO EL TUNAL 500ML",
-          1.6,
-          "img/jugo_el_tunal_500ml.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0129",
-          "E",
-          true,
-          0,
-          94,
-          null
-        ],
-        [
-          "PASTA LARGA RONCO 500G",
-          2,
-          "img/pasta_larga_ronco_500g.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "0163",
-          "E",
-          true,
-          0,
-          95,
-          null
-        ],
-        [
-          "TÉ EL TUNAL 1L",
-          3,
-          "img/te_el_tunal_1l.webp",
-          false,
-          1,
-          "unidades",
-          0,
-          "0192",
-          "E",
-          true,
-          0,
-          96,
-          null
-        ],
-        [
-          "ACEITE EL REY 1L",
-          3.6,
-          "img/aceite_el_rey_1l.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "",
-          "E",
-          true,
-          -1,
-          97,
-          null
+          15,
+          "db553b2e-8d94-41ee-ab2c-fe5033ee6b2b"
         ],
         [
           "ROCHO PASTICHO 250G",
@@ -2720,38 +1490,98 @@
           "E",
           true,
           0,
-          98,
-          null
+          16,
+          "41e44a0b-ff60-490d-a68f-002ae5066919"
         ],
         [
-          "GALLETA MARIA 9PAKS",
-          2.5,
-          "img/galleta_maria_9paks.webp",
+          "PASTA LARGA RONCO 500G",
+          2,
+          "img/pasta_larga_ronco_500g.webp",
           true,
           1,
           "unidades",
           0,
-          "",
+          "0163",
           "E",
           true,
           0,
-          99,
-          null
+          17,
+          "d55a9de7-1130-41cf-96a5-be299e9f7022"
         ],
         [
-          "CHOCO KRISPIS 200G",
+          "HUEVOS 1/2 CARTON",
+          3.8,
+          "img/huevos.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0126",
+          "E",
+          true,
+          -113,
+          18,
+          "87453b7b-4fdc-4b3c-9e0b-07419613268d"
+        ],
+        [
+          "SALSA DE TOMATE HEINZ 397G",
+          3.8,
+          "img/salsa_de_tomate_heinz_397g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0183",
+          "E",
+          true,
+          -1,
+          19,
+          "db00b7c9-1bd8-46dc-bca3-13708d8db163"
+        ],
+        [
+          "SALSA DE TOMATE PAMPERO 397g",
           3.9,
-          "img/choco_krispis_200g.webp",
+          "img/salsa_de_tomate_pampero_397g.webp",
           true,
           1,
           "unidades",
           0,
-          "",
+          "0186",
+          "G",
+          true,
+          0,
+          20,
+          "c7c81e2d-f961-4d56-be23-f7654fe85b5e"
+        ],
+        [
+          "SALSA DE TOMATE HEIZ 198g",
+          1.6,
+          "img/salsa_de_tomate_heiz_198g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0184",
+          "G",
+          true,
+          0,
+          21,
+          "66a7fd6d-28a2-4b4b-a8f0-7803b1082c10"
+        ],
+        [
+          "SALSA DE TOMATE PAMPERO 198G",
+          1.6,
+          "img/salsa_de_tomate_pampero_198g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0185",
           "E",
           true,
           0,
-          100,
-          null
+          22,
+          "1fb15319-a157-4815-b07c-eb5b43abcdfd"
         ],
         [
           "SALSA PARA PIZZA 340G",
@@ -2765,8 +1595,8 @@
           "E",
           true,
           0,
-          101,
-          null
+          23,
+          "ec6e2f22-6065-4692-9291-6d0ec9d0c247"
         ],
         [
           "SALSA BOLOÑESA 200G",
@@ -2780,53 +1610,143 @@
           "E",
           true,
           0,
-          102,
-          null
+          24,
+          "7d92beef-6216-4c9a-ba38-843f0d766cb3"
         ],
         [
-          "MAIZ DULCE EN GRANOS 300G",
-          2,
-          "img/maiz_dulce_en_granos_300g.webp",
+          "TRIPAC DE SALSAS (SOYA, AJO, INGLESA) 150cm",
+          4,
+          "img/tripac_de_salsas_(soya,_ajo,_inglesa)_150cm.webp",
           true,
           1,
           "unidades",
           0,
-          "",
-          "E",
+          "0193",
+          "G",
           true,
-          0,
-          103,
-          null
+          -1,
+          25,
+          "6371070a-cf23-473e-a0cd-52e12cd0e41e"
         ],
         [
-          "VINAGRE SOFIA 1LT",
+          "MOSTAZA EUREKA 285g",
+          2.8,
+          "img/mostaza_eureka_285g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0148",
+          "G",
+          true,
+          0,
+          26,
+          "19359a47-af4a-4348-919b-58f2d0435084"
+        ],
+        [
+          "MAYONESA KRAFT 198g",
+          2.6,
+          "img/kraft_198.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0142",
+          "G",
+          true,
+          -1,
+          27,
+          "844ebc87-d77e-48b1-a069-0c6539d9810f"
+        ],
+        [
+          "MAYONESA KRAFT 445g",
+          5.6,
+          "img/kraft_445.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0143",
+          "G",
+          true,
+          -1,
+          28,
+          "a5d83bd5-44a5-4a04-8b1d-99f608dde617"
+        ],
+        [
+          "MAYONESA MAVESA 198g",
+          2.9,
+          "img/mavesa_198.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0144",
+          "G",
+          true,
+          0,
+          29,
+          "dfef5291-b70b-4aed-99ae-137832beef52"
+        ],
+        [
+          "MAYONESA MAVESA 445g",
+          5.8,
+          "img/mavesa_500.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0145",
+          "G",
+          true,
+          0,
+          30,
+          "af1d8065-d848-4c89-bb2f-c10d14715f72"
+        ],
+        [
+          "CAFE LA PROTECTORA 200g",
+          4.2,
+          "img/cafe_lapro_200.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0105",
+          "G",
+          true,
+          -1,
+          31,
+          "3d2083c6-7a27-4eeb-8809-01913ef3f527"
+        ],
+        [
+          "CAFE FLOR DE ARAUCA 200G",
+          4.5,
+          "img/cafe_flor_de_arauca_200g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0103",
+          "G",
+          true,
+          0,
+          32,
+          "796a794f-c1c7-47ae-9867-6869e3f1d496"
+        ],
+        [
+          "CAFE LA PROTECTORA 100G",
           2.2,
-          "img/vinagre_sofia_1lt.webp",
+          "img/cafe_la_protectora_100g.webp",
           true,
           1,
           "unidades",
           0,
-          "",
+          "0104",
           "E",
           true,
           0,
-          104,
-          null
-        ],
-        [
-          "ACEITE VATEL 500ML",
-          3.8,
-          "img/aceite_vatel_500ml.webp",
-          true,
-          1,
-          "unidades",
-          0,
-          "",
-          "E",
-          true,
-          0,
-          105,
-          null
+          33,
+          "e9b8ae64-8b04-4546-8cec-5982414768e5"
         ],
         [
           "CAFE SAN DOMINGO 250G",
@@ -2840,8 +1760,1088 @@
           "E",
           true,
           0,
+          34,
+          "6122b45c-91c7-4f4b-a267-04514e6f3a64"
+        ],
+        [
+          "7up 2L",
+          2.2,
+          "img/7up_2_litros.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0166",
+          "G",
+          true,
+          0,
+          35,
+          "ab714e21-cbf5-4bba-884a-fcec5e20f93e"
+        ],
+        [
+          "CHINOTTO 1.5 LITROS",
+          1.8,
+          "img/chinotto_1.5_litros.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0167",
+          "G",
+          true,
+          0,
+          36,
+          "d327d009-b439-4a46-93f5-5930960f94d5"
+        ],
+        [
+          "R. COCA COLA 1 LITRO",
+          1.2,
+          "img/r._coca_cola_1_litro.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0168",
+          "E",
+          true,
+          -1,
+          37,
+          "784e599d-3507-467a-beff-2a6031e04dc7"
+        ],
+        [
+          "COCA COLA 1.5 LITROS",
+          1.8,
+          "img/coca_cola_1.5_litros.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0169",
+          "G",
+          true,
+          -3,
+          38,
+          "4e073fdb-dafb-4571-a244-65ea87522949"
+        ],
+        [
+          "COCA COLA 2 LITROS",
+          2.2,
+          "img/coca_cola_2_litros.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0170",
+          "G",
+          true,
+          -5,
+          39,
+          "0e56c608-cb7b-4733-8313-54760987b1ed"
+        ],
+        [
+          "R. GLUP COLA 1 LITRO",
+          1.2,
+          "img/r._glup_cola_1_litro.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0171",
+          "E",
+          true,
+          -3,
+          40,
+          "023fd01c-cd2e-4e25-88bc-5feb6ae38c81"
+        ],
+        [
+          "R. GLUP COLA 2L",
+          2.2,
+          "img/r._glup_cola_2l.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0172",
+          "E",
+          true,
+          0,
+          41,
+          "277354db-985b-4a31-9d8e-ab3e871515af"
+        ],
+        [
+          "R. GLUP MANZANA 2L",
+          2.2,
+          "img/r._glup_manzana_2l.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0173",
+          "E",
+          true,
+          -1,
+          42,
+          "1c4a5c28-0c3a-4730-9a46-73dcd4bf2c80"
+        ],
+        [
+          "R. GLUP UVA 2L",
+          2.2,
+          "img/r._glup_uva_2l.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0174",
+          "E",
+          true,
+          0,
+          43,
+          "eb9b6b11-f386-4c95-814d-f3ee5413aedf"
+        ],
+        [
+          "R. GOLDEN KOLITA 1 LITRO",
+          1.2,
+          "img/r._golden_kolita_1_litro.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0175",
+          "E",
+          true,
+          -2,
+          44,
+          "fef6b5ba-c3b4-4530-a2f4-65149fe6521c"
+        ],
+        [
+          "R. GOLDEN KOLITA 2L",
+          2.2,
+          "img/r._golden_kolita_2l.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0176",
+          "E",
+          true,
+          0,
+          45,
+          "5ca92a51-0bd1-47c0-a422-370b464a8838"
+        ],
+        [
+          "R. GOLDEN MANZANA 2L",
+          2.2,
+          "img/r._golden_manzana_2l.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0177",
+          "E",
+          true,
+          -3,
+          46,
+          "b2385910-d001-431d-9afd-f84f14a5a20e"
+        ],
+        [
+          "R. PEPSI 1 LITRO",
+          1.2,
+          "img/r._pepsi_1_litro.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0178",
+          "E",
+          true,
+          0,
+          47,
+          "4d234cd5-844a-4a82-b443-a9ce33061fe2"
+        ],
+        [
+          "LECHE DESCREMADA PURÍSIMA",
+          5,
+          "img/leche_descremada_purísima.webp",
+          false,
+          1,
+          "unidades",
+          0,
+          "0132",
+          "E",
+          true,
+          0,
+          48,
+          "f8ac053d-e86f-4e93-9201-be243926e990"
+        ],
+        [
+          "LECHE DESCREMADA DESLACTOSADA",
+          5,
+          "img/leche_descremada_deslactosada.webp",
+          false,
+          1,
+          "unidades",
+          0,
+          "0131",
+          "E",
+          true,
+          0,
+          49,
+          "98912b1c-bc49-47b1-93f7-8381e3f9a869"
+        ],
+        [
+          "JUSTY DURAZNO 1.5L",
+          2,
+          "img/justy_durazno_1.5l.webp",
+          false,
+          1,
+          "unidades",
+          0,
+          "0130",
+          "E",
+          true,
+          0,
+          50,
+          "b7016b71-aac6-4ec7-bd36-1b0d6eda6261"
+        ],
+        [
+          "JUGO EL TUNAL 500ML",
+          1.6,
+          "img/jugo_el_tunal_500ml.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0129",
+          "E",
+          true,
+          -1,
+          51,
+          "ce7425a9-8850-4499-833c-86162d3ae5cb"
+        ],
+        [
+          "JUGO MANZANA EL TUNAL 1L",
+          1.6,
+          "img/jugo_manzana_el_tunal_1l.webp",
+          false,
+          1,
+          "unidades",
+          0,
+          "0128",
+          "E",
+          true,
+          0,
+          52,
+          "81918674-83b2-4abc-bae2-64721b866294"
+        ],
+        [
+          "TÉ EL TUNAL 1L",
+          3,
+          "img/te_el_tunal_1l.webp",
+          false,
+          1,
+          "unidades",
+          0,
+          "0192",
+          "E",
+          true,
+          0,
+          53,
+          "64cf3f59-8fdf-4aa3-9ecb-ddb7bd2992f0"
+        ],
+        [
+          "GATORADE NARANJA 500ML",
+          3,
+          "img/gatorade_naranja_500ml.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0117",
+          "E",
+          true,
+          -2,
+          54,
+          "fbb285ae-5fff-484c-850e-24d0a5040443"
+        ],
+        [
+          "ACEITE VATEL 1L",
+          5.5,
+          "img/aceite_1l.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0095",
+          "G",
+          true,
+          0,
+          55,
+          "f2c7e4c4-c241-4d44-8f36-d53a05340990"
+        ],
+        [
+          "ACEITE LA COMADRE 828ml",
+          3.9,
+          "img/aceite_la_comadre_828ml.webp",
+          false,
+          1,
+          "unidades",
+          0,
+          "0094",
+          "G",
+          true,
+          0,
+          56,
+          "51a1effa-4836-4c8a-a4ad-bb9eb03a9324"
+        ],
+        [
+          "ACEITE EL REY 1L",
+          3.6,
+          "img/aceite_el_rey_1l.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "",
+          "E",
+          true,
+          -1,
+          57,
+          "2359e298-50b4-421c-a5c1-8845f3eb1cd3"
+        ],
+        [
+          "ACEITE VATEL 500ML",
+          3.8,
+          "img/aceite_vatel_500ml.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "",
+          "E",
+          true,
+          0,
+          58,
+          "aa145ea1-b46f-45dc-a91e-79612aa0b8eb"
+        ],
+        [
+          "VINAGRE SOFIA 1LT",
+          2.2,
+          "img/vinagre_sofia_1lt.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "",
+          "E",
+          true,
+          0,
+          59,
+          "1ceb8a4a-5936-4e8c-8b02-ebe77aac1da3"
+        ],
+        [
+          "CARBON PARA PARRILLA BOLSA TRANSPARENTE",
+          4.5,
+          "img/carbon_para_parrilla_bolsa_transparente.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0106",
+          "G",
+          true,
+          -5,
+          60,
+          "84489a26-a525-4e24-af6e-487e20a45d9b"
+        ],
+        [
+          "CEREAL KELLOGG´S ZUCARITAS 250g",
+          4.4,
+          "img/cereal_kellogg´s_zucaritas_250g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0109",
+          "G",
+          true,
+          0,
+          61,
+          "04d76bac-05ee-44c2-940d-24d7216b5777"
+        ],
+        [
+          "CHOCO KRISPIS 200G",
+          3.9,
+          "img/choco_krispis_200g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "",
+          "E",
+          true,
+          0,
+          62,
+          "60cf7e86-705a-43ba-96bb-e690167cbf2d"
+        ],
+        [
+          "CEREAL MAIZORITOS CHOCO SAFARI 240Gr",
+          3.9,
+          "img/cereal_maizoritos_choco_safari_240gr.webp",
+          false,
+          1,
+          "unidades",
+          0,
+          "0110",
+          "G",
+          true,
+          0,
+          63,
+          "6d6a6031-7ee9-4b54-a873-95247a5f3592"
+        ],
+        [
+          "CEREAL MAIZORITOS FRUTI AROS 250g",
+          3.9,
+          "img/cereal_maizoritos_fruti_aros_250g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0111",
+          "G",
+          true,
+          0,
+          64,
+          "6b201709-9628-45f5-b8c9-51480349048f"
+        ],
+        [
+          "FIPS CHOCOLATE 220G",
+          4.8,
+          "img/fips_chocolate_220g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0107",
+          "G",
+          true,
+          0,
+          65,
+          "0ff51279-eb44-4bee-a5e5-0caa794a16df"
+        ],
+        [
+          "CORN FAKES KELLOGG´S 230G",
+          4.2,
+          "img/corn_fakes_kellogg´s_230g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0108",
+          "G",
+          true,
+          -1,
+          66,
+          "e1679952-4173-489b-9314-ae5d26ad4b16"
+        ],
+        [
+          "GALLETAS BELVITA HONY 9 UNIDADES",
+          3.9,
+          "img/galletas_belvita_hony_9_unidades.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0113",
+          "G",
+          true,
+          0,
+          67,
+          "9181a16c-a0e3-4a2f-9e72-479b3a042a37"
+        ],
+        [
+          "GALLETA MARIA 9PAKS",
+          2.5,
+          "img/galleta_maria_9paks.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "",
+          "E",
+          true,
+          0,
+          68,
+          "36397ed5-d50a-4615-9b70-67652db659a3"
+        ],
+        [
+          "GALLETAS BELVITA KRAKER 9 UNIDADES",
+          3.5,
+          "img/galletas_belvita_kraker_9_unidades.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0114",
+          "G",
+          true,
+          0,
+          69,
+          "9db4b6a0-1f37-40d5-a5e1-b4eed9f1e7c7"
+        ],
+        [
+          "GALLETAS CLUB SOCIAL 6 UNIDADES",
+          2.8,
+          "img/galletas_club_social_6_unidades.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0115",
+          "G",
+          true,
+          0,
+          70,
+          "562c2ad9-816e-4cdf-9e23-31b900b80da6"
+        ],
+        [
+          "GALLETAS SODA 10UDS",
+          2.2,
+          "img/galletas_soda_10uds.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0116",
+          "E",
+          true,
+          0,
+          71,
+          "f4167db0-9392-4f5c-a461-ec53300c3372"
+        ],
+        [
+          "GUT CALDO DE CARNE",
+          1.2,
+          "img/gut_caldo_de_carne.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0119",
+          "G",
+          true,
+          0,
+          72,
+          "e4576174-5786-49be-85f4-3584b09d3f78"
+        ],
+        [
+          "GUT CALDO DE POLLO",
+          1.2,
+          "img/gut_caldo_de_pollo.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0120",
+          "G",
+          true,
+          -4,
+          73,
+          "73abe6c1-93e8-4490-9afa-6e5dd8f158bd"
+        ],
+        [
+          "GUT SABROSEADOR",
+          1.2,
+          "img/gut_sabroseador.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0121",
+          "G",
+          true,
+          -1,
+          74,
+          "8c079355-7ea3-4291-8f77-821435b620a6"
+        ],
+        [
+          "GUT SALSA PARA PASTA",
+          1.2,
+          "img/gut_salsa_para_pasta.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0122",
+          "G",
+          true,
+          -1,
+          75,
+          "8afe0b73-4a64-421b-b42c-115c9bb57b8f"
+        ],
+        [
+          "GUT AJO, CEBOLLA Y PEREJIL",
+          1.2,
+          "img/gut_ajo,_cebolla_y_perejil.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0118",
+          "G",
+          true,
+          -8,
+          76,
+          "6bbc6d25-4e35-4c54-9c82-67507f10e677"
+        ],
+        [
+          "MARGARINA NELLY 250g",
+          1.9,
+          "img/margarina_nelly_250g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0138",
+          "G",
+          true,
+          -4,
+          77,
+          "51c840c8-ff1d-46e2-9e4e-9e8ed8e83201"
+        ],
+        [
+          "MARGARINA MAVESA 250G",
+          2.3,
+          "img/margarina_mavesa_250g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0136",
+          "E",
+          true,
+          0,
+          78,
+          "488ebb5a-b03e-482e-b90d-5446d686ded5"
+        ],
+        [
+          "MARGARINA NELLY 500G",
+          4.2,
+          "img/margarina_nelly_500g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0139",
+          "E",
+          true,
+          -1,
+          79,
+          "60086687-9f62-4002-b8c3-ce40c0297746"
+        ],
+        [
+          "MAVESA MARGARINA TODO USO 500g",
+          4.5,
+          "img/mavesa_margarina_todo_uso_500g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0137",
+          "G",
+          true,
+          -2,
+          80,
+          "d5713383-036b-4d5b-8b97-2356913d2da3"
+        ],
+        [
+          "CHEDDAR RIKESA 200G",
+          6.5,
+          "img/cheddar_rikesa_200g.webp",
+          false,
+          1,
+          "unidades",
+          0,
+          "0112",
+          "E",
+          true,
+          0,
+          81,
+          "ff11696a-9507-4926-af5d-d4c943d0bbde"
+        ],
+        [
+          "JAMON ENDIABLADO PLUNROSE 110G",
+          2.8,
+          "img/jamon_endiablado_plunrose_110g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0127",
+          "E",
+          true,
+          -1,
+          82,
+          "63dcd8a1-c97b-4470-8140-26d121aa7233"
+        ],
+        [
+          "MASA FACIL FROZEN 1kg",
+          3,
+          "img/masa_facil_frozen_1kg.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0140",
+          "G",
+          true,
+          -7,
+          83,
+          "abbf3fe9-6e0c-4a3a-9735-d85a504af34a"
+        ],
+        [
+          "MASA FACIL FROZEN 500g",
+          2,
+          "img/masa_facil_frozen_500g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0141",
+          "G",
+          true,
+          -9,
+          84,
+          "c21466ea-cbdd-4d3a-9657-813ab81409ae"
+        ],
+        [
+          "PAPEL ROSAL 4ROLLOS",
+          1.5,
+          "img/papel_higienico_rosal_plus_4_rollos.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0156",
+          "G",
+          true,
+          0,
+          85,
+          "8251abbb-919c-4632-9d84-f227f67ed0e8"
+        ],
+        [
+          "SAL BAHIA 1KG",
+          1.9,
+          "img/sal_bahia_1kg.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0182",
+          "E",
+          true,
+          -1,
+          86,
+          "9a3bb649-0dcf-4c12-81e6-6f5e5d52ec67"
+        ],
+        [
+          "PAN HOLSUM BLANCO 420G",
+          3.5,
+          "img/pan_holsum_blanco_420g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0151",
+          "E",
+          true,
+          0,
+          87,
+          "bc73ada3-5661-42c6-8fe8-1fa9b9e611a9"
+        ],
+        [
+          "PAN HOLSUM INTEGRAL 420G",
+          3.5,
+          "img/pan_holsum_integral_420g.webp",
+          false,
+          1,
+          "unidades",
+          0,
+          "0153",
+          "E",
+          true,
+          0,
+          88,
+          "ef89598d-fbcb-4a9c-adae-53416e5b15fc"
+        ],
+        [
+          "PAN HOLSUM MANTEQUILLA 420G",
+          3.5,
+          "img/pan_holsum_mantequilla_420g.webp",
+          false,
+          1,
+          "unidades",
+          0,
+          "0154",
+          "E",
+          true,
+          0,
+          89,
+          "2ad11582-39f0-4cc9-b857-1322710cea49"
+        ],
+        [
+          "PAN HOLSUM PERRO CALIENTE 420G",
+          3,
+          "img/pan_holsum_perro_caliente_420g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0155",
+          "E",
+          true,
+          0,
+          90,
+          "1c768ecb-b744-446f-9fc3-15d2fbe897fb"
+        ],
+        [
+          "PAN HOLSUM HAMBURGUESA 420G",
+          3,
+          "img/pan_holsum_hamburguesa_420g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0152",
+          "E",
+          true,
+          -1,
+          91,
+          "dcd4b644-220a-4246-9e72-b63e4e6129f7"
+        ],
+        [
+          "PAN BIMBO BLANCO 350G",
+          3.5,
+          "img/pan_bimbo_planco_350g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0149",
+          "E",
+          true,
+          -1,
+          92,
+          "5e0da779-f15c-474c-ab34-ce12e2208a73"
+        ],
+        [
+          "PAN BIMBO DIET 350G",
+          3.5,
+          "img/pan_bimbo_diet_350g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0150",
+          "E",
+          true,
+          0,
+          93,
+          "5141a626-9194-4fa8-b598-64ec561d2bbe"
+        ],
+        [
+          "RAPIDITAS BIMBO MANTEQUILLA",
+          3.5,
+          "img/rapiditas_bimbo_mantequilla.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0181",
+          "E",
+          true,
+          0,
+          94,
+          "a944055e-fe1d-4407-bc72-cc1f76f4a410"
+        ],
+        [
+          "RAPIDITAS BIMBO INTEGRAL",
+          3.5,
+          "img/rapiditas_bimbo_integral.webp",
+          false,
+          1,
+          "unidades",
+          0,
+          "0180",
+          "E",
+          true,
+          0,
+          95,
+          "2dc5beb5-f49b-4ec6-a04e-cba12c01d08a"
+        ],
+        [
+          "RAPIDITAS BIMBO CLÁSICA",
+          3.5,
+          "img/rapiditas_bimbo_clásica.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0179",
+          "E",
+          true,
+          -1,
+          96,
+          "8ca8f9bf-6e46-432e-a773-58ffca7385c2"
+        ],
+        [
+          "SOPA DE POLLO MAGGI 62G",
+          2.5,
+          "img/sopa_de_pollo_maggi_62g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0190",
+          "E",
+          true,
+          0,
+          97,
+          "71f4b63a-c139-420e-bb41-78206ee0d6a7"
+        ],
+        [
+          "ATUN MARGARITA 140G",
+          4.2,
+          "img/atun_margarita_140g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0100",
+          "E",
+          true,
+          0,
+          98,
+          "d9e77de8-2690-4943-a29e-d363441afbac"
+        ],
+        [
+          "SARDINA EN SALSA DE TOMATE MONARCA 170G",
+          1.8,
+          "img/sardina_en_salsa_de_tomate_monarca_170g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0189",
+          "E",
+          true,
+          0,
+          99,
+          "5f0d3748-4901-46f1-b74d-761062598ed8"
+        ],
+        [
+          "SARDINA EN ACEITE VEGETAL MONARCA 170G",
+          1.8,
+          "img/sardina_en_aceite_vegetal_monarca_170g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0187",
+          "E",
+          true,
+          0,
+          100,
+          "a55321b3-4f34-4fe5-abe8-11846d42965c"
+        ],
+        [
+          "MAIZ DULCE EN GRANOS 300G",
+          2,
+          "img/maiz_dulce_en_granos_300g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "",
+          "E",
+          true,
+          0,
+          101,
+          "e73ddef5-868c-470a-91eb-07afd8313f37"
+        ],
+        [
+          "MAIZINA AMERICANA 90G",
+          2.5,
+          "img/maizina_americana_90g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0135",
+          "E",
+          true,
+          0,
+          102,
+          "95946df1-1e4b-425c-8996-3b3957cdb1e4"
+        ],
+        [
+          "AVENA QUAKER 400G",
+          2.8,
+          "img/avena_quaker_400g.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0101",
+          "E",
+          true,
+          0,
+          103,
+          "4993014f-38a2-4eca-862b-de37a1bcac0a"
+        ],
+        [
+          "AZÚCAR KONFIT",
+          2.2,
+          "img/azúcar_konfit.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0102",
+          "E",
+          true,
+          -3,
+          104,
+          "c7f262d7-54f9-459c-a480-170c7c7a2c60"
+        ],
+        [
+          "LECHE EN POLVO DOÑA EVA",
+          9,
+          "img/leche_en_polvo_doña_eva.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0133",
+          "E",
+          true,
+          0,
+          105,
+          "684c3d42-6b31-4419-9658-fe26ba139fb9"
+        ],
+        [
+          "LECHE EN POLVO PURÍSIMA",
+          9,
+          "img/leche_en_polvo_purísima.webp",
+          true,
+          1,
+          "unidades",
+          0,
+          "0134",
+          "E",
+          true,
+          0,
           106,
-          null
+          "9591ed3f-5573-4eea-8cfd-e4d0f30c3234"
         ],
         [
           "LENTEJAS MI CHACHA 400G",
@@ -2856,7 +2856,21 @@
           true,
           0,
           107,
-          null
+          "ae7244cd-6ce7-42e0-bda8-066ebda61006"
+        ],
+        [
+          "CUBITOS MAGGI",
+          0.29,
+          "data:image/webp;base64,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",
+          true,
+          1,
+          "unidades",
+          0,
+          "",
+          "E",
+          true,
+          0,
+          999
         ]
       ]
     }
