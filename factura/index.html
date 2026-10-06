@@ -239,22 +239,19 @@
         <div class="row g-3">
           <!-- Columna Izquierda: Catálogo Organizado por Categorías -->
           <div class="col-lg-8 col-xl-9">
-            <!-- BARRA DE BÚSQUEDA TÁCTIL EN VIVO (INTEGRADA Y ARMONIZADA) -->
-            <div class="barra-busqueda-pos-touch">
-              <div class="input-group">
-                <span class="input-group-text border-0 text-muted ps-2">
-                  <span>🔍</span>
-                </span>
-                <input type="text" id="inputBuscarCatalogoPOS" class="form-control border-0 fw-bold py-1" placeholder="Buscar producto... (Toque aquí o presione F2)" autocomplete="off" oninput="filtrarCatalogoPOSTouch(this.value)" onkeydown="if(event.key==='Escape') limpiarBuscadorCatalogoPOSTouch()">
-                <button type="button" class="btn btn-light border-0 px-2 text-muted fw-bold btn-limpiar-busqueda-pos hidden" id="btnLimpiarBuscarCatalogoPOS" onclick="limpiarBuscadorCatalogoPOSTouch()" title="Limpiar búsqueda">
-                  ✕
-                </button>
+            <!-- Barra Superior Unificada: Buscador Ovalado + Pestañas de Categoría en una sola fila -->
+            <div class="contenedor-catalogo-nav-unificado d-flex align-items-center mb-2 gap-2">
+              <div class="buscador-pildora-pos">
+                <span class="icono-lupa-pildora">🔍</span>
+                <input type="text" id="inputBuscarCatalogoPOS" class="input-pildora-busqueda" placeholder="Buscar... (F2)" autocomplete="off" oninput="filtrarCatalogoPOSTouch(this.value)" onkeydown="if(event.key==='Escape') limpiarBuscadorCatalogoPOSTouch()">
+                <button type="button" class="btn-limpiar-pildora hidden" id="btnLimpiarBuscarCatalogoPOS" onclick="limpiarBuscadorCatalogoPOSTouch()" title="Limpiar búsqueda">✕</button>
               </div>
+
+              <ul class="nav nav-tabs flex-grow-1 mb-0" id="facturaTabs" role="tablist">
+                <!-- Renderizado Dinámico desde catalog.json -->
+              </ul>
             </div>
 
-            <ul class="nav nav-tabs" id="facturaTabs" role="tablist">
-              <!-- Renderizado Dinámico desde catalog.json -->
-            </ul>
             <div class="tab-content" id="facturaTabContent">
               <!-- Renderizado Dinámico de Productos -->
             </div>
