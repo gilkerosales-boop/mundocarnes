@@ -419,7 +419,7 @@
           <div class="modal-body p-4">
             <div class="mb-3">
               <label for="manualNombre" class="form-label fw-bold small">Nombre / Descripción del Producto *:</label>
-              <input type="text" id="manualNombre" class="form-control text-uppercase fw-bold" placeholder="Ej: HIELO 5KG / REFRESCO 2L">
+              <input type="text" id="manualNombre" class="form-control text-uppercase fw-bold">
             </div>
             
             <div class="row g-2 mb-3">
@@ -1054,7 +1054,7 @@
             <!-- Concepto Manual -->
             <div class="mb-3" id="contMovConceptoManual">
               <label for="movConceptoInput" class="form-label fw-bold small">Concepto / Motivo de Movimiento *:</label>
-              <input type="text" id="movConceptoInput" class="form-control text-uppercase fw-bold" placeholder="Ej: CAMBIO SENCILLO, GASTO OPERATIVO...">
+              <input type="text" id="movConceptoInput" class="form-control text-uppercase fw-bold">
             </div>
 
             <!-- Vale de Caja Extendido -->
@@ -1064,17 +1064,17 @@
               <div class="row g-2 mb-2">
                 <div class="col-md-7">
                   <label for="valeEmpleadoNombre" class="form-label fw-bold small mb-1">Nombre y Apellido del Empleado *:</label>
-                  <input type="text" id="valeEmpleadoNombre" class="form-control form-control-sm text-uppercase fw-bold" placeholder="Ej: JUAN PÉREZ">
+                  <input type="text" id="valeEmpleadoNombre" class="form-control form-control-sm text-uppercase fw-bold">
                 </div>
                 <div class="col-md-5">
                   <label for="valeEmpleadoCedula" class="form-label fw-bold small mb-1">Número de Cédula *:</label>
-                  <input type="text" id="valeEmpleadoCedula" class="form-control form-control-sm text-uppercase fw-bold num-legible" placeholder="Ej: V12345678">
+                  <input type="text" id="valeEmpleadoCedula" class="form-control form-control-sm text-uppercase fw-bold num-legible">
                 </div>
               </div>
 
               <div class="mb-2">
                 <label for="valeMotivo" class="form-label fw-bold small mb-1">Motivo del Vale *:</label>
-                <input type="text" id="valeMotivo" class="form-control form-control-sm text-uppercase fw-bold" placeholder="Ej: ADELANTO DE SUELDO QUINCENAL">
+                <input type="text" id="valeMotivo" class="form-control form-control-sm text-uppercase fw-bold">
               </div>
 
               <div class="row g-2 mb-2">
@@ -1088,7 +1088,7 @@
                 </div>
                 <div class="col-md-6">
                   <label for="valeAutorizadoPor" class="form-label fw-bold small mb-1">Autorizado por *:</label>
-                  <input type="text" id="valeAutorizadoPor" class="form-control form-control-sm text-uppercase fw-bold" placeholder="Ej: GERENCIA">
+                  <input type="text" id="valeAutorizadoPor" class="form-control form-control-sm text-uppercase fw-bold">
                 </div>
               </div>
             </div>
@@ -1355,15 +1355,15 @@
               <div class="row g-2 mb-2">
                 <div class="col-md-3">
                   <label for="entradaProveedorInput" class="form-label small fw-bold mb-1">Proveedor / Matadero *:</label>
-                  <input type="text" id="entradaProveedorInput" class="form-control form-control-sm fw-bold text-uppercase" placeholder="Ej: MATADERO INDUSTRIAL..." required>
+                  <input type="text" id="entradaProveedorInput" class="form-control form-control-sm fw-bold text-uppercase" required>
                 </div>
                 <div class="col-md-3">
                   <label for="entradaNroGuiaInput" class="form-label small fw-bold mb-1">N.° Guía / Factura *:</label>
-                  <input type="text" id="entradaNroGuiaInput" class="form-control form-control-sm fw-bold text-uppercase num-legible" placeholder="Ej: GUIA-00845 / FAC-102" required>
+                  <input type="text" id="entradaNroGuiaInput" class="form-control form-control-sm fw-bold text-uppercase num-legible" required>
                 </div>
                 <div class="col-md-2 hidden" id="contColPesoFacturaProveedor">
                   <label for="entradaPesoFacturaProveedorInput" class="form-label small fw-bold mb-1 text-primary">Peso Factura (Kg) *:</label>
-                  <input type="number" step="0.01" min="0.01" id="entradaPesoFacturaProveedorInput" class="form-control form-control-sm fw-bold text-primary text-center fs-6 num-legible" placeholder="Ej: 560.00" oninput="reconciliarPesajesCanalFactura()">
+                  <input type="number" step="0.01" min="0.01" id="entradaPesoFacturaProveedorInput" class="form-control form-control-sm fw-bold text-primary text-center fs-6 num-legible" oninput="reconciliarPesajesCanalFactura()">
                 </div>
                 <div class="col-md-2">
                   <label for="entradaMontoTotalFacturaInput" class="form-label small fw-bold mb-1" id="lblMontoFacturaRecepcion">Costo Total ($) *:</label>
@@ -1510,7 +1510,7 @@
                       <label for="inputPesoPiezaCanal" class="form-label small fw-bold mb-1 text-dark">Pesar Pieza en Gancho (Kg):</label>
                       <div class="input-group input-group-sm">
                         <span class="input-group-text fw-bold bg-white">⚖️</span>
-                        <input type="number" step="0.01" min="0.01" id="inputPesoPiezaCanal" class="form-control fw-bold text-center fs-5 text-primary num-legible" placeholder="Ej: 140.50" onkeyup="if(event.key==='Enter') agregarPiezaPesadaCanal()">
+                        <input type="number" step="0.01" min="0.01" id="inputPesoPiezaCanal" class="form-control fw-bold text-center fs-5 text-primary num-legible" onkeyup="if(event.key==='Enter') agregarPiezaPesadaCanal()">
                         <button type="button" class="btn btn-primary fw-bold px-3" onclick="agregarPiezaPesadaCanal()">➕ Pesar</button>
                       </div>
                     </div>
@@ -1563,7 +1563,7 @@
 
                   <div class="col-md-4">
                     <label for="desposteCostoKiloCanalInput" class="form-label small fw-bold mb-1">Costo por Kg Canal ($/Kg):</label>
-                    <input type="number" step="0.01" min="0.01" id="desposteCostoKiloCanalInput" class="form-control form-control-sm fw-bold text-center fs-6 text-dark num-legible" placeholder="Ej: 3.80" oninput="calcularCostoTotalDesdeKiloCanal()">
+                    <input type="number" step="0.01" min="0.01" id="desposteCostoKiloCanalInput" class="form-control form-control-sm fw-bold text-center fs-6 text-dark num-legible" oninput="calcularCostoTotalDesdeKiloCanal()">
                   </div>
                 </div>
 
@@ -3581,6 +3581,6 @@
   <!-- Driver Fiscal Universal The Factory HKA (HKA80 / Aclas PP9 Plus) -->
     <script src="fiscalDriver.js?v=1.3.0"></script>
     <!-- Lógica POS Completa -->
-    <script src="script.js?v=1.0.2.0"></script>
+    <script src="script.js?v=1.0.3.0"></script>
   </body>
 </html>
