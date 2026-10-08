@@ -3997,13 +3997,31 @@ function calcularVueltoEfectivo() {
 }
 window.calcularVueltoEfectivo = calcularVueltoEfectivo;
 
-function actualizarPrefijoFilaMixta(selectElem) {
-  const fila = selectElem.closest('.fila-pago-mixto');
+// Mapa oficial de imágenes para métodos de pago
+const METODOS_IMAGENES_MAP = {
+  "Efectivo Bolívares": "../img/BOLIVARES.png",
+  "Efectivo Divisas": "../img/DOLARES.png",
+  "Pago Móvil": "../img/PAGO%20MOVIL.png",
+  "Zelle": "../img/ZELLE.png",
+  "PayPal": "../img/PAYPAL.png",
+  "Punto de Venta": "../img/PUNTO%20DE%20VENTA.png",
+  "Biopago": "../img/BIOPAGO.png",
+  "Cashea": "../img/CASHEA.png",
+  "Crédito": "../img/CREDITO.png",
+  "Transferencia Bancaria": "../img/PAGOS%20MIXTOS.png",
+  "Pago Mixto": "../img/PAGOS%20MIXTOS.png"
+};
+
+function obtenerImagenMetodoPago(metodo) {
+  return METODOS_IMAGENES_MAP[metodo] || "../img/PAGOS%20MIXTOS.png";
+}
+window.obtenerImagenMetodoPago = obtenerImagenMetodoPago;
+
+function actualizarPrefijoFilaMixta(fila, metodo) {
   if (!fila) return;
   const prefijoSpan = fila.querySelector('.simbolo-moneda-mixto');
   if (!prefijoSpan) return;
 
-  const metodo = selectElem.value;
   if (METODOS_BS.includes(metodo)) {
     prefijoSpan.textContent = "Bs";
     prefijoSpan.className = "input-group-text simbolo-moneda-mixto bg-warning text-dark fw-bold";
@@ -4013,6 +4031,59 @@ function actualizarPrefijoFilaMixta(selectElem) {
   }
 }
 
+function seleccionarOpcionMetodoMixto(elemItem, metodo) {
+  const fila = elemItem.closest('.fila-pago-mixto');
+  if (!fila) return;
+
+  const hiddenInput = fila.querySelector('.select-metodo-mixto');
+  const btnTrigger = fila.querySelector('.btn-trigger-metodo-mixto');
+  const imgTrigger = fila.querySelector('.img-metodo-mixto-thumb');
+  const labelTrigger = fila.querySelector('.label-metodo-mixto-txt');
+
+  if (hiddenInput) hiddenInput.value = metodo;
+  if (imgTrigger) {
+    imgTrigger.src = obtenerImagenMetodoPago(metodo);
+    imgTrigger.alt = metodo;
+    imgTrigger.classList.remove('hidden');
+  }
+  if (labelTrigger) {
+    labelTrigger.textContent = metodo;
+    labelTrigger.classList.remove('text-muted');
+  }
+
+  actualizarPrefijoFilaMixta(fila, metodo);
+  calcularTotalPagoMixto();
+}
+window.seleccionarOpcionMetodoMixto = seleccionarOpcionMetodoMixto;
+
+function generarHtmlMenuMetodosMixto(metodoActivo = "") {
+  const metodosDisponibles = [
+    "Efectivo Divisas",
+    "Efectivo Bolívares",
+    "Pago Móvil",
+    "Zelle",
+    "PayPal",
+    "Punto de Venta",
+    "Biopago",
+    "Cashea",
+    "Crédito",
+    "Transferencia Bancaria"
+  ];
+
+  return metodosDisponibles.map(m => {
+    const imgUrl = obtenerImagenMetodoPago(m);
+    const activoClass = (m === metodoActivo) ? "active bg-light text-primary" : "";
+    return `
+      <li>
+        <button type="button" class="dropdown-item d-flex align-items-center gap-2 py-2 ${activoClass}" onclick="seleccionarOpcionMetodoMixto(this, '${m}')">
+          <img src="${imgUrl}" alt="${m}" style="width: 24px; height: 24px; object-fit: contain; flex-shrink: 0;">
+          <span class="fw-bold" style="font-size: 0.82rem;">${m}</span>
+        </button>
+      </li>
+    `;
+  }).join('');
+}
+
 function agregarLineaPagoMixtoFija(metodoPredeterminado, esEliminable = true) {
   const lista = document.getElementById('listaFilasPagoMixto');
   if (!lista) return;
@@ -4020,30 +4091,23 @@ function agregarLineaPagoMixtoFija(metodoPredeterminado, esEliminable = true) {
   const divFila = document.createElement('div');
   divFila.className = 'row g-2 mb-2 align-items-center fila-pago-mixto';
 
-  const opciones = [
-    "Cashea", "Crédito", "Efectivo Divisas", "Efectivo Bolívares", "Pago Móvil", 
-    "Zelle", "PayPal", "Punto de Venta", "Transferencia Bancaria", "Biopago"
-  ];
-
-  let selectOptions = opciones.map(opt => {
-    let sel = (opt.toLowerCase() === metodoPredeterminado.toLowerCase()) ? 'selected' : '';
-    return `<option value="${opt}" ${sel}>${opt}</option>`;
-  }).join('');
-
-  let disabledAttr = !esEliminable ? 'disabled' : '';
   let botonAccion = esEliminable 
     ? `<button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 border-0 fw-bold" onclick="eliminarLineaPagoMixto(this)">✕</button>`
-    : `<button type="button" class="btn btn-sm btn-light py-0 px-2 border-0 fw-bold text-muted" disabled>🔒</button>`;
+    : `<button type="button" class="btn btn-sm btn-light py-0 px-2 border-0 fw-bold text-muted" disabled title="Método Fijo">🔒</button>`;
 
   let esBs = METODOS_BS.includes(metodoPredeterminado);
   let prefijoTxt = esBs ? "Bs" : "$";
   let prefijoClass = esBs ? "bg-warning text-dark fw-bold" : "bg-light text-dark fw-bold";
+  let imgUrl = obtenerImagenMetodoPago(metodoPredeterminado);
 
   divFila.innerHTML = `
     <div class="col-6">
-      <select class="form-select form-select-sm select-metodo-mixto" onchange="actualizarPrefijoFilaMixta(this); calcularTotalPagoMixto();" ${disabledAttr}>
-        ${selectOptions}
-      </select>
+      <input type="hidden" class="select-metodo-mixto" value="${metodoPredeterminado}">
+      <div class="p-1 px-2 border rounded-3 bg-light d-flex align-items-center gap-2" style="height: 38px;">
+        <img src="${imgUrl}" alt="${metodoPredeterminado}" style="width: 24px; height: 24px; object-fit: contain; flex-shrink: 0;">
+        <span class="fw-bold text-dark text-truncate" style="font-size: 0.85rem;">${metodoPredeterminado}</span>
+        <span class="badge bg-secondary ms-auto small" style="font-size: 0.65rem;">Fijo</span>
+      </div>
     </div>
     <div class="col-4">
       <div class="input-group input-group-sm">
@@ -4066,21 +4130,22 @@ function agregarLineaPagoMixto() {
   const divFila = document.createElement('div');
   divFila.className = 'row g-2 mb-2 align-items-center fila-pago-mixto';
 
+  const menuHtml = generarHtmlMenuMetodosMixto("");
+
   divFila.innerHTML = `
     <div class="col-6">
-      <select class="form-select form-select-sm select-metodo-mixto" onchange="actualizarPrefijoFilaMixta(this); calcularTotalPagoMixto();">
-        <option value="" disabled selected>-- Método --</option>
-        <option value="Efectivo Divisas">Efectivo Divisas</option>
-        <option value="Efectivo Bolívares">Efectivo Bolívares</option>
-        <option value="Pago Móvil">Pago Móvil</option>
-        <option value="Zelle">Zelle</option>
-        <option value="PayPal">PayPal</option>
-        <option value="Cashea">Cashea</option>
-        <option value="Crédito">Crédito</option>
-        <option value="Punto de Venta">Punto de Venta</option>
-        <option value="Transferencia Bancaria">Transferencia Bancaria</option>
-        <option value="Biopago">Biopago</option>
-      </select>
+      <input type="hidden" class="select-metodo-mixto" value="">
+      <div class="dropdown w-100">
+        <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-between p-1 px-2 dropdown-toggle btn-trigger-metodo-mixto" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="height: 38px; border-radius: 8px; background-color: #ffffff;">
+          <div class="d-flex align-items-center gap-2 text-truncate">
+            <img src="../img/PAGOS%20MIXTOS.png" alt="Icono" class="img-metodo-mixto-thumb hidden" style="width: 24px; height: 24px; object-fit: contain; flex-shrink: 0;">
+            <span class="fw-bold text-muted label-metodo-mixto-txt text-truncate" style="font-size: 0.82rem;">-- Seleccione Método --</span>
+          </div>
+        </button>
+        <ul class="dropdown-menu shadow border-0 p-1 w-100" style="max-height: 240px; overflow-y: auto; border-radius: 10px;">
+          ${menuHtml}
+        </ul>
+      </div>
     </div>
     <div class="col-4">
       <div class="input-group input-group-sm">
