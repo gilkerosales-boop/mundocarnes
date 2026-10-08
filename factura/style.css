@@ -1027,55 +1027,173 @@ input#inputBuscarCatalogoPOS.input-pildora-busqueda:focus {
   font-size: 1rem;
 }
 
-/* Lista central scrolleable con altura dinámica */
+/* ==========================================================================
+   ÁREA DE CARGA DE PRODUCTOS (CANASTA DIGITAL CON CONTRASTE MODERNO)
+   ========================================================================== */
 #contenedorListaFactura {
   flex: 1 1 auto;
-  min-height: 120px;
+  min-height: 130px;
   max-height: none !important;
   overflow-y: auto;
   overflow-x: hidden;
-  background: #ffffff;
+  background: #f8fafc;
   border-radius: var(--pos-radius-md);
-  border: 1px solid var(--pos-card-border);
-  padding: 6px;
+  border: 1.5px solid #cbd5e1;
+  box-shadow: inset 0 2px 6px rgba(15, 23, 42, 0.05);
+  padding: 8px;
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: #94a3b8 transparent;
 }
 
 #contenedorListaFactura::-webkit-scrollbar {
-  width: 5px;
+  width: 6px;
+}
+
+#contenedorListaFactura::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 #contenedorListaFactura::-webkit-scrollbar-thumb {
   background-color: #cbd5e1;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
-/* Bloque inferior fijo de liquidación de venta */
+#contenedorListaFactura::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* Filas de la tabla de productos seleccionados */
+#contenedorListaFactura table {
+  margin-bottom: 0 !important;
+  border-collapse: separate;
+  border-spacing: 0 4px;
+}
+
+#contenedorListaFactura table tbody tr {
+  background-color: #ffffff;
+  border-radius: var(--pos-radius-sm);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+}
+
+#contenedorListaFactura table tbody tr:hover {
+  background-color: #f1f5f9;
+  transform: translateX(2px);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
+#contenedorListaFactura table td {
+  padding: 7px 8px !important;
+  border: none !important;
+  font-size: 0.83rem !important;
+}
+
+#contenedorListaFactura table td:first-child {
+  border-top-left-radius: var(--pos-radius-sm);
+  border-bottom-left-radius: var(--pos-radius-sm);
+  font-weight: 700;
+  color: var(--pos-dark);
+}
+
+#contenedorListaFactura table td:last-child {
+  border-top-right-radius: var(--pos-radius-sm);
+  border-bottom-right-radius: var(--pos-radius-sm);
+}
+
+#contenedorListaFactura .btn-outline-danger {
+  width: 22px;
+  height: 22px;
+  border-radius: 50% !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem !important;
+  color: #94a3b8;
+  background-color: #f1f5f9;
+  border: none !important;
+  transition: all 0.15s ease;
+}
+
+#contenedorListaFactura .btn-outline-danger:hover {
+  background-color: #fee2e2 !important;
+  color: var(--pos-red) !important;
+  transform: scale(1.15);
+}
+
+/* ==========================================================================
+   DISPLAY HERO DE TOTAL A COBRAR (PANTALLA DIGITAL DE ALTO CONTRASTE)
+   ========================================================================== */
 .panel-factura-resumen .panel-factura-footer {
   flex: 0 0 auto;
   padding-top: 10px;
 }
 
 .caja-totales-pos {
-  background: #ffffff;
-  border: 1.5px solid var(--pos-card-border);
-  border-radius: var(--pos-radius-md);
-  padding: 8px 12px;
-  margin-bottom: 8px;
+  background: linear-gradient(145deg, #070d19 0%, #152238 100%) !important;
+  border: 1.5px solid rgba(56, 189, 248, 0.35) !important;
+  border-radius: var(--pos-radius-md) !important;
+  padding: 12px 16px !important;
+  margin-bottom: 10px !important;
+  box-shadow: 0 8px 24px rgba(7, 13, 25, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+  position: relative;
+  overflow: hidden;
 }
 
+/* Resplandor decorativo de esquina */
+.caja-totales-pos::after {
+  content: "";
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  width: 80px;
+  height: 80px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.25) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Etiqueta superior del Display */
+#labelTotalACobrarPOS {
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+  color: #94a3b8 !important;
+  letter-spacing: 1px !important;
+  text-transform: uppercase !important;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 2px !important;
+}
+
+#labelTotalACobrarPOS::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background-color: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 6px #10b981;
+}
+
+/* Monto principal en Divisas ($) - Verde Esmeralda Neón de Alto Impacto */
 .monto-total-usd {
-  font-size: 1.55rem;
-  font-weight: 800;
-  color: var(--pos-red);
-  line-height: 1;
+  font-size: 2.15rem !important;
+  font-weight: 800 !important;
+  color: #34d399 !important;
+  line-height: 1.05 !important;
+  text-shadow: 0 0 16px rgba(52, 211, 153, 0.35) !important;
+  letter-spacing: 0.5px !important;
+  margin-bottom: 2px !important;
 }
 
+/* Monto equivalente en Bolívares (Bs) - Cian Luminoso Nítido */
 .monto-total-bs-sub {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #475569;
+  font-size: 1.18rem !important;
+  font-weight: 700 !important;
+  color: #38bdf8 !important;
+  line-height: 1.15 !important;
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.3) !important;
+  letter-spacing: 0.3px !important;
 }
 
 .btn-facturar-hero {
