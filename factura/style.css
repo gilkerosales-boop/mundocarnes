@@ -1447,6 +1447,52 @@ input#inputBuscarCatalogoPOS.input-pildora-busqueda:focus {
   color: var(--pos-green-dark) !important;
 }
 
+/* ==========================================================================
+   SELECTORES VISUALES CON MINIATURAS (CASHEA Y PAGOS MIXTOS)
+   ========================================================================== */
+.btn-trigger-metodo-mixto {
+  border: 1.5px solid var(--pos-card-border) !important;
+  background-color: #ffffff !important;
+  color: var(--pos-dark) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.btn-trigger-metodo-mixto:hover,
+.btn-trigger-metodo-mixto:focus {
+  border-color: var(--pos-blue) !important;
+  background-color: #f8fafc !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+}
+
+.btn-trigger-metodo-mixto::after {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.img-metodo-mixto-thumb {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
+}
+
+.dropdown-menu .dropdown-item {
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.dropdown-menu .dropdown-item:hover {
+  background-color: #f1f5f9;
+  color: var(--pos-blue);
+  transform: translateX(2px);
+}
+
+.dropdown-menu .dropdown-item img {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.12));
+}
+
 /* Panel de Cobro en Efectivo y Botones de Billetes Rápidos */
 #contenedorCalculoEfectivo {
   border: 1.5px solid #94a3b8 !important;
