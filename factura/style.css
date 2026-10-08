@@ -1198,10 +1198,66 @@ input#inputBuscarCatalogoPOS.input-pildora-busqueda:focus {
   }
 }
 
-/* Desplazamiento inteligente de Toasts para no tapar el Navbar */
+/* ==========================================================================
+   NOTIFICACIONES HUD FLOTANTES MODERNAS (BOTTOM-CENTER NO INVASIVO)
+   ========================================================================== */
 .toast-container {
-  top: 65px !important;
-  z-index: 2000 !important;
+  top: auto !important;
+  bottom: 22px !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  z-index: 3000 !important;
+  padding: 0 !important;
+  pointer-events: none;
+}
+
+#toastFactura {
+  background: rgba(15, 23, 42, 0.94) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  color: #f8fafc !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: var(--pos-radius-pill) !important;
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.45), 0 0 15px rgba(16, 185, 129, 0.15) !important;
+  padding: 6px 18px !important;
+  max-width: 90vw !important;
+  width: auto !important;
+  pointer-events: auto;
+  animation: hudSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes hudSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+#toastFactura .toast-body {
+  padding: 4px 8px !important;
+  font-size: 0.82rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.2px;
+  color: #f1f5f9 !important;
+  text-align: center;
+  white-space: pre-line;
+  line-height: 1.35;
+}
+
+#toastFactura .btn-close {
+  filter: invert(1) grayscale(100%) brightness(200%);
+  opacity: 0.75;
+  margin-left: 10px !important;
+  transform: scale(0.8);
+}
+
+#toastFactura .btn-close:hover {
+  opacity: 1;
 }
 
 /* ==========================================================================
